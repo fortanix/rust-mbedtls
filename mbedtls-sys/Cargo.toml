@@ -1,0 +1,37 @@
+[package]
+name = "mbedtls-sys-auto"
+version = "2.4.0"
+authors = ["Jethro Beekman <jethro@jbeekman.nl>"]
+build = "build/build.rs"
+license = "Apache-2.0/GPL-2.0+"
+description = """
+Rust bindings for mbedTLS.
+
+This version generates the correct bindings at compile time using bindgen."""
+readme = "../README.md"
+repository = "https://github.com/jethrogb/rust-mbedtls"
+documentation = "https://docs.rs/mbedtls-sys-auto/"
+
+[lib]
+name = "mbedtls_sys"
+
+[dependencies]
+libc = { version = "0.2.0", optional = true }
+libz-sys = { version = "1.0.0", optional = true }
+
+[build-dependencies]
+bindgen = "0.19.0"
+cmake = "0.1.17"
+
+[features]
+default = ["std", "zlib", "time", "pthread"]
+std = []
+custom_printf = []
+custom_has_support = []
+custom_threading = ["threading"]
+pthread = ["libc","threading"]
+threading = []
+time = ["libc"]
+havege = ["time"]
+zlib = ["libz-sys"]
+pkcs11 = []

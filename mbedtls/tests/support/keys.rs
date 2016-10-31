@@ -1,0 +1,61 @@
+/*
+ * Rust interface for mbedTLS
+ *
+ * (C) Copyright 2016 Jethro G. Beekman
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ */
+
+#![allow(dead_code)]
+
+pub const PEM_KEY: &'static [u8]=b"-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDFjAgmCJUmKAQ/
+OAg0MBh3E2+l5asSHdBNmTm0gr3vmnmFcUqlIpUG3BGd85o0c9X5qnxBKJafTJLu
+2xRqjx1TMlBdtVpP0CXy5qPYwvO8UWIGyrsniy8GfpDjXGkUFbm91Cw1c/lCD7R1
+6lLHK+7Npq9oxpk3KfMHivQorFd31byo0VxZv/sFYViCbDtOYmMifQX/qkqsbvkx
+SuPklzpxAxF824mtKMRimwGQbZ4tbLlAFNugO02eV0Hq8xHxfbmNrblSqIy68/Ud
+jg4Y9feFi8NVfYg/rsFjuL+Fv/3dLBBhaMffyV9J0eULXgVw5ZXNaQgKb6sSBQqi
+U3LftHDTAgMBAAECggEBAKzBKN8Z4lTb6drfRU1eQgbgGGMb1d6h8+fod25EZ5WB
+oYPw7zY6Z9j32vAmeFQmeJk9XiwdMptce6ImNFR7k0mOVnmcfr4NaSJiUCbfVgb5
+pKAL6l9KeHVVeZ9a0Qmfdi9rvL2CDhiXY1k68ej7onp1qjAWfSagqMeP3LU1Acjo
+tYnt42QNa/x4spOCx9EoMuKrEiBNYoll7lW6iuIqTO9Oodkh7ZHVEYNe3y4RHIpj
+QmMxVrjt9Pe26cesNajkM2OWMxZW8MEeyL7DqUenxNluRrMG2lP5ZtEBuDFRTWEL
+xrh89UQcFN0MZPL+HmMunS+ztu0vOh2UQw8zORSw+AECgYEA/DNK/kTJeRC0N4xh
+ErcwTUBx2vtYdD/lWo4dRBanw218mXnzu25l8CjOQm0OircELy/UG0eBGCGXaxhh
+H274KQqgM7ibSJHTP2J17wfbS3PxIgF75uf7UNP0M2yX/t2bjgfCsaqNckHBIrxN
+Ym/FWUN884zrgapaYtiPzjTUF3MCgYEAyIXyguElCI7iYIN0qreSHvt+2qKyKhVO
+6NdPf19ZvhT7vk03P6YXt/VCg+eNDeh5EBwHUWG2JQYznIK2jRLFwoFLdIlIjapq
+kG9s2NWQ99HpY0mnhTUFptTEpiuyFDbEyhXhWBja5zOn1ZuqW/V9bgCglGoxOckV
+2vGv4YX0KSECgYEA0YUTcnZXItr7vYJESzYhTKyTaieR7tH+iuKx8ZUYvsTA1Qh5
+smcfDQv5fzn28MrnEQSdJCSdXRzbHL/eQC0CwaXwPcfKSdnMNEZqT7CpQOALngK5
+mrVzFk1f/TDkfXpB9xb/anaUmC2EdIUXjQXqYCQvNG8IYGrUOHZN0jQVV30CgYAV
+HW209GpG5WzXBuChHWVol8j60sj5/3ZotEttuSelCWac2lqn/CBhQZU4eIh033bo
+CFuI6UYZzfZfU7BPWJu0aJL+eXpHWJuSC/mlN4/lWJg/2UCnmTa4I411hgJheIbu
+VLF+6lcao2jX6GVe+5GypKREHI6EbDU98dc4YzeboQKBgF/R6wCxhVt9kqSLYeGq
+nGQmHqj2/0m7M9O/QS5a4L/3Oyu5YyNuPR6OBMdjivOdz4RwUi6+o9IEepzmN1cV
+okcspBUohwqnqHwvdiQjB+RygIpmnXhchXxRok3wc745S1NBCbAL5V3sa6/61/1C
+YLT4mPYORlR4AgzvpNOJiI3T
+-----END PRIVATE KEY-----\0";
+
+pub const PEM_CERT: &'static [u8]=b"-----BEGIN CERTIFICATE-----
+MIIDBzCCAe+gAwIBAgIJAPSt7jywaaaUMA0GCSqGSIb3DQEBCwUAMBoxGDAWBgNV
+BAMMD21iZWR0bHMuZXhhbXBsZTAeFw0xNjA3MTcwMDI4MDBaFw0xNjA4MTYwMDI4
+MDBaMBoxGDAWBgNVBAMMD21iZWR0bHMuZXhhbXBsZTCCASIwDQYJKoZIhvcNAQEB
+BQADggEPADCCAQoCggEBAMWMCCYIlSYoBD84CDQwGHcTb6XlqxId0E2ZObSCve+a
+eYVxSqUilQbcEZ3zmjRz1fmqfEEolp9Mku7bFGqPHVMyUF21Wk/QJfLmo9jC87xR
+YgbKuyeLLwZ+kONcaRQVub3ULDVz+UIPtHXqUscr7s2mr2jGmTcp8weK9CisV3fV
+vKjRXFm/+wVhWIJsO05iYyJ9Bf+qSqxu+TFK4+SXOnEDEXzbia0oxGKbAZBtni1s
+uUAU26A7TZ5XQerzEfF9uY2tuVKojLrz9R2ODhj194WLw1V9iD+uwWO4v4W//d0s
+EGFox9/JX0nR5QteBXDllc1pCApvqxIFCqJTct+0cNMCAwEAAaNQME4wHQYDVR0O
+BBYEFG5EvLWga4UA6u7dfahX0c4vKvOpMB8GA1UdIwQYMBaAFG5EvLWga4UA6u7d
+fahX0c4vKvOpMAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBAJdEPHa5
+ZEbCPg5PZR6eR4Q18Kirc0AdxHxLj+mQ82peVApJQaJV/DsgychtyjkOtQtjKrwR
+vQ8WJmuRss5Zz5j/1FZ63jv7trfDHYLoSj8txN/a97moxuGyDCHFhL0JkKrfvlGc
+FKabmRzfobT4X6fG3VU4V8RUnds+csbexebv1KcIXP+b5CK+IxbPKBbyx8gExKfe
+ZmCb/71RMkoSc/VJjiVE/ga7TTyZRafPRpo3HdoQjfaLqiauepxDlOTBuNV7/rkF
+/if9bp/95p9r6zHZptA8FR3G8AE/51YKYXXAYvYVWZMmv7C/HohsxuUFiwsWL8wj
+DkE8WwauXJbQcvE=
+-----END CERTIFICATE-----\0";
