@@ -20,15 +20,15 @@ impl super::BuildConfig {
 		cmk
 			.cflag(format!(r#"-DMBEDTLS_CONFIG_FILE="<{}>""#,self.config_h.to_str().expect("config.h UTF-8 error")))
 			.define("ENABLE_PROGRAMS","OFF")
-			.define("ENABLE_TESTING","OFF")
-			.build_target("lib");
+			.define("ENABLE_TESTING","OFF");
 		if !have_feature("std") {
 	        println!("cargo:rustc-link-lib=gcc");
 			cmk.cflag("-fno-builtin");
 			cmk.cflag("-fno-stack-protector");
 			cmk.cflag("-D_FORTIFY_SOURCE=0");
 		}
-		let mut dst=cmk.build();
+		cmk.build_target("clean").build();
+		let mut dst=cmk.build_target("lib").build();
 		dst.push("build");
 		dst.push("library");
 		println!("cargo:rustc-link-search=native={}",dst.to_str().expect("link-search UTF-8 error"));
