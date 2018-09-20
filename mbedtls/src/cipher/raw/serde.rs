@@ -88,6 +88,7 @@ unsafe fn serialize_raw_cipher(mut cipher_context: cipher_context_t)
     let algorithm_ctx = match (cipher_id, cipher_mode) {
         (CIPHER_ID_AES, MODE_CBC)
         | (CIPHER_ID_AES, MODE_CTR)
+        | (CIPHER_ID_AES, MODE_OFB)
         | (CIPHER_ID_AES, MODE_CFB)
         | (CIPHER_ID_AES, MODE_ECB) => {
             let mut aes_context = *(cipher_context.cipher_ctx as *const aes_context);
@@ -96,11 +97,13 @@ unsafe fn serialize_raw_cipher(mut cipher_context: cipher_context_t)
         }
         (CIPHER_ID_DES, MODE_CBC)
         | (CIPHER_ID_DES, MODE_CTR)
+        | (CIPHER_ID_DES, MODE_OFB)
         | (CIPHER_ID_DES, MODE_CFB) => {
             AlgorithmContext::Des(Bytes(*(cipher_context.cipher_ctx as *const des_context)))
         }
         (CIPHER_ID_3DES, MODE_CBC)
         | (CIPHER_ID_3DES, MODE_CTR)
+        | (CIPHER_ID_3DES, MODE_OFB)
         | (CIPHER_ID_3DES, MODE_CFB) => AlgorithmContext::Des3(Bytes(
             *(cipher_context.cipher_ctx as *const des3_context),
         )),
