@@ -1,12 +1,16 @@
 /* Copyright (c) Fortanix, Inc.
  *
- * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or 
- * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version 
- * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your 
- * option. This file may not be copied, modified, or distributed except 
+ * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or
+ * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version
+ * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your
+ * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-macro_rules! as_item { ($i:item) => {$i} }
+macro_rules! as_item {
+    ($i:item) => {
+        $i
+    };
+}
 
 macro_rules! callback {
 	//{ ($($arg:ident: $ty:ty),*) -> $ret:ty } => {
@@ -15,14 +19,14 @@ macro_rules! callback {
 		#[cfg(not(feature="threading"))]
 		pub trait $n {
 			unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret;
-			
+
 			fn data_ptr(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
 		}
 
 		#[cfg(feature="threading")]
 		pub trait $n $( : $sync )* {
 			unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret;
-			
+
 			fn data_ptr(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
 		}
 
@@ -86,7 +90,7 @@ macro_rules! define_struct {
 			$(r: ::core::marker::PhantomData<&$l ()>,)*
 		}
 		);
-		
+
 		as_item!(
 		#[cfg(feature="threading")]
 		unsafe impl<$($l)*> Send for $name<$($l)*> {}

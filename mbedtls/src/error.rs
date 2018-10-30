@@ -1,14 +1,14 @@
 /* Copyright (c) Fortanix, Inc.
  *
- * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or 
- * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version 
- * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your 
- * option. This file may not be copied, modified, or distributed except 
+ * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or
+ * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version
+ * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your
+ * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use core::str::Utf8Error;
 use core::fmt;
-#[cfg(feature="std")]
+use core::str::Utf8Error;
+#[cfg(feature = "std")]
 use std::error::Error as StdError;
 
 use mbedtls_sys::types::raw_types::c_int;
@@ -16,10 +16,10 @@ use mbedtls_sys::types::raw_types::c_int;
 pub type Result<T> = ::core::result::Result<T, Error>;
 
 pub trait IntoResult: Sized {
-	fn into_result(self) -> Result<Self>;
-	fn into_result_discard(self) -> Result<()> {
-		self.into_result().map(|_|())
-	}
+    fn into_result(self) -> Result<Self>;
+    fn into_result_discard(self) -> Result<()> {
+        self.into_result().map(|_| ())
+    }
 }
 
 // This is intended not to overlap with mbedtls error codes. Utf8Error is
@@ -48,7 +48,7 @@ macro_rules! error_enum {
 				Err($n::from_mbedtls_code(if high_level_code > 0 { -high_level_code } else { -low_level_code }))
 			}
 		}
-		
+
 		impl $n {
 			pub fn from_mbedtls_code(code: c_int) -> Self {
 				match code {
@@ -77,27 +77,29 @@ macro_rules! error_enum {
 }
 
 impl From<Utf8Error> for Error {
-	fn from(e: Utf8Error) -> Error {
-		Error::Utf8Error(Some(e))
-	}
+    fn from(e: Utf8Error) -> Error {
+        Error::Utf8Error(Some(e))
+    }
 }
 
 impl fmt::Display for Error {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		match self {
-			&Error::Utf8Error(Some(ref e)) => f.write_fmt(format_args!("Error converting to UTF-8: {}",e)),
-			&Error::Utf8Error(None) => f.write_fmt(format_args!("Error converting to UTF-8")),
-			&Error::Other(i) => f.write_fmt(format_args!("mbedTLS unknown error ({})",i)),
-			e @ _ => f.write_fmt(format_args!("mbedTLS error {:?}",e)),
-		}
-	}
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Error::Utf8Error(Some(ref e)) => {
+                f.write_fmt(format_args!("Error converting to UTF-8: {}", e))
+            }
+            &Error::Utf8Error(None) => f.write_fmt(format_args!("Error converting to UTF-8")),
+            &Error::Other(i) => f.write_fmt(format_args!("mbedTLS unknown error ({})", i)),
+            e @ _ => f.write_fmt(format_args!("mbedTLS error {:?}", e)),
+        }
+    }
 }
 
-#[cfg(feature="std")]
+#[cfg(feature = "std")]
 impl StdError for Error {
-	fn description(&self) -> &str {
-		self.as_str()
-	}
+    fn description(&self) -> &str {
+        self.as_str()
+    }
 }
 
 error_enum!(Error {

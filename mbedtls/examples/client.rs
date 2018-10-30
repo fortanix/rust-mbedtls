@@ -1,48 +1,52 @@
 /* Copyright (c) Fortanix, Inc.
  *
- * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or 
- * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version 
- * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your 
- * option. This file may not be copied, modified, or distributed except 
+ * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or
+ * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version
+ * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your
+ * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
 extern crate mbedtls;
 
-use std::net::TcpStream;
 use std::io::{self, stdin, stdout, Write};
+use std::net::TcpStream;
 
-use mbedtls::Result as TlsResult;
 use mbedtls::rng::CtrDrbg;
-use mbedtls::x509::Certificate;
-use mbedtls::ssl::config::{Endpoint, Transport, Preset};
+use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::{Config, Context};
+use mbedtls::x509::Certificate;
+use mbedtls::Result as TlsResult;
 
-#[path="../tests/support/mod.rs"]
+#[path = "../tests/support/mod.rs"]
 mod support;
-use support::keys;
 use support::entropy::entropy_new;
+use support::keys;
 
 fn result_main(addr: &str) -> TlsResult<()> {
-	let mut entropy = entropy_new();
-	let mut rng = try!(CtrDrbg::new(&mut entropy, None));
-	let mut cert = try!(Certificate::from_pem(keys::PEM_CERT));
-	let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
-	config.set_rng(Some(&mut rng));
-	config.set_ca_list(Some(&mut *cert), None);
-	let mut ctx = try!(Context::new(&config));
+    let mut entropy = entropy_new();
+    let mut rng = try!(CtrDrbg::new(&mut entropy, None));
+    let mut cert = try!(Certificate::from_pem(keys::PEM_CERT));
+    let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
+    config.set_rng(Some(&mut rng));
+    config.set_ca_list(Some(&mut *cert), None);
+    let mut ctx = try!(Context::new(&config));
 
-	let mut conn = TcpStream::connect(addr).unwrap();
-	let mut session = try!(ctx.establish(&mut conn, None));
+    let mut conn = TcpStream::connect(addr).unwrap();
+    let mut session = try!(ctx.establish(&mut conn, None));
 
-	let mut line = String::new();
-	stdin().read_line(&mut line).unwrap();
-	session.write_all(line.as_bytes()).unwrap();
-	io::copy(&mut session, &mut stdout()).unwrap();
-	Ok(())
+    let mut line = String::new();
+    stdin().read_line(&mut line).unwrap();
+    session.write_all(line.as_bytes()).unwrap();
+    io::copy(&mut session, &mut stdout()).unwrap();
+    Ok(())
 }
 
 fn main() {
-	let mut args = std::env::args();
-	args.next();
-	result_main(&args.next().expect("supply destination in command-line argument")).unwrap();
+    let mut args = std::env::args();
+    args.next();
+    result_main(
+        &args
+            .next()
+            .expect("supply destination in command-line argument"),
+    ).unwrap();
 }

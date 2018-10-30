@@ -1,37 +1,37 @@
 /* Copyright (c) Fortanix, Inc.
  *
- * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or 
- * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version 
- * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your 
- * option. This file may not be copied, modified, or distributed except 
+ * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or
+ * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version
+ * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your
+ * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
 extern crate mbedtls;
 extern crate mbedtls_sys;
 
-#[cfg(not(feature="std"))]
+#[cfg(not(feature = "std"))]
 unsafe fn log(msg: *const mbedtls_sys::types::raw_types::c_char) {
-	print!("{}", std::ffi::CStr::from_ptr(msg).to_string_lossy());
+    print!("{}", std::ffi::CStr::from_ptr(msg).to_string_lossy());
 }
 
-#[cfg(not(feature="std"))]
+#[cfg(not(feature = "std"))]
 fn rand() -> mbedtls_sys::types::raw_types::c_int {
-	3 // Only used for RSA self test
+    3 // Only used for RSA self test
 }
 
-#[cfg(not(feature="std"))]
+#[cfg(not(feature = "std"))]
 fn enable_self_test() {
-	use std::sync::{Once, ONCE_INIT};
+    use std::sync::{Once, ONCE_INIT};
 
-	static START: Once = ONCE_INIT;
+    static START: Once = ONCE_INIT;
 
-	START.call_once(|| {
-		// safe because synchronized
-		unsafe { mbedtls::self_test::enable(rand, log) };
-	});
+    START.call_once(|| {
+        // safe because synchronized
+        unsafe { mbedtls::self_test::enable(rand, log) };
+    });
 }
 
-#[cfg(feature="std")]
+#[cfg(feature = "std")]
 fn enable_self_test() {}
 
 macro_rules! tests {
@@ -50,38 +50,38 @@ macro_rules! tests {
 }
 
 tests!{
-	fn aes,
-	fn arc4,
-	fn base64,
-	fn camellia,
-	fn ccm,
-	fn ctr_drbg,
-	fn des,
-	fn dhm,
-	#[cfg(feature="std")]
-	fn entropy,
-	fn gcm,
-	fn hmac_drbg,
-	fn md2,
-	fn md4,
-	fn md5,
-	fn mpi,
-	fn pkcs5,
-	fn ripemd160,
-	fn rsa,
-	fn sha1,
-	fn sha256,
-	fn sha512,
-	fn x509,
-	fn xtea,
+    fn aes,
+    fn arc4,
+    fn base64,
+    fn camellia,
+    fn ccm,
+    fn ctr_drbg,
+    fn des,
+    fn dhm,
+    #[cfg(feature="std")]
+    fn entropy,
+    fn gcm,
+    fn hmac_drbg,
+    fn md2,
+    fn md4,
+    fn md5,
+    fn mpi,
+    fn pkcs5,
+    fn ripemd160,
+    fn rsa,
+    fn sha1,
+    fn sha256,
+    fn sha512,
+    fn x509,
+    fn xtea,
 }
 
 // these can't run concurrently
 #[test]
 fn ec_self_tests() {
-	enable_self_test();
-	unsafe {
-		assert!(mbedtls::self_test::ecp(1) == 0);
-		assert!(mbedtls::self_test::ecjpake(1) == 0);
-	}
+    enable_self_test();
+    unsafe {
+        assert!(mbedtls::self_test::ecp(1) == 0);
+        assert!(mbedtls::self_test::ecjpake(1) == 0);
+    }
 }

@@ -1,60 +1,76 @@
 /* Copyright (c) Fortanix, Inc.
  *
- * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or 
- * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version 
- * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your 
- * option. This file may not be copied, modified, or distributed except 
+ * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or
+ * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version
+ * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your
+ * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-#[cfg(feature="std")]
+#[cfg(not(feature = "std"))]
+use core_io::{self as io, Read, Write};
+#[cfg(feature = "std")]
 use std::io::{self, Read, Write};
-#[cfg(not(feature="std"))]
-use core_io::{Read, Write, self as io};
 
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 use mbedtls_sys::*;
 
 use error::IntoResult;
-use ssl::config::{Config, AuthMode};
-use x509::{LinkedCertificate, Crl, VerifyError};
 use private::UnsafeFrom;
+use ssl::config::{AuthMode, Config};
+use x509::{Crl, LinkedCertificate, VerifyError};
 
 pub trait IoCallback {
-	unsafe extern "C" fn call_recv(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int;
-	unsafe extern "C" fn call_send(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int;
+    unsafe extern "C" fn call_recv(
+        user_data: *mut c_void,
+        data: *mut c_uchar,
+        len: size_t,
+    ) -> c_int;
+    unsafe extern "C" fn call_send(
+        user_data: *mut c_void,
+        data: *const c_uchar,
+        len: size_t,
+    ) -> c_int;
 
-	fn data_ptr(&mut self) -> *mut c_void;
+    fn data_ptr(&mut self) -> *mut c_void;
 }
 
 impl<IO: Read + Write> IoCallback for IO {
-	unsafe extern "C" fn call_recv(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
-		let len = if len > (c_int::max_value() as size_t) {
-			c_int::max_value() as size_t
-		} else {
-			len
-		};
-		match (&mut *(user_data as *mut IO)).read(::core::slice::from_raw_parts_mut(data, len)) {
-			Ok(i) => i as c_int,
-			Err(_) => ::mbedtls_sys::ERR_NET_RECV_FAILED,
-		}
-	}
+    unsafe extern "C" fn call_recv(
+        user_data: *mut c_void,
+        data: *mut c_uchar,
+        len: size_t,
+    ) -> c_int {
+        let len = if len > (c_int::max_value() as size_t) {
+            c_int::max_value() as size_t
+        } else {
+            len
+        };
+        match (&mut *(user_data as *mut IO)).read(::core::slice::from_raw_parts_mut(data, len)) {
+            Ok(i) => i as c_int,
+            Err(_) => ::mbedtls_sys::ERR_NET_RECV_FAILED,
+        }
+    }
 
-	unsafe extern "C" fn call_send(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int {
-		let len = if len > (c_int::max_value() as size_t) {
-			c_int::max_value() as size_t
-		} else {
-			len
-		};
-		match (&mut *(user_data as *mut IO)).write(::core::slice::from_raw_parts(data, len)) {
-			Ok(i) => i as c_int,
-			Err(_) => ::mbedtls_sys::ERR_NET_SEND_FAILED,
-		}
-	}
+    unsafe extern "C" fn call_send(
+        user_data: *mut c_void,
+        data: *const c_uchar,
+        len: size_t,
+    ) -> c_int {
+        let len = if len > (c_int::max_value() as size_t) {
+            c_int::max_value() as size_t
+        } else {
+            len
+        };
+        match (&mut *(user_data as *mut IO)).write(::core::slice::from_raw_parts(data, len)) {
+            Ok(i) => i as c_int,
+            Err(_) => ::mbedtls_sys::ERR_NET_SEND_FAILED,
+        }
+    }
 
-	fn data_ptr(&mut self) -> *mut c_void {
-		self as *mut IO as *mut _
-	}
+    fn data_ptr(&mut self) -> *mut c_void {
+        self as *mut IO as *mut _
+    }
 }
 
 define!(struct Context<'config>(ssl_context) {
@@ -65,158 +81,180 @@ define!(struct Context<'config>(ssl_context) {
 });
 
 pub struct Session<'ctx> {
-	inner: &'ctx mut ssl_context,
+    inner: &'ctx mut ssl_context,
 }
 
-#[cfg(feature="threading")]
+#[cfg(feature = "threading")]
 unsafe impl<'ctx> Send for Session<'ctx> {}
 
 pub struct HandshakeContext<'ctx> {
-	inner: &'ctx mut ssl_context,
+    inner: &'ctx mut ssl_context,
 }
 
 impl<'config> Context<'config> {
-	pub fn new(config: &'config Config) -> ::Result<Context<'config>> {
-		let mut ret = Self::init();
-		unsafe { ssl_setup(&mut ret.inner, config.into()) }.into_result().map(|_| ret)
-	}
+    pub fn new(config: &'config Config) -> ::Result<Context<'config>> {
+        let mut ret = Self::init();
+        unsafe { ssl_setup(&mut ret.inner, config.into()) }
+            .into_result()
+            .map(|_| ret)
+    }
 
-	pub fn establish<'c, F: IoCallback>(&'c mut self, io: &'c mut F, hostname: Option<&str>) -> ::Result<Session<'c>> {
-		unsafe {
-			try!(ssl_session_reset(&mut self.inner).into_result());
-			try!(self.set_hostname(hostname));
+    pub fn establish<'c, F: IoCallback>(
+        &'c mut self,
+        io: &'c mut F,
+        hostname: Option<&str>,
+    ) -> ::Result<Session<'c>> {
+        unsafe {
+            try!(ssl_session_reset(&mut self.inner).into_result());
+            try!(self.set_hostname(hostname));
 
-			ssl_set_bio(&mut self.inner, io.data_ptr(), Some(F::call_send), Some(F::call_recv), None);
-			match ssl_handshake(&mut self.inner).into_result() {
-				Err(e) => {
-					// safely end borrow of io
-					ssl_set_bio(&mut self.inner, ::core::ptr::null_mut(), None, None, None);
-					Err(e)
-				}
-				Ok(_) => Ok(Session { inner: &mut self.inner }),
-			}
-		}
-	}
+            ssl_set_bio(
+                &mut self.inner,
+                io.data_ptr(),
+                Some(F::call_send),
+                Some(F::call_recv),
+                None,
+            );
+            match ssl_handshake(&mut self.inner).into_result() {
+                Err(e) => {
+                    // safely end borrow of io
+                    ssl_set_bio(&mut self.inner, ::core::ptr::null_mut(), None, None, None);
+                    Err(e)
+                }
+                Ok(_) => Ok(Session {
+                    inner: &mut self.inner,
+                }),
+            }
+        }
+    }
 
-	#[cfg(not(feature="std"))]
-	fn set_hostname(&mut self, hostname: Option<&str>) -> ::Result<()> {
-		match hostname {
-			Some(_) => Err(::Error::SslBadInputData),
-			None => Ok(()),
-		}
-	}
+    #[cfg(not(feature = "std"))]
+    fn set_hostname(&mut self, hostname: Option<&str>) -> ::Result<()> {
+        match hostname {
+            Some(_) => Err(::Error::SslBadInputData),
+            None => Ok(()),
+        }
+    }
 
-	#[cfg(feature="std")]
-	fn set_hostname(&mut self, hostname: Option<&str>) -> ::Result<()> {
-		if self.inner.hostname != ::core::ptr::null_mut() {
-			// potential MEMORY LEAK! See https://github.com/ARMmbed/mbedtls/issues/836
-			self.inner.hostname = ::core::ptr::null_mut();
-		}
-		if let Some(s) = hostname {
-			let cstr = try!(::std::ffi::CString::new(s).map_err(|_|::Error::SslBadInputData));
-			unsafe {ssl_set_hostname(&mut self.inner, cstr.as_ptr()).into_result().map(|_|())}
-		} else {
-			Ok(())
-		}
-	}
+    #[cfg(feature = "std")]
+    fn set_hostname(&mut self, hostname: Option<&str>) -> ::Result<()> {
+        if self.inner.hostname != ::core::ptr::null_mut() {
+            // potential MEMORY LEAK! See https://github.com/ARMmbed/mbedtls/issues/836
+            self.inner.hostname = ::core::ptr::null_mut();
+        }
+        if let Some(s) = hostname {
+            let cstr = try!(::std::ffi::CString::new(s).map_err(|_| ::Error::SslBadInputData));
+            unsafe {
+                ssl_set_hostname(&mut self.inner, cstr.as_ptr())
+                    .into_result()
+                    .map(|_| ())
+            }
+        } else {
+            Ok(())
+        }
+    }
 
-	pub fn config(&self) -> &'config Config {
-		unsafe {
-			UnsafeFrom::from(self.inner.conf).expect("not null")
-		}
-	}
+    pub fn config(&self) -> &'config Config {
+        unsafe { UnsafeFrom::from(self.inner.conf).expect("not null") }
+    }
 }
 
 impl<'ctx> HandshakeContext<'ctx> {
-	pub fn set_authmode(&mut self, am: AuthMode) {
-		unsafe {
-			ssl_set_hs_authmode(self.inner, am.into())
-		}
-	}
+    pub fn set_authmode(&mut self, am: AuthMode) {
+        unsafe { ssl_set_hs_authmode(self.inner, am.into()) }
+    }
 
-	pub fn set_ca_list<C: Into<&'ctx mut LinkedCertificate>>(&mut self, list: Option<C>, crl: Option<&'ctx mut Crl>) {
-		unsafe {
-			ssl_set_hs_ca_chain(self.inner,
-			                  list.map(Into::into)
-				                  .map(Into::into)
-				                  .unwrap_or(::core::ptr::null_mut()),
-			                  crl.map(Into::into).unwrap_or(::core::ptr::null_mut()))
-		}
-	}
+    pub fn set_ca_list<C: Into<&'ctx mut LinkedCertificate>>(
+        &mut self,
+        list: Option<C>,
+        crl: Option<&'ctx mut Crl>,
+    ) {
+        unsafe {
+            ssl_set_hs_ca_chain(
+                self.inner,
+                list.map(Into::into)
+                    .map(Into::into)
+                    .unwrap_or(::core::ptr::null_mut()),
+                crl.map(Into::into).unwrap_or(::core::ptr::null_mut()),
+            )
+        }
+    }
 
-	/// If this is never called, will use the set of private keys and
-	/// certificates configured in the `Config` associated with this `Context`.
-	/// If this is called at least once, all those are ignored and the set
-	/// specified using this function is used.
-	pub fn push_cert<C: Into<&'ctx mut LinkedCertificate>>(&mut self, chain: C, key: &'ctx mut ::pk::Pk) -> ::Result<()> {
-		unsafe {
-			ssl_set_hs_own_cert(self.inner, chain.into().into(), key.into())
-				.into_result()
-				.map(|_| ())
-		}
-	}
+    /// If this is never called, will use the set of private keys and
+    /// certificates configured in the `Config` associated with this `Context`.
+    /// If this is called at least once, all those are ignored and the set
+    /// specified using this function is used.
+    pub fn push_cert<C: Into<&'ctx mut LinkedCertificate>>(
+        &mut self,
+        chain: C,
+        key: &'ctx mut ::pk::Pk,
+    ) -> ::Result<()> {
+        unsafe {
+            ssl_set_hs_own_cert(self.inner, chain.into().into(), key.into())
+                .into_result()
+                .map(|_| ())
+        }
+    }
 }
 
 impl<'ctx> ::core::ops::Deref for HandshakeContext<'ctx> {
-	type Target = Context<'ctx>;
+    type Target = Context<'ctx>;
 
-	fn deref(&self) -> &Context<'ctx> {
-		unsafe {
-			UnsafeFrom::from(&*self.inner as *const _).expect("not null")
-		}
-	}
+    fn deref(&self) -> &Context<'ctx> {
+        unsafe { UnsafeFrom::from(&*self.inner as *const _).expect("not null") }
+    }
 }
 
 impl<'ctx> ::private::UnsafeFrom<*mut ssl_context> for HandshakeContext<'ctx> {
-	unsafe fn from(ctx: *mut ssl_context) -> Option<HandshakeContext<'ctx>> {
-		ctx.as_mut().map(|ctx|HandshakeContext{inner:ctx})
-	}
+    unsafe fn from(ctx: *mut ssl_context) -> Option<HandshakeContext<'ctx>> {
+        ctx.as_mut().map(|ctx| HandshakeContext { inner: ctx })
+    }
 }
 
 impl<'a> Session<'a> {
-	pub fn peer_cert(&self) -> Option<::x509::certificate::Iter> {
-		unsafe { ::private::UnsafeFrom::from(ssl_get_peer_cert(self.inner)) }
-	}
+    pub fn peer_cert(&self) -> Option<::x509::certificate::Iter> {
+        unsafe { ::private::UnsafeFrom::from(ssl_get_peer_cert(self.inner)) }
+    }
 
-	pub fn verify_result(&self) -> Result<(), VerifyError> {
-		match unsafe { ssl_get_verify_result(self.inner) } {
-			0 => Ok(()),
-			flags => Err(VerifyError::from_bits_truncate(flags)),
-		}
-	}
+    pub fn verify_result(&self) -> Result<(), VerifyError> {
+        match unsafe { ssl_get_verify_result(self.inner) } {
+            0 => Ok(()),
+            flags => Err(VerifyError::from_bits_truncate(flags)),
+        }
+    }
 }
 
 impl<'a> Read for Session<'a> {
-	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-		match unsafe { ssl_read(self.inner, buf.as_mut_ptr(), buf.len()).into_result() } {
-			Err(::Error::SslPeerCloseNotify) => Ok(0),
-			Err(e) => Err(::private::error_to_io_error(e)),
-			Ok(i) => Ok(i as usize),
-		}
-	}
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match unsafe { ssl_read(self.inner, buf.as_mut_ptr(), buf.len()).into_result() } {
+            Err(::Error::SslPeerCloseNotify) => Ok(0),
+            Err(e) => Err(::private::error_to_io_error(e)),
+            Ok(i) => Ok(i as usize),
+        }
+    }
 }
 
 impl<'a> Write for Session<'a> {
-	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-		match unsafe { ssl_write(self.inner, buf.as_ptr(), buf.len()).into_result() } {
-			Err(::Error::SslPeerCloseNotify) => Ok(0),
-			Err(e) => Err(::private::error_to_io_error(e)),
-			Ok(i) => Ok(i as usize),
-		}
-	}
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match unsafe { ssl_write(self.inner, buf.as_ptr(), buf.len()).into_result() } {
+            Err(::Error::SslPeerCloseNotify) => Ok(0),
+            Err(e) => Err(::private::error_to_io_error(e)),
+            Ok(i) => Ok(i as usize),
+        }
+    }
 
-	fn flush(&mut self) -> io::Result<()> {
-		Ok(())
-	}
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 impl<'a> Drop for Session<'a> {
-	fn drop(&mut self) {
-		unsafe {
-			ssl_close_notify(self.inner);
-			ssl_set_bio(self.inner, ::core::ptr::null_mut(), None, None, None);
-		}
-	}
+    fn drop(&mut self) {
+        unsafe {
+            ssl_close_notify(self.inner);
+            ssl_set_bio(self.inner, ::core::ptr::null_mut(), None, None, None);
+        }
+    }
 }
 
 // ssl_get_alpn_protocol
