@@ -1,24 +1,24 @@
-/*
- * Rust interface for mbedTLS
+/* Copyright (c) Fortanix, Inc.
  *
- * (C) Copyright 2016 Jethro G. Beekman
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version.
- */
+ * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or 
+ * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version 
+ * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your 
+ * option. This file may not be copied, modified, or distributed except 
+ * according to those terms. */
 
 extern crate gcc;
 
 use std::env;
 
 fn main() {
-	let mut sources=vec!["src/rust_printf.c"];
-	if env::var_os("CARGO_FEATURE_STD").is_none() {
-		sources.extend(&["src/no_std/strstr.c","src/no_std/snprintf.c","src/no_std/string.c"]);
+	let mut c = gcc::Config::new();
+	c.file("src/rust_printf.c");
+	if env::var_os("CARGO_FEATURE_STD").is_none() || env::var("TARGET").map(|s|s=="x86_64-unknown-none-gnu")==Ok(true) {
+		c.flag("-U_FORTIFY_SOURCE")
+		 .define("_FORTIFY_SOURCE",Some("0"))
+		 .flag("-ffreestanding");
 	}
-	gcc::compile_library("librust-mbedtls.a",&sources);
+	c.compile("librust-mbedtls.a");
 	// Force correct link order for mbedtls_printf
 	println!("cargo:rustc-link-lib=static=mbedtls");
 	println!("cargo:rustc-link-lib=static=mbedx509");

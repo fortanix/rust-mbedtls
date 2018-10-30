@@ -1,17 +1,14 @@
-/*
- * Rust interface for mbedTLS
+/* Copyright (c) Fortanix, Inc.
  *
- * (C) Copyright 2016 Jethro G. Beekman
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version.
- */
+ * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or 
+ * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version 
+ * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your 
+ * option. This file may not be copied, modified, or distributed except 
+ * according to those terms. */
 
 #![allow(dead_code)]
 
-pub const PEM_KEY: &'static [u8]=b"-----BEGIN PRIVATE KEY-----
+pub const PEM_KEY: &'static [u8] = b"-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDFjAgmCJUmKAQ/
 OAg0MBh3E2+l5asSHdBNmTm0gr3vmnmFcUqlIpUG3BGd85o0c9X5qnxBKJafTJLu
 2xRqjx1TMlBdtVpP0CXy5qPYwvO8UWIGyrsniy8GfpDjXGkUFbm91Cw1c/lCD7R1
@@ -40,7 +37,9 @@ okcspBUohwqnqHwvdiQjB+RygIpmnXhchXxRok3wc745S1NBCbAL5V3sa6/61/1C
 YLT4mPYORlR4AgzvpNOJiI3T
 -----END PRIVATE KEY-----\0";
 
-pub const PEM_CERT: &'static [u8]=b"-----BEGIN CERTIFICATE-----
+pub const PEM_CERT_SUBJECT: &'static str = "CN=mbedtls.example";
+
+pub const PEM_CERT: &'static [u8] = b"-----BEGIN CERTIFICATE-----
 MIIDBzCCAe+gAwIBAgIJAPSt7jywaaaUMA0GCSqGSIb3DQEBCwUAMBoxGDAWBgNV
 BAMMD21iZWR0bHMuZXhhbXBsZTAeFw0xNjA3MTcwMDI4MDBaFw0xNjA4MTYwMDI4
 MDBaMBoxGDAWBgNVBAMMD21iZWR0bHMuZXhhbXBsZTCCASIwDQYJKoZIhvcNAQEB

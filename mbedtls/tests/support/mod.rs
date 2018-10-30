@@ -1,15 +1,14 @@
-/*
- * Rust interface for mbedTLS
+/* Copyright (c) Fortanix, Inc.
  *
- * (C) Copyright 2016 Jethro G. Beekman
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version.
- */
+ * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or 
+ * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version 
+ * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your 
+ * option. This file may not be copied, modified, or distributed except 
+ * according to those terms. */
 
 #![allow(dead_code)]
 pub mod entropy;
 pub mod keys;
 pub mod rand;
+#[cfg(feature="std")]
+pub mod net;

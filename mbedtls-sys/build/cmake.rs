@@ -1,14 +1,10 @@
-/*
- * Rust bindings for mbedTLS
+/* Copyright (c) Fortanix, Inc.
  *
- * (C) Copyright 2016 Jethro G. Beekman
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version. Alternatively, you can redistribute it and/or modify it
- * under the terms of the Apache License, Version 2.0. 
- */
+ * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or 
+ * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version 
+ * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your 
+ * option. This file may not be copied, modified, or distributed except 
+ * according to those terms. */
 
 use cmake;
 
@@ -20,15 +16,13 @@ impl super::BuildConfig {
 		cmk
 			.cflag(format!(r#"-DMBEDTLS_CONFIG_FILE="<{}>""#,self.config_h.to_str().expect("config.h UTF-8 error")))
 			.define("ENABLE_PROGRAMS","OFF")
-			.define("ENABLE_TESTING","OFF");
-		if !have_feature("std") {
+			.define("ENABLE_TESTING","OFF")
+			.build_target("lib");
+		if !have_feature("std") || ::std::env::var("TARGET").map(|s|s=="x86_64-unknown-none-gnu")==Ok(true) {
 	        println!("cargo:rustc-link-lib=gcc");
-			cmk.cflag("-fno-builtin");
-			cmk.cflag("-fno-stack-protector");
-			cmk.cflag("-D_FORTIFY_SOURCE=0");
+			cmk.cflag("-fno-builtin").cflag("-D_FORTIFY_SOURCE=0").cflag("-fno-stack-protector");
 		}
-		cmk.build_target("clean").build();
-		let mut dst=cmk.build_target("lib").build();
+		let mut dst=cmk.build();
 		dst.push("build");
 		dst.push("library");
 		println!("cargo:rustc-link-search=native={}",dst.to_str().expect("link-search UTF-8 error"));

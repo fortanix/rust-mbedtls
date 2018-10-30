@@ -1,17 +1,16 @@
-/*
- * Rust interface for mbedTLS
+/* Copyright (c) Fortanix, Inc.
  *
- * (C) Copyright 2016 Jethro G. Beekman
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version.
- */
+ * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or 
+ * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version 
+ * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your 
+ * option. This file may not be copied, modified, or distributed except 
+ * according to those terms. */
 
 macro_rules! as_item { ($i:item) => {$i} }
 
 macro_rules! callback {
+	//{ ($($arg:ident: $ty:ty),*) -> $ret:ty } => {
+	//};
 	{ $n:ident$( : $sync:ident )*($($arg:ident: $ty:ty),*) -> $ret:ty } => {
 		#[cfg(not(feature="threading"))]
 		pub trait $n {
@@ -56,12 +55,13 @@ macro_rules! define {
 		define_struct!(define $(#[$m])* struct $name $(lifetime $l)* inner $inner);
 		define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
 	};
-	{ enum $n:ident -> $raw:ty { $(#[$doc:meta] $rust:ident => $c:ident,)* } } => { define_enum!(enum $n ty $raw : $(doc ($doc) rust $rust c $c),*); };
-	{ enum $n:ident -> $raw:ty { $(             $rust:ident => $c:ident,)* } } => { define_enum!(enum $n ty $raw : $(doc (    ) rust $rust c $c),*); };
+	{ $(#[$m:meta])* enum $n:ident -> $raw:ty { $(#[$doc:meta] $rust:ident => $c:ident,)* } } => { define_enum!($(#[$m])* enum $n ty $raw : $(doc ($doc) rust $rust c $c),*); };
+	{ $(#[$m:meta])* enum $n:ident -> $raw:ty { $(             $rust:ident => $c:ident,)* } } => { define_enum!($(#[$m])* enum $n ty $raw : $(doc (    ) rust $rust c $c),*); };
 }
 
 macro_rules! define_enum {
-	{enum $n:ident ty $raw:ty : $(doc ($($doc:meta)*) rust $rust:ident c $c:ident),*} => {
+	{$(#[$m:meta])* enum $n:ident ty $raw:ty : $(doc ($($doc:meta)*) rust $rust:ident c $c:ident),*} => {
+		$(#[$m])*
 		pub enum $n {
 			$($(#[$doc])* $rust,)*
 		}
@@ -164,7 +164,7 @@ macro_rules! define_struct {
 		as_item!(
 		impl<$l2,$($l),*> ::private::UnsafeFrom<*const $inner> for &$l2 $name<$($l)*> {
 			unsafe fn from(ptr: *const $inner) -> Option<Self> {
-				(ptr as *const _).as_ref()
+				(ptr as *const $name).as_ref()
 			}
 		}
 		);
@@ -172,7 +172,7 @@ macro_rules! define_struct {
 		as_item!(
 		impl<$l2,$($l),*> ::private::UnsafeFrom<*mut $inner> for &$l2 mut $name<$($l)*> {
 			unsafe fn from(ptr: *mut $inner) -> Option<Self> {
-				(ptr as *mut _).as_mut()
+				(ptr as *mut $name).as_mut()
 			}
 		}
 		);
@@ -190,8 +190,7 @@ macro_rules! setter {
 	}
 }
 
-// separate impl because can't make this work without as as_XXX! macro, and
-// there is no as_method!...
+// can't make this work without as as_XXX! macro, and there is no as_method!...
 macro_rules! setter_callback {
 	{ $s:ident<$l:tt>::$rfn:ident($n:ident : $($rty:tt)+) = $cfn:ident } => {
 		as_item!(

@@ -1,14 +1,10 @@
-/*
- * Rust bindings for mbedTLS
+/* Copyright (c) Fortanix, Inc.
  *
- * (C) Copyright 2016 Jethro G. Beekman
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version. Alternatively, you can redistribute it and/or modify it
- * under the terms of the Apache License, Version 2.0. 
- */
+ * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or 
+ * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version 
+ * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your 
+ * option. This file may not be copied, modified, or distributed except 
+ * according to those terms. */
 
 /* This list has been generated from a include/mbedtls/ directory as follows:
  * 
@@ -20,10 +16,10 @@
  * 
  * ls -f1 $( \
  * 	( \
- * 		grep '^#include' *|grep -v '<'|grep -v MBEDTLS_|sed 's/:#include//;s/"//g;s/ mbedtls\// /'|grep -v _alt.h; \
+ * 		grep '^#include' *|grep -v '<'|grep -v MBEDTLS_|sed 's/:#include//;s/"//g'|grep -v _alt.h; \
  * 		ls *.h|awk '{print $1 " " $1}' \
  *  )|tsort|tac| \
- * 	egrep -v '^(compat-1.3.h|certs.h|config.h|check_config.h|zlib.h)$' \
+ * 	egrep -v '^(compat-1.3.h|certs.h|config.h|check_config.h)$' \
  * )
  */
 
@@ -54,6 +50,8 @@ pub const ORDERED: &'static [(Option<&'static str>,&'static str)]=&[
 	(None,                 "net_sockets.h"),
 	(None,                 "havege.h"),
 	(None,                 "xtea.h"),
+	(None,                 "poly1305.h"),
+	(None,                 "chacha20.h"),
 	(None,                 "x509_csr.h"),
 	(None,                 "version.h"),
 	(None,                 "timing.h"),
@@ -61,7 +59,9 @@ pub const ORDERED: &'static [(Option<&'static str>,&'static str)]=&[
 	(None,                 "ssl_internal.h"),
 	(None,                 "ssl_cookie.h"),
 	(None,                 "ssl_cache.h"),
+	(None,                 "rsa_internal.h"),
 	(None,                 "ripemd160.h"),
+	(None,                 "platform_util.h"),
 	(None,                 "platform.h"),
 	(None,                 "pkcs5.h"),
 	(None,                 "pkcs12.h"),
@@ -70,27 +70,32 @@ pub const ORDERED: &'static [(Option<&'static str>,&'static str)]=&[
 	(None,                 "pem.h"),
 	(None,                 "padlock.h"),
 	(None,                 "oid.h"),
+	(None,                 "nist_kw.h"),
 	(None,                 "net.h"),
 	(None,                 "memory_buffer_alloc.h"),
 	(None,                 "md_internal.h"),
 	(None,                 "md4.h"),
 	(None,                 "md2.h"),
 	(None,                 "hmac_drbg.h"),
+	(None,                 "hkdf.h"),
 	(None,                 "gcm.h"),
 	(None,                 "error.h"),
 	(None,                 "entropy_poll.h"),
 	(None,                 "entropy.h"),
+	(None,                 "ecp_internal.h"),
 	(None,                 "des.h"),
 	(None,                 "debug.h"),
 	(None,                 "ctr_drbg.h"),
 	(None,                 "cmac.h"),
 	(None,                 "cipher_internal.h"),
+	(None,                 "chachapoly.h"),
 	(None,                 "ccm.h"),
 	(None,                 "camellia.h"),
 	(None,                 "bn_mul.h"),
 	(None,                 "blowfish.h"),
 	(None,                 "base64.h"),
 	(None,                 "asn1write.h"),
+	(None,                 "aria.h"),
 	(None,                 "arc4.h"),
 	(None,                 "aesni.h"),
 ];

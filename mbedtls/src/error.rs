@@ -1,51 +1,75 @@
-/*
- * Rust interface for mbedTLS
+/* Copyright (c) Fortanix, Inc.
  *
- * (C) Copyright 2016 Jethro G. Beekman
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version.
- */
+ * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or 
+ * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version 
+ * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your 
+ * option. This file may not be copied, modified, or distributed except 
+ * according to those terms. */
 
 use core::str::Utf8Error;
 use core::fmt;
+#[cfg(feature="std")]
+use std::error::Error as StdError;
 
 use mbedtls_sys::types::raw_types::c_int;
 
-pub type Result<T> = ::core::result::Result<T,Error>;
+pub type Result<T> = ::core::result::Result<T, Error>;
 
 pub trait IntoResult: Sized {
 	fn into_result(self) -> Result<Self>;
+	fn into_result_discard(self) -> Result<()> {
+		self.into_result().map(|_|())
+	}
 }
+
+// This is intended not to overlap with mbedtls error codes. Utf8Error is
+// generated in the bindings when converting to rust UTF-8 strings. Only in rare
+// circumstances (callbacks from mbedtls to rust) do we need to pass a Utf8Error
+// back in to mbedtls.
+pub const ERR_UTF8_INVALID: c_int = -0x10000;
 
 macro_rules! error_enum {
 	{$n:ident {$($rust:ident => $c:ident,)*}} => {
-		#[derive(Debug)]
+		#[derive(Debug, Eq, PartialEq)]
 		pub enum $n {
 			$($rust,)*
 			Other(c_int),
-			Utf8Error(Utf8Error),
+			Utf8Error(Option<Utf8Error>),
 		}
 
 		impl IntoResult for c_int {
 			fn into_result(self) -> Result<c_int> {
-				match self {
-					$(::mbedtls_sys::$c => Err($n::$rust),)*
-					_ if self>=0 => Ok(self),
-					_ => Err($n::Other(self))
-				}
+				let err_code = match self {
+					_ if self >= 0 => return Ok(self),
+					ERR_UTF8_INVALID => return Err(Error::Utf8Error(None)),
+					_ => -self,
+				};
+				let (high_level_code, low_level_code) = (err_code & 0xFF80, err_code & 0x7F);
+				Err($n::from_mbedtls_code(if high_level_code > 0 { -high_level_code } else { -low_level_code }))
 			}
 		}
 		
-		#[cfg(not(feature="collections"))]
 		impl $n {
+			pub fn from_mbedtls_code(code: c_int) -> Self {
+				match code {
+					$(::mbedtls_sys::$c => $n::$rust),*,
+					_ => $n::Other(code)
+				}
+			}
+
 			pub fn as_str(&self) -> &'static str {
 				match self {
 					$(&$n::$rust => concat!("mbedTLS error ",stringify!($n::$rust)),)*
 					&$n::Other(_) => "mbedTLS unknown error",
 					&$n::Utf8Error(_) => "error converting to UTF-8",
+				}
+			}
+
+			pub fn to_int(&self) -> c_int {
+				match *self {
+					$($n::$rust => ::mbedtls_sys::$c,)*
+					$n::Other(code) => code,
+					$n::Utf8Error(_) => ERR_UTF8_INVALID,
 				}
 			}
 		}
@@ -54,17 +78,25 @@ macro_rules! error_enum {
 
 impl From<Utf8Error> for Error {
 	fn from(e: Utf8Error) -> Error {
-		Error::Utf8Error(e)
+		Error::Utf8Error(Some(e))
 	}
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
-			&Error::Utf8Error(ref e) => f.write_fmt(format_args!("Error converting to UTF-8: {}",e)),
+			&Error::Utf8Error(Some(ref e)) => f.write_fmt(format_args!("Error converting to UTF-8: {}",e)),
+			&Error::Utf8Error(None) => f.write_fmt(format_args!("Error converting to UTF-8")),
 			&Error::Other(i) => f.write_fmt(format_args!("mbedTLS unknown error ({})",i)),
 			e @ _ => f.write_fmt(format_args!("mbedTLS error {:?}",e)),
 		}
+	}
+}
+
+#[cfg(feature="std")]
+impl StdError for Error {
+	fn description(&self) -> &str {
+		self.as_str()
 	}
 }
 

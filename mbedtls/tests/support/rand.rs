@@ -1,29 +1,26 @@
-/*
- * Rust interface for mbedTLS
+/* Copyright (c) Fortanix, Inc.
  *
- * (C) Copyright 2016 Jethro G. Beekman
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version.
- */
+ * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or 
+ * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version 
+ * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your 
+ * option. This file may not be copied, modified, or distributed except 
+ * according to those terms. */
 
+extern crate core;
 extern crate rand;
 extern crate mbedtls_sys;
-extern crate core;
 
-use self::mbedtls_sys::types::raw_types::{c_int,c_uchar,c_void};
+use self::mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use self::mbedtls_sys::types::size_t;
 
-use self::rand::{Rng,XorShiftRng};
+use self::rand::{Rng, XorShiftRng};
 
-/// Not cryptographically secure!!! Not actually random!!! Deterministic!!! Use for testing only!!!
+/// Not cryptographically secure!!! Use for testing only!!!
 pub struct TestRandom(XorShiftRng);
 
 impl ::mbedtls::rng::RngCallback for TestRandom {
 	unsafe extern "C" fn call(p_rng: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
-		(*(p_rng as *mut TestRandom)).0.fill_bytes(self::core::slice::from_raw_parts_mut(data,len));
+		(*(p_rng as *mut TestRandom)).0.fill_bytes(self::core::slice::from_raw_parts_mut(data, len));
 		0
 	}
 
@@ -32,7 +29,7 @@ impl ::mbedtls::rng::RngCallback for TestRandom {
 	}
 }
 
-/// Not cryptographically secure!!! Not actually random!!! Deterministic!!! Use for testing only!!!
+/// Not cryptographically secure!!! Use for testing only!!!
 pub fn test_rng() -> TestRandom {
 	TestRandom(XorShiftRng::new_unseeded())
 }

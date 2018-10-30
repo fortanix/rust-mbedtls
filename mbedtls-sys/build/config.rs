@@ -1,14 +1,10 @@
-/*
- * Rust bindings for mbedTLS
+/* Copyright (c) Fortanix, Inc.
  *
- * (C) Copyright 2016 Jethro G. Beekman
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 2 of the License, or (at your option)
- * any later version. Alternatively, you can redistribute it and/or modify it
- * under the terms of the Apache License, Version 2.0. 
- */
+ * Licensed under the GNU General Public License, version 2 <LICENSE-GPL or 
+ * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version 
+ * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your 
+ * option. This file may not be copied, modified, or distributed except 
+ * according to those terms. */
 
 #[derive(Copy,Clone,PartialEq,Eq)]
 pub enum Macro {
@@ -42,6 +38,8 @@ pub const PREFIX: &'static str=r#"
 
 pub const DEFAULT_DEFINES: &'static [CDefine]=&[
 	("MBEDTLS_HAVE_ASM",                                  Defined),
+	("MBEDTLS_NO_64BIT_MULTIPLICATION",                   Undefined),
+	("MBEDTLS_NO_UDBL_DIVISION",                          Undefined),
 	("MBEDTLS_HAVE_SSE2",                                 Undefined),
 	("MBEDTLS_HAVE_TIME",                                 Undefined),
 	("MBEDTLS_HAVE_TIME_DATE",                            Undefined),
@@ -51,22 +49,36 @@ pub const DEFAULT_DEFINES: &'static [CDefine]=&[
 	("MBEDTLS_PLATFORM_FPRINTF_ALT",                      Undefined),
 	("MBEDTLS_PLATFORM_PRINTF_ALT",                       Undefined),
 	("MBEDTLS_PLATFORM_SNPRINTF_ALT",                     Undefined),
+	("MBEDTLS_PLATFORM_NV_SEED_ALT",                      Undefined),
+	("MBEDTLS_PLATFORM_SETUP_TEARDOWN_ALT",               Undefined),
 	("MBEDTLS_DEPRECATED_WARNING",                        Undefined),
 	("MBEDTLS_DEPRECATED_REMOVED",                        Undefined),
 	("MBEDTLS_TIMING_ALT",                                Undefined),
 	("MBEDTLS_AES_ALT",                                   Undefined),
 	("MBEDTLS_ARC4_ALT",                                  Undefined),
+	("MBEDTLS_ARIA_ALT",                                  Undefined),
 	("MBEDTLS_BLOWFISH_ALT",                              Undefined),
 	("MBEDTLS_CAMELLIA_ALT",                              Undefined),
+	("MBEDTLS_CCM_ALT",                                   Undefined),
+	("MBEDTLS_CHACHA20_ALT",                              Undefined),
+	("MBEDTLS_CHACHAPOLY_ALT",                            Undefined),
+	("MBEDTLS_CMAC_ALT",                                  Undefined),
 	("MBEDTLS_DES_ALT",                                   Undefined),
-	("MBEDTLS_XTEA_ALT",                                  Undefined),
+	("MBEDTLS_DHM_ALT",                                   Undefined),
+	("MBEDTLS_ECJPAKE_ALT",                               Undefined),
+	("MBEDTLS_GCM_ALT",                                   Undefined),
+	("MBEDTLS_NIST_KW_ALT",                               Undefined),
 	("MBEDTLS_MD2_ALT",                                   Undefined),
 	("MBEDTLS_MD4_ALT",                                   Undefined),
 	("MBEDTLS_MD5_ALT",                                   Undefined),
+	("MBEDTLS_POLY1305_ALT",                              Undefined),
 	("MBEDTLS_RIPEMD160_ALT",                             Undefined),
+	("MBEDTLS_RSA_ALT",                                   Undefined),
 	("MBEDTLS_SHA1_ALT",                                  Undefined),
 	("MBEDTLS_SHA256_ALT",                                Undefined),
 	("MBEDTLS_SHA512_ALT",                                Undefined),
+	("MBEDTLS_XTEA_ALT",                                  Undefined),
+	("MBEDTLS_ECP_ALT",                                   Undefined),
 	("MBEDTLS_MD2_PROCESS_ALT",                           Undefined),
 	("MBEDTLS_MD4_PROCESS_ALT",                           Undefined),
 	("MBEDTLS_MD5_PROCESS_ALT",                           Undefined),
@@ -81,12 +93,30 @@ pub const DEFAULT_DEFINES: &'static [CDefine]=&[
 	("MBEDTLS_AES_SETKEY_DEC_ALT",                        Undefined),
 	("MBEDTLS_AES_ENCRYPT_ALT",                           Undefined),
 	("MBEDTLS_AES_DECRYPT_ALT",                           Undefined),
+	("MBEDTLS_ECDH_GEN_PUBLIC_ALT",                       Undefined),
+	("MBEDTLS_ECDH_COMPUTE_SHARED_ALT",                   Undefined),
+	("MBEDTLS_ECDSA_VERIFY_ALT",                          Undefined),
+	("MBEDTLS_ECDSA_SIGN_ALT",                            Undefined),
+	("MBEDTLS_ECDSA_GENKEY_ALT",                          Undefined),
+	("MBEDTLS_ECP_INTERNAL_ALT",                          Undefined),
+	("MBEDTLS_ECP_RANDOMIZE_JAC_ALT",                     Undefined),
+	("MBEDTLS_ECP_ADD_MIXED_ALT",                         Undefined),
+	("MBEDTLS_ECP_DOUBLE_JAC_ALT",                        Undefined),
+	("MBEDTLS_ECP_NORMALIZE_JAC_MANY_ALT",                Undefined),
+	("MBEDTLS_ECP_NORMALIZE_JAC_ALT",                     Undefined),
+	("MBEDTLS_ECP_DOUBLE_ADD_MXZ_ALT",                    Undefined),
+	("MBEDTLS_ECP_RANDOMIZE_MXZ_ALT",                     Undefined),
+	("MBEDTLS_ECP_NORMALIZE_MXZ_ALT",                     Undefined),
+	("MBEDTLS_TEST_NULL_ENTROPY",                         Undefined),
 	("MBEDTLS_ENTROPY_HARDWARE_ALT",                      Undefined),
 	("MBEDTLS_AES_ROM_TABLES",                            Undefined),
+	("MBEDTLS_AES_FEWER_TABLES",                          Undefined),
 	("MBEDTLS_CAMELLIA_SMALL_MEMORY",                     Undefined),
 	("MBEDTLS_CIPHER_MODE_CBC",                           Defined),
 	("MBEDTLS_CIPHER_MODE_CFB",                           Defined),
 	("MBEDTLS_CIPHER_MODE_CTR",                           Defined),
+	("MBEDTLS_CIPHER_MODE_OFB",                           Defined),
+	("MBEDTLS_CIPHER_MODE_XTS",                           Defined),
 	("MBEDTLS_CIPHER_NULL_CIPHER",                        Undefined),
 	("MBEDTLS_CIPHER_PADDING_PKCS7",                      Defined),
 	("MBEDTLS_CIPHER_PADDING_ONE_AND_ZEROS",              Defined),
@@ -106,6 +136,7 @@ pub const DEFAULT_DEFINES: &'static [CDefine]=&[
 	("MBEDTLS_ECP_DP_BP384R1_ENABLED",                    Defined),
 	("MBEDTLS_ECP_DP_BP512R1_ENABLED",                    Defined),
 	("MBEDTLS_ECP_DP_CURVE25519_ENABLED",                 Defined),
+	("MBEDTLS_ECP_DP_CURVE448_ENABLED",                   Defined),
 	("MBEDTLS_ECP_NIST_OPTIM",                            Defined),
 	("MBEDTLS_ECDSA_DETERMINISTIC",                       Defined),
 	("MBEDTLS_KEY_EXCHANGE_PSK_ENABLED",                  Defined),
@@ -135,6 +166,8 @@ pub const DEFAULT_DEFINES: &'static [CDefine]=&[
 	("MBEDTLS_SELF_TEST",                                 Defined),
 	("MBEDTLS_SHA256_SMALLER",                            Undefined),
 	("MBEDTLS_SSL_ALL_ALERT_MESSAGES",                    Defined),
+	("MBEDTLS_SSL_ASYNC_PRIVATE",                         Undefined),
+	("MBEDTLS_SSL_TRUNCATED_HMAC_COMPAT",                 Undefined),
 	("MBEDTLS_SSL_DEBUG_ALL",                             Undefined),
 	("MBEDTLS_SSL_ENCRYPT_THEN_MAC",                      Defined),
 	("MBEDTLS_SSL_EXTENDED_MASTER_SECRET",                Defined),
@@ -168,7 +201,6 @@ pub const DEFAULT_DEFINES: &'static [CDefine]=&[
 	("MBEDTLS_X509_CHECK_EXTENDED_KEY_USAGE",             Defined),
 	("MBEDTLS_X509_RSASSA_PSS_SUPPORT",                   Defined),
 	("MBEDTLS_ZLIB_SUPPORT",                              Undefined),
-	("MBEDTLS_AESNI_C",                                   Defined),
 	("MBEDTLS_AES_C",                                     Defined),
 	("MBEDTLS_ARC4_C",                                    Defined),
 	("MBEDTLS_ASN1_PARSE_C",                              Defined),
@@ -177,11 +209,14 @@ pub const DEFAULT_DEFINES: &'static [CDefine]=&[
 	("MBEDTLS_BIGNUM_C",                                  Defined),
 	("MBEDTLS_BLOWFISH_C",                                Defined),
 	("MBEDTLS_CAMELLIA_C",                                Defined),
+	("MBEDTLS_ARIA_C",                                    Undefined),
 	("MBEDTLS_CCM_C",                                     Defined),
 	("MBEDTLS_CERTS_C",                                   Defined),
+	("MBEDTLS_CHACHA20_C",                                Defined),
+	("MBEDTLS_CHACHAPOLY_C",                              Defined),
 	("MBEDTLS_CIPHER_C",                                  Defined),
-	("MBEDTLS_CMAC_C",                                    Defined),
 	("MBEDTLS_CTR_DRBG_C",                                Defined),
+	("MBEDTLS_CMAC_C",                                    Undefined),
 	("MBEDTLS_DEBUG_C",                                   Undefined),
 	("MBEDTLS_DES_C",                                     Defined),
 	("MBEDTLS_DHM_C",                                     Defined),
@@ -193,7 +228,9 @@ pub const DEFAULT_DEFINES: &'static [CDefine]=&[
 	("MBEDTLS_ERROR_C",                                   Defined),
 	("MBEDTLS_GCM_C",                                     Defined),
 	("MBEDTLS_HAVEGE_C",                                  Undefined),
+	("MBEDTLS_HKDF_C",                                    Defined),
 	("MBEDTLS_HMAC_DRBG_C",                               Defined),
+	("MBEDTLS_NIST_KW_C",                                 Undefined),
 	("MBEDTLS_MD_C",                                      Defined),
 	("MBEDTLS_MD2_C",                                     Defined),
 	("MBEDTLS_MD4_C",                                     Defined),
@@ -211,6 +248,7 @@ pub const DEFAULT_DEFINES: &'static [CDefine]=&[
 	("MBEDTLS_PKCS11_C",                                  Undefined),
 	("MBEDTLS_PKCS12_C",                                  Defined),
 	("MBEDTLS_PLATFORM_C",                                Undefined),
+	("MBEDTLS_POLY1305_C",                                Defined),
 	("MBEDTLS_RIPEMD160_C",                               Defined),
 	("MBEDTLS_RSA_C",                                     Defined),
 	("MBEDTLS_SHA1_C",                                    Defined),
@@ -267,12 +305,17 @@ pub const DEFAULT_DEFINES: &'static [CDefine]=&[
 	("MBEDTLS_SSL_CACHE_DEFAULT_TIMEOUT",                 Undefined), // default: 86400
 	("MBEDTLS_SSL_CACHE_DEFAULT_MAX_ENTRIES",             Undefined), // default: 50
 	("MBEDTLS_SSL_MAX_CONTENT_LEN",                       Undefined), // default: 16384
+	("MBEDTLS_SSL_IN_CONTENT_LEN",                        Undefined), // default: 16384
+	("MBEDTLS_SSL_OUT_CONTENT_LEN",                       Undefined), // default: 16384
 	("MBEDTLS_SSL_DEFAULT_TICKET_LIFETIME",               Undefined), // default: 86400
 	("MBEDTLS_PSK_MAX_LEN",                               Undefined), // default: 32
 	("MBEDTLS_SSL_COOKIE_TIMEOUT",                        Undefined), // default: 60
 	("MBEDTLS_SSL_CIPHERSUITES",                          Undefined), // no default
 	("MBEDTLS_X509_MAX_INTERMEDIATE_CA",                  Undefined), // default: 8
 	("MBEDTLS_X509_MAX_FILE_PATH_LEN",                    Undefined), // default: 512
+	("MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_CERTIFICATES",    Undefined),
+	("MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_KEY_EXCHANGE",    Defined),
+	("MBEDTLS_PLATFORM_ZEROIZE_ALT",                      Undefined),
 ];
 
 pub const FEATURE_DEFINES: &'static [(&'static str,CDefine)]=&[
@@ -292,6 +335,7 @@ pub const FEATURE_DEFINES: &'static [(&'static str,CDefine)]=&[
 	("std",             ("MBEDTLS_ENTROPY_C",             Defined)),
 	("custom_printf",   ("MBEDTLS_PLATFORM_C",            Defined)),
 	("custom_printf",   ("MBEDTLS_PLATFORM_PRINTF_MACRO", DefinedAs("mbedtls_printf"))),
+	("aesni",           ("MBEDTLS_AESNI_C",               Defined)),
 ];
 
 pub const SUFFIX: &'static str=r#"

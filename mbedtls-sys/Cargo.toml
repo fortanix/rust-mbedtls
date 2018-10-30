@@ -1,15 +1,15 @@
 [package]
 name = "mbedtls-sys-auto"
-version = "2.4.0"
-authors = ["Jethro Beekman <jethro@jbeekman.nl>"]
+version = "2.12.0"
+authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build/build.rs"
 license = "Apache-2.0/GPL-2.0+"
 description = """
-Rust bindings for mbedTLS.
+Rust bindings for MbedTLS.
 
 This version generates the correct bindings at compile time using bindgen."""
 readme = "../README.md"
-repository = "https://github.com/jethrogb/rust-mbedtls"
+repository = "https://github.com/fortanix/rust-mbedtls"
 documentation = "https://docs.rs/mbedtls-sys-auto/"
 
 [lib]
@@ -24,7 +24,14 @@ bindgen = "0.19.0"
 cmake = "0.1.17"
 
 [features]
-default = ["std", "zlib", "time", "pthread"]
+# If you use mbedtls-sys in a no_std configuration, you need to provide your
+# own versions of the following functions:
+# 
+# * calloc/free
+# * strstr/strlen/strncpy/strncmp/strcmp/snprintf
+# * memmove/memcpy/memcmp/memset
+# * rand/printf (used only for self tests. optionally use custom_printf)
+default = ["std", "zlib", "time", "pthread", "aesni"]
 std = []
 custom_printf = []
 custom_has_support = []
@@ -35,3 +42,4 @@ time = ["libc"]
 havege = ["time"]
 zlib = ["libz-sys"]
 pkcs11 = []
+aesni = []
