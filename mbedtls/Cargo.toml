@@ -14,7 +14,7 @@ environment."""
 readme = "../README.md"
 repository = "https://github.com/fortanix/rust-mbedtls"
 documentation = "https://docs.rs/mbedtls/"
-keywords = ["MbedTLS","TLS","SSL","cryptography"]
+keywords = ["MbedTLS","mbed","TLS","SSL","cryptography"]
 
 [dependencies]
 bitflags = "0.7.0"
