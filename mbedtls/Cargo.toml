@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 license = "Apache-2.0/GPL-2.0+"
@@ -39,7 +39,7 @@ gcc = "0.3.28"
 
 [features]
 # Features are documented in the README
-default = ["std", "aesni"]
+default = ["std", "aesni", "time"]
 std = ["mbedtls-sys-auto/std","serde/std"]
 threading = []
 pthread = ["threading","std","mbedtls-sys-auto/pthread"]
@@ -47,6 +47,8 @@ spin_threading = ["threading","spin","mbedtls-sys-auto/custom_threading"]
 force_aesni_support = ["mbedtls-sys-auto/custom_has_support","aesni"]
 rdrand = []
 aesni = ["mbedtls-sys-auto/aesni"]
+zlib = ["mbedtls-sys-auto/zlib"]
+time = ["mbedtls-sys-auto/time"]
 
 [[example]]
 name = "client"
