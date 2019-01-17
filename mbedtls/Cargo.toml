@@ -78,6 +78,10 @@ name = "mbedtls_self_tests"
 path = "tests/mbedtls_self_tests.rs"
 
 [[test]]
+name = "bignum"
+path = "tests/bignum.rs"
+
+[[test]]
 name = "rsa"
 path = "tests/rsa.rs"
 
