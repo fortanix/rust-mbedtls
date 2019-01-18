@@ -2,9 +2,7 @@
 set -e
 cd "$(dirname "$0")/mbedtls"
 
-cargo +stable test
-cargo +stable test --features spin_threading
-cargo +stable test --features zlib
-# Pinned to this particular nightly version because of core_io. This can be
-# re-pinned whenever core_io is updated to the latest nightly.
-cargo +nightly-2018-03-07 test --no-default-features --features core_io,rdrand
+cargo test
+cargo test --features spin_threading
+cargo test --features zlib
+cargo +$CORE_IO_NIGHTLY test --no-default-features --features core_io,rdrand
