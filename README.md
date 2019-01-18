@@ -1,5 +1,7 @@
 # mbedtls
 
+[![Build Status](https://travis-ci.com/fortanix/rust-mbedtls.svg?branch=master)](https://travis-ci.com/fortanix/rust-mbedtls)
+
 This is an idiomatic Rust wrapper for MbedTLS, allowing you to use MbedTLS with 
 only safe code while being able to use such great Rust features like error 
 handling and closures.

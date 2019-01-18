@@ -1,0 +1,33 @@
+branches:
+  only:
+    # This is where pull requests from "bors r+" are built.
+    - staging
+    # This is where pull requests from "bors try" are built.
+    - trying
+    # Not really necessary, just to get a green badge on “master”
+    - master
+language: rust
+dist: xenial
+addons:
+  apt:
+    packages:
+    - llvm-3.8-dev
+    - libclang-3.8-dev
+    - clang-3.8
+    - cmake
+rust:
+  - stable
+  - beta
+matrix:
+  allow_failures:
+  - rust: beta
+env:
+  global:
+    - RUST_BACKTRACE=1
+    # Pinned to this particular nightly version because of core_io. This can be
+    # re-pinned whenever core_io is updated to the latest nightly.
+    - CORE_IO_NIGHTLY=nightly-2018-03-07
+    - LLVM_CONFIG_PATH=llvm-config-3.8
+script:
+  - rustup toolchain add $CORE_IO_NIGHTLY
+  - ./ct.sh
