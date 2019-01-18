@@ -9,6 +9,9 @@
 use error::{Error, IntoResult};
 use mbedtls_sys::*;
 
+#[cfg(not(feature = "std"))]
+use alloc_prelude::*;
+
 use core::cmp::Ordering;
 use core::fmt::{Binary, Debug, Display, Formatter, Octal, Result as FmtResult, UpperHex};
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
