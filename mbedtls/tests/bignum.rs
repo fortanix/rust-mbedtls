@@ -9,7 +9,36 @@
 extern crate mbedtls;
 
 use mbedtls::bignum::Mpi;
-use std::str::FromStr;
+
+#[cfg(feature = "std")]
+#[test]
+fn bignum_from_str() {
+    use std::str::FromStr;
+
+    let p256_16 =
+        Mpi::from_str("0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff")
+            .unwrap();
+    let p256_10 = Mpi::from_str(
+        "115792089210356248762697446949407573530086143415290314195533631308867097853951",
+    )
+    .unwrap();
+
+    assert!(p256_16.eq(&p256_10));
+
+    assert_eq!(
+        format!("{}", p256_10),
+        "115792089210356248762697446949407573530086143415290314195533631308867097853951"
+    );
+    assert_eq!(
+        format!("{:X}", p256_10),
+        "FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF"
+    );
+    assert_eq!(
+        format!("{:o}", p256_10),
+        "17777777777400000000010000000000000000000000000000000077777777777777777777777777777777"
+    );
+    assert_eq!(format!("{:b}", p256_10), "1111111111111111111111111111111100000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111");
+}
 
 #[test]
 fn bignum() {
@@ -41,29 +70,6 @@ fn bignum() {
 
     assert!(bigger.eq(&Mpi::from_binary(&b_bytes).unwrap()));
 
-    let p256_16 =
-        Mpi::from_str("0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff")
-            .unwrap();
-    let p256_10 = Mpi::from_str(
-        "115792089210356248762697446949407573530086143415290314195533631308867097853951",
-    )
-    .unwrap();
-
-    assert!(p256_16.eq(&p256_10));
-
-    assert_eq!(
-        format!("{}", p256_10),
-        "115792089210356248762697446949407573530086143415290314195533631308867097853951"
-    );
-    assert_eq!(
-        format!("{:X}", p256_10),
-        "FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF"
-    );
-    assert_eq!(
-        format!("{:o}", p256_10),
-        "17777777777400000000010000000000000000000000000000000077777777777777777777777777777777"
-    );
-    assert_eq!(format!("{:b}", p256_10), "1111111111111111111111111111111100000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111");
 }
 
 #[test]
@@ -172,21 +178,21 @@ fn bigint_ops() {
     assert_eq!(z.as_u32().unwrap(), 21000);
 
     let z = (&z * &y).unwrap();
-    assert_eq!(z, Mpi::from_str("438900000").unwrap());
+    assert_eq!(z, Mpi::new(438900000).unwrap());
 
     let z = (&z - &x).unwrap();
-    assert_eq!(z, Mpi::from_str("0x1A2914BC").unwrap());
+    assert_eq!(z, Mpi::new(0x1A2914BC).unwrap());
 
     let r = (&z % 127).unwrap();
     assert_eq!(r.as_u32().unwrap(), 92);
 
-    let r = (&z % &Mpi::from_str("127").unwrap()).unwrap();
+    let r = (&z % &Mpi::new(127).unwrap()).unwrap();
     assert_eq!(r.as_u32().unwrap(), 92);
 
     let q = (&z / 53).unwrap();
     assert_eq!(q.as_u32().unwrap(), 8281130);
 
-    let q = (&z / &Mpi::from_str("53").unwrap()).unwrap();
+    let q = (&z / &Mpi::new(53).unwrap()).unwrap();
     assert_eq!(q.as_u32().unwrap(), 8281130);
 
     let nan = &z / 0;

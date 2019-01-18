@@ -60,6 +60,7 @@ impl Binary for Mpi {
     }
 }
 
+#[cfg(feature = "std")]
 impl ::core::str::FromStr for Mpi {
     type Err = ::Error;
 
@@ -148,7 +149,9 @@ impl Mpi {
             return Err(Error::from_mbedtls_code(r));
         }
 
-        let mut buf = vec![0u8; olen];
+        let mut buf = Vec::new();
+        buf.resize(olen, 0u8);
+
         unsafe {
             mpi_write_string(
                 &self.inner,
@@ -168,7 +171,8 @@ impl Mpi {
     /// Serialize the MPI as big endian binary data
     pub fn to_binary(&self) -> ::Result<Vec<u8>> {
         let len = self.byte_length()?;
-        let mut ret = vec![0; len];
+        let mut ret = Vec::new();
+        ret.resize(len, 0u8);
         unsafe { mpi_write_binary(&self.inner, ret.as_mut_ptr(), ret.len()).into_result() }?;
         Ok(ret)
     }
