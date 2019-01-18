@@ -181,7 +181,7 @@ pub fn pbkdf2_hmac(
     }
 }
 
-pub fn pkcs12_pbkdf(
+pub fn pbkdf_pkcs12(
     md: Type,
     password: &[u8],
     salt: &[u8],

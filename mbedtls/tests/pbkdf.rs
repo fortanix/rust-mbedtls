@@ -9,7 +9,7 @@
 extern crate mbedtls;
 
 use mbedtls::hash::Type as MdType;
-use mbedtls::hash::{pbkdf2_hmac, pkcs12_pbkdf};
+use mbedtls::hash::{pbkdf2_hmac, pbkdf_pkcs12};
 
 #[test]
 fn test_pbkdf2() {
@@ -38,8 +38,8 @@ fn test_pkcs12_pbe() {
     let salt = [0x0A, 0x58, 0xCF, 0x64, 0x53, 0x0D, 0x82, 0x3F];
     let password = b"\x00\x73\x00\x6D\x00\x65\x00\x67\x00\x00";
 
-    pkcs12_pbkdf(MdType::Sha1, password, &salt, 1, 1, &mut output1).unwrap();
-    pkcs12_pbkdf(MdType::Sha1, password, &salt, 2, 1, &mut output2).unwrap();
+    pbkdf_pkcs12(MdType::Sha1, password, &salt, 1, 1, &mut output1).unwrap();
+    pbkdf_pkcs12(MdType::Sha1, password, &salt, 2, 1, &mut output2).unwrap();
 
     assert_eq!(
         output1,
@@ -51,7 +51,7 @@ fn test_pkcs12_pbe() {
     assert_eq!(output2, [0x79, 0x99, 0x3D, 0xFE, 0x04, 0x8D, 0x3B, 0x76]);
 
     let salt = [0x3D, 0x83, 0xC0, 0xE4, 0x54, 0x6A, 0xC1, 0x40];
-    pkcs12_pbkdf(MdType::Sha1, password, &salt, 3, 1, &mut output3).unwrap();
+    pbkdf_pkcs12(MdType::Sha1, password, &salt, 3, 1, &mut output3).unwrap();
     assert_eq!(
         output3,
         [
@@ -66,7 +66,7 @@ fn test_pkcs12_pbe() {
         0x00, 0x71, 0x00, 0x75, 0x00, 0x65, 0x00, 0x65, 0x00, 0x67, 0x00, 0x00,
     ];
 
-    pkcs12_pbkdf(
+    pbkdf_pkcs12(
         MdType::Sha1,
         &password,
         &salt,
