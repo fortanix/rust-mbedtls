@@ -181,7 +181,8 @@ impl Mpi {
     pub fn to_padded_binary(&self, min_len: usize) -> ::Result<Vec<u8>> {
         let len = self.byte_length()?;
         let larger_len = if len < min_len { min_len } else { len };
-        let mut ret = vec![0; larger_len];
+        let mut ret = Vec::new();
+        ret.resize(larger_len, 0u8);
         let pad_len = ret.len() - len;
         unsafe {
             mpi_write_binary(&self.inner, ret.as_mut_ptr().offset(pad_len as isize), len)
