@@ -165,7 +165,8 @@ impl Mpi {
 
         let s = String::from_utf8(buf).expect("from_utf8 can't fail on radix-N data");
 
-        Ok(s.trim_end_matches(char::from(0)).to_owned())
+        #[allow(deprecated)]
+        Ok(s.trim_right_matches(char::from(0)).to_owned())
     }
 
     /// Serialize the MPI as big endian binary data
