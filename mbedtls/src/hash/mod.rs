@@ -137,16 +137,15 @@ impl Md {
             if out.len() < olen {
                 return Err(::Error::MdBadInputData);
             }
-            try!(
-                ::mbedtls_sys::md_hmac(
-                    md.inner,
-                    key.as_ptr(),
-                    key.len(),
-                    data.as_ptr(),
-                    data.len(),
-                    out.as_mut_ptr()
-                ).into_result()
-            );
+            try!(::mbedtls_sys::md_hmac(
+                md.inner,
+                key.as_ptr(),
+                key.len(),
+                data.as_ptr(),
+                data.len(),
+                out.as_mut_ptr()
+            )
+            .into_result());
             Ok(olen)
         }
     }
@@ -167,18 +166,42 @@ pub fn pbkdf2_hmac(
     unsafe {
         let mut ctx = Md::init();
         try!(md_setup((&mut ctx).into(), md.into(), 1).into_result());
-        try!(
-            pkcs5_pbkdf2_hmac(
-                (&mut ctx).into(),
-                password.as_ptr(),
-                password.len(),
-                salt.as_ptr(),
-                salt.len(),
-                iterations,
-                key.len() as u32,
-                key.as_mut_ptr()
-            ).into_result()
-        );
+        try!(pkcs5_pbkdf2_hmac(
+            (&mut ctx).into(),
+            password.as_ptr(),
+            password.len(),
+            salt.as_ptr(),
+            salt.len(),
+            iterations,
+            key.len() as u32,
+            key.as_mut_ptr()
+        )
+        .into_result());
+        Ok(())
+    }
+}
+
+pub fn pbkdf_pkcs12(
+    md: Type,
+    password: &[u8],
+    salt: &[u8],
+    id: u8,
+    iterations: u32,
+    key: &mut [u8],
+) -> ::Result<()> {
+    unsafe {
+        pkcs12_derivation(
+            key.as_mut_ptr(),
+            key.len(),
+            password.as_ptr(),
+            password.len(),
+            salt.as_ptr(),
+            salt.len(),
+            md.into(),
+            id as i32,
+            iterations as i32,
+        )
+        .into_result()?;
         Ok(())
     }
 }
