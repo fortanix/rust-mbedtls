@@ -120,6 +120,14 @@ impl<'c> Config<'c> {
         unsafe { ssl_conf_curves(&mut self.inner, list.as_ptr()) }
     }
 
+    pub fn set_min_version(&mut self, major: i32, minor: i32) {
+        unsafe { ssl_conf_min_version(&mut self.inner, major, minor) };
+    }
+
+    pub fn set_max_version(&mut self, major: i32, minor: i32) {
+        unsafe { ssl_conf_max_version(&mut self.inner, major, minor) };
+    }
+
     setter!(set_cert_profile(p: &'c Profile) = ssl_conf_cert_profile);
 
     /// Takes both DER and PEM forms of FFDH parameters in `DHParams` format.
@@ -293,8 +301,6 @@ impl<'a> Iterator for KeyCertIter<'a> {
 // ssl_conf_psk_cb
 // ssl_conf_sig_hashes
 // ssl_conf_alpn_protocols
-// ssl_conf_max_version
-// ssl_conf_min_version
 // ssl_conf_fallback
 // ssl_conf_encrypt_then_mac
 // ssl_conf_extended_master_secret
