@@ -35,8 +35,7 @@ mod wrapper_macros;
 // ==============
 //      API
 // ==============
-#[allow(dead_code)] // to be exported once the API is more complete
-mod bignum;
+pub mod bignum;
 mod error;
 pub use error::{Error, Result};
 pub mod cipher;
