@@ -25,6 +25,8 @@ extern crate core_io;
 extern crate bitflags;
 extern crate mbedtls_sys;
 
+extern crate byteorder;
+
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -39,6 +41,7 @@ pub mod bignum;
 mod error;
 pub use error::{Error, Result};
 pub mod cipher;
+pub mod ecp;
 pub mod hash;
 pub mod pk;
 pub mod rng;

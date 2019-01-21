@@ -11,6 +11,7 @@ use mbedtls_sys::*;
 
 define!(
     #[c_ty(md_type_t)]
+    #[derive(Copy, Clone, PartialEq, Debug)]
     enum Type {
         None = MD_NONE,
         Md2 = MD_MD2,

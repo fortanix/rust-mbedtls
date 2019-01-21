@@ -13,6 +13,7 @@ use error::IntoResult;
 
 define!(
     #[c_ty(ecp_group_id)]
+    #[derive(Debug, PartialEq, Eq)]
     enum EcGroupId {
         None = ECP_DP_NONE,
         SecP192R1 = ECP_DP_SECP192R1,

@@ -181,6 +181,10 @@ impl LinkedCertificate {
         unsafe { ::core::slice::from_raw_parts(self.inner.raw.p, self.inner.raw.len) }
     }
 
+    pub fn digest_type(&self) -> ::hash::Type {
+	::hash::Type::from(self.inner.sig_md)
+    }
+
     pub fn verify(
         &mut self,
         trust_ca: &mut Certificate,

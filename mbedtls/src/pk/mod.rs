@@ -10,17 +10,23 @@
 use alloc_prelude::*;
 use mbedtls_sys::*;
 
+use byteorder::{BigEndian, ByteOrder};
+use core::ptr;
 use error::IntoResult;
 use private::UnsafeFrom;
 
 pub(crate) mod dhparam;
 mod ec;
 
+use bignum::Mpi;
+use ecp::EcPoint;
+
 #[doc(inline)]
 pub use self::ec::{EcGroupId, ECDSA_MAX_LEN};
 
 define!(
     #[c_ty(pk_type_t)]
+    #[derive(Copy, Clone, PartialEq, Debug)]
     enum Type {
         None = PK_NONE,
         Rsa = PK_RSA,
@@ -82,14 +88,14 @@ impl Pk {
     pub fn from_private_key(key: &[u8], password: Option<&[u8]>) -> ::Result<Pk> {
         let mut ret = Self::init();
         unsafe {
-            try!(pk_parse_key(
+            pk_parse_key(
                 &mut ret.inner,
                 key.as_ptr(),
                 key.len(),
                 password.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
-                password.map(<[_]>::len).unwrap_or(0)
+                password.map(<[_]>::len).unwrap_or(0),
             )
-            .into_result())
+            .into_result()?;
         };
         Ok(ret)
     }
@@ -99,22 +105,22 @@ impl Pk {
     /// When calling on PEM-encoded data, `key` must be NULL-terminated
     pub fn from_public_key(key: &[u8]) -> ::Result<Pk> {
         let mut ret = Self::init();
-        unsafe { try!(pk_parse_public_key(&mut ret.inner, key.as_ptr(), key.len()).into_result()) };
+        unsafe { pk_parse_public_key(&mut ret.inner, key.as_ptr(), key.len()).into_result()? };
         Ok(ret)
     }
 
     pub fn generate_rsa<F: ::rng::Random>(rng: &mut F, bits: u32, exponent: u32) -> ::Result<Pk> {
         let mut ret = Self::init();
         unsafe {
-            try!(pk_setup(&mut ret.inner, pk_info_from_type(Type::Rsa.into())).into_result());
-            try!(rsa_gen_key(
+            pk_setup(&mut ret.inner, pk_info_from_type(Type::Rsa.into())).into_result()?;
+            rsa_gen_key(
                 ret.inner.pk_ctx as *mut _,
                 Some(F::call),
                 rng.data_ptr(),
                 bits,
-                exponent as _
+                exponent as _,
             )
-            .into_result());
+            .into_result()?;
         }
         Ok(ret)
     }
@@ -122,14 +128,14 @@ impl Pk {
     pub fn generate_ec<F: ::rng::Random>(rng: &mut F, curve: EcGroupId) -> ::Result<Pk> {
         let mut ret = Self::init();
         unsafe {
-            try!(pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result());
-            try!(ecp_gen_key(
+            pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result()?;
+            ecp_gen_key(
                 curve.into(),
                 ret.inner.pk_ctx as *mut _,
                 Some(F::call),
-                rng.data_ptr()
+                rng.data_ptr(),
             )
-            .into_result());
+            .into_result()?;
         }
         Ok(ret)
     }
@@ -178,9 +184,124 @@ impl Pk {
         unsafe { Ok((*(self.inner.pk_ctx as *const ecp_keypair)).grp.id.into()) }
     }
 
+    pub fn ec_public(&self) -> ::Result<EcPoint> {
+        match self.pk_type() {
+            Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
+            _ => return Err(::Error::PkTypeMismatch),
+        }
+
+        let q = &unsafe { (*(self.inner.pk_ctx as *const ecp_keypair)).Q };
+        EcPoint::copy(q)
+    }
+
+    pub fn ec_private(&self) -> ::Result<Mpi> {
+        match self.pk_type() {
+            Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
+            _ => return Err(::Error::PkTypeMismatch),
+        }
+
+        let d = &unsafe { (*(self.inner.pk_ctx as *const ecp_keypair)).d };
+        Mpi::copy(d)
+    }
+
+    pub fn rsa_public_modulus(&self) -> ::Result<Mpi> {
+        match self.pk_type() {
+            Type::Rsa => {}
+            _ => return Err(::Error::PkTypeMismatch),
+        }
+
+        let mut n = Mpi::new(0)?;
+
+        unsafe {
+            rsa_export(
+                self.inner.pk_ctx as *const rsa_context,
+                n.handle_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+            .into_result()?;
+        }
+
+        Ok(n)
+    }
+
+    pub fn rsa_private_prime1(&self) -> ::Result<Mpi> {
+        match self.pk_type() {
+            Type::Rsa => {}
+            _ => return Err(::Error::PkTypeMismatch),
+        }
+
+        let mut p = Mpi::new(0)?;
+
+        unsafe {
+            rsa_export(
+                self.inner.pk_ctx as *const rsa_context,
+                ptr::null_mut(),
+                p.handle_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+            .into_result()?;
+        }
+
+        Ok(p)
+    }
+
+    pub fn rsa_private_prime2(&self) -> ::Result<Mpi> {
+        match self.pk_type() {
+            Type::Rsa => {}
+            _ => return Err(::Error::PkTypeMismatch),
+        }
+
+        let mut q = Mpi::new(0)?;
+
+        unsafe {
+            rsa_export(
+                self.inner.pk_ctx as *const rsa_context,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                q.handle_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+            .into_result()?;
+        }
+
+        Ok(q)
+    }
+
+    pub fn rsa_public_exponent(&self) -> ::Result<u32> {
+        match self.pk_type() {
+            Type::Rsa => {}
+            _ => return Err(::Error::PkTypeMismatch),
+        }
+
+        let mut e: [u8; 4] = [0, 0, 0, 0];
+        unsafe {
+            rsa_export_raw(
+                self.inner.pk_ctx as *const rsa_context,
+                ptr::null_mut(),
+                0,
+                ptr::null_mut(),
+                0,
+                ptr::null_mut(),
+                0,
+                ptr::null_mut(),
+                0,
+                e.as_mut_ptr(),
+                e.len(),
+            )
+            .into_result()?;
+        }
+        Ok(BigEndian::read_u32(&e))
+    }
+
     pub fn name(&self) -> ::Result<&str> {
         let s = unsafe { ::private::cstr_to_slice(pk_get_name(&self.inner)) };
-        Ok(try!(::core::str::from_utf8(s)))
+        Ok(::core::str::from_utf8(s)?)
     }
 
     pub fn decrypt<F: ::rng::Random>(
@@ -192,7 +313,7 @@ impl Pk {
         let mut ret;
         unsafe {
             ret = ::core::mem::uninitialized();
-            try!(pk_decrypt(
+            pk_decrypt(
                 &mut self.inner,
                 cipher.as_ptr(),
                 cipher.len(),
@@ -200,9 +321,9 @@ impl Pk {
                 &mut ret,
                 plain.len(),
                 Some(F::call),
-                rng.data_ptr()
+                rng.data_ptr(),
             )
-            .into_result());
+            .into_result()?;
         }
         Ok(ret)
     }
@@ -216,7 +337,7 @@ impl Pk {
         let mut ret;
         unsafe {
             ret = ::core::mem::uninitialized();
-            try!(pk_encrypt(
+            pk_encrypt(
                 &mut self.inner,
                 plain.as_ptr(),
                 plain.len(),
@@ -224,9 +345,9 @@ impl Pk {
                 &mut ret,
                 cipher.len(),
                 Some(F::call),
-                rng.data_ptr()
+                rng.data_ptr(),
             )
-            .into_result());
+            .into_result()?;
         }
         Ok(ret)
     }
@@ -264,7 +385,7 @@ impl Pk {
         }
         unsafe {
             ret = ::core::mem::uninitialized();
-            try!(pk_sign(
+            pk_sign(
                 &mut self.inner,
                 md.into(),
                 hash.as_ptr(),
@@ -272,9 +393,9 @@ impl Pk {
                 sig.as_mut_ptr(),
                 &mut ret,
                 Some(F::call),
-                rng.data_ptr()
+                rng.data_ptr(),
             )
-            .into_result());
+            .into_result()?;
         }
         Ok(ret)
     }
@@ -523,10 +644,10 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
 
     #[test]
     fn generate_rsa() {
-        let generated = Pk::generate_rsa(&mut ::test_support::rand::test_rng(), 2048, 0x10001)
-            .unwrap()
-            .write_private_pem_string()
-            .unwrap();
+        let mut pk =
+            Pk::generate_rsa(&mut ::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
+        let generated = pk.write_private_pem_string().unwrap();
+        assert_eq!(0x10001, pk.rsa_public_exponent().unwrap());
         assert_eq!(generated, TEST_PEM[..TEST_PEM.len() - 1]);
     }
 
