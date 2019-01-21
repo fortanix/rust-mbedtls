@@ -9,6 +9,9 @@
 use error::IntoResult;
 use mbedtls_sys::*;
 
+#[cfg(not(feature = "std"))]
+use alloc_prelude::*;
+
 use bignum::Mpi;
 use pk::EcGroupId;
 
@@ -133,7 +136,7 @@ impl EcPoint {
                 k.handle(),
                 &self.inner,
                 None,
-                ::std::ptr::null_mut(),
+                ::core::ptr::null_mut(),
             )
         }
         .into_result()?;
@@ -194,7 +197,8 @@ impl EcPoint {
         so max size is 66*2+1 = 133
          */
         let mut olen = 0;
-        let mut buf = vec![0; 133];
+        let mut buf = Vec::new();
+        buf.resize(133, 0u8);
 
         let format = if compressed {
             ECP_PF_COMPRESSED
