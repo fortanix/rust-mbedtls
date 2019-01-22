@@ -39,6 +39,7 @@
 #define mbedtls_time_t          time_t
 #define mbedtls_fprintf         fprintf
 #define mbedtls_printf          printf
+#define mbedtls_exit            exit
 #define MBEDTLS_EXIT_SUCCESS    EXIT_SUCCESS
 #define MBEDTLS_EXIT_FAILURE    EXIT_FAILURE
 #endif /* MBEDTLS_PLATFORM_C */
@@ -140,6 +141,18 @@ int main( void )
     USAGE_IO                                                \
     "    force_ciphersuite=<name>    default: all enabled\n"\
     " acceptable ciphersuite names:\n"
+
+#if defined(MBEDTLS_CHECK_PARAMS)
+#include "mbedtls/platform_util.h"
+void mbedtls_param_failed( const char *failure_condition,
+                           const char *file,
+                           int line )
+{
+    mbedtls_printf( "%s:%i: Input param failed - %s\n",
+                    file, line, failure_condition );
+    mbedtls_exit( MBEDTLS_EXIT_FAILURE );
+}
+#endif
 
 /*
  * global options
@@ -356,9 +369,15 @@ int main( int argc, char *argv[] )
     int ret = 1, len;
     int exit_code = MBEDTLS_EXIT_FAILURE;
     mbedtls_net_context server_fd;
-    unsigned char buf[1024];
 #if defined(MBEDTLS_BASE64_C)
     unsigned char base[1024];
+    /* buf is used as the destination buffer for printing base with the format:
+     * "%s\r\n". Hence, the size of buf should be at least the size of base
+     * plus 2 bytes for the \r and \n characters.
+     */
+    unsigned char buf[sizeof( base ) + 2];
+#else
+    unsigned char buf[1024];
 #endif
     char hostname[32];
     const char *pers = "ssl_mail_client";

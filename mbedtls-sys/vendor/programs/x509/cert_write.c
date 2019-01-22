@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #define mbedtls_printf          printf
+#define mbedtls_exit            exit
 #define MBEDTLS_EXIT_SUCCESS    EXIT_SUCCESS
 #define MBEDTLS_EXIT_FAILURE    EXIT_FAILURE
 #endif /* MBEDTLS_PLATFORM_C */
@@ -153,6 +154,18 @@ int main( void )
     "                            object_signing_ca\n"     \
     "\n"
 
+#if defined(MBEDTLS_CHECK_PARAMS)
+#define mbedtls_exit            exit
+void mbedtls_param_failed( const char *failure_condition,
+                           const char *file,
+                           int line )
+{
+    mbedtls_printf( "%s:%i: Input param failed - %s\n",
+                    file, line, failure_condition );
+    mbedtls_exit( MBEDTLS_EXIT_FAILURE );
+}
+#endif
+
 /*
  * global options
  */
@@ -164,7 +177,7 @@ struct options
     const char *issuer_key;     /* filename of the issuer key file      */
     const char *subject_pwd;    /* password for the subject key file    */
     const char *issuer_pwd;     /* password for the issuer key file     */
-    const char *output_file;    /* where to store the constructed key file  */
+    const char *output_file;    /* where to store the constructed CRT   */
     const char *subject_name;   /* subject name for certificate         */
     const char *issuer_name;    /* issuer name for certificate          */
     const char *not_before;     /* validity period not before           */
@@ -242,6 +255,7 @@ int main( int argc, char *argv[] )
     mbedtls_pk_init( &loaded_subject_key );
     mbedtls_mpi_init( &serial );
     mbedtls_ctr_drbg_init( &ctr_drbg );
+    mbedtls_entropy_init( &entropy );
 #if defined(MBEDTLS_X509_CSR_PARSE_C)
     mbedtls_x509_csr_init( &csr );
 #endif
@@ -475,7 +489,6 @@ int main( int argc, char *argv[] )
     mbedtls_printf( "  . Seeding the random number generator..." );
     fflush( stdout );
 
-    mbedtls_entropy_init( &entropy );
     if( ( ret = mbedtls_ctr_drbg_seed( &ctr_drbg, mbedtls_entropy_func, &entropy,
                                (const unsigned char *) pers,
                                strlen( pers ) ) ) != 0 )
@@ -770,7 +783,7 @@ int main( int argc, char *argv[] )
     }
 
     /*
-     * 1.2. Writing the request
+     * 1.2. Writing the certificate
      */
     mbedtls_printf( "  . Writing the certificate..." );
     fflush( stdout );
@@ -789,6 +802,10 @@ int main( int argc, char *argv[] )
     exit_code = MBEDTLS_EXIT_SUCCESS;
 
 exit:
+#if defined(MBEDTLS_X509_CSR_PARSE_C)
+    mbedtls_x509_csr_free( &csr );
+#endif /* MBEDTLS_X509_CSR_PARSE_C */
+    mbedtls_x509_crt_free( &issuer_crt );
     mbedtls_x509write_crt_free( &crt );
     mbedtls_pk_free( &loaded_subject_key );
     mbedtls_pk_free( &loaded_issuer_key );

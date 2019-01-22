@@ -36,6 +36,9 @@
 #define mbedtls_calloc    calloc
 #define mbedtls_fprintf    fprintf
 #define mbedtls_printf     printf
+#define mbedtls_exit            exit
+#define MBEDTLS_EXIT_SUCCESS    EXIT_SUCCESS
+#define MBEDTLS_EXIT_FAILURE    EXIT_FAILURE
 #endif
 
 #if !defined(MBEDTLS_ENTROPY_C) || \
@@ -103,6 +106,7 @@ int main( void )
 
 #define DFL_SERVER_ADDR         NULL
 #define DFL_SERVER_PORT         "4433"
+#define DFL_RESPONSE_SIZE       -1
 #define DFL_DEBUG_LEVEL         0
 #define DFL_NBIO                0
 #define DFL_EVENT               0
@@ -150,7 +154,9 @@ int main( void )
 #define DFL_ANTI_REPLAY         -1
 #define DFL_HS_TO_MIN           0
 #define DFL_HS_TO_MAX           0
+#define DFL_DTLS_MTU            -1
 #define DFL_BADMAC_LIMIT        -1
+#define DFL_DGRAM_PACKING        1
 #define DFL_EXTENDED_MS         -1
 #define DFL_ETM                 -1
 
@@ -175,7 +181,7 @@ int main( void )
  * You will need to adapt the mbedtls_ssl_get_bytes_avail() test in ssl-opt.sh
  * if you change this value to something outside the range <= 100 or > 500
  */
-#define IO_BUF_LEN      200
+#define DFL_IO_BUF_LEN      200
 
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
 #if defined(MBEDTLS_FS_IO)
@@ -297,7 +303,11 @@ int main( void )
 #define USAGE_DTLS \
     "    dtls=%%d             default: 0 (TLS)\n"                           \
     "    hs_timeout=%%d-%%d    default: (library default: 1000-60000)\n"    \
-    "                        range of DTLS handshake timeouts in millisecs\n"
+    "                        range of DTLS handshake timeouts in millisecs\n" \
+    "    mtu=%%d              default: (library default: unlimited)\n"  \
+    "    dgram_packing=%%d    default: 1 (allowed)\n"                   \
+    "                        allow or forbid packing of multiple\n" \
+    "                        records within a single datgram.\n"
 #else
 #define USAGE_DTLS ""
 #endif
@@ -350,6 +360,11 @@ int main( void )
     "    server_addr=%%s      default: (all interfaces)\n"  \
     "    server_port=%%d      default: 4433\n"              \
     "    debug_level=%%d      default: 0 (disabled)\n"      \
+    "    buffer_size=%%d      default: 200 \n" \
+    "                         (minimum: 1, max: 16385)\n" \
+    "    response_size=%%d    default: about 152 (basic response)\n" \
+    "                          (minimum: 0, max: 16384)\n" \
+    "                          increases buffer_size if bigger\n"\
     "    nbio=%%d             default: 0 (blocking I/O)\n"  \
     "                        options: 1 (non-blocking), 2 (added delays)\n" \
     "    event=%%d            default: 0 (loop)\n"                            \
@@ -414,6 +429,18 @@ int main( void )
     (out_be)[(i) + 7] = (unsigned char)( ( (in_le) >> 0  ) & 0xFF );    \
 }
 
+#if defined(MBEDTLS_CHECK_PARAMS)
+#include "mbedtls/platform_util.h"
+void mbedtls_param_failed( const char *failure_condition,
+                           const char *file,
+                           int line )
+{
+    mbedtls_printf( "%s:%i: Input param failed - %s\n",
+                    file, line, failure_condition );
+    mbedtls_exit( MBEDTLS_EXIT_FAILURE );
+}
+#endif
+
 /*
  * global options
  */
@@ -425,6 +452,8 @@ struct options
     int nbio;                   /* should I/O be blocking?                  */
     int event;                  /* loop or event-driven IO? level or edge triggered? */
     uint32_t read_timeout;      /* timeout on mbedtls_ssl_read() in milliseconds    */
+    int response_size;          /* pad response with header to requested size */
+    uint16_t buffer_size;       /* IO buffer size */
     const char *ca_file;        /* the file with the CA certificate(s)      */
     const char *ca_path;        /* the path with the CA certificate(s) reside */
     const char *crt_file;       /* the file with the server certificate     */
@@ -470,6 +499,8 @@ struct options
     int anti_replay;            /* Use anti-replay for DTLS? -1 for default */
     uint32_t hs_to_min;         /* Initial value of DTLS handshake timer    */
     uint32_t hs_to_max;         /* Max value of DTLS handshake timer        */
+    int dtls_mtu;               /* UDP Maximum tranport unit for DTLS       */
+    int dgram_packing;          /* allow/forbid datagram packing            */
     int badmac_limit;           /* Limit of records with bad MAC            */
 } opt;
 
@@ -1158,7 +1189,7 @@ int main( int argc, char *argv[] )
 {
     int ret = 0, len, written, frags, exchanges_left;
     int version_suites[4][2];
-    unsigned char buf[IO_BUF_LEN];
+    unsigned char* buf = 0;
 #if defined(MBEDTLS_KEY_EXCHANGE__SOME__PSK_ENABLED)
     unsigned char psk[MBEDTLS_PSK_MAX_LEN];
     size_t psk_len = 0;
@@ -1289,10 +1320,12 @@ int main( int argc, char *argv[] )
         goto exit;
     }
 
+    opt.buffer_size         = DFL_IO_BUF_LEN;
     opt.server_addr         = DFL_SERVER_ADDR;
     opt.server_port         = DFL_SERVER_PORT;
     opt.debug_level         = DFL_DEBUG_LEVEL;
     opt.event               = DFL_EVENT;
+    opt.response_size       = DFL_RESPONSE_SIZE;
     opt.nbio                = DFL_NBIO;
     opt.read_timeout        = DFL_READ_TIMEOUT;
     opt.ca_file             = DFL_CA_FILE;
@@ -1338,6 +1371,8 @@ int main( int argc, char *argv[] )
     opt.anti_replay         = DFL_ANTI_REPLAY;
     opt.hs_to_min           = DFL_HS_TO_MIN;
     opt.hs_to_max           = DFL_HS_TO_MAX;
+    opt.dtls_mtu            = DFL_DTLS_MTU;
+    opt.dgram_packing       = DFL_DGRAM_PACKING;
     opt.badmac_limit        = DFL_BADMAC_LIMIT;
     opt.extended_ms         = DFL_EXTENDED_MS;
     opt.etm                 = DFL_ETM;
@@ -1383,6 +1418,20 @@ int main( int argc, char *argv[] )
         }
         else if( strcmp( p, "read_timeout" ) == 0 )
             opt.read_timeout = atoi( q );
+        else if( strcmp( p, "buffer_size" ) == 0 )
+        {
+            opt.buffer_size = atoi( q );
+            if( opt.buffer_size < 1 || opt.buffer_size > MBEDTLS_SSL_MAX_CONTENT_LEN + 1 )
+                goto usage;
+        }
+        else if( strcmp( p, "response_size" ) == 0 )
+        {
+            opt.response_size = atoi( q );
+            if( opt.response_size < 0 || opt.response_size > MBEDTLS_SSL_MAX_CONTENT_LEN )
+                goto usage;
+            if( opt.buffer_size < opt.response_size )
+                opt.buffer_size = opt.response_size;
+        }
         else if( strcmp( p, "ca_file" ) == 0 )
             opt.ca_file = q;
         else if( strcmp( p, "ca_path" ) == 0 )
@@ -1684,6 +1733,21 @@ int main( int argc, char *argv[] )
             if( opt.hs_to_min == 0 || opt.hs_to_max < opt.hs_to_min )
                 goto usage;
         }
+        else if( strcmp( p, "mtu" ) == 0 )
+        {
+            opt.dtls_mtu = atoi( q );
+            if( opt.dtls_mtu < 0 )
+                goto usage;
+        }
+        else if( strcmp( p, "dgram_packing" ) == 0 )
+        {
+            opt.dgram_packing = atoi( q );
+            if( opt.dgram_packing != 0 &&
+                opt.dgram_packing != 1 )
+            {
+                goto usage;
+            }
+        }
         else if( strcmp( p, "sni" ) == 0 )
         {
             opt.sni = q;
@@ -1704,6 +1768,13 @@ int main( int argc, char *argv[] )
 #if defined(MBEDTLS_DEBUG_C)
     mbedtls_debug_set_threshold( opt.debug_level );
 #endif
+    buf = mbedtls_calloc( 1, opt.buffer_size + 1 );
+    if( buf == NULL )
+    {
+        mbedtls_printf( "Could not allocate %u bytes\n", opt.buffer_size );
+        ret = 3;
+        goto exit;
+    }
 
     if( opt.force_ciphersuite[0] > 0 )
     {
@@ -2155,6 +2226,9 @@ int main( int argc, char *argv[] )
 #if defined(MBEDTLS_SSL_PROTO_DTLS)
     if( opt.hs_to_min != DFL_HS_TO_MIN || opt.hs_to_max != DFL_HS_TO_MAX )
         mbedtls_ssl_conf_handshake_timeout( &conf, opt.hs_to_min, opt.hs_to_max );
+
+    if( opt.dgram_packing != DFL_DGRAM_PACKING )
+        mbedtls_ssl_set_datagram_packing( &ssl, opt.dgram_packing );
 #endif /* MBEDTLS_SSL_PROTO_DTLS */
 
 #if defined(MBEDTLS_SSL_MAX_FRAGMENT_LENGTH)
@@ -2473,6 +2547,11 @@ int main( int argc, char *argv[] )
         mbedtls_ssl_set_bio( &ssl, &client_fd, mbedtls_net_send, mbedtls_net_recv,
                              opt.nbio == 0 ? mbedtls_net_recv_timeout : NULL );
 
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+    if( opt.dtls_mtu != DFL_DTLS_MTU )
+        mbedtls_ssl_set_mtu( &ssl, opt.dtls_mtu );
+#endif
+
 #if defined(MBEDTLS_TIMING_C)
     mbedtls_ssl_set_timer_cb( &ssl, &timer, mbedtls_timing_set_delay,
                                             mbedtls_timing_get_delay );
@@ -2712,8 +2791,8 @@ data_exchange:
         do
         {
             int terminated = 0;
-            len = sizeof( buf ) - 1;
-            memset( buf, 0, sizeof( buf ) );
+            len = opt.buffer_size - 1;
+            memset( buf, 0, opt.buffer_size );
             ret = mbedtls_ssl_read( &ssl, buf, len );
 
             if( mbedtls_status_is_ssl_in_progress( ret ) )
@@ -2813,8 +2892,8 @@ data_exchange:
     }
     else /* Not stream, so datagram */
     {
-        len = sizeof( buf ) - 1;
-        memset( buf, 0, sizeof( buf ) );
+        len = opt.buffer_size - 1;
+        memset( buf, 0, opt.buffer_size );
 
         do
         {
@@ -2911,6 +2990,25 @@ data_exchange:
 
     len = sprintf( (char *) buf, HTTP_RESPONSE,
                    mbedtls_ssl_get_ciphersuite( &ssl ) );
+
+    /* Add padding to the response to reach opt.response_size in length */
+    if( opt.response_size != DFL_RESPONSE_SIZE &&
+        len < opt.response_size )
+    {
+        memset( buf + len, 'B', opt.response_size - len );
+        len += opt.response_size - len;
+    }
+
+    /* Truncate if response size is smaller than the "natural" size */
+    if( opt.response_size != DFL_RESPONSE_SIZE &&
+        len > opt.response_size )
+    {
+        len = opt.response_size;
+
+        /* Still end with \r\n unless that's really not possible */
+        if( len >= 2 ) buf[len - 2] = '\r';
+        if( len >= 1 ) buf[len - 1] = '\n';
+    }
 
     if( opt.transport == MBEDTLS_SSL_TRANSPORT_STREAM )
     {
@@ -3062,6 +3160,8 @@ exit:
 #if defined(MBEDTLS_SSL_COOKIE_C)
     mbedtls_ssl_cookie_free( &cookie_ctx );
 #endif
+
+    mbedtls_free( buf );
 
 #if defined(MBEDTLS_MEMORY_BUFFER_ALLOC_C)
 #if defined(MBEDTLS_MEMORY_DEBUG)
