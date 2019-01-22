@@ -66,7 +66,7 @@ impl EcGroup {
         match unsafe { ecp_check_pubkey(&self.inner, &point.inner) } {
             0 => Ok(true),
             ERR_ECP_INVALID_KEY => Ok(false),
-            err => Err(::Error::from_mbedtls_code(err))
+            err => Err(::Error::from_mbedtls_code(err)),
         }
     }
 }
@@ -162,7 +162,8 @@ impl EcPoint {
         pt1: &EcPoint,
         k1: &Mpi,
         pt2: &EcPoint,
-        k2: &Mpi) -> ::Result<EcPoint> {
+        k2: &Mpi,
+    ) -> ::Result<EcPoint> {
         let mut ret = Self::init();
 
         if group.contains_point(&pt1)? == false {
