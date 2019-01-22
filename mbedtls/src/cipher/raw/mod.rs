@@ -12,15 +12,15 @@ use error::IntoResult;
 
 mod serde;
 
-define!(enum CipherId -> cipher_id_t {
-	None => CIPHER_ID_NONE,
-	Null => CIPHER_ID_NULL,
-	Aes => CIPHER_ID_AES,
-	Des => CIPHER_ID_DES,
-	Des3 => CIPHER_ID_3DES,
-	Camellia => CIPHER_ID_CAMELLIA,
-	Blowfish => CIPHER_ID_BLOWFISH,
-	Arc4 => CIPHER_ID_ARC4,
+define!(#[c_ty(cipher_id_t)] enum CipherId {
+	None = CIPHER_ID_NONE,
+	Null = CIPHER_ID_NULL,
+	Aes = CIPHER_ID_AES,
+	Des = CIPHER_ID_DES,
+	Des3 = CIPHER_ID_3DES,
+	Camellia = CIPHER_ID_CAMELLIA,
+	Blowfish = CIPHER_ID_BLOWFISH,
+	Arc4 = CIPHER_ID_ARC4,
 });
 
 impl From<cipher_id_t> for CipherId {
@@ -40,16 +40,16 @@ impl From<cipher_id_t> for CipherId {
     }
 }
 
-define!(#[derive(Copy, Clone, Eq, PartialEq)] enum CipherMode -> cipher_mode_t {
-	None => MODE_NONE,
-	ECB => MODE_ECB,
-	CBC => MODE_CBC,
-	CFB => MODE_CFB,
-	OFB => MODE_OFB,
-	CTR => MODE_CTR,
-	GCM => MODE_GCM,
-	STREAM => MODE_STREAM,
-	CCM => MODE_CCM,
+define!(#[c_ty(cipher_mode_t)] #[derive(Copy, Clone, Eq, PartialEq)] enum CipherMode {
+	None = MODE_NONE,
+	ECB = MODE_ECB,
+	CBC = MODE_CBC,
+	CFB = MODE_CFB,
+	OFB = MODE_OFB,
+	CTR = MODE_CTR,
+	GCM = MODE_GCM,
+	STREAM = MODE_STREAM,
+	CCM = MODE_CCM,
 });
 
 impl From<cipher_mode_t> for CipherMode {
@@ -70,80 +70,81 @@ impl From<cipher_mode_t> for CipherMode {
     }
 }
 
-define!(enum CipherType -> cipher_type_t {
-	None              => CIPHER_NONE,
-	Null              => CIPHER_NULL,
-	Aes128Ecb         => CIPHER_AES_128_ECB,
-	Aes192Ecb         => CIPHER_AES_192_ECB,
-	Aes256Ecb         => CIPHER_AES_256_ECB,
-	Aes128Cbc         => CIPHER_AES_128_CBC,
-	Aes192Cbc         => CIPHER_AES_192_CBC,
-	Aes256Cbc         => CIPHER_AES_256_CBC,
-	Aes128Cfb128      => CIPHER_AES_128_CFB128,
-	Aes192Cfb128      => CIPHER_AES_192_CFB128,
-	Aes256Cfb128      => CIPHER_AES_256_CFB128,
-	Aes128Ctr         => CIPHER_AES_128_CTR,
-	Aes192Ctr         => CIPHER_AES_192_CTR,
-	Aes256Ctr         => CIPHER_AES_256_CTR,
-	Aes128Gcm         => CIPHER_AES_128_GCM,
-	Aes192Gcm         => CIPHER_AES_192_GCM,
-	Aes256Gcm         => CIPHER_AES_256_GCM,
-	Camellia128Ecb    => CIPHER_CAMELLIA_128_ECB,
-	Camellia192Ecb    => CIPHER_CAMELLIA_192_ECB,
-	Camellia256Ecb    => CIPHER_CAMELLIA_256_ECB,
-	Camellia128Cbc    => CIPHER_CAMELLIA_128_CBC,
-	Camellia192Cbc    => CIPHER_CAMELLIA_192_CBC,
-	Camellia256Cbc    => CIPHER_CAMELLIA_256_CBC,
-	Camellia128Cfb128 => CIPHER_CAMELLIA_128_CFB128,
-	Camellia192Cfb128 => CIPHER_CAMELLIA_192_CFB128,
-	Camellia256Cfb128 => CIPHER_CAMELLIA_256_CFB128,
-	Camellia128Ctr    => CIPHER_CAMELLIA_128_CTR,
-	Camellia192Ctr    => CIPHER_CAMELLIA_192_CTR,
-	Camellia256Ctr    => CIPHER_CAMELLIA_256_CTR,
-	Camellia128Gcm    => CIPHER_CAMELLIA_128_GCM,
-	Camellia192Gcm    => CIPHER_CAMELLIA_192_GCM,
-	Camellia256Gcm    => CIPHER_CAMELLIA_256_GCM,
-	DesEcb            => CIPHER_DES_ECB,
-	DesCbc            => CIPHER_DES_CBC,
-	DesEdeEcb         => CIPHER_DES_EDE_ECB,
-	DesEdeCbc         => CIPHER_DES_EDE_CBC,
-	DesEde3Ecb        => CIPHER_DES_EDE3_ECB,
-	DesEde3Cbc        => CIPHER_DES_EDE3_CBC,
-	BlowfishEcb       => CIPHER_BLOWFISH_ECB,
-	BlowfishCbc       => CIPHER_BLOWFISH_CBC,
-	BlowfishCfb64     => CIPHER_BLOWFISH_CFB64,
-	BlowfishCtr       => CIPHER_BLOWFISH_CTR,
-	Arcfour128          => CIPHER_ARC4_128,
-	Aes128Ccm         => CIPHER_AES_128_CCM,
-	Aes192Ccm         => CIPHER_AES_192_CCM,
-	Aes256Ccm         => CIPHER_AES_256_CCM,
-	Camellia128Ccm    => CIPHER_CAMELLIA_128_CCM,
-	Camellia192Ccm    => CIPHER_CAMELLIA_192_CCM,
-	Camellia256Ccm    => CIPHER_CAMELLIA_256_CCM,
+define!(#[c_ty(cipher_type_t)] enum CipherType {
+	None              = CIPHER_NONE,
+	Null              = CIPHER_NULL,
+	Aes128Ecb         = CIPHER_AES_128_ECB,
+	Aes192Ecb         = CIPHER_AES_192_ECB,
+	Aes256Ecb         = CIPHER_AES_256_ECB,
+	Aes128Cbc         = CIPHER_AES_128_CBC,
+	Aes192Cbc         = CIPHER_AES_192_CBC,
+	Aes256Cbc         = CIPHER_AES_256_CBC,
+	Aes128Cfb128      = CIPHER_AES_128_CFB128,
+	Aes192Cfb128      = CIPHER_AES_192_CFB128,
+	Aes256Cfb128      = CIPHER_AES_256_CFB128,
+	Aes128Ctr         = CIPHER_AES_128_CTR,
+	Aes192Ctr         = CIPHER_AES_192_CTR,
+	Aes256Ctr         = CIPHER_AES_256_CTR,
+	Aes128Gcm         = CIPHER_AES_128_GCM,
+	Aes192Gcm         = CIPHER_AES_192_GCM,
+	Aes256Gcm         = CIPHER_AES_256_GCM,
+	Camellia128Ecb    = CIPHER_CAMELLIA_128_ECB,
+	Camellia192Ecb    = CIPHER_CAMELLIA_192_ECB,
+	Camellia256Ecb    = CIPHER_CAMELLIA_256_ECB,
+	Camellia128Cbc    = CIPHER_CAMELLIA_128_CBC,
+	Camellia192Cbc    = CIPHER_CAMELLIA_192_CBC,
+	Camellia256Cbc    = CIPHER_CAMELLIA_256_CBC,
+	Camellia128Cfb128 = CIPHER_CAMELLIA_128_CFB128,
+	Camellia192Cfb128 = CIPHER_CAMELLIA_192_CFB128,
+	Camellia256Cfb128 = CIPHER_CAMELLIA_256_CFB128,
+	Camellia128Ctr    = CIPHER_CAMELLIA_128_CTR,
+	Camellia192Ctr    = CIPHER_CAMELLIA_192_CTR,
+	Camellia256Ctr    = CIPHER_CAMELLIA_256_CTR,
+	Camellia128Gcm    = CIPHER_CAMELLIA_128_GCM,
+	Camellia192Gcm    = CIPHER_CAMELLIA_192_GCM,
+	Camellia256Gcm    = CIPHER_CAMELLIA_256_GCM,
+	DesEcb            = CIPHER_DES_ECB,
+	DesCbc            = CIPHER_DES_CBC,
+	DesEdeEcb         = CIPHER_DES_EDE_ECB,
+	DesEdeCbc         = CIPHER_DES_EDE_CBC,
+	DesEde3Ecb        = CIPHER_DES_EDE3_ECB,
+	DesEde3Cbc        = CIPHER_DES_EDE3_CBC,
+	BlowfishEcb       = CIPHER_BLOWFISH_ECB,
+	BlowfishCbc       = CIPHER_BLOWFISH_CBC,
+	BlowfishCfb64     = CIPHER_BLOWFISH_CFB64,
+	BlowfishCtr       = CIPHER_BLOWFISH_CTR,
+	Arcfour128        = CIPHER_ARC4_128,
+	Aes128Ccm         = CIPHER_AES_128_CCM,
+	Aes192Ccm         = CIPHER_AES_192_CCM,
+	Aes256Ccm         = CIPHER_AES_256_CCM,
+	Camellia128Ccm    = CIPHER_CAMELLIA_128_CCM,
+	Camellia192Ccm    = CIPHER_CAMELLIA_192_CCM,
+	Camellia256Ccm    = CIPHER_CAMELLIA_256_CCM,
 });
 
 define!(
+#[c_ty(cipher_padding_t)]
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq)]
-enum CipherPadding -> cipher_padding_t {
-	Pkcs7       => PADDING_PKCS7,
-	IsoIec78164 => PADDING_ONE_AND_ZEROS,
-	AnsiX923    => PADDING_ZEROS_AND_LEN,
-	Zeros       => PADDING_ZEROS,
-	None        => PADDING_NONE,
+enum CipherPadding {
+	Pkcs7       = PADDING_PKCS7,
+	IsoIec78164 = PADDING_ONE_AND_ZEROS,
+	AnsiX923    = PADDING_ZEROS_AND_LEN,
+	Zeros       = PADDING_ZEROS,
+	None        = PADDING_NONE,
 });
 
-define!(enum Operation -> operation_t {
-	None => OPERATION_NONE,
-	Decrypt => DECRYPT,
-	Encrypt => ENCRYPT,
+define!(#[c_ty(operation_t)] enum Operation {
+	None = OPERATION_NONE,
+	Decrypt = DECRYPT,
+	Encrypt = ENCRYPT,
 });
 
-define!(#[repr(C)]
-struct Cipher(cipher_context_t) {
-	fn init = cipher_init;
-	fn drop = cipher_free;
-	impl<'a> Into<*>;
-});
+define!(#[c_ty(cipher_context_t)]#[repr(C)]
+struct Cipher ;
+	fn init() { cipher_init }
+	fn drop() { cipher_free }
+	impl<'a> Into<ptr> {}
+);
 
 impl Cipher {
     // Setup routine - this should be the first function called

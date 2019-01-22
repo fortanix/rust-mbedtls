@@ -16,11 +16,12 @@ use mbedtls_sys::*;
 use error::IntoResult;
 
 define!(
+#[c_ty(x509_csr)]
 /// Certificate Signing Request
-struct Csr(x509_csr) {
-	fn init=x509_csr_init;
-	fn drop=x509_csr_free;
-});
+struct Csr ;
+	fn init(){x509_csr_init}
+	fn drop(){x509_csr_free}
+);
 
 impl Csr {
     pub fn from_der(der: &[u8]) -> ::Result<Csr> {
@@ -68,10 +69,10 @@ impl fmt::Debug for Csr {
     }
 }
 
-define!(struct Builder<'a>(x509write_csr) {
-	pub fn new=x509write_csr_init;
-	fn drop=x509write_csr_free;
-});
+define!(#[c_ty(x509write_csr)]struct Builder<'a> ;
+	pub fn new(){x509write_csr_init}
+	fn drop(){x509write_csr_free}
+);
 
 impl<'a> Builder<'a> {
     unsafe fn subject_with_nul_unchecked(&mut self, subject: &[u8]) -> ::Result<&mut Self> {

@@ -20,10 +20,10 @@ use mbedtls_sys::*;
 use error::IntoResult;
 use private::UnsafeFrom;
 
-define!(struct Certificate(x509_crt) {
-	fn init=x509_crt_init;
-	fn drop=x509_crt_free;
-});
+define!(#[c_ty(x509_crt)]struct Certificate ;
+	fn init(){x509_crt_init}
+	fn drop(){x509_crt_free}
+);
 
 impl Certificate {
     pub fn from_der(der: &[u8]) -> ::Result<Certificate> {
@@ -368,10 +368,10 @@ impl<'c, 'r> From<&'c mut List<'r>> for &'c mut LinkedCertificate {
     }
 }
 
-define!(struct Builder<'a>(x509write_cert) {
-	pub fn new=x509write_crt_init;
-	fn drop=x509write_crt_free;
-});
+define!(#[c_ty(x509write_cert)]struct Builder<'a> ;
+	pub fn new(){x509write_crt_init}
+	fn drop(){x509write_crt_free}
+);
 
 impl<'a> Builder<'a> {
     unsafe fn subject_with_nul_unchecked(&mut self, subject: &[u8]) -> ::Result<&mut Self> {

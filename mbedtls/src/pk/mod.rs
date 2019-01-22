@@ -19,15 +19,15 @@ mod ec;
 #[doc(inline)]
 pub use self::ec::{EcGroupId, ECDSA_MAX_LEN};
 
-define!(enum Type -> pk_type_t {
-	None => PK_NONE,
-	Rsa => PK_RSA,
-	Eckey => PK_ECKEY,
-	EckeyDh => PK_ECKEY_DH,
+define!(#[c_ty(pk_type_t)] enum Type {
+	None = PK_NONE,
+	Rsa = PK_RSA,
+	Eckey = PK_ECKEY,
+	EckeyDh = PK_ECKEY_DH,
 	// This type is never returned by the mbedTLS key parsing routines
-	Ecdsa => PK_ECDSA,
-	RsaAlt => PK_RSA_ALT,
-	RsassaPss => PK_RSASSA_PSS,
+	Ecdsa = PK_ECDSA,
+	RsaAlt = PK_RSA_ALT,
+	RsassaPss = PK_RSASSA_PSS,
 });
 
 impl From<pk_type_t> for Type {
@@ -58,13 +58,13 @@ pub enum Options {
     Rsa { padding: RsaPadding },
 }
 
-define!(#[repr(C)]
-struct Pk(pk_context) {
-	fn init = pk_init;
-	fn drop = pk_free;
-	impl<'a> Into<*>;
-	impl<'a> UnsafeFrom<*>;
-});
+define!(#[c_ty(pk_context)]#[repr(C)]
+struct Pk ;
+	fn init(){ pk_init}
+	fn drop(){ pk_free}
+	impl<'a> Into<ptr> {}
+	impl<'a> UnsafeFrom<ptr> {}
+);
 
 impl Pk {
     /// Takes both DER and PEM forms of PKCS#1 or PKCS#8 encoded keys.
@@ -404,7 +404,6 @@ impl Pk {
 mod tests {
     use super::*;
 
-    #[cfg_attr(rustfmt,rustfmt_skip)]
 	// This is test data that must match library output *exactly*
 	const TEST_PEM: &'static str = "-----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEAh1aoz6wFwVHaCVDISSy+dZ8rOsJmfYBCrgzUjX+VNb2RwdT8

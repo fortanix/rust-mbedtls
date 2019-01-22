@@ -9,12 +9,12 @@
 use error::IntoResult;
 use mbedtls_sys::*;
 
-define!(#[repr(C)]
-struct Dhm(dhm_context) {
-	fn init = dhm_init;
-	fn drop = dhm_free;
-	impl<'a> Into<*>;
-});
+define!(#[c_ty(dhm_context)]#[repr(C)]
+struct Dhm ;
+	fn init() { dhm_init}
+	fn drop(){dhm_free}
+	impl<'a> Into<ptr> {}
+);
 
 impl Dhm {
     /// Takes both DER and PEM forms of FFDH parameters in `DHParams` format.

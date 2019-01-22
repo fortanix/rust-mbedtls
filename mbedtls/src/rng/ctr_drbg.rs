@@ -26,10 +26,10 @@ use error::IntoResult;
 // If `ctr_drbg_context` were moveable, this entire section could be replaced
 // by basically:
 // ```
-// define!(struct CtrDrbg<'entropy>(ctr_drbg_context) {
-// 	fn init=ctr_drbg_init;
-// 	fn drop=ctr_drbg_free;
-// });
+// define!(#[c_ty(ctr_drbg_context)] struct CtrDrbg<'entropy>;
+// 	fn init(){ctr_drbg_init}
+// 	fn drop(){ctr_drbg_free}
+// );
 // ```
 
 use self::private::CtrDrbgInner;

@@ -9,17 +9,17 @@
 use error::IntoResult;
 use mbedtls_sys::*;
 
-define!(enum Type -> md_type_t {
-	None => MD_NONE,
-	Md2 => MD_MD2,
-	Md4 => MD_MD4,
-	Md5 => MD_MD5,
-	Sha1 => MD_SHA1,
-	Sha224 => MD_SHA224,
-	Sha256 => MD_SHA256,
-	Sha384 => MD_SHA384,
-	Sha512 => MD_SHA512,
-	Ripemd => MD_RIPEMD160,
+define!(#[c_ty(md_type_t)] enum Type {
+	None = MD_NONE,
+	Md2 = MD_MD2,
+	Md4 = MD_MD4,
+	Md5 = MD_MD5,
+	Sha1 = MD_SHA1,
+	Sha224 = MD_SHA224,
+	Sha256 = MD_SHA256,
+	Sha384 = MD_SHA384,
+	Sha512 = MD_SHA512,
+	Ripemd = MD_RIPEMD160,
 });
 
 impl From<md_type_t> for Type {
@@ -57,11 +57,11 @@ impl Into<*const md_info_t> for MdInfo {
     }
 }
 
-define!(struct Md(md_context_t) {
-	fn init=md_init;
-	fn drop=md_free;
-	impl<'a> Into<*>;
-});
+define!(#[c_ty(md_context_t)] struct Md ;
+	fn init() { md_init }
+	fn drop() { md_free }
+	impl<'a> Into<ptr> {}
+);
 
 impl MdInfo {
     pub fn size(&self) -> usize {

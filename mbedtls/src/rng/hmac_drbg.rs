@@ -17,10 +17,10 @@ use mbedtls_sys::{
 use super::{EntropyCallback, RngCallback};
 use error::IntoResult;
 
-define!(struct HmacDrbg<'entropy>(hmac_drbg_context) {
-	fn init=hmac_drbg_init;
-	fn drop=hmac_drbg_free;
-});
+define!(#[c_ty(hmac_drbg_context)] struct HmacDrbg<'entropy> ;
+	fn init(){hmac_drbg_init}
+	fn drop(){hmac_drbg_free}
+);
 
 #[cfg(feature = "threading")]
 unsafe impl<'entropy> Sync for HmacDrbg<'entropy> {}

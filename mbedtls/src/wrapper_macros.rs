@@ -55,12 +55,12 @@ macro_rules! callback {
 }
 
 macro_rules! define {
-	{ $(#[$m:meta])* struct $name:ident$(<$l:tt>)*($inner:ident) { $($defs:tt)* } } => {
+	{ #[c_ty($inner:ident)] $(#[$m:meta])* struct $name:ident$(<$l:tt>)*; $($defs:tt)* } => {
 		define_struct!(define $(#[$m])* struct $name $(lifetime $l)* inner $inner);
 		define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
 	};
-	{ $(#[$m:meta])* enum $n:ident -> $raw:ty { $(#[$doc:meta] $rust:ident => $c:ident,)* } } => { define_enum!($(#[$m])* enum $n ty $raw : $(doc ($doc) rust $rust c $c),*); };
-	{ $(#[$m:meta])* enum $n:ident -> $raw:ty { $(             $rust:ident => $c:ident,)* } } => { define_enum!($(#[$m])* enum $n ty $raw : $(doc (    ) rust $rust c $c),*); };
+	{ #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(#[$doc:meta] $rust:ident = $c:ident,)* } } => { define_enum!($(#[$m])* enum $n ty $raw : $(doc ($doc) rust $rust c $c),*); };
+	{ #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(             $rust:ident = $c:ident,)* } } => { define_enum!($(#[$m])* enum $n ty $raw : $(doc (    ) rust $rust c $c),*); };
 }
 
 macro_rules! define_enum {
@@ -97,11 +97,11 @@ macro_rules! define_struct {
 		);
 	};
 
-	{ << $name:ident $(lifetime $l:tt)* inner $inner:ident >> fn init = $ctor:ident; $($defs:tt)* } => {
+	{ << $name:ident $(lifetime $l:tt)* inner $inner:ident >> fn init() { $ctor:ident } $($defs:tt)* } => {
 		define_struct!(init $name () init $ctor $(lifetime $l)* );
 		define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
 	};
-	{ << $name:ident $(lifetime $l:tt)* inner $inner:ident >> pub fn new = $ctor:ident; $($defs:tt)* } => {
+	{ << $name:ident $(lifetime $l:tt)* inner $inner:ident >> pub fn new() { $ctor:ident } $($defs:tt)* } => {
 		define_struct!(init $name (pub) new $ctor $(lifetime $l)* );
 		define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
 	};
@@ -124,7 +124,7 @@ macro_rules! define_struct {
 		);
 	};
 
-	{ << $name:ident $(lifetime $l:tt)* inner $inner:ident >> fn drop = $dtor:ident; $($defs:tt)* } => {
+	{ << $name:ident $(lifetime $l:tt)* inner $inner:ident >> fn drop() { $dtor:ident } $($defs:tt)* } => {
 		define_struct!(drop $name dtor $dtor $(lifetime $l)* );
 		define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
 	};
@@ -138,7 +138,7 @@ macro_rules! define_struct {
 		);
 	};
 
-	{ << $name:ident $(lifetime $l:tt)* inner $inner:ident >> impl<$l2:tt> Into<*>; $($defs:tt)* } => {
+	{ << $name:ident $(lifetime $l:tt)* inner $inner:ident >> impl<$l2:tt> Into<ptr> {} $($defs:tt)* } => {
 		define_struct!(into $name inner $inner $(lifetime $l)* lifetime2 $l2 );
 		define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
 	};
@@ -160,7 +160,7 @@ macro_rules! define_struct {
 		);
 	};
 
-	{ << $name:ident $(lifetime $l:tt)* inner $inner:ident >> impl<$l2:tt> UnsafeFrom<*>; $($defs:tt)* } => {
+	{ << $name:ident $(lifetime $l:tt)* inner $inner:ident >> impl<$l2:tt> UnsafeFrom<ptr> {} $($defs:tt)* } => {
 		define_struct!(unsafe_from $name inner $inner $(lifetime $l)* lifetime2 $l2 );
 		define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
 	};

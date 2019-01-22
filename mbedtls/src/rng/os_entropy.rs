@@ -14,10 +14,10 @@ use error::IntoResult;
 
 callback!(EntropySourceCallback(data: *mut c_uchar, size: size_t, out: *mut size_t) -> c_int);
 
-define!(struct OsEntropy<'source>(entropy_context) {
-	pub fn new=entropy_init;
-	fn drop=entropy_free;
-});
+define!(#[c_ty(entropy_context)]struct OsEntropy<'source> ;
+	pub fn new(){entropy_init}
+	fn drop(){entropy_free}
+);
 
 #[cfg(feature = "threading")]
 unsafe impl<'source> Sync for OsEntropy<'source> {}

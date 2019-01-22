@@ -19,45 +19,45 @@ use ssl::context::HandshakeContext;
 use ssl::ticket::TicketCallback;
 use x509::{certificate, Crl, LinkedCertificate, Profile, VerifyError};
 
-define!(enum Endpoint -> c_int {
-	Client => SSL_IS_CLIENT,
-	Server => SSL_IS_SERVER,
+define!(#[c_ty(c_int)] enum Endpoint {
+	Client = SSL_IS_CLIENT,
+	Server = SSL_IS_SERVER,
 });
 
-define!(enum Transport -> c_int {
+define!(#[c_ty(c_int)] enum Transport {
 	/// TLS
-	Stream => SSL_TRANSPORT_STREAM,
+	Stream = SSL_TRANSPORT_STREAM,
 	/// DTLS
-	Datagram => SSL_TRANSPORT_DATAGRAM,
+	Datagram = SSL_TRANSPORT_DATAGRAM,
 });
 
-define!(enum Preset -> c_int {
-	Default => SSL_PRESET_DEFAULT,
-	SuiteB => SSL_PRESET_SUITEB,
+define!(#[c_ty(c_int)] enum Preset {
+	Default = SSL_PRESET_DEFAULT,
+	SuiteB = SSL_PRESET_SUITEB,
 });
 
-define!(enum AuthMode -> c_int {
+define!(#[c_ty(c_int)] enum AuthMode {
 	/// **INSECURE** on client, default on server
-	None => SSL_VERIFY_NONE,
+	None = SSL_VERIFY_NONE,
 	/// **INSECURE**
-	Optional => SSL_VERIFY_OPTIONAL,
+	Optional = SSL_VERIFY_OPTIONAL,
 	/// default on client
-	Required => SSL_VERIFY_REQUIRED,
+	Required = SSL_VERIFY_REQUIRED,
 });
 
-define!(enum UseSessionTickets -> c_int {
-	Enabled => SSL_SESSION_TICKETS_ENABLED,
-	Disabled => SSL_SESSION_TICKETS_DISABLED,
+define!(#[c_ty(c_int)] enum UseSessionTickets {
+	Enabled = SSL_SESSION_TICKETS_ENABLED,
+	Disabled = SSL_SESSION_TICKETS_DISABLED,
 });
 
 callback!(DbgCallback:Sync(level: c_int, file: *const c_char, line: c_int, message: *const c_char) -> ());
 
-define!(struct Config<'c>(ssl_config) {
-	fn init = ssl_config_init;
-	fn drop = ssl_config_free;
-	impl<'q> Into<*>;
-	impl<'q> UnsafeFrom<*>;
-});
+define!(#[c_ty(ssl_config)]struct Config<'c> ;
+	fn init (){ssl_config_init}
+	fn drop (){ssl_config_free}
+	impl<'q> Into<ptr>{}
+	impl<'q> UnsafeFrom<ptr>{}
+);
 
 #[cfg(feature = "threading")]
 unsafe impl<'c> Sync for Config<'c> {}
@@ -237,9 +237,9 @@ impl<'c> Config<'c> {
 setter_callback!(Config<'c>::set_rng(f: ::rng::Random) = ssl_conf_rng);
 setter_callback!(Config<'c>::set_dbg(f: DbgCallback) = ssl_conf_dbg);
 
-define!(struct KeyCert(ssl_key_cert) {
-	impl<'a> UnsafeFrom<*>;
-});
+define!(#[c_ty(ssl_key_cert)]struct KeyCert ;
+	impl<'a> UnsafeFrom<ptr>{}
+);
 
 pub struct KeyCertIter<'a> {
     key_cert: Option<&'a KeyCert>,
