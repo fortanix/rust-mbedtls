@@ -23,7 +23,7 @@ mod support;
 use support::entropy::entropy_new;
 use support::keys;
 
-fn client(mut conn: TcpStream, min_minor: i32, max_minor: i32, exp_minor: i32) -> TlsResult<()> {
+fn client(mut conn: TcpStream, min_minor: i32, max_minor: i32, exp_minor: Result<i32, ()>) -> TlsResult<()> {
     let mut entropy = entropy_new();
     let mut rng = try!(CtrDrbg::new(&mut entropy, None));
     let mut cert = try!(Certificate::from_pem(keys::PEM_CERT));
@@ -38,19 +38,19 @@ fn client(mut conn: TcpStream, min_minor: i32, max_minor: i32, exp_minor: i32) -
         config.set_rng(Some(&mut rng));
         config.set_verify_callback(verify_callback);
         config.set_ca_list(Some(&mut *cert), None);
-        config.set_min_version(3, min_minor);
-        config.set_max_version(3, max_minor);
+        config.set_min_version(3, min_minor)?;
+        config.set_max_version(3, max_minor)?;
         let mut ctx = try!(Context::new(&config));
 
         let session = ctx.establish(&mut conn, None);
 
         let mut session = match session {
             Ok(s) => {
-                assert_eq!(s.minor_version(), exp_minor);
+                assert_eq!(s.minor_version(), exp_minor.unwrap());
                 s
             }
             Err(e) => {
-                assert_eq!(exp_minor, -1);
+                assert!(exp_minor.is_err());
                 match e {
                     Error::SslBadHsProtocolVersion => {}
                     Error::SslFatalAlertMessage => {}
@@ -69,26 +69,26 @@ fn client(mut conn: TcpStream, min_minor: i32, max_minor: i32, exp_minor: i32) -
     Ok(())
 }
 
-fn server(mut conn: TcpStream, min_minor: i32, max_minor: i32, exp_minor: i32) -> TlsResult<()> {
+fn server(mut conn: TcpStream, min_minor: i32, max_minor: i32, exp_minor: Result<i32, ()>) -> TlsResult<()> {
     let mut entropy = entropy_new();
     let mut rng = try!(CtrDrbg::new(&mut entropy, None));
     let mut cert = try!(Certificate::from_pem(keys::PEM_CERT));
     let mut key = try!(Pk::from_private_key(keys::PEM_KEY, None));
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(Some(&mut rng));
-    config.set_min_version(3, min_minor);
-    config.set_max_version(3, max_minor);
+    config.set_min_version(3, min_minor)?;
+    config.set_max_version(3, max_minor)?;
     try!(config.push_cert(&mut *cert, &mut key));
     let mut ctx = try!(Context::new(&config));
 
     let session = ctx.establish(&mut conn, None);
     let mut session = match session {
         Ok(s) => {
-            assert_eq!(s.minor_version(), exp_minor);
+            assert_eq!(s.minor_version(), exp_minor.unwrap());
             s
         }
         Err(e) => {
-            assert_eq!(exp_minor, -1);
+            assert!(exp_minor.is_err());
             match e {
                 // client just closes connection instead of sending alert
                 Error::NetSendFailed => {}
@@ -98,8 +98,6 @@ fn server(mut conn: TcpStream, min_minor: i32, max_minor: i32, exp_minor: i32) -
             return Ok(());
         }
     };
-
-    assert_eq!(session.minor_version(), exp_minor);
 
     session.write_all(b"Server2Client").unwrap();
     let mut buf = [0u8; 13];
@@ -124,6 +122,9 @@ mod test {
             [1, 2, 1, 1, 1],
             [1, 2, 1, 2, 2],
             [2, 2, 1, 2, 2],
+            [1, 3, 1, 2, 2],
+            [3, 3, 3, 3, 3],
+            [2, 2, 3, 2, -1],
             [2, 2, 0, 1, -1],
             [0, 1, 2, 2, -1],
             [0, 0, 1, 2, -1],
@@ -139,10 +140,12 @@ mod test {
             let (c, s) = create_tcp_pair().unwrap();
 
             let c = thread::spawn(move || {
-                super::client(c, client_min_ver, client_max_ver, exp_version).unwrap()
+                let exp_result = if exp_version < 0 { Err(()) } else { Ok(exp_version) };
+                super::client(c, client_min_ver, client_max_ver, exp_result).unwrap()
             });
             let s = thread::spawn(move || {
-                super::server(s, server_min_ver, server_max_ver, exp_version).unwrap()
+                let exp_result = if exp_version < 0 { Err(()) } else { Ok(exp_version) };
+                super::server(s, server_min_ver, server_max_ver, exp_result).unwrap()
             });
             c.join().unwrap();
             s.join().unwrap();
