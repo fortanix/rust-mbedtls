@@ -15,11 +15,17 @@ use alloc_prelude::*;
 use bignum::Mpi;
 use pk::EcGroupId;
 
-define!(struct EcGroup(ecp_group) {
-    fn init=ecp_group_init;
-    fn drop=ecp_group_free;
-    impl<'a> Into<*>;
-});
+define!(
+    #[c_ty(ecp_group)]
+    struct EcGroup;
+    fn init() {
+        ecp_group_init
+    }
+    fn drop() {
+        ecp_group_free
+    }
+    impl<'a> Into<ptr> {}
+);
 
 impl EcGroup {
     pub fn new(group: EcGroupId) -> ::Result<EcGroup> {
@@ -65,11 +71,17 @@ impl EcGroup {
     }
 }
 
-define!(struct EcPoint(ecp_point) {
-    fn init=ecp_point_init;
-    fn drop=ecp_point_free;
-    impl<'a> Into<*>;
-});
+define!(
+    #[c_ty(ecp_point)]
+    struct EcPoint;
+    fn init() {
+        ecp_point_init
+    }
+    fn drop() {
+        ecp_point_free
+    }
+    impl<'a> Into<ptr> {}
+);
 
 impl EcPoint {
     pub fn new() -> ::Result<EcPoint> {
