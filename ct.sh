@@ -1,6 +1,13 @@
 #!/bin/sh
 set -ex
-cd "$(dirname "$0")/mbedtls"
+cd "$(dirname "$0")"
+
+if [ "${TRAVIS_BRANCH}" = "staging" ];
+then
+    rm -rf ./target
+fi
+
+cd "./mbedtls"
 
 cargo test
 cargo test --features spin_threading
