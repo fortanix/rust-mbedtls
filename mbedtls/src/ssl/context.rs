@@ -218,6 +218,14 @@ impl<'ctx> ::private::UnsafeFrom<*mut ssl_context> for HandshakeContext<'ctx> {
 }
 
 impl<'a> Session<'a> {
+    pub fn minor_version(&self) -> i32 {
+        self.inner.minor_ver
+    }
+
+    pub fn major_version(&self) -> i32 {
+        self.inner.major_ver
+    }
+
     pub fn peer_cert(&self) -> Option<::x509::certificate::Iter> {
         unsafe { ::private::UnsafeFrom::from(ssl_get_peer_cert(self.inner)) }
     }

@@ -12,7 +12,7 @@ use mbedtls_sys::types::raw_types::{c_char, c_int, c_uchar, c_uint, c_void};
 use mbedtls_sys::types::size_t;
 use mbedtls_sys::*;
 
-use error::IntoResult;
+use error::{Error, IntoResult};
 use pk::dhparam::Dhm;
 use private::UnsafeFrom;
 use ssl::context::HandshakeContext;
@@ -118,6 +118,24 @@ impl<'c> Config<'c> {
     pub fn set_curves(&mut self, list: &'c [ecp_group_id]) {
         Self::check_c_list(list);
         unsafe { ssl_conf_curves(&mut self.inner, list.as_ptr()) }
+    }
+
+    pub fn set_min_version(&mut self, major: i32, minor: i32) -> ::Result<()> {
+        // mbedtls does not check the versions so sanity check first
+
+        if major != 3 || minor < 0 || minor > 3 {
+            return Err(Error::SslBadHsProtocolVersion);
+        }
+        unsafe { ssl_conf_min_version(&mut self.inner, major, minor) };
+        Ok(())
+    }
+
+    pub fn set_max_version(&mut self, major: i32, minor: i32) -> ::Result<()> {
+        if major != 3 || minor < 0 || minor > 3 {
+            return Err(Error::SslBadHsProtocolVersion);
+        }
+        unsafe { ssl_conf_max_version(&mut self.inner, major, minor) };
+        Ok(())
     }
 
     setter!(set_cert_profile(p: &'c Profile) = ssl_conf_cert_profile);
@@ -293,8 +311,6 @@ impl<'a> Iterator for KeyCertIter<'a> {
 // ssl_conf_psk_cb
 // ssl_conf_sig_hashes
 // ssl_conf_alpn_protocols
-// ssl_conf_max_version
-// ssl_conf_min_version
 // ssl_conf_fallback
 // ssl_conf_encrypt_then_mac
 // ssl_conf_extended_master_secret
