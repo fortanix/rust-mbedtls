@@ -15,6 +15,7 @@
 const ERROR: _MUST_USE_EITHER_STD_OR_CORE_IO_ = ();
 
 #[cfg(not(feature = "std"))]
+#[macro_use]
 extern crate alloc;
 #[cfg(feature = "std")]
 extern crate core;
@@ -24,8 +25,6 @@ extern crate core_io;
 #[macro_use]
 extern crate bitflags;
 extern crate mbedtls_sys;
-
-extern crate byteorder;
 
 extern crate serde;
 #[macro_use]

@@ -22,7 +22,6 @@ core_io = { version = "0.1", features = ["collections"], optional = true }
 spin = { version = "0.4.0", default-features = false, optional = true }
 serde = { version = "1.0.7", default-features = false }
 serde_derive = "1.0.7"
-byteorder = "1.0.0"
 
 [dependencies.mbedtls-sys-auto]
 version = "2.12.0"

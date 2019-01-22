@@ -210,8 +210,7 @@ impl EcPoint {
         so max size is 66*2+1 = 133
          */
         let mut olen = 0;
-        let mut buf = Vec::new();
-        buf.resize(133, 0u8);
+        let mut buf = vec![0u8, 133];
 
         let format = if compressed {
             ECP_PF_COMPRESSED

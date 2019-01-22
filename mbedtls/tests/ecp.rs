@@ -1,6 +1,5 @@
 extern crate mbedtls;
 
-use std::str::FromStr;
 use mbedtls::ecp::{EcGroup, EcPoint};
 use mbedtls::pk::EcGroupId;
 use mbedtls::bignum::Mpi;
@@ -25,14 +24,16 @@ fn test_ec_group() {
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn test_ecp_encode() {
+    use std::str::FromStr;
 
     let mut secp256k1 = EcGroup::new(EcGroupId::SecP256K1).unwrap();
     let bitlen = secp256k1.p().unwrap().bit_length().unwrap();
     let g = secp256k1.generator().unwrap();
     assert_eq!(g.is_zero().unwrap(), false);
 
-    let k = Mpi::from_str("0xC3FF2").unwrap();
+    let k = Mpi::new(0xC3FF2).unwrap();
     let pt = g.mul(&mut secp256k1, &k).unwrap();
 
     let pt_uncompressed = pt.to_binary(&secp256k1, false).unwrap();
@@ -42,6 +43,7 @@ fn test_ecp_encode() {
 
     let pt_compressed = pt.to_binary(&secp256k1, true).unwrap();
     assert_eq!(pt_compressed.len(), 1 + bitlen/8);
+
     /*
     Mbedtls supports encoding a point to compressed, but does not
     support reading it back, so skip trying to do that.
@@ -51,7 +53,6 @@ fn test_ecp_encode() {
     assert_eq!(affine_x, Mpi::from_str("0x1E248FB0AB87942E4B74446F7C9CD151468919B525C108759876F806CA2FFC87").unwrap());
     let affine_y = pt.y().unwrap();
     assert_eq!(affine_y, Mpi::from_str("0x821F40015051C2E37E85A97D96B83A9948FB108E06C98F5AD2CF275C8A9B004B").unwrap());
-
     let pt_from_components = EcPoint::from_components(&affine_x, &affine_y).unwrap();
     assert!(pt.eq(&pt_from_components).unwrap());
 }
@@ -64,7 +65,7 @@ fn test_ecp_mul() {
     let g = secp256r1.generator().unwrap();
     assert_eq!(g.is_zero().unwrap(), false);
 
-    let k = Mpi::from_str("380689").unwrap();
+    let k = Mpi::new(380689).unwrap();
     let half_k = Mpi::new(617).unwrap();
 
     /*
@@ -93,8 +94,8 @@ fn test_ecp_mul_add() {
 
     let g = secp256r1.generator().unwrap();
 
-    let k1 = Mpi::from_str("1212238156").unwrap();
-    let k2 = Mpi::from_str("1163020627").unwrap();
+    let k1 = Mpi::new(1212238156).unwrap();
+    let k2 = Mpi::new(1163020627).unwrap();
 
     // Test that k1*g + k2*g == k2*g + k1*g
     let pt1 = EcPoint::muladd(&mut secp256r1, &g, &k2, &g, &k1).unwrap();

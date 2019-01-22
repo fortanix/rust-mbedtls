@@ -10,7 +10,6 @@
 use alloc_prelude::*;
 use mbedtls_sys::*;
 
-use byteorder::{BigEndian, ByteOrder};
 use core::ptr;
 use error::IntoResult;
 use private::UnsafeFrom;
@@ -296,7 +295,7 @@ impl Pk {
             )
             .into_result()?;
         }
-        Ok(BigEndian::read_u32(&e))
+        Ok(u32::from_be_bytes(e))
     }
 
     pub fn name(&self) -> ::Result<&str> {
