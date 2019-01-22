@@ -11,12 +11,12 @@ extern crate mbedtls;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
-use mbedtls::Error;
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::{Config, Context};
 use mbedtls::x509::{Certificate, LinkedCertificate, VerifyError};
+use mbedtls::Error;
 use mbedtls::Result as TlsResult;
 
 mod support;
@@ -48,12 +48,12 @@ fn client(mut conn: TcpStream, min_minor: i32, max_minor: i32, exp_minor: i32) -
             Ok(s) => {
                 assert_eq!(s.minor_version(), exp_minor);
                 s
-            },
+            }
             Err(e) => {
                 assert_eq!(exp_minor, -1);
                 match e {
-                    Error::SslBadHsProtocolVersion => {},
-                    Error::SslFatalAlertMessage => {},
+                    Error::SslBadHsProtocolVersion => {}
+                    Error::SslFatalAlertMessage => {}
                     e => panic!("Unexpected error {}", e),
                 };
                 return Ok(());
@@ -86,13 +86,13 @@ fn server(mut conn: TcpStream, min_minor: i32, max_minor: i32, exp_minor: i32) -
         Ok(s) => {
             assert_eq!(s.minor_version(), exp_minor);
             s
-        },
+        }
         Err(e) => {
             assert_eq!(exp_minor, -1);
             match e {
                 // client just closes connection instead of sending alert
-                Error::NetSendFailed => {},
-                Error::SslBadHsProtocolVersion => {},
+                Error::NetSendFailed => {}
+                Error::SslBadHsProtocolVersion => {}
                 e => panic!("Unexpected error {}", e),
             };
             return Ok(());
@@ -116,17 +116,17 @@ mod test {
     #[test]
     fn client_server_test() {
         let test_configs = [
-            [0,0,0,0,0],
-            [1,1,1,1,1],
-            [2,2,2,2,2],
-            [1,1,0,2,1],
-            [0,2,0,1,1],
-            [1,2,1,1,1],
-            [1,2,1,2,2],
-            [2,2,1,2,2],
-            [2,2,0,1,-1],
-            [0,1,2,2,-1],
-            [0,0,1,2,-1],
+            [0, 0, 0, 0, 0],
+            [1, 1, 1, 1, 1],
+            [2, 2, 2, 2, 2],
+            [1, 1, 0, 2, 1],
+            [0, 2, 0, 1, 1],
+            [1, 2, 1, 1, 1],
+            [1, 2, 1, 2, 2],
+            [2, 2, 1, 2, 2],
+            [2, 2, 0, 1, -1],
+            [0, 1, 2, 2, -1],
+            [0, 0, 1, 2, -1],
         ];
 
         for config in &test_configs {
@@ -138,8 +138,12 @@ mod test {
 
             let (c, s) = create_tcp_pair().unwrap();
 
-            let c = thread::spawn(move || super::client(c, client_min_ver, client_max_ver, exp_version).unwrap());
-            let s = thread::spawn(move || super::server(s, server_min_ver, server_max_ver, exp_version).unwrap());
+            let c = thread::spawn(move || {
+                super::client(c, client_min_ver, client_max_ver, exp_version).unwrap()
+            });
+            let s = thread::spawn(move || {
+                super::server(s, server_min_ver, server_max_ver, exp_version).unwrap()
+            });
             c.join().unwrap();
             s.join().unwrap();
         }
