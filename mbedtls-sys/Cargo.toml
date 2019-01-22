@@ -26,7 +26,7 @@ cmake = "0.1.17"
 [features]
 # If you use mbedtls-sys in a no_std configuration, you need to provide your
 # own versions of the following functions:
-# 
+#
 # * calloc/free
 # * strstr/strlen/strncpy/strncmp/strcmp/snprintf
 # * memmove/memcpy/memcmp/memset

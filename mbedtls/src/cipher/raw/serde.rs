@@ -89,7 +89,7 @@ impl<Op: Operation> Serialize for Cipher<Op, Traditional, CipherData> {
                 _ => {
                     return Err(ser::Error::custom(
                         "unsupported algorithm for serialization",
-                    ))
+                    ));
                 }
             };
 
@@ -151,19 +151,17 @@ impl<'de, Op: Operation> Deserialize<'de> for Cipher<Op, Traditional, CipherData
                 return Err(de::Error::invalid_value(
                     Unexpected::Other("bad cipher parameters"),
                     &"valid parameters",
-                ))
+                ));
             }
         };
 
         if raw.cipher_mode == MODE_CBC {
-            try!(
-                raw_cipher
-                    .set_padding(padding)
-                    .map_err(|_| de::Error::invalid_value(
-                        Unexpected::Other("bad padding mode"),
-                        &"valid mode"
-                    ))
-            );
+            try!(raw_cipher
+                .set_padding(padding)
+                .map_err(|_| de::Error::invalid_value(
+                    Unexpected::Other("bad padding mode"),
+                    &"valid mode"
+                )));
         }
 
         unsafe {

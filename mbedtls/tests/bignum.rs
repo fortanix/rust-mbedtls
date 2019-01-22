@@ -69,7 +69,6 @@ fn bignum() {
     assert_eq!(b_bytes[3], 0xce);
 
     assert!(bigger.eq(&Mpi::from_binary(&b_bytes).unwrap()));
-
 }
 
 #[test]

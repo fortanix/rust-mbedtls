@@ -48,5 +48,6 @@ fn main() {
         &args
             .next()
             .expect("supply destination in command-line argument"),
-    ).unwrap();
+    )
+    .unwrap();
 }

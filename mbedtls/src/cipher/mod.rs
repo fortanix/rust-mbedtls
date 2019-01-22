@@ -313,7 +313,8 @@ fn ccm() {
         raw::CipherId::Aes,
         raw::CipherMode::CCM,
         (k.len() * 8) as _,
-    ).unwrap();
+    )
+    .unwrap();
     let cipher = cipher.set_key_iv(&k, &iv).unwrap();
     cipher
         .encrypt_auth(&ad, &p, &mut c_out, &mut t_out)
@@ -324,7 +325,8 @@ fn ccm() {
         raw::CipherId::Aes,
         raw::CipherMode::CCM,
         (k.len() * 8) as _,
-    ).unwrap();
+    )
+    .unwrap();
     let cipher = cipher.set_key_iv(&k, &iv).unwrap();
     cipher.decrypt_auth(&ad, &c, &mut p_out, &t).unwrap();
     assert_eq!(p, p_out);

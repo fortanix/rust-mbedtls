@@ -22,12 +22,12 @@ impl EntropyCallback for Entropy {
             let mut retry = 10;
             asm!("
 1:
-				rdseed $0
-				jc 2f
-				dec $1
-				jnz 1b
+                rdseed $0
+                jc 2f
+                dec $1
+                jnz 1b
 2:
-			":"=r"(ret),"=r"(retry):"1"(retry)::"volatile");
+            ":"=r"(ret),"=r"(retry):"1"(retry)::"volatile");
             if retry == 0 {
                 return ::mbedtls_sys::ERR_ENTROPY_SOURCE_FAILED;
             }
@@ -53,12 +53,12 @@ impl RngCallback for Nrbg {
             let mut retry = 10;
             asm!("
 1:
-				rdrand $0
-				jc 2f
-				dec $1
-				jnz 1b
+                rdrand $0
+                jc 2f
+                dec $1
+                jnz 1b
 2:
-			":"=r"(ret),"=r"(retry):"1"(retry)::"volatile");
+            ":"=r"(ret),"=r"(retry):"1"(retry)::"volatile");
             if retry == 0 {
                 return ::mbedtls_sys::ERR_ENTROPY_SOURCE_FAILED;
             }

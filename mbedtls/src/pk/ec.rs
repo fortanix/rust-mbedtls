@@ -11,21 +11,24 @@ use mbedtls_sys::*;
 
 use error::IntoResult;
 
-define!(#[c_ty(ecp_group_id)] enum EcGroupId {
-	None = ECP_DP_NONE,
-	SecP192R1 = ECP_DP_SECP192R1,
-	SecP224R1 = ECP_DP_SECP224R1,
-	SecP256R1 = ECP_DP_SECP256R1,
-	SecP384R1 = ECP_DP_SECP384R1,
-	SecP521R1 = ECP_DP_SECP521R1,
-	Bp256R1 = ECP_DP_BP256R1,
-	Bp384R1 = ECP_DP_BP384R1,
-	Bp512R1 = ECP_DP_BP512R1,
-	Curve25519 = ECP_DP_CURVE25519,
-	SecP192K1 = ECP_DP_SECP192K1,
-	SecP224K1 = ECP_DP_SECP224K1,
-	SecP256K1 = ECP_DP_SECP256K1,
-});
+define!(
+    #[c_ty(ecp_group_id)]
+    enum EcGroupId {
+        None = ECP_DP_NONE,
+        SecP192R1 = ECP_DP_SECP192R1,
+        SecP224R1 = ECP_DP_SECP224R1,
+        SecP256R1 = ECP_DP_SECP256R1,
+        SecP384R1 = ECP_DP_SECP384R1,
+        SecP521R1 = ECP_DP_SECP521R1,
+        Bp256R1 = ECP_DP_BP256R1,
+        Bp384R1 = ECP_DP_BP384R1,
+        Bp512R1 = ECP_DP_BP512R1,
+        Curve25519 = ECP_DP_CURVE25519,
+        SecP192K1 = ECP_DP_SECP192K1,
+        SecP224K1 = ECP_DP_SECP224K1,
+        SecP256K1 = ECP_DP_SECP256K1,
+    }
+);
 
 impl From<ecp_group_id> for EcGroupId {
     fn from(inner: ecp_group_id) -> EcGroupId {
@@ -52,19 +55,31 @@ impl From<ecp_group_id> for EcGroupId {
 /// buffer size input to `sign`.
 pub const ECDSA_MAX_LEN: usize = MBEDTLS_ECDSA_MAX_LEN as usize;
 
-define!(#[c_ty(ecp_keypair)]#[repr(C)]
-struct EcpKeypair ;
-	fn init(){ ecp_keypair_init}
-	fn drop(){ecp_keypair_free}
-	impl<'a> Into<ptr> {}
-	impl<'a> UnsafeFrom<ptr> {}
+define!(
+    #[c_ty(ecp_keypair)]
+    #[repr(C)]
+    struct EcpKeypair;
+    fn init() {
+        ecp_keypair_init
+    }
+    fn drop() {
+        ecp_keypair_free
+    }
+    impl<'a> Into<ptr> {}
+    impl<'a> UnsafeFrom<ptr> {}
 );
 
-define!(#[c_ty(ecdh_context)]#[repr(C)]
-struct Ecdh ;
-	fn init(){ ecdh_init}
-	fn drop(){ ecdh_free}
-	impl<'a> Into<ptr> {}
+define!(
+    #[c_ty(ecdh_context)]
+    #[repr(C)]
+    struct Ecdh;
+    fn init() {
+        ecdh_init
+    }
+    fn drop() {
+        ecdh_free
+    }
+    impl<'a> Into<ptr> {}
 );
 
 impl Ecdh {
@@ -96,7 +111,8 @@ impl Ecdh {
                 shared.len(),
                 Some(F::call),
                 rng.data_ptr(),
-            ).into_result()?
+            )
+            .into_result()?
         };
         Ok(olen)
     }

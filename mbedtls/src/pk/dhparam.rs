@@ -9,11 +9,17 @@
 use error::IntoResult;
 use mbedtls_sys::*;
 
-define!(#[c_ty(dhm_context)]#[repr(C)]
-struct Dhm ;
-	fn init() { dhm_init}
-	fn drop(){dhm_free}
-	impl<'a> Into<ptr> {}
+define!(
+    #[c_ty(dhm_context)]
+    #[repr(C)]
+    struct Dhm;
+    fn init() {
+        dhm_init
+    }
+    fn drop() {
+        dhm_free
+    }
+    impl<'a> Into<ptr> {}
 );
 
 impl Dhm {

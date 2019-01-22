@@ -8,8 +8,11 @@
 
 use mbedtls_sys::*;
 
-define!(#[c_ty(x509_crt_profile)]#[repr(C)] struct Profile ;
-	impl<'a> Into<ptr> {}
+define!(
+    #[c_ty(x509_crt_profile)]
+    #[repr(C)]
+    struct Profile;
+    impl<'a> Into<ptr> {}
 );
 
 extern "C" {

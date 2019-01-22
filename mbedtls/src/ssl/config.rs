@@ -19,44 +19,65 @@ use ssl::context::HandshakeContext;
 use ssl::ticket::TicketCallback;
 use x509::{certificate, Crl, LinkedCertificate, Profile, VerifyError};
 
-define!(#[c_ty(c_int)] enum Endpoint {
-	Client = SSL_IS_CLIENT,
-	Server = SSL_IS_SERVER,
-});
+define!(
+    #[c_ty(c_int)]
+    enum Endpoint {
+        Client = SSL_IS_CLIENT,
+        Server = SSL_IS_SERVER,
+    }
+);
 
-define!(#[c_ty(c_int)] enum Transport {
-	/// TLS
-	Stream = SSL_TRANSPORT_STREAM,
-	/// DTLS
-	Datagram = SSL_TRANSPORT_DATAGRAM,
-});
+define!(
+    #[c_ty(c_int)]
+    enum Transport {
+        /// TLS
+        Stream = SSL_TRANSPORT_STREAM,
+        /// DTLS
+        Datagram = SSL_TRANSPORT_DATAGRAM,
+    }
+);
 
-define!(#[c_ty(c_int)] enum Preset {
-	Default = SSL_PRESET_DEFAULT,
-	SuiteB = SSL_PRESET_SUITEB,
-});
+define!(
+    #[c_ty(c_int)]
+    enum Preset {
+        Default = SSL_PRESET_DEFAULT,
+        SuiteB = SSL_PRESET_SUITEB,
+    }
+);
 
-define!(#[c_ty(c_int)] enum AuthMode {
-	/// **INSECURE** on client, default on server
-	None = SSL_VERIFY_NONE,
-	/// **INSECURE**
-	Optional = SSL_VERIFY_OPTIONAL,
-	/// default on client
-	Required = SSL_VERIFY_REQUIRED,
-});
+define!(
+    #[c_ty(c_int)]
+    enum AuthMode {
+        /// **INSECURE** on client, default on server
+        None = SSL_VERIFY_NONE,
+        /// **INSECURE**
+        Optional = SSL_VERIFY_OPTIONAL,
+        /// default on client
+        Required = SSL_VERIFY_REQUIRED,
+    }
+);
 
-define!(#[c_ty(c_int)] enum UseSessionTickets {
-	Enabled = SSL_SESSION_TICKETS_ENABLED,
-	Disabled = SSL_SESSION_TICKETS_DISABLED,
-});
+define!(
+    #[c_ty(c_int)]
+    enum UseSessionTickets {
+        Enabled = SSL_SESSION_TICKETS_ENABLED,
+        Disabled = SSL_SESSION_TICKETS_DISABLED,
+    }
+);
 
 callback!(DbgCallback:Sync(level: c_int, file: *const c_char, line: c_int, message: *const c_char) -> ());
 
-define!(#[c_ty(ssl_config)]struct Config<'c> ;
-	fn init (){ssl_config_init}
-	fn drop (){ssl_config_free}
-	impl<'q> Into<ptr>{}
-	impl<'q> UnsafeFrom<ptr>{}
+define!(
+    #[c_ty(ssl_config)]
+    struct Config<'c>;
+    fn init() {
+        ssl_config_init
+    }
+    fn drop() {
+        ssl_config_free
+    }
+    impl<'q> Into<ptr> {}
+    impl<'q> UnsafeFrom<ptr> {}
 );
 
 #[cfg(feature = "threading")]
@@ -237,8 +258,10 @@ impl<'c> Config<'c> {
 setter_callback!(Config<'c>::set_rng(f: ::rng::Random) = ssl_conf_rng);
 setter_callback!(Config<'c>::set_dbg(f: DbgCallback) = ssl_conf_dbg);
 
-define!(#[c_ty(ssl_key_cert)]struct KeyCert ;
-	impl<'a> UnsafeFrom<ptr>{}
+define!(
+    #[c_ty(ssl_key_cert)]
+    struct KeyCert;
+    impl<'a> UnsafeFrom<ptr> {}
 );
 
 pub struct KeyCertIter<'a> {

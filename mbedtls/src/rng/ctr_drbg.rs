@@ -26,9 +26,15 @@ use error::IntoResult;
 // If `ctr_drbg_context` were moveable, this entire section could be replaced
 // by basically:
 // ```
-// define!(#[c_ty(ctr_drbg_context)] struct CtrDrbg<'entropy>;
-// 	fn init(){ctr_drbg_init}
-// 	fn drop(){ctr_drbg_free}
+// define!(
+//     #[c_ty(ctr_drbg_context)]
+//     struct CtrDrbg<'entropy>;
+//     fn init() {
+//         ctr_drbg_init
+//     }
+//     fn drop() {
+//         ctr_drbg_free
+//     }
 // );
 // ```
 
@@ -106,17 +112,16 @@ impl<'entropy> CtrDrbg<'entropy> {
     ) -> ::Result<CtrDrbg<'entropy>> {
         let mut ret = Self::init();
         unsafe {
-            try!(
-                ctr_drbg_seed(
-                    &mut ret.inner,
-                    Some(F::call),
-                    source.data_ptr(),
-                    additional_entropy
-                        .map(<[_]>::as_ptr)
-                        .unwrap_or(::core::ptr::null()),
-                    additional_entropy.map(<[_]>::len).unwrap_or(0)
-                ).into_result()
+            try!(ctr_drbg_seed(
+                &mut ret.inner,
+                Some(F::call),
+                source.data_ptr(),
+                additional_entropy
+                    .map(<[_]>::as_ptr)
+                    .unwrap_or(::core::ptr::null()),
+                additional_entropy.map(<[_]>::len).unwrap_or(0)
             )
+            .into_result())
         };
         Ok(ret)
     }
@@ -145,15 +150,14 @@ impl<'entropy> CtrDrbg<'entropy> {
 
     pub fn reseed(&mut self, additional_entropy: Option<&[u8]>) -> ::Result<()> {
         unsafe {
-            try!(
-                ctr_drbg_reseed(
-                    &mut self.inner,
-                    additional_entropy
-                        .map(<[_]>::as_ptr)
-                        .unwrap_or(::core::ptr::null()),
-                    additional_entropy.map(<[_]>::len).unwrap_or(0)
-                ).into_result()
+            try!(ctr_drbg_reseed(
+                &mut self.inner,
+                additional_entropy
+                    .map(<[_]>::as_ptr)
+                    .unwrap_or(::core::ptr::null()),
+                additional_entropy.map(<[_]>::len).unwrap_or(0)
             )
+            .into_result())
         };
         Ok(())
     }

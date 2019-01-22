@@ -31,9 +31,15 @@ pub trait TicketCallback {
     fn data_ptr(&mut self) -> *mut c_void;
 }
 
-define!(#[c_ty(ssl_ticket_context)]struct TicketContext<'rng> ;
-	fn init(){ssl_ticket_init}
-	fn drop(){ssl_ticket_free}
+define!(
+    #[c_ty(ssl_ticket_context)]
+    struct TicketContext<'rng>;
+    fn init() {
+        ssl_ticket_init
+    }
+    fn drop() {
+        ssl_ticket_free
+    }
 );
 
 impl<'rng> TicketContext<'rng> {
@@ -51,7 +57,8 @@ impl<'rng> TicketContext<'rng> {
                 cipher.into(),
                 lifetime,
             )
-        }.into_result()
+        }
+        .into_result()
         .map(|_| ret)
     }
 }

@@ -16,11 +16,15 @@ use mbedtls_sys::*;
 use error::IntoResult;
 
 define!(
-#[c_ty(x509_csr)]
-/// Certificate Signing Request
-struct Csr ;
-	fn init(){x509_csr_init}
-	fn drop(){x509_csr_free}
+    #[c_ty(x509_csr)]
+    /// Certificate Signing Request
+    struct Csr;
+    fn init() {
+        x509_csr_init
+    }
+    fn drop() {
+        x509_csr_free
+    }
 );
 
 impl Csr {
@@ -69,9 +73,15 @@ impl fmt::Debug for Csr {
     }
 }
 
-define!(#[c_ty(x509write_csr)]struct Builder<'a> ;
-	pub fn new(){x509write_csr_init}
-	fn drop(){x509write_csr_free}
+define!(
+    #[c_ty(x509write_csr)]
+    struct Builder<'a>;
+    pub fn new() {
+        x509write_csr_init
+    }
+    fn drop() {
+        x509write_csr_free
+    }
 );
 
 impl<'a> Builder<'a> {
@@ -124,15 +134,14 @@ impl<'a> Builder<'a> {
 
     pub fn extension(&mut self, oid: &[u8], val: &[u8]) -> ::Result<&mut Self> {
         unsafe {
-            try!(
-                x509write_csr_set_extension(
-                    &mut self.inner,
-                    oid.as_ptr() as *const _,
-                    oid.len(),
-                    val.as_ptr(),
-                    val.len()
-                ).into_result()
+            try!(x509write_csr_set_extension(
+                &mut self.inner,
+                oid.as_ptr() as *const _,
+                oid.len(),
+                val.as_ptr(),
+                val.len()
             )
+            .into_result())
         };
         Ok(self)
     }
@@ -149,7 +158,8 @@ impl<'a> Builder<'a> {
                 buf.len(),
                 Some(F::call),
                 rng.data_ptr(),
-            ).into_result()
+            )
+            .into_result()
         } {
             Err(::Error::Asn1BufTooSmall) => Ok(None),
             Err(e) => Err(e),
@@ -178,7 +188,8 @@ impl<'a> Builder<'a> {
                 buf.len(),
                 Some(F::call),
                 rng.data_ptr(),
-            ).into_result()
+            )
+            .into_result()
         } {
             Err(::Error::Base64BufferTooSmall) => Ok(None),
             Err(e) => Err(e),

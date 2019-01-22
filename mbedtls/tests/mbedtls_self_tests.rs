@@ -35,21 +35,21 @@ fn enable_self_test() {
 fn enable_self_test() {}
 
 macro_rules! tests {
-	{ $($(#[$m:meta])* fn $t:ident,)*} => {
-		$(
-		#[test]
-		$(#[$m])*
-		fn $t() {
-			enable_self_test();
-			unsafe {
-				assert!(mbedtls::self_test::$t(1)==0);
-			}
-		}
-		)*
-	};
+    { $($(#[$m:meta])* fn $t:ident,)*} => {
+        $(
+        #[test]
+        $(#[$m])*
+        fn $t() {
+            enable_self_test();
+            unsafe {
+                assert!(mbedtls::self_test::$t(1)==0);
+            }
+        }
+        )*
+    };
 }
 
-tests!{
+tests! {
     fn aes,
     fn arc4,
     fn base64,

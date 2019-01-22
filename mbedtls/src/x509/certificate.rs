@@ -20,9 +20,15 @@ use mbedtls_sys::*;
 use error::IntoResult;
 use private::UnsafeFrom;
 
-define!(#[c_ty(x509_crt)]struct Certificate ;
-	fn init(){x509_crt_init}
-	fn drop(){x509_crt_free}
+define!(
+    #[c_ty(x509_crt)]
+    struct Certificate;
+    fn init() {
+        x509_crt_init
+    }
+    fn drop() {
+        x509_crt_free
+    }
 );
 
 impl Certificate {
@@ -96,7 +102,8 @@ impl LinkedCertificate {
     pub fn check_extended_key_usage(&self, usage_oid: &[c_char]) -> bool {
         unsafe {
             x509_crt_check_extended_key_usage(&self.inner, usage_oid.as_ptr(), usage_oid.len())
-        }.into_result()
+        }
+        .into_result()
         .is_ok()
     }
 
@@ -167,7 +174,8 @@ impl LinkedCertificate {
                 None,
                 ptr::null_mut(),
             )
-        }.into_result();
+        }
+        .into_result();
 
         if result.is_err() {
             if let Some(err_info) = err_info {
@@ -368,9 +376,15 @@ impl<'c, 'r> From<&'c mut List<'r>> for &'c mut LinkedCertificate {
     }
 }
 
-define!(#[c_ty(x509write_cert)]struct Builder<'a> ;
-	pub fn new(){x509write_crt_init}
-	fn drop(){x509write_crt_free}
+define!(
+    #[c_ty(x509write_cert)]
+    struct Builder<'a>;
+    pub fn new() {
+        x509write_crt_init
+    }
+    fn drop() {
+        x509write_crt_free
+    }
 );
 
 impl<'a> Builder<'a> {
@@ -444,29 +458,27 @@ impl<'a> Builder<'a> {
 
     pub fn extension(&mut self, oid: &[u8], val: &[u8], critical: bool) -> ::Result<&mut Self> {
         unsafe {
-            try!(
-                x509write_crt_set_extension(
-                    &mut self.inner,
-                    oid.as_ptr() as *const _,
-                    oid.len(),
-                    critical as _,
-                    val.as_ptr(),
-                    val.len()
-                ).into_result()
+            try!(x509write_crt_set_extension(
+                &mut self.inner,
+                oid.as_ptr() as *const _,
+                oid.len(),
+                critical as _,
+                val.as_ptr(),
+                val.len()
             )
+            .into_result())
         };
         Ok(self)
     }
 
     pub fn basic_constraints(&mut self, ca: bool, pathlen: Option<u32>) -> ::Result<&mut Self> {
         unsafe {
-            try!(
-                x509write_crt_set_basic_constraints(
-                    &mut self.inner,
-                    ca as _,
-                    pathlen.unwrap_or(0) as _
-                ).into_result()
+            try!(x509write_crt_set_basic_constraints(
+                &mut self.inner,
+                ca as _,
+                pathlen.unwrap_or(0) as _
             )
+            .into_result())
         };
         Ok(self)
     }
@@ -477,13 +489,12 @@ impl<'a> Builder<'a> {
         not_after: super::Time,
     ) -> ::Result<&mut Self> {
         unsafe {
-            try!(
-                x509write_crt_set_validity(
-                    &mut self.inner,
-                    not_before.to_x509_time().as_ptr() as _,
-                    not_after.to_x509_time().as_ptr() as _
-                ).into_result()
+            try!(x509write_crt_set_validity(
+                &mut self.inner,
+                not_before.to_x509_time().as_ptr() as _,
+                not_after.to_x509_time().as_ptr() as _
             )
+            .into_result())
         };
         Ok(self)
     }
@@ -506,7 +517,8 @@ impl<'a> Builder<'a> {
                 buf.len(),
                 Some(F::call),
                 rng.data_ptr(),
-            ).into_result()
+            )
+            .into_result()
         } {
             Err(::Error::Asn1BufTooSmall) => Ok(None),
             Err(e) => Err(e),
@@ -535,7 +547,8 @@ impl<'a> Builder<'a> {
                 buf.len(),
                 Some(F::call),
                 rng.data_ptr(),
-            ).into_result()
+            )
+            .into_result()
         } {
             Err(::Error::Base64BufferTooSmall) => Ok(None),
             Err(e) => Err(e),
@@ -597,7 +610,8 @@ mod tests {
                 .validity(
                     Time::new(2000, 1, 1, 0, 0, 0).unwrap(),
                     Time::new(2009, 12, 31, 23, 59, 59).unwrap(),
-                ).unwrap();
+                )
+                .unwrap();
             b
         }
     }
