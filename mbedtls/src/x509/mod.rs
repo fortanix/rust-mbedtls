@@ -157,7 +157,8 @@ impl Time {
             writer,
             "{:04}{:02}{:02}{:02}{:02}{:02}",
             self.year, self.month, self.day, self.hour, self.minute, self.second
-        ).expect("error formatting time");
+        )
+        .expect("error formatting time");
         assert!(writer.idx == 14);
         writer.buf
     }

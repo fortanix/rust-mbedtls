@@ -5,11 +5,11 @@ authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 license = "Apache-2.0/GPL-2.0+"
 description = """
-Idiomatic Rust wrapper for MbedTLS, allowing you to use MbedTLS with only safe 
-code while being able to use such great Rust features like error handling and 
+Idiomatic Rust wrapper for MbedTLS, allowing you to use MbedTLS with only safe
+code while being able to use such great Rust features like error handling and
 closures.
 
-Building on MbedTLS's focus on embedded use, this crate can be used in a no_std 
+Building on MbedTLS's focus on embedded use, this crate can be used in a no_std
 environment."""
 readme = "../README.md"
 repository = "https://github.com/fortanix/rust-mbedtls"

@@ -73,12 +73,18 @@ impl<IO: Read + Write> IoCallback for IO {
     }
 }
 
-define!(struct Context<'config>(ssl_context) {
-	fn init = ssl_init;
-	fn drop = ssl_free;
-	impl<'a> Into<*>;
-	impl<'a> UnsafeFrom<*>;
-});
+define!(
+    #[c_ty(ssl_context)]
+    struct Context<'config>;
+    fn init() {
+        ssl_init
+    }
+    fn drop() {
+        ssl_free
+    }
+    impl<'a> Into<ptr> {}
+    impl<'a> UnsafeFrom<ptr> {}
+);
 
 pub struct Session<'ctx> {
     inner: &'ctx mut ssl_context,

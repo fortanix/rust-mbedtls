@@ -13,12 +13,17 @@ use mbedtls_sys::*;
 use error::IntoResult;
 
 define!(
-/// Certificate Revocation List
-struct Crl(x509_crl) {
-	pub fn new=x509_crl_init;
-	fn drop=x509_crl_free;
-	impl<'a> Into<*>;
-});
+    #[c_ty(x509_crl)]
+    /// Certificate Revocation List
+    struct Crl;
+    pub fn new() {
+        x509_crl_init
+    }
+    fn drop() {
+        x509_crl_free
+    }
+    impl<'a> Into<ptr> {}
+);
 
 impl Crl {
     pub fn push_from_der(&mut self, der: &[u8]) -> ::Result<()> {

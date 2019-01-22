@@ -19,11 +19,17 @@ use core::ops::{Shl, ShlAssign, Shr, ShrAssign};
 
 pub use mbedtls_sys::mpi_sint;
 
-define!(struct Mpi(mpi) {
-	fn init=mpi_init;
-	fn drop=mpi_free;
-	impl<'a> Into<*>;
-});
+define!(
+    #[c_ty(mpi)]
+    struct Mpi;
+    fn init() {
+        mpi_init
+    }
+    fn drop() {
+        mpi_free
+    }
+    impl<'a> Into<ptr> {}
+);
 
 fn fmt_mpi(n: &Mpi, radix: i32) -> String {
     n.to_string_radix(radix)

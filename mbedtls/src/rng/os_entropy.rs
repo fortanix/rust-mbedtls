@@ -14,10 +14,16 @@ use error::IntoResult;
 
 callback!(EntropySourceCallback(data: *mut c_uchar, size: size_t, out: *mut size_t) -> c_int);
 
-define!(struct OsEntropy<'source>(entropy_context) {
-	pub fn new=entropy_init;
-	fn drop=entropy_free;
-});
+define!(
+    #[c_ty(entropy_context)]
+    struct OsEntropy<'source>;
+    pub fn new() {
+        entropy_init
+    }
+    fn drop() {
+        entropy_free
+    }
+);
 
 #[cfg(feature = "threading")]
 unsafe impl<'source> Sync for OsEntropy<'source> {}
@@ -30,19 +36,18 @@ impl<'source> OsEntropy<'source> {
         strong: bool,
     ) -> ::Result<()> {
         unsafe {
-            try!(
-                entropy_add_source(
-                    &mut self.inner,
-                    Some(F::call),
-                    source.data_ptr(),
-                    threshold,
-                    if strong {
-                        ENTROPY_SOURCE_STRONG
-                    } else {
-                        ENTROPY_SOURCE_WEAK
-                    }
-                ).into_result()
+            try!(entropy_add_source(
+                &mut self.inner,
+                Some(F::call),
+                source.data_ptr(),
+                threshold,
+                if strong {
+                    ENTROPY_SOURCE_STRONG
+                } else {
+                    ENTROPY_SOURCE_WEAK
+                }
             )
+            .into_result())
         };
         Ok(())
     }

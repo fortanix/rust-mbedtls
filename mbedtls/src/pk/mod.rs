@@ -19,16 +19,19 @@ mod ec;
 #[doc(inline)]
 pub use self::ec::{EcGroupId, ECDSA_MAX_LEN};
 
-define!(enum Type -> pk_type_t {
-	None => PK_NONE,
-	Rsa => PK_RSA,
-	Eckey => PK_ECKEY,
-	EckeyDh => PK_ECKEY_DH,
-	// This type is never returned by the mbedTLS key parsing routines
-	Ecdsa => PK_ECDSA,
-	RsaAlt => PK_RSA_ALT,
-	RsassaPss => PK_RSASSA_PSS,
-});
+define!(
+    #[c_ty(pk_type_t)]
+    enum Type {
+        None = PK_NONE,
+        Rsa = PK_RSA,
+        Eckey = PK_ECKEY,
+        EckeyDh = PK_ECKEY_DH,
+        // This type is never returned by the mbedTLS key parsing routines
+        Ecdsa = PK_ECDSA,
+        RsaAlt = PK_RSA_ALT,
+        RsassaPss = PK_RSASSA_PSS,
+    }
+);
 
 impl From<pk_type_t> for Type {
     fn from(inner: pk_type_t) -> Type {
@@ -58,13 +61,19 @@ pub enum Options {
     Rsa { padding: RsaPadding },
 }
 
-define!(#[repr(C)]
-struct Pk(pk_context) {
-	fn init = pk_init;
-	fn drop = pk_free;
-	impl<'a> Into<*>;
-	impl<'a> UnsafeFrom<*>;
-});
+define!(
+    #[c_ty(pk_context)]
+    #[repr(C)]
+    struct Pk;
+    fn init() {
+        pk_init
+    }
+    fn drop() {
+        pk_free
+    }
+    impl<'a> Into<ptr> {}
+    impl<'a> UnsafeFrom<ptr> {}
+);
 
 impl Pk {
     /// Takes both DER and PEM forms of PKCS#1 or PKCS#8 encoded keys.
@@ -73,15 +82,14 @@ impl Pk {
     pub fn from_private_key(key: &[u8], password: Option<&[u8]>) -> ::Result<Pk> {
         let mut ret = Self::init();
         unsafe {
-            try!(
-                pk_parse_key(
-                    &mut ret.inner,
-                    key.as_ptr(),
-                    key.len(),
-                    password.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
-                    password.map(<[_]>::len).unwrap_or(0)
-                ).into_result()
+            try!(pk_parse_key(
+                &mut ret.inner,
+                key.as_ptr(),
+                key.len(),
+                password.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
+                password.map(<[_]>::len).unwrap_or(0)
             )
+            .into_result())
         };
         Ok(ret)
     }
@@ -99,15 +107,14 @@ impl Pk {
         let mut ret = Self::init();
         unsafe {
             try!(pk_setup(&mut ret.inner, pk_info_from_type(Type::Rsa.into())).into_result());
-            try!(
-                rsa_gen_key(
-                    ret.inner.pk_ctx as *mut _,
-                    Some(F::call),
-                    rng.data_ptr(),
-                    bits,
-                    exponent as _
-                ).into_result()
-            );
+            try!(rsa_gen_key(
+                ret.inner.pk_ctx as *mut _,
+                Some(F::call),
+                rng.data_ptr(),
+                bits,
+                exponent as _
+            )
+            .into_result());
         }
         Ok(ret)
     }
@@ -116,14 +123,13 @@ impl Pk {
         let mut ret = Self::init();
         unsafe {
             try!(pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result());
-            try!(
-                ecp_gen_key(
-                    curve.into(),
-                    ret.inner.pk_ctx as *mut _,
-                    Some(F::call),
-                    rng.data_ptr()
-                ).into_result()
-            );
+            try!(ecp_gen_key(
+                curve.into(),
+                ret.inner.pk_ctx as *mut _,
+                Some(F::call),
+                rng.data_ptr()
+            )
+            .into_result());
         }
         Ok(ret)
     }
@@ -186,18 +192,17 @@ impl Pk {
         let mut ret;
         unsafe {
             ret = ::core::mem::uninitialized();
-            try!(
-                pk_decrypt(
-                    &mut self.inner,
-                    cipher.as_ptr(),
-                    cipher.len(),
-                    plain.as_mut_ptr(),
-                    &mut ret,
-                    plain.len(),
-                    Some(F::call),
-                    rng.data_ptr()
-                ).into_result()
-            );
+            try!(pk_decrypt(
+                &mut self.inner,
+                cipher.as_ptr(),
+                cipher.len(),
+                plain.as_mut_ptr(),
+                &mut ret,
+                plain.len(),
+                Some(F::call),
+                rng.data_ptr()
+            )
+            .into_result());
         }
         Ok(ret)
     }
@@ -211,18 +216,17 @@ impl Pk {
         let mut ret;
         unsafe {
             ret = ::core::mem::uninitialized();
-            try!(
-                pk_encrypt(
-                    &mut self.inner,
-                    plain.as_ptr(),
-                    plain.len(),
-                    cipher.as_mut_ptr(),
-                    &mut ret,
-                    cipher.len(),
-                    Some(F::call),
-                    rng.data_ptr()
-                ).into_result()
-            );
+            try!(pk_encrypt(
+                &mut self.inner,
+                plain.as_ptr(),
+                plain.len(),
+                cipher.as_mut_ptr(),
+                &mut ret,
+                cipher.len(),
+                Some(F::call),
+                rng.data_ptr()
+            )
+            .into_result());
         }
         Ok(ret)
     }
@@ -260,18 +264,17 @@ impl Pk {
         }
         unsafe {
             ret = ::core::mem::uninitialized();
-            try!(
-                pk_sign(
-                    &mut self.inner,
-                    md.into(),
-                    hash.as_ptr(),
-                    hash.len(),
-                    sig.as_mut_ptr(),
-                    &mut ret,
-                    Some(F::call),
-                    rng.data_ptr()
-                ).into_result()
-            );
+            try!(pk_sign(
+                &mut self.inner,
+                md.into(),
+                hash.as_ptr(),
+                hash.len(),
+                sig.as_mut_ptr(),
+                &mut ret,
+                Some(F::call),
+                rng.data_ptr()
+            )
+            .into_result());
         }
         Ok(ret)
     }
@@ -285,7 +288,8 @@ impl Pk {
                 hash.len(),
                 sig.as_ptr(),
                 sig.len(),
-            ).into_result()
+            )
+            .into_result()
             .map(|_| ())
         }
     }
@@ -404,9 +408,8 @@ impl Pk {
 mod tests {
     use super::*;
 
-    #[cfg_attr(rustfmt,rustfmt_skip)]
-	// This is test data that must match library output *exactly*
-	const TEST_PEM: &'static str = "-----BEGIN RSA PRIVATE KEY-----
+    // This is test data that must match library output *exactly*
+    const TEST_PEM: &'static str = "-----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEAh1aoz6wFwVHaCVDISSy+dZ8rOsJmfYBCrgzUjX+VNb2RwdT8
 xv5fF0j0IXq+fKBShdZA+WGEQd6BMU0fqc2o7ACLvPWbvdKrLcwWpnL/UpFV8PxJ
 yLemR8CBkGYcN2EJHhRhZcAGMBKwR1lI+ymOPJz4+nyDWVh9ttrvkKZU9b59zDkP

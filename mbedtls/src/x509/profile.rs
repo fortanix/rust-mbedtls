@@ -8,9 +8,12 @@
 
 use mbedtls_sys::*;
 
-define!(#[repr(C)] struct Profile(x509_crt_profile) {
-	impl<'a> Into<*>;
-});
+define!(
+    #[c_ty(x509_crt_profile)]
+    #[repr(C)]
+    struct Profile;
+    impl<'a> Into<ptr> {}
+);
 
 extern "C" {
     #[link_name = "mbedtls_x509_crt_profile_default"]

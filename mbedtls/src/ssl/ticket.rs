@@ -31,10 +31,16 @@ pub trait TicketCallback {
     fn data_ptr(&mut self) -> *mut c_void;
 }
 
-define!(struct TicketContext<'rng>(ssl_ticket_context) {
-	fn init = ssl_ticket_init;
-	fn drop = ssl_ticket_free;
-});
+define!(
+    #[c_ty(ssl_ticket_context)]
+    struct TicketContext<'rng>;
+    fn init() {
+        ssl_ticket_init
+    }
+    fn drop() {
+        ssl_ticket_free
+    }
+);
 
 impl<'rng> TicketContext<'rng> {
     pub fn new<F: ::rng::Random>(
@@ -51,7 +57,8 @@ impl<'rng> TicketContext<'rng> {
                 cipher.into(),
                 lifetime,
             )
-        }.into_result()
+        }
+        .into_result()
         .map(|_| ret)
     }
 }
