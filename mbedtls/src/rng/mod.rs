@@ -8,7 +8,7 @@
 
 pub mod ctr_drbg;
 pub mod hmac_drbg;
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(target_env = "sgx")))]
 pub mod os_entropy;
 #[cfg(feature = "rdrand")]
 mod rdrand;
@@ -17,7 +17,7 @@ mod rdrand;
 pub use self::ctr_drbg::CtrDrbg;
 #[doc(inline)]
 pub use self::hmac_drbg::HmacDrbg;
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(target_env = "sgx")))]
 #[doc(inline)]
 pub use self::os_entropy::OsEntropy;
 #[cfg(feature = "rdrand")]

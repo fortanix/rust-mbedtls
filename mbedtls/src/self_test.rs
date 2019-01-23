@@ -10,22 +10,30 @@
 //!
 //! Calling mbedTLS self-test functions before they're enabled using the
 //! `enable()` function here will result in a panic.
-#[cfg(any(target_os = "none", not(feature = "std")))]
+#[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
 use mbedtls_sys::types::raw_types::{c_char, c_int};
 
-#[cfg(any(target_os = "none", not(feature = "std")))]
+#[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
 #[allow(non_upper_case_globals)]
 static mut rand_f: Option<fn() -> c_int> = None;
-#[cfg(any(target_os = "none", not(feature = "std")))]
+#[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
 #[allow(non_upper_case_globals)]
 static mut log_f: Option<unsafe fn(*const c_char)> = None;
 
 // needs to be pub for global visiblity
-#[cfg(any(target_os = "none", not(feature = "std")))]
+#[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
 #[doc(hidden)]
 #[no_mangle]
 pub unsafe extern "C" fn rand() -> c_int {
     rand_f.expect("Called self-test rand without enabling self-test")()
+}
+
+// needs to be pub for global visiblity
+#[cfg(all(feature = "std", not(target_os = "none")))]
+#[doc(hidden)]
+#[no_mangle]
+pub unsafe extern "C" fn mbedtls_log(msg: *const std::os::raw::c_char) {
+    print!("{}", std::ffi::CStr::from_ptr(msg).to_string_lossy());
 }
 
 // needs to be pub for global visiblity
@@ -37,14 +45,14 @@ pub unsafe extern "C" fn mbedtls_log(msg: *const c_char) {
 }
 
 // unsafe since unsynchronized
-#[cfg(any(target_os = "none", not(feature = "std")))]
+#[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
 pub unsafe fn enable(rand: fn() -> c_int, log: unsafe fn(*const c_char)) {
     rand_f = Some(rand);
     log_f = Some(log);
 }
 
 // unsafe since unsynchronized
-#[cfg(any(target_os = "none", not(feature = "std")))]
+#[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
 pub unsafe fn disable() {
     rand_f = None;
     log_f = None;

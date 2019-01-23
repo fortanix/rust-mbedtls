@@ -32,6 +32,9 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 
+#[cfg(target_env = "sgx")]
+extern crate rs_libc;
+
 #[macro_use]
 mod wrapper_macros;
 
@@ -56,17 +59,9 @@ pub mod x509;
 mod private;
 
 // needs to be pub for global visiblity
-#[cfg(feature = "spin_threading")]
+#[cfg(any(feature = "spin_threading", feature = "rust_threading"))]
 #[doc(hidden)]
 pub mod threading;
-
-// needs to be pub for global visiblity
-#[cfg(all(feature = "std", not(target_os = "none")))]
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe extern "C" fn mbedtls_log(msg: *const std::os::raw::c_char) {
-    print!("{}", std::ffi::CStr::from_ptr(msg).to_string_lossy());
-}
 
 // needs to be pub for global visiblity
 #[cfg(feature = "force_aesni_support")]

@@ -15,7 +15,7 @@ This crate depends on the mbedtls-sys-auto crate, see below for build details.
 
 ### Features
 
-This is a list of the Cargo features available for mbedtls-sys. Features in
+This is a list of the Cargo features available for mbedtls. Features in
 **bold** are enabled by default.
 
 * **aesni** Enable support for the AES-NI instructions.
@@ -25,14 +25,18 @@ This is a list of the Cargo features available for mbedtls-sys. Features in
                         support. With this feature, always use AES-NI. This
                         will result in undefined instruction exceptions on
                         unsupported processors.
+* **padlock** Enable support for VIA padlock.
 * *pthread* Enable mutex synchronization using pthreads.
 * *rdrand* Enable the RDRAND random number generator.
 * *spin_threading* Enable mutex synchronization using the spin crate.
+* *rust_threading* Enable mutex synchronization using the `std::sync::Mutex`.
+                   spin_threading takes precedence over rust_threading.
 * **time** Enable time support in mbedtls-sys.
 * **std** If this feature is not enabled, this crate is a no_std crate. (An
           allocator is *required*) The necessary C functions to make MbedTLS
           work without libc will be provided.
 * *zlib* Enable zlib support in mbedtls-sys.
+* *sgx* Enables features recommended for x86\_64-fortanix-unknown-sgx target. 
 
 PRs adding new features are encouraged.
 
@@ -85,6 +89,7 @@ This is a list of the Cargo features available for mbedtls-sys. Features in
                      signatures.
 * *havege* Enable the Hardware Volatile Entropy Gathering and Expansion
            (HAVEGE) algorithm.
+* **padlock** Enable support for VIA padlock.
 * *pkcs11* Enable PKCS#11 support. This requires pkcs11-helper to be installed.
 * **pthread** Enable threading support using pthreads.
 * **std** If this feature is not enabled, this crate is a no_std crate. In a

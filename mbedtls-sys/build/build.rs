@@ -27,7 +27,8 @@ pub fn have_feature(feature: &'static str) -> bool {
         format!("CARGO_FEATURE_{}", feature)
             .to_uppercase()
             .replace("-", "_"),
-    ).is_some()
+    )
+    .is_some()
 }
 
 struct BuildConfig {
@@ -38,11 +39,15 @@ struct BuildConfig {
 
 impl BuildConfig {
     fn create_config_h(&self) {
+        let target = env::var("TARGET").unwrap();
         let mut defines = config::DEFAULT_DEFINES
             .iter()
             .cloned()
             .collect::<HashMap<_, _>>();
         for &(feat, def) in config::FEATURE_DEFINES {
+            if (feat == "std") && (target == "x86_64-fortanix-unknown-sgx") {
+                continue;
+            }
             if have_feature(feat) {
                 defines.insert(def.0, def.1);
             }
@@ -57,21 +62,12 @@ impl BuildConfig {
                 if have_feature("custom_printf") {
                     try!(writeln!(f, "int mbedtls_printf(const char *format, ...);"));
                 }
-                if have_feature("custom_has_support") {
-                    try!(writeln!(
-                        f,
-                        "int mbedtls_aesni_has_support( unsigned int what ) __attribute__((weak));"
-                    ));
-                    try!(writeln!(
-                        f,
-                        "int mbedtls_padlock_has_support( int feature ) __attribute__((weak));"
-                    ));
-                }
                 if have_feature("custom_threading") {
                     try!(writeln!(f, "typedef void* mbedtls_threading_mutex_t;"));
                 }
                 f.write_all(config::SUFFIX.as_bytes())
-            }).expect("config.h I/O error");
+            })
+            .expect("config.h I/O error");
     }
 
     fn print_rerun_files(&self) {

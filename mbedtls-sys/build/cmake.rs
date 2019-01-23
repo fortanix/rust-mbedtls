@@ -16,11 +16,14 @@ impl super::BuildConfig {
         cmk.cflag(format!(
             r#"-DMBEDTLS_CONFIG_FILE="<{}>""#,
             self.config_h.to_str().expect("config.h UTF-8 error")
-        )).define("ENABLE_PROGRAMS", "OFF")
+        ))
+        .define("ENABLE_PROGRAMS", "OFF")
         .define("ENABLE_TESTING", "OFF")
         .build_target("lib");
         if !have_feature("std")
-            || ::std::env::var("TARGET").map(|s| s == "x86_64-unknown-none-gnu") == Ok(true)
+            || ::std::env::var("TARGET")
+                .map(|s| (s == "x86_64-unknown-none-gnu") || (s == "x86_64-fortanix-unknown-sgx"))
+                == Ok(true)
         {
             println!("cargo:rustc-link-lib=gcc");
             cmk.cflag("-fno-builtin")
