@@ -155,8 +155,7 @@ impl Mpi {
             return Err(Error::from_mbedtls_code(r));
         }
 
-        let mut buf = Vec::new();
-        buf.resize(olen, 0u8);
+        let mut buf = vec![0u8; olen];
 
         unsafe {
             mpi_write_string(
@@ -178,8 +177,7 @@ impl Mpi {
     /// Serialize the MPI as big endian binary data
     pub fn to_binary(&self) -> ::Result<Vec<u8>> {
         let len = self.byte_length()?;
-        let mut ret = Vec::new();
-        ret.resize(len, 0u8);
+        let mut ret = vec![0u8; len];
         unsafe { mpi_write_binary(&self.inner, ret.as_mut_ptr(), ret.len()).into_result() }?;
         Ok(ret)
     }
@@ -188,8 +186,7 @@ impl Mpi {
     pub fn to_padded_binary(&self, min_len: usize) -> ::Result<Vec<u8>> {
         let len = self.byte_length()?;
         let larger_len = if len < min_len { min_len } else { len };
-        let mut ret = Vec::new();
-        ret.resize(larger_len, 0u8);
+        let mut ret = vec![0u8; larger_len];
         let pad_len = ret.len() - len;
         unsafe {
             mpi_write_binary(&self.inner, ret.as_mut_ptr().offset(pad_len as isize), len)
