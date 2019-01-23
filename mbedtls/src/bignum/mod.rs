@@ -179,7 +179,7 @@ impl Mpi {
     }
 
     /// Serialize the MPI as big endian binary data, padding to at least min_len bytes
-    pub fn to_padded_binary(&self, min_len: usize) -> ::Result<Vec<u8>> {
+    pub fn to_binary_padded(&self, min_len: usize) -> ::Result<Vec<u8>> {
         let len = self.byte_length()?;
         let larger_len = if len < min_len { min_len } else { len };
         let mut ret = vec![0u8; larger_len];
