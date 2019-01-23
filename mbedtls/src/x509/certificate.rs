@@ -74,6 +74,29 @@ impl Certificate {
     }
 }
 
+impl fmt::Debug for Certificate {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match ::private::alloc_string_repeat(|buf, size| unsafe {
+            x509_crt_info(buf, size, b"\0".as_ptr() as *const _, &self.inner)
+        }) {
+            Err(_) => Err(fmt::Error),
+            Ok(s) => f.write_str(&s),
+        }
+    }
+}
+
+impl Clone for Certificate {
+    fn clone(&self) -> Certificate {
+        let mut ret = Self::init();
+        unsafe {
+            x509_crt_parse_der(&mut ret.inner, self.inner.raw.p, self.inner.raw.len)
+                .into_result()
+                .unwrap()
+        };
+        ret
+    }
+}
+
 impl Deref for Certificate {
     type Target = LinkedCertificate;
     fn deref(&self) -> &LinkedCertificate {
