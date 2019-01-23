@@ -14,6 +14,8 @@ use core::ptr;
 use error::IntoResult;
 use private::UnsafeFrom;
 
+use byteorder::{BigEndian, ByteOrder};
+
 pub(crate) mod dhparam;
 mod ec;
 
@@ -295,7 +297,7 @@ impl Pk {
             )
             .into_result()?;
         }
-        Ok(u32::from_be_bytes(e))
+        Ok(BigEndian::read_u32(&e))
     }
 
     pub fn name(&self) -> ::Result<&str> {
