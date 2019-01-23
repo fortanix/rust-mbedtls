@@ -75,14 +75,6 @@ name = "pbkdf"
 path = "tests/pbkdf.rs"
 
 [[test]]
-name = "cert"
-path = "tests/cert.rs"
-
-[[test]]
-name = "ecp"
-path = "tests/ecp.rs"
-
-[[test]]
 name = "mbedtls_self_tests"
 path = "tests/mbedtls_self_tests.rs"
 
