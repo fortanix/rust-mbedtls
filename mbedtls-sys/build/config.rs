@@ -139,7 +139,7 @@ pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_ECP_DP_CURVE25519_ENABLED",                 Defined),
     ("MBEDTLS_ECP_DP_CURVE448_ENABLED",                   Defined),
     ("MBEDTLS_ECP_NIST_OPTIM",                            Defined),
-    ("MBEDTLS_ECDSA_DETERMINISTIC",                       Defined),
+    ("MBEDTLS_ECDSA_DETERMINISTIC",                       Undefined),
     ("MBEDTLS_KEY_EXCHANGE_PSK_ENABLED",                  Defined),
     ("MBEDTLS_KEY_EXCHANGE_DHE_PSK_ENABLED",              Defined),
     ("MBEDTLS_KEY_EXCHANGE_ECDHE_PSK_ENABLED",            Defined),

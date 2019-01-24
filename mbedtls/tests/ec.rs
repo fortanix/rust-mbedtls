@@ -46,12 +46,22 @@ fn sign_verify() {
     let mut k = Pk::from_private_key(TEST_KEY_PEM.as_bytes(), None).unwrap();
 
     let data = b"SIGNATURE TEST SIGNATURE TEST SI";
-    let mut signature = [0u8; ECDSA_MAX_LEN];
+    let mut signature1 = [0u8; ECDSA_MAX_LEN];
+    let mut signature2 = [0u8; ECDSA_MAX_LEN];
+
+    let mut rng = test_rng();
+    let len = k
+        .sign(Sha256, data, &mut signature1, &mut rng)
+        .unwrap();
+    k.verify(Sha256, data, &signature1[0..len]).unwrap();
 
     let len = k
-        .sign(Sha256, data, &mut signature, &mut test_rng())
+        .sign(Sha256, data, &mut signature2, &mut rng)
         .unwrap();
-    k.verify(Sha256, data, &signature[0..len]).unwrap();
+    k.verify(Sha256, data, &signature2[0..len]).unwrap();
+
+    // Default ECDSA is randomized
+    assert!(&signature1[..] != &signature2[..]);
 }
 
 #[test]
