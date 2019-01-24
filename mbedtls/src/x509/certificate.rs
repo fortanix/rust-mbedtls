@@ -23,12 +23,8 @@ use private::UnsafeFrom;
 define!(
     #[c_ty(x509_crt)]
     struct Certificate;
-    fn init() {
-        x509_crt_init
-    }
-    fn drop() {
-        x509_crt_free
-    }
+    const init: fn() -> Self = x509_crt_init;
+    const drop: fn(&mut Self) = x509_crt_free;
 );
 
 impl Certificate {
@@ -406,12 +402,8 @@ impl<'c, 'r> From<&'c mut List<'r>> for &'c mut LinkedCertificate {
 define!(
     #[c_ty(x509write_cert)]
     struct Builder<'a>;
-    pub fn new() {
-        x509write_crt_init
-    }
-    fn drop() {
-        x509write_crt_free
-    }
+    pub const new: fn() -> Self = x509write_crt_init;
+    const drop: fn(&mut Self) = x509write_crt_free;
 );
 
 impl<'a> Builder<'a> {

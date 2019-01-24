@@ -34,12 +34,8 @@ pub trait TicketCallback {
 define!(
     #[c_ty(ssl_ticket_context)]
     struct TicketContext<'rng>;
-    fn init() {
-        ssl_ticket_init
-    }
-    fn drop() {
-        ssl_ticket_free
-    }
+    const init: fn() -> Self = ssl_ticket_init;
+    const drop: fn(&mut Self) = ssl_ticket_free;
 );
 
 impl<'rng> TicketContext<'rng> {

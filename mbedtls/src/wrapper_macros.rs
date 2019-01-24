@@ -97,11 +97,11 @@ macro_rules! define_struct {
         );
     };
 
-    { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> fn init() { $ctor:ident } $($defs:tt)* } => {
+    { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> const init: fn() -> Self = $ctor:ident; $($defs:tt)* } => {
         define_struct!(init $name () init $ctor $(lifetime $l)* );
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
     };
-    { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> pub fn new() { $ctor:ident } $($defs:tt)* } => {
+    { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> pub const new: fn() -> Self = $ctor:ident; $($defs:tt)* } => {
         define_struct!(init $name (pub) new $ctor $(lifetime $l)* );
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
     };
@@ -124,7 +124,7 @@ macro_rules! define_struct {
         );
     };
 
-    { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> fn drop() { $dtor:ident } $($defs:tt)* } => {
+    { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> const drop: fn(&mut Self) = $dtor:ident; $($defs:tt)* } => {
         define_struct!(drop $name dtor $dtor $(lifetime $l)* );
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
     };

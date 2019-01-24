@@ -16,12 +16,8 @@ define!(
     #[c_ty(x509_crl)]
     /// Certificate Revocation List
     struct Crl;
-    pub fn new() {
-        x509_crl_init
-    }
-    fn drop() {
-        x509_crl_free
-    }
+    pub const new: fn() -> Self = x509_crl_init;
+    const drop: fn(&mut Self) = x509_crl_free;
     impl<'a> Into<ptr> {}
 );
 

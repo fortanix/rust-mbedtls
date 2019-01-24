@@ -22,12 +22,8 @@ pub use mbedtls_sys::mpi_sint;
 define!(
     #[c_ty(mpi)]
     struct Mpi;
-    fn init() {
-        mpi_init
-    }
-    fn drop() {
-        mpi_free
-    }
+    const init: fn() -> Self = mpi_init;
+    const drop: fn(&mut Self) = mpi_free;
     impl<'a> Into<ptr> {}
 );
 
