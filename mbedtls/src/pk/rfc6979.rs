@@ -6,6 +6,9 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+#[cfg(not(feature = "std"))]
+use alloc_prelude::*;
+
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 
@@ -113,7 +116,7 @@ impl RngCallback for Rfc6979Rng {
         len: size_t,
     ) -> c_int {
         let rng: &mut Rfc6979Rng = (user_data as *mut Rfc6979Rng).as_mut().unwrap();
-        let slice = ::std::slice::from_raw_parts_mut(data_ptr, len);
+        let slice = ::core::slice::from_raw_parts_mut(data_ptr, len);
         let result = rng.random_callback(slice);
         if let Err(r) = result {
             r.to_int()
