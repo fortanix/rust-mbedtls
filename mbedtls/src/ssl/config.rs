@@ -70,12 +70,8 @@ callback!(DbgCallback:Sync(level: c_int, file: *const c_char, line: c_int, messa
 define!(
     #[c_ty(ssl_config)]
     struct Config<'c>;
-    fn init() {
-        ssl_config_init
-    }
-    fn drop() {
-        ssl_config_free
-    }
+    const init: fn() -> Self = ssl_config_init;
+    const drop: fn(&mut Self) = ssl_config_free;
     impl<'q> Into<ptr> {}
     impl<'q> UnsafeFrom<ptr> {}
 );

@@ -20,12 +20,8 @@ use error::IntoResult;
 define!(
     #[c_ty(hmac_drbg_context)]
     struct HmacDrbg<'entropy>;
-    fn init() {
-        hmac_drbg_init
-    }
-    fn drop() {
-        hmac_drbg_free
-    }
+    const init: fn() -> Self = hmac_drbg_init;
+    const drop: fn(&mut Self) = hmac_drbg_free;
 );
 
 #[cfg(feature = "threading")]

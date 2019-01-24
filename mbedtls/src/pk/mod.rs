@@ -72,12 +72,8 @@ define!(
     #[c_ty(pk_context)]
     #[repr(C)]
     struct Pk;
-    fn init() {
-        pk_init
-    }
-    fn drop() {
-        pk_free
-    }
+    const init: fn() -> Self = pk_init;
+    const drop: fn(&mut Self) = pk_free;
     impl<'a> Into<ptr> {}
     impl<'a> UnsafeFrom<ptr> {}
 );

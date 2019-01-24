@@ -18,12 +18,8 @@ use pk::EcGroupId;
 define!(
     #[c_ty(ecp_group)]
     struct EcGroup;
-    fn init() {
-        ecp_group_init
-    }
-    fn drop() {
-        ecp_group_free
-    }
+    const init: fn() -> Self = ecp_group_init;
+    const drop: fn(&mut Self) = ecp_group_free;
     impl<'a> Into<ptr> {}
 );
 
@@ -74,12 +70,8 @@ impl EcGroup {
 define!(
     #[c_ty(ecp_point)]
     struct EcPoint;
-    fn init() {
-        ecp_point_init
-    }
-    fn drop() {
-        ecp_point_free
-    }
+    const init: fn() -> Self = ecp_point_init;
+    const drop: fn(&mut Self) = ecp_point_free;
     impl<'a> Into<ptr> {}
 );
 
@@ -240,10 +232,10 @@ impl EcPoint {
 #[cfg(test)]
 mod tests {
 
-    use pk::EcGroupId;
+    use bignum::Mpi;
     use ecp::EcGroup;
     use ecp::EcPoint;
-    use bignum::Mpi;
+    use pk::EcGroupId;
 
     #[test]
     fn test_ec_group() {

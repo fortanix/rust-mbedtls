@@ -60,12 +60,8 @@ define!(
     #[c_ty(ecp_keypair)]
     #[repr(C)]
     struct EcpKeypair;
-    fn init() {
-        ecp_keypair_init
-    }
-    fn drop() {
-        ecp_keypair_free
-    }
+    const init: fn() -> Self = ecp_keypair_init;
+    const drop: fn(&mut Self) = ecp_keypair_free;
     impl<'a> Into<ptr> {}
     impl<'a> UnsafeFrom<ptr> {}
 );
@@ -74,12 +70,8 @@ define!(
     #[c_ty(ecdh_context)]
     #[repr(C)]
     struct Ecdh;
-    fn init() {
-        ecdh_init
-    }
-    fn drop() {
-        ecdh_free
-    }
+    const init: fn() -> Self = ecdh_init;
+    const drop: fn(&mut Self) = ecdh_free;
     impl<'a> Into<ptr> {}
 );
 

@@ -19,12 +19,8 @@ define!(
     #[c_ty(x509_csr)]
     /// Certificate Signing Request
     struct Csr;
-    fn init() {
-        x509_csr_init
-    }
-    fn drop() {
-        x509_csr_free
-    }
+    const init: fn() -> Self = x509_csr_init;
+    const drop: fn(&mut Self) = x509_csr_free;
 );
 
 impl Csr {
@@ -76,12 +72,8 @@ impl fmt::Debug for Csr {
 define!(
     #[c_ty(x509write_csr)]
     struct Builder<'a>;
-    pub fn new() {
-        x509write_csr_init
-    }
-    fn drop() {
-        x509write_csr_free
-    }
+    pub const new: fn() -> Self = x509write_csr_init;
+    const drop: fn(&mut Self) = x509write_csr_free;
 );
 
 impl<'a> Builder<'a> {

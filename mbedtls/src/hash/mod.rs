@@ -64,12 +64,8 @@ impl Into<*const md_info_t> for MdInfo {
 define!(
     #[c_ty(md_context_t)]
     struct Md;
-    fn init() {
-        md_init
-    }
-    fn drop() {
-        md_free
-    }
+    const init: fn() -> Self = md_init;
+    const drop: fn(&mut Self) = md_free;
     impl<'a> Into<ptr> {}
 );
 

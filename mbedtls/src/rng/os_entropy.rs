@@ -17,12 +17,8 @@ callback!(EntropySourceCallback(data: *mut c_uchar, size: size_t, out: *mut size
 define!(
     #[c_ty(entropy_context)]
     struct OsEntropy<'source>;
-    pub fn new() {
-        entropy_init
-    }
-    fn drop() {
-        entropy_free
-    }
+    pub const new: fn() -> Self = entropy_init;
+    const drop: fn(&mut Self) = entropy_free;
 );
 
 #[cfg(feature = "threading")]

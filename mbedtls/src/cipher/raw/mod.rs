@@ -157,12 +157,8 @@ define!(
     #[c_ty(cipher_context_t)]
     #[repr(C)]
     struct Cipher;
-    fn init() {
-        cipher_init
-    }
-    fn drop() {
-        cipher_free
-    }
+    const init: fn() -> Self = cipher_init;
+    const drop: fn(&mut Self) = cipher_free;
     impl<'a> Into<ptr> {}
 );
 
