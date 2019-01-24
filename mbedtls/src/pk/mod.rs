@@ -18,9 +18,11 @@ use byteorder::{BigEndian, ByteOrder};
 
 pub(crate) mod dhparam;
 mod ec;
+mod rfc6979;
 
 use bignum::Mpi;
 use ecp::EcPoint;
+use self::rfc6979::Rfc6979Rng;
 
 #[doc(inline)]
 pub use self::ec::{EcGroupId, ECDSA_MAX_LEN};
@@ -395,6 +397,56 @@ impl Pk {
             .into_result()?;
         }
         Ok(ret)
+    }
+
+    pub fn sign_deterministic<F: ::rng::Random>(
+        &mut self,
+        md: ::hash::Type,
+        hash: &[u8],
+        sig: &mut [u8],
+        rng: &mut F,
+    ) -> ::Result<usize> {
+        use rng::RngCallback;
+
+        if self.pk_type() == Type::Ecdsa || self.pk_type() == Type::Eckey {
+            // RFC 6979 signature scheme
+
+            let q = ::ecp::EcGroup::new(self.curve()?)?.order()?;
+            let x = self.ec_private()?;
+
+            let mut random_seed = [0u8; 64];
+            rng.random(&mut random_seed)?;
+
+            let mut rng = Rfc6979Rng::new(md, &q, &x, hash, &random_seed)?;
+
+            let mut ret;
+            unsafe {
+                ret = ::core::mem::uninitialized();
+                pk_sign(
+                    &mut self.inner,
+                    md.into(),
+                    hash.as_ptr(),
+                    hash.len(),
+                    sig.as_mut_ptr(),
+                    &mut ret,
+                    Some(Rfc6979Rng::call),
+                    rng.data_ptr(),
+                )
+                .into_result()?;
+            }
+            Ok(ret)
+        } else if self.pk_type() == Type::Rsa {
+            // Reject sign_deterministic being use for PSS
+            if unsafe { (*(self.inner.pk_ctx as *mut rsa_context)).padding } != RSA_PKCS_V15 {
+                return Err(::Error::PkInvalidAlg);
+            }
+
+            // This is a PKCSv1.5 signature which is already deterministic; just pass it to sign
+            return self.sign(md, hash, sig, rng);
+        } else {
+            // Some non-deterministic scheme
+            return Err(::Error::PkInvalidAlg);
+        }
     }
 
     pub fn verify(&mut self, md: ::hash::Type, hash: &[u8], sig: &[u8]) -> ::Result<()> {
