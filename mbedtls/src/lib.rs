@@ -38,6 +38,14 @@ extern crate rs_libc;
 #[macro_use]
 mod wrapper_macros;
 
+#[cfg(feature = "pkcs12")]
+extern crate yasna;
+
+#[cfg(feature="pkcs12_rc2")]
+extern crate rc2;
+#[cfg(feature="pkcs12_rc2")]
+extern crate block_modes;
+
 // ==============
 //      API
 // ==============
@@ -52,6 +60,9 @@ pub mod rng;
 pub mod self_test;
 pub mod ssl;
 pub mod x509;
+
+#[cfg(feature = "pkcs12")]
+pub mod pkcs12;
 
 // ==============
 //    Utility

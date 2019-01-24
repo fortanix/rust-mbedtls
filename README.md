@@ -27,6 +27,8 @@ This is a list of the Cargo features available for mbedtls. Features in
                         unsupported processors.
 * **legacy_protocols** Enable support for SSLv3, TLSv1.0 and TLSv1.1
 * **padlock** Enable support for VIA padlock.
+* *pkcs12* Enable code to parse PKCS12 files using yasna
+* *pkcs12_rc2* Enable use of RC2 crate to decrypt RC2-encrypted PKSC12 files
 * *pthread* Enable mutex synchronization using pthreads.
 * *rdrand* Enable the RDRAND random number generator.
 * *rust_threading* Enable mutex synchronization using the `std::sync::Mutex`.
