@@ -1,5 +1,5 @@
 #!/bin/sh
-set -e
+set -ex
 cd "$(dirname "$0")/mbedtls"
 
 cargo test
