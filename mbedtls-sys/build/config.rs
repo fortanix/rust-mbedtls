@@ -208,7 +208,7 @@ pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_SSL_SRV_SUPPORT_SSLV2_CLIENT_HELLO",        Undefined),
     ("MBEDTLS_SSL_SRV_RESPECT_CLIENT_PREFERENCE",         Undefined),
     ("MBEDTLS_SSL_MAX_FRAGMENT_LENGTH",                   Defined),
-    ("MBEDTLS_SSL_PROTO_SSL3",                            Undefined),
+    ("MBEDTLS_SSL_PROTO_SSL3",                            Defined),
     ("MBEDTLS_SSL_PROTO_TLS1",                            Defined),
     ("MBEDTLS_SSL_PROTO_TLS1_1",                          Defined),
     ("MBEDTLS_SSL_PROTO_TLS1_2",                          Defined),
