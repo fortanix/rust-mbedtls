@@ -26,6 +26,7 @@ This is a list of the Cargo features available for mbedtls. Features in
                         will result in undefined instruction exceptions on
                         unsupported processors.
 * **padlock** Enable support for VIA padlock.
+* **legacy_protocols** Enable support for SSLv3, TLSv1.0 and TLSv1.1
 * *pthread* Enable mutex synchronization using pthreads.
 * *rdrand* Enable the RDRAND random number generator.
 * *spin_threading* Enable mutex synchronization using the spin crate.
@@ -90,6 +91,7 @@ This is a list of the Cargo features available for mbedtls-sys. Features in
 * *havege* Enable the Hardware Volatile Entropy Gathering and Expansion
            (HAVEGE) algorithm.
 * **padlock** Enable support for VIA padlock.
+* **legacy_protocols** Enable support for SSLv3, TLSv1.0 and TLSv1.1
 * *pkcs11* Enable PKCS#11 support. This requires pkcs11-helper to be installed.
 * **pthread** Enable threading support using pthreads.
 * **std** If this feature is not enabled, this crate is a no_std crate. In a

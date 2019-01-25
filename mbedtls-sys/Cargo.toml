@@ -31,7 +31,7 @@ cmake = "0.1.17"
 # * strstr/strlen/strncpy/strncmp/strcmp/snprintf
 # * memmove/memcpy/memcmp/memset
 # * rand/printf (used only for self tests. optionally use custom_printf)
-default = ["std", "zlib", "time", "pthread", "aesni", "padlock"]
+default = ["std", "zlib", "time", "pthread", "aesni", "padlock", "legacy_protocols"]
 std = []
 custom_printf = []
 custom_has_support = []
@@ -44,3 +44,4 @@ zlib = ["libz-sys"]
 pkcs11 = []
 aesni = []
 padlock = []
+legacy_protocols = []
