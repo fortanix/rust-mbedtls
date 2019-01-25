@@ -102,7 +102,7 @@ pub use self::libc_types::*;
 pub use self::libc::pthread_mutex_t;
 
 #[cfg(feature = "time")]
-pub use self::libc::time_t;
+pub use self::libc::{time_t, tm};
 
 #[cfg(feature = "zlib")]
 extern crate libz_sys;

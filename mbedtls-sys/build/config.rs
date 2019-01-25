@@ -36,17 +36,44 @@ pub const PREFIX: &'static str = r#"
 #endif
 "#;
 
+/*
+
+DEFAULT_DEFINES was generated using the following script
+
+#!/usr/bin/python
+
+import re
+
+simple_define = re.compile(r'(.*)#define (MBEDTLS_[A-Z0-9_]+)$')
+define_with_default = re.compile(r'.*#define (MBEDTLS_[A-Z0-9_]+) +([0-9A-Za-z_]+)')
+
+def format(macro, state):
+    return "    (\"%s\", %s)," % (macro, state.rjust(49 - len(macro) + len(state)))
+
+for line in open('vendor/include/mbedtls/config.h').readlines():
+    match = simple_define.match(line)
+
+    if match:
+        state = "Undefined" if match.group(1).strip() == '//' else "Defined"
+        print format(match.group(2), state)
+    else:
+        match = define_with_default.match(line)
+        if match:
+            print format(match.group(1), "Undefined") + (" // default: %s" % (match.group(2)))
+*/
+
 #[cfg_attr(rustfmt, rustfmt_skip)]
 pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_HAVE_ASM",                                  Defined),
-    ("MBEDTLS_NO_64BIT_MULTIPLICATION",                   Undefined),
     ("MBEDTLS_NO_UDBL_DIVISION",                          Undefined),
+    ("MBEDTLS_NO_64BIT_MULTIPLICATION",                   Undefined),
     ("MBEDTLS_HAVE_SSE2",                                 Undefined),
     ("MBEDTLS_HAVE_TIME",                                 Undefined),
     ("MBEDTLS_HAVE_TIME_DATE",                            Undefined),
     ("MBEDTLS_PLATFORM_MEMORY",                           Undefined),
     ("MBEDTLS_PLATFORM_NO_STD_FUNCTIONS",                 Undefined),
     ("MBEDTLS_PLATFORM_EXIT_ALT",                         Undefined),
+    ("MBEDTLS_PLATFORM_TIME_ALT",                         Undefined),
     ("MBEDTLS_PLATFORM_FPRINTF_ALT",                      Undefined),
     ("MBEDTLS_PLATFORM_PRINTF_ALT",                       Undefined),
     ("MBEDTLS_PLATFORM_SNPRINTF_ALT",                     Undefined),
@@ -54,6 +81,7 @@ pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_PLATFORM_SETUP_TEARDOWN_ALT",               Undefined),
     ("MBEDTLS_DEPRECATED_WARNING",                        Undefined),
     ("MBEDTLS_DEPRECATED_REMOVED",                        Undefined),
+    ("MBEDTLS_CHECK_PARAMS",                              Undefined),
     ("MBEDTLS_TIMING_ALT",                                Undefined),
     ("MBEDTLS_AES_ALT",                                   Undefined),
     ("MBEDTLS_ARC4_ALT",                                  Undefined),
@@ -139,6 +167,7 @@ pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_ECP_DP_CURVE25519_ENABLED",                 Defined),
     ("MBEDTLS_ECP_DP_CURVE448_ENABLED",                   Defined),
     ("MBEDTLS_ECP_NIST_OPTIM",                            Defined),
+    ("MBEDTLS_ECP_RESTARTABLE",                           Undefined),
     ("MBEDTLS_ECDSA_DETERMINISTIC",                       Undefined),
     ("MBEDTLS_KEY_EXCHANGE_PSK_ENABLED",                  Defined),
     ("MBEDTLS_KEY_EXCHANGE_DHE_PSK_ENABLED",              Defined),
@@ -158,6 +187,7 @@ pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_NO_DEFAULT_ENTROPY_SOURCES",                Undefined),
     ("MBEDTLS_NO_PLATFORM_ENTROPY",                       Defined),
     ("MBEDTLS_ENTROPY_FORCE_SHA256",                      Undefined),
+    ("MBEDTLS_ENTROPY_NV_SEED",                           Undefined),
     ("MBEDTLS_MEMORY_DEBUG",                              Undefined),
     ("MBEDTLS_MEMORY_BACKTRACE",                          Undefined),
     ("MBEDTLS_PK_RSA_ALT_SUPPORT",                        Defined),
@@ -168,7 +198,6 @@ pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_SHA256_SMALLER",                            Undefined),
     ("MBEDTLS_SSL_ALL_ALERT_MESSAGES",                    Defined),
     ("MBEDTLS_SSL_ASYNC_PRIVATE",                         Undefined),
-    ("MBEDTLS_SSL_TRUNCATED_HMAC_COMPAT",                 Undefined),
     ("MBEDTLS_SSL_DEBUG_ALL",                             Undefined),
     ("MBEDTLS_SSL_ENCRYPT_THEN_MAC",                      Defined),
     ("MBEDTLS_SSL_EXTENDED_MASTER_SECRET",                Defined),
@@ -193,6 +222,7 @@ pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_SSL_EXPORT_KEYS",                           Defined),
     ("MBEDTLS_SSL_SERVER_NAME_INDICATION",                Defined),
     ("MBEDTLS_SSL_TRUNCATED_HMAC",                        Defined),
+    ("MBEDTLS_SSL_TRUNCATED_HMAC_COMPAT",                 Undefined),
     ("MBEDTLS_THREADING_ALT",                             Undefined),
     ("MBEDTLS_THREADING_PTHREAD",                         Undefined),
     ("MBEDTLS_VERSION_FEATURES",                          Defined),
@@ -202,6 +232,7 @@ pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_X509_CHECK_EXTENDED_KEY_USAGE",             Defined),
     ("MBEDTLS_X509_RSASSA_PSS_SUPPORT",                   Defined),
     ("MBEDTLS_ZLIB_SUPPORT",                              Undefined),
+    ("MBEDTLS_AESNI_C",                                   Undefined),
     ("MBEDTLS_AES_C",                                     Defined),
     ("MBEDTLS_ARC4_C",                                    Defined),
     ("MBEDTLS_ASN1_PARSE_C",                              Defined),
@@ -216,8 +247,8 @@ pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_CHACHA20_C",                                Defined),
     ("MBEDTLS_CHACHAPOLY_C",                              Defined),
     ("MBEDTLS_CIPHER_C",                                  Defined),
-    ("MBEDTLS_CTR_DRBG_C",                                Defined),
     ("MBEDTLS_CMAC_C",                                    Undefined),
+    ("MBEDTLS_CTR_DRBG_C",                                Defined),
     ("MBEDTLS_DEBUG_C",                                   Undefined),
     ("MBEDTLS_DES_C",                                     Defined),
     ("MBEDTLS_DHM_C",                                     Defined),
@@ -290,24 +321,33 @@ pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_ENTROPY_MAX_GATHER",                        Undefined), // default: 128
     ("MBEDTLS_ENTROPY_MIN_HARDWARE",                      Undefined), // default: 32
     ("MBEDTLS_MEMORY_ALIGN_MULTIPLE",                     Undefined), // default: 4
-    ("MBEDTLS_PLATFORM_STD_MEM_HDR",                      Undefined), // default: <stdlib.h>
     ("MBEDTLS_PLATFORM_STD_CALLOC",                       Undefined), // default: calloc
     ("MBEDTLS_PLATFORM_STD_FREE",                         Undefined), // default: free
     ("MBEDTLS_PLATFORM_STD_EXIT",                         Undefined), // default: exit
+    ("MBEDTLS_PLATFORM_STD_TIME",                         Undefined), // default: time
     ("MBEDTLS_PLATFORM_STD_FPRINTF",                      Undefined), // default: fprintf
     ("MBEDTLS_PLATFORM_STD_PRINTF",                       Undefined), // default: printf
     ("MBEDTLS_PLATFORM_STD_SNPRINTF",                     Undefined), // default: snprintf
+    ("MBEDTLS_PLATFORM_STD_EXIT_SUCCESS",                 Undefined), // default: 0
+    ("MBEDTLS_PLATFORM_STD_EXIT_FAILURE",                 Undefined), // default: 1
+    ("MBEDTLS_PLATFORM_STD_NV_SEED_READ",                 Undefined), // default: mbedtls_platform_std_nv_seed_read
+    ("MBEDTLS_PLATFORM_STD_NV_SEED_WRITE",                Undefined), // default: mbedtls_platform_std_nv_seed_write
     ("MBEDTLS_PLATFORM_CALLOC_MACRO",                     Undefined), // default: calloc
     ("MBEDTLS_PLATFORM_FREE_MACRO",                       Undefined), // default: free
     ("MBEDTLS_PLATFORM_EXIT_MACRO",                       Undefined), // default: exit
+    ("MBEDTLS_PLATFORM_TIME_MACRO",                       Undefined), // default: time
+    ("MBEDTLS_PLATFORM_TIME_TYPE_MACRO",                  Undefined), // default: time_t
     ("MBEDTLS_PLATFORM_FPRINTF_MACRO",                    Undefined), // default: fprintf
     ("MBEDTLS_PLATFORM_PRINTF_MACRO",                     Undefined), // default: printf
     ("MBEDTLS_PLATFORM_SNPRINTF_MACRO",                   Undefined), // default: snprintf
+    ("MBEDTLS_PLATFORM_NV_SEED_READ_MACRO",               Undefined), // default: mbedtls_platform_std_nv_seed_read
+    ("MBEDTLS_PLATFORM_NV_SEED_WRITE_MACRO",              Undefined), // default: mbedtls_platform_std_nv_seed_write
     ("MBEDTLS_SSL_CACHE_DEFAULT_TIMEOUT",                 Undefined), // default: 86400
     ("MBEDTLS_SSL_CACHE_DEFAULT_MAX_ENTRIES",             Undefined), // default: 50
     ("MBEDTLS_SSL_MAX_CONTENT_LEN",                       Undefined), // default: 16384
     ("MBEDTLS_SSL_IN_CONTENT_LEN",                        Undefined), // default: 16384
     ("MBEDTLS_SSL_OUT_CONTENT_LEN",                       Undefined), // default: 16384
+    ("MBEDTLS_SSL_DTLS_MAX_BUFFERING",                    Undefined), // default: 32768
     ("MBEDTLS_SSL_DEFAULT_TICKET_LIFETIME",               Undefined), // default: 86400
     ("MBEDTLS_PSK_MAX_LEN",                               Undefined), // default: 32
     ("MBEDTLS_SSL_COOKIE_TIMEOUT",                        Undefined), // default: 60
@@ -317,6 +357,7 @@ pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_CERTIFICATES",    Undefined),
     ("MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_KEY_EXCHANGE",    Defined),
     ("MBEDTLS_PLATFORM_ZEROIZE_ALT",                      Undefined),
+    ("MBEDTLS_PLATFORM_GMTIME_R_ALT",                     Undefined),
 ];
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
