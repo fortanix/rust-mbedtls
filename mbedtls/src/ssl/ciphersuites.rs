@@ -9,6 +9,7 @@
 use mbedtls_sys::types::raw_types::c_int;
 
 define!(
+    #[non_exhaustive]
     #[c_ty(c_int)]
     enum CipherSuite {
         RsaWithNullMd5 = TLS_RSA_WITH_NULL_MD5,

@@ -35,6 +35,10 @@ macro_rules! error_enum {
             $($rust,)*
             Other(c_int),
             Utf8Error(Option<Utf8Error>),
+            // Stable-Rust equivalent of `#[non_exhaustive]` attribute. This
+            // value should never be used by users of this crate!
+            #[doc(hidden)]
+            __Nonexhaustive,
         }
 
         impl IntoResult for c_int {
@@ -62,6 +66,7 @@ macro_rules! error_enum {
                     $(&$n::$rust => concat!("mbedTLS error ",stringify!($n::$rust)),)*
                     &$n::Other(_) => "mbedTLS unknown error",
                     &$n::Utf8Error(_) => "error converting to UTF-8",
+                    &$n::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
                 }
             }
 
@@ -70,6 +75,7 @@ macro_rules! error_enum {
                     $($n::$rust => ::mbedtls_sys::$c,)*
                     $n::Other(code) => code,
                     $n::Utf8Error(_) => ERR_UTF8_INVALID,
+                    $n::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
                 }
             }
         }
@@ -90,6 +96,7 @@ impl fmt::Display for Error {
             }
             &Error::Utf8Error(None) => f.write_fmt(format_args!("Error converting to UTF-8")),
             &Error::Other(i) => f.write_fmt(format_args!("mbedTLS unknown error ({})", i)),
+            &Error::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
             e @ _ => f.write_fmt(format_args!("mbedTLS error {:?}", e)),
         }
     }
