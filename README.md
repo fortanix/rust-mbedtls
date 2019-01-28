@@ -31,12 +31,12 @@ This is a list of the Cargo features available for mbedtls. Features in
 * *rdrand* Enable the RDRAND random number generator.
 * *rust_threading* Enable mutex synchronization using the `std::sync::Mutex`.
                    spin_threading takes precedence over rust_threading.
-* **time** Enable time support in mbedtls-sys.
 * *spin_threading* Enable mutex synchronization using the spin crate.
 * *sgx* Enables features recommended for x86\_64-fortanix-unknown-sgx target.
 * **std** If this feature is not enabled, this crate is a no_std crate. (An
           allocator is *required*) The necessary C functions to make MbedTLS
           work without libc will be provided.
+* **time** Enable time support in mbedtls-sys.
 * *zlib* Enable zlib support in mbedtls-sys.
 
 PRs adding new features are encouraged.
