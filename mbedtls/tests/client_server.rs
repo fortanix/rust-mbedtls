@@ -135,6 +135,8 @@ mod test {
             [1, 2, 1, 2, 2],
             [2, 2, 1, 2, 2],
             [1, 3, 1, 2, 2],
+            [0, 3, 0, 3, 3],
+            [1, 3, 2, 3, 3],
             [3, 3, 3, 3, 3],
             [2, 2, 3, 2, -1],
             [2, 2, 0, 1, -1],
@@ -149,6 +151,10 @@ mod test {
             let server_max_ver = config[3];
             let exp_version = config[4];
 
+            if (client_max_ver < 3 || server_max_ver < 3) && !cfg!(feature="legacy_protocols") {
+                continue;
+            }
+
             let (c, s) = create_tcp_pair().unwrap();
 
             let c = thread::spawn(move || {
@@ -159,6 +165,7 @@ mod test {
                 };
                 super::client(c, client_min_ver, client_max_ver, exp_result).unwrap()
             });
+
             let s = thread::spawn(move || {
                 let exp_result = if exp_version < 0 {
                     Err(())
@@ -167,6 +174,8 @@ mod test {
                 };
                 super::server(s, server_min_ver, server_max_ver, exp_result).unwrap()
             });
+
+
             c.join().unwrap();
             s.join().unwrap();
         }
