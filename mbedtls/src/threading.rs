@@ -9,8 +9,14 @@
 #[cfg(not(feature = "std"))]
 use alloc_prelude::*;
 
+#[cfg(feature = "spin_threading")]
 extern crate spin;
+#[cfg(feature = "spin_threading")]
 use self::spin::{Mutex, MutexGuard};
+
+#[cfg(all(feature = "rust_threading", not(feature = "spin_threading")))]
+use std::sync::{Mutex, MutexGuard};
+
 use core::ptr;
 
 use mbedtls_sys::types::raw_types::c_int;
@@ -60,7 +66,16 @@ impl StaticMutex {
     unsafe extern "C" fn lock(mutex: *mut *mut StaticMutex) -> c_int {
         if let Some(m) = mutex.as_mut().and_then(|p| p.as_mut()) {
             let guard = m.mutex.lock();
-            m.guard = Some(guard);
+
+            #[cfg(feature = "spin_threading")]
+            {
+                m.guard = Some(guard);
+            }
+            #[cfg(all(feature = "rust_threading", not(feature = "spin_threading")))]
+            {
+                m.guard = Some(guard.unwrap())
+            }
+
             0
         } else {
             ::mbedtls_sys::ERR_THREADING_BAD_INPUT_DATA

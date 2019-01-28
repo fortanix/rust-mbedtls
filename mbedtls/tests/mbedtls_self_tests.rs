@@ -9,17 +9,17 @@
 extern crate mbedtls;
 extern crate mbedtls_sys;
 
-#[cfg(not(feature = "std"))]
+#[cfg(any(not(feature = "std"), target_env = "sgx"))]
 unsafe fn log(msg: *const mbedtls_sys::types::raw_types::c_char) {
     print!("{}", std::ffi::CStr::from_ptr(msg).to_string_lossy());
 }
 
-#[cfg(not(feature = "std"))]
+#[cfg(any(not(feature = "std"), target_env = "sgx"))]
 fn rand() -> mbedtls_sys::types::raw_types::c_int {
     3 // Only used for RSA self test
 }
 
-#[cfg(not(feature = "std"))]
+#[cfg(any(not(feature = "std"), target_env = "sgx"))]
 fn enable_self_test() {
     use std::sync::{Once, ONCE_INIT};
 
@@ -31,7 +31,7 @@ fn enable_self_test() {
     });
 }
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(target_env = "sgx")))]
 fn enable_self_test() {}
 
 macro_rules! tests {
@@ -58,7 +58,7 @@ tests! {
     fn ctr_drbg,
     fn des,
     fn dhm,
-    #[cfg(feature="std")]
+    #[cfg(all(feature="std", not(target_env="sgx")))]
     fn entropy,
     fn gcm,
     fn hmac_drbg,

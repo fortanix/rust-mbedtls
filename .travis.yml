@@ -30,4 +30,6 @@ env:
     - LLVM_CONFIG_PATH=llvm-config-3.8
 script:
   - rustup toolchain add $CORE_IO_NIGHTLY
+  - rustup toolchain add nightly
+  - rustup target add --toolchain nightly x86_64-fortanix-unknown-sgx
   - ./ct.sh

@@ -6,6 +6,8 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+#![cfg(not(target_env = "sgx"))]
+
 extern crate mbedtls;
 
 use std::io::{Read, Write};
@@ -23,7 +25,12 @@ mod support;
 use support::entropy::entropy_new;
 use support::keys;
 
-fn client(mut conn: TcpStream, min_minor: i32, max_minor: i32, exp_minor: Result<i32, ()>) -> TlsResult<()> {
+fn client(
+    mut conn: TcpStream,
+    min_minor: i32,
+    max_minor: i32,
+    exp_minor: Result<i32, ()>,
+) -> TlsResult<()> {
     let mut entropy = entropy_new();
     let mut rng = try!(CtrDrbg::new(&mut entropy, None));
     let mut cert = try!(Certificate::from_pem(keys::PEM_CERT));
@@ -69,7 +76,12 @@ fn client(mut conn: TcpStream, min_minor: i32, max_minor: i32, exp_minor: Result
     Ok(())
 }
 
-fn server(mut conn: TcpStream, min_minor: i32, max_minor: i32, exp_minor: Result<i32, ()>) -> TlsResult<()> {
+fn server(
+    mut conn: TcpStream,
+    min_minor: i32,
+    max_minor: i32,
+    exp_minor: Result<i32, ()>,
+) -> TlsResult<()> {
     let mut entropy = entropy_new();
     let mut rng = try!(CtrDrbg::new(&mut entropy, None));
     let mut cert = try!(Certificate::from_pem(keys::PEM_CERT));
@@ -140,11 +152,19 @@ mod test {
             let (c, s) = create_tcp_pair().unwrap();
 
             let c = thread::spawn(move || {
-                let exp_result = if exp_version < 0 { Err(()) } else { Ok(exp_version) };
+                let exp_result = if exp_version < 0 {
+                    Err(())
+                } else {
+                    Ok(exp_version)
+                };
                 super::client(c, client_min_ver, client_max_ver, exp_result).unwrap()
             });
             let s = thread::spawn(move || {
-                let exp_result = if exp_version < 0 { Err(()) } else { Ok(exp_version) };
+                let exp_result = if exp_version < 0 {
+                    Err(())
+                } else {
+                    Ok(exp_version)
+                };
                 super::server(s, server_min_ver, server_max_ver, exp_result).unwrap()
             });
             c.join().unwrap();
