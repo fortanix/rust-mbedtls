@@ -239,6 +239,17 @@ impl Cipher<Decryption, Traditional, CipherData> {
     }
 }
 
+impl Cipher<Encryption, TraditionalNoIv, Fresh> {
+    pub fn cmac(mut self,
+                key: &[u8],
+                in_data: &[u8],
+                out_data: &mut [u8])
+                -> ::Result<Cipher<Encryption, TraditionalNoIv, Finished>> {
+        self.raw_cipher.cmac(key, in_data, out_data)?;
+        Ok(self.change_state())
+    }
+}
+
 impl Cipher<Encryption, Authenticated, AdditionalData> {
     pub fn encrypt_auth(
         mut self,
@@ -291,6 +302,27 @@ impl<O: Operation, T: Type> Cipher<O, T, CipherData> {
         // Put together the structure to return
         Ok((len, self.change_state()))
     }
+}
+
+#[test]
+fn cmac() {
+    // From NIST CAVS
+
+    let key = [0x7c, 0x0b, 0x7d, 0xb9, 0x81, 0x1f, 0x10, 0xd0, 0x0e, 0x47, 0x6c, 0x7a, 0x0d, 0x92, 0xf6, 0xe0];
+    let msg = [0x1e, 0xe0, 0xec, 0x46, 0x6d, 0x46, 0xfd, 0x84, 0x9b, 0x40, 0xc0, 0x66, 0xb4, 0xfb, 0xbd, 0x22,
+               0xa2, 0x0a, 0x4d, 0x80, 0xa0, 0x08, 0xac, 0x9a, 0xf1, 0x7e, 0x4f, 0xdf, 0xd1, 0x06, 0x78, 0x5e];
+    let expected = vec![0xba, 0xec, 0xdc, 0x91, 0xe9, 0xa1, 0xfc, 0x35, 0x72, 0xad, 0xf1, 0xe4, 0x23, 0x2a, 0xe2, 0x85];
+
+    let cipher = Cipher::<_, TraditionalNoIv, _>::new(
+        raw::CipherId::Aes,
+        raw::CipherMode::ECB,
+        (key.len() * 8) as _,
+    ).unwrap();
+
+    let mut generated = vec![0u8; 16];
+    cipher.cmac(&key, &msg, &mut generated).unwrap();
+
+    assert_eq!(generated, expected);
 }
 
 #[test]

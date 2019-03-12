@@ -384,6 +384,20 @@ impl Cipher {
 
         Ok(total_len)
     }
+
+    pub fn cmac(&mut self, key: &[u8], data: &[u8], outdata: &mut [u8]) -> ::Result<()> {
+        // Check that outdata buffer has enough space
+        if outdata.len() < self.block_size() {
+            return Err(::Error::CipherFullBlockExpected);
+        }
+        self.reset()?;
+        unsafe {
+            cipher_cmac(&*self.inner.cipher_info, key.as_ptr(), (key.len() * 8) as _, data.as_ptr(), data.len(), 
+                        outdata.as_mut_ptr()).into_result()?;
+        }
+        Ok(())
+    }
+
 }
 
 #[test]
@@ -409,4 +423,13 @@ fn one_part_ecb() {
     let len = c.encrypt(b"\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xaa\xbb\xcc\xdd\xee\xff\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xaa\xbb\xcc\xdd\xee\xff", &mut out).unwrap();
     assert_eq!(len, 32);
     assert_eq!(&out[..len], b"\x69\xc4\xe0\xd8\x6a\x7b\x04\x30\xd8\xcd\xb7\x80\x70\xb4\xc5\x5a\x69\xc4\xe0\xd8\x6a\x7b\x04\x30\xd8\xcd\xb7\x80\x70\xb4\xc5\x5a");
+}
+
+#[test]
+fn cmac_test() {
+    let mut c = Cipher::setup(CipherId::Aes, CipherMode::ECB, 128).unwrap();
+    let mut out = [0u8; 16];
+    c.cmac(b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f",
+           b"\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xaa\xbb\xcc\xdd\xee\xff", &mut out).expect("Success in CMAC");
+    assert_eq!(&out, b"\x38\x7b\x36\x22\x8b\xa7\x77\x44\x5b\xaf\xa0\x36\x45\xb9\x40\x10");
 }
