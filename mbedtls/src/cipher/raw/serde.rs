@@ -296,7 +296,7 @@ unsafe impl BytesSerde for des3_context {}
 
 // If the C API changes, the serde implementation needs to be reviewed for correctness.
 
-unsafe fn _check_cipher_context_t_size(ctx: cipher_context_t) -> [u8; 88] {
+unsafe fn _check_cipher_context_t_size(ctx: cipher_context_t) -> [u8; 96] {
     ::core::mem::transmute(ctx)
 }
 

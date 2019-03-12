@@ -247,7 +247,7 @@ pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_CHACHA20_C",                                Defined),
     ("MBEDTLS_CHACHAPOLY_C",                              Defined),
     ("MBEDTLS_CIPHER_C",                                  Defined),
-    ("MBEDTLS_CMAC_C",                                    Undefined),
+    ("MBEDTLS_CMAC_C",                                    Defined),
     ("MBEDTLS_CTR_DRBG_C",                                Defined),
     ("MBEDTLS_DEBUG_C",                                   Undefined),
     ("MBEDTLS_DES_C",                                     Defined),
