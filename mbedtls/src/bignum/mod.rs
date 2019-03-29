@@ -80,6 +80,12 @@ impl ::core::str::FromStr for Mpi {
     }
 }
 
+impl Clone for Mpi {
+    fn clone(&self) -> Self {
+        Mpi::copy(&self.handle()).expect("copy succeeded")
+    }
+}
+
 impl Mpi {
     pub(crate) fn handle(&self) -> &::mbedtls_sys::mpi {
         &self.inner

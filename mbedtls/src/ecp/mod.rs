@@ -30,6 +30,87 @@ impl EcGroup {
         Ok(ret)
     }
 
+    pub fn from_parameters(
+        p: Mpi,
+        a: Mpi,
+        b: Mpi,
+        g_x: Mpi,
+        g_y: Mpi,
+        order: Mpi,
+    ) -> ::Result<EcGroup> {
+        let mut ret = Self::init();
+
+        ret.inner.pbits = p.bit_length()?;
+        ret.inner.nbits = order.bit_length()?;
+        ret.inner.h = 0;
+
+        let zero = Mpi::new(0)?;
+
+        // basic bounds checking
+        if &a <= &zero
+            || &a >= &p
+            || &b <= &zero
+            || &b >= &p
+            || &g_x <= &zero
+            || &g_x >= &p
+            || &g_y <= &zero
+            || &g_y >= &p
+            || &order <= &zero
+        {
+            return Err(::Error::EcpBadInputData);
+        }
+
+        // Compute `order - 2`, needed below.
+        let two = Mpi::new(2)?;
+        let order_m2 = (&order - &two)?;
+
+        unsafe {
+            ret.inner.P = p.into_inner();
+            ret.inner.A = a.into_inner();
+            ret.inner.B = b.into_inner();
+            ret.inner.N = order.into_inner();
+            ret.inner.G.X = g_x.into_inner();
+            ret.inner.G.Y = g_y.into_inner();
+            mpi_lset(&mut ret.inner.G.Z, 1);
+        }
+
+        /*
+        Test that the provided generator satisfies the curve equation
+         */
+        if unsafe { ecp_check_pubkey(&ret.inner, &ret.inner.G) } != 0 {
+            return Err(::Error::EcpBadInputData);
+        }
+
+        /*
+        Test that generator has the expected order, ie that order*G == infinity
+
+        We cannot use ecp_mul for this because ecp_mul requires that the scalar
+        be less than the order. So instead split the scalar into order-2 and 2
+        and test that G*(order-2) + G*2 == infinity.
+         */
+        let mut g_m = EcPoint::init(); // will be G*order
+
+        unsafe {
+            ecp_muladd(
+                &mut ret.inner,
+                &mut g_m.inner,
+                two.handle(),
+                &ret.inner.G,
+                order_m2.handle(),
+                &ret.inner.G,
+            )
+        }
+        .into_result()?;
+
+        let is_zero = unsafe { ecp_is_zero(&g_m.inner as *const ecp_point as *mut ecp_point) };
+
+        if is_zero != 1 {
+            return Err(::Error::EcpBadInputData);
+        }
+
+        Ok(ret)
+    }
+
     pub fn group_id(&self) -> ::Result<EcGroupId> {
         Ok(EcGroupId::from(self.inner.id))
     }
@@ -119,7 +200,7 @@ impl EcPoint {
         /*
         mbedtls_ecp_is_zero takes arg as non-const for no particular reason
         use this unsafe cast here to avoid having to take &mut self
-        */
+         */
         match unsafe { ecp_is_zero(&self.inner as *const ecp_point as *mut ecp_point) } {
             0 => Ok(false),
             1 => Ok(true),
@@ -296,6 +377,174 @@ mod tests {
         );
         let pt_from_components = EcPoint::from_components(&affine_x, &affine_y).unwrap();
         assert!(pt.eq(&pt_from_components).unwrap());
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn test_custom_curves() {
+        use std::str::FromStr;
+
+        // Check that various invalid curves cannot be created
+
+        // this is secp112r1
+        let p = Mpi::from_str("0xDB7C2ABF62E35E668076BEAD208B").unwrap();
+        let a = Mpi::from_str("0xDB7C2ABF62E35E668076BEAD2088").unwrap();
+        let b = Mpi::from_str("0x659EF8BA043916EEDE8911702B22").unwrap();
+        let g_x = Mpi::from_str("0x09487239995A5EE76B55F9C2F098").unwrap();
+        let g_y = Mpi::from_str("0xA89CE5AF8724C0A23E0E0FF77500").unwrap();
+        let order = Mpi::from_str("0xDB7C2ABF62E35E7628DFAC6561C5").unwrap();
+
+        // correct parameters are accepted
+        assert!(EcGroup::from_parameters(
+            p.clone(),
+            a.clone(),
+            b.clone(),
+            g_x.clone(),
+            g_y.clone(),
+            order.clone()
+        )
+        .is_ok());
+
+        // swap (x,y) in generator
+        assert!(EcGroup::from_parameters(
+            p.clone(),
+            a.clone(),
+            b.clone(),
+            g_y.clone(),
+            g_x.clone(),
+            order.clone()
+        )
+        .is_err());
+
+        // swap (a,b) in equation
+        assert!(EcGroup::from_parameters(
+            p.clone(),
+            b.clone(),
+            a.clone(),
+            g_x.clone(),
+            g_y.clone(),
+            order.clone()
+        )
+        .is_err());
+
+        // pass p as the order
+        assert!(EcGroup::from_parameters(
+            p.clone(),
+            b.clone(),
+            a.clone(),
+            g_x.clone(),
+            g_y.clone(),
+            p.clone()
+        )
+        .is_err());
+
+        // invalid order
+        let order_p_3 = (&order + &Mpi::new(3).unwrap()).unwrap();
+        assert!(EcGroup::from_parameters(
+            p.clone().clone(),
+            b.clone(),
+            a.clone(),
+            g_x.clone(),
+            g_y.clone(),
+            order_p_3
+        )
+        .is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn test_gost_sign() {
+        use std::str::FromStr;
+
+        // Test from RFC 7901
+        let p = Mpi::from_str("0x8000000000000000000000000000000000000000000000000000000000000431")
+            .unwrap();
+        let a = Mpi::from_str("7").unwrap();
+        let b = Mpi::from_str("0x5FBFF498AA938CE739B8E022FBAFEF40563F6E6A3472FC2A514C0CE9DAE23B7E")
+            .unwrap();
+        let order =
+            Mpi::from_str("0x8000000000000000000000000000000150FE8A1892976154C59CFC193ACCF5B3")
+                .unwrap();
+        let g_x = Mpi::from_str("2").unwrap();
+        let g_y =
+            Mpi::from_str("0x8E2A8A0E65147D4BD6316030E16D19C85C97F0A9CA267122B96ABBCEA7E8FC8")
+                .unwrap();
+
+        let mut gost = EcGroup::from_parameters(p.clone(), a, b, g_x, g_y, order.clone()).unwrap();
+
+        let gost_g = gost.generator().unwrap();
+
+        let d = Mpi::from_str("0x7A929ADE789BB9BE10ED359DD39A72C11B60961F49397EEE1D19CE9891EC3B28")
+            .unwrap();
+
+        let pubkey = gost_g.mul(&mut gost, &d).unwrap();
+
+        let pubkey_x = pubkey.x().unwrap();
+        let pubkey_y = pubkey.y().unwrap();
+
+        let exp_pub_x =
+            Mpi::from_str("0x7F2B49E270DB6D90D8595BEC458B50C58585BA1D4E9B788F6689DBD8E56FD80B")
+                .unwrap();
+        let exp_pub_y =
+            Mpi::from_str("0x26F1B489D6701DD185C8413A977B3CBBAF64D1C593D26627DFFB101A87FF77DA")
+                .unwrap();
+
+        assert_eq!(pubkey_x, exp_pub_x);
+        assert_eq!(pubkey_y, exp_pub_y);
+
+        let k = Mpi::from_str("0x77105C9B20BCD3122823C8CF6FCC7B956DE33814E95B7FE64FED924594DCEAB3")
+            .unwrap();
+
+        let gk = gost_g.mul(&mut gost, &k).unwrap();
+
+        let exp_gk_x =
+            Mpi::from_str("0x41AA28D2F1AB148280CD9ED56FEDA41974053554A42767B83AD043FD39DC0493");
+        let exp_gk_y =
+            Mpi::from_str("0x489C375A9941A3049E33B34361DD204172AD98C3E5916DE27695D22A61FAE46E");
+
+        assert_eq!(gk.x(), exp_gk_x);
+        assert_eq!(gk.y(), exp_gk_y);
+
+        let hm =
+            Mpi::from_str("0x2DFBC1B372D89A1188C09C52E0EEC61FCE52032AB1022E8E67ECE6672B043EE5")
+                .unwrap();
+
+        let mut e = hm.modulo(&order).unwrap();
+
+        if e == Mpi::new(0).unwrap() {
+            e = Mpi::new(1).unwrap();
+        }
+
+        let r = gk.x().unwrap();
+
+        //s = (r * d + k * e) mod q
+
+        let rd = (&r * &d).unwrap();
+        let ke = (&k * &e).unwrap();
+        let s = ((&rd + &ke).unwrap()).modulo(&order).unwrap();
+
+        let exp_r =
+            Mpi::from_str("0x41AA28D2F1AB148280CD9ED56FEDA41974053554A42767B83AD043FD39DC0493")
+                .unwrap();
+        let exp_s =
+            Mpi::from_str("0x1456C64BA4642A1653C235A98A60249BCD6D3F746B631DF928014F6C5BF9C40")
+                .unwrap();
+
+        assert_eq!(r, exp_r);
+        assert_eq!(s, exp_s);
+
+        // now verify the signature
+
+        let v = e.modinv(&order).unwrap();
+
+        let z1 = (&s * &v).unwrap().modulo(&order).unwrap();
+        let z2 = (&order - &((&r * &v).unwrap().modulo(&order).unwrap())).unwrap();
+
+        let c = EcPoint::muladd(&mut gost, &gost_g, &z1, &pubkey, &z2).unwrap();
+
+        let xr = c.x().unwrap().modulo(&order).unwrap();
+
+        assert_eq!(xr, r);
     }
 
     #[test]

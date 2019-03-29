@@ -113,6 +113,17 @@ macro_rules! define_struct {
         );
 
         as_item!(
+        #[allow(dead_code)]
+        impl<$($l)*> $name<$($l)*> {
+            pub(crate) fn into_inner(self) -> ::mbedtls_sys::$inner {
+                let inner = self.inner;
+                ::core::mem::forget(self);
+                inner
+            }
+        }
+        );
+
+        as_item!(
         #[cfg(feature="threading")]
         unsafe impl<$($l)*> Send for $name<$($l)*> {}
         );
