@@ -322,7 +322,7 @@ impl Mpi {
         }
     }
 
-    fn trailing_zeros(&self) -> usize {
+    pub fn trailing_zeros(&self) -> usize {
         let mut low_zero = 0;
 
         while self.get_bit(low_zero) == false {
