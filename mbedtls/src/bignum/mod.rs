@@ -237,6 +237,148 @@ impl Mpi {
         Ok(r)
     }
 
+    /// Returns an integer a such that (a*a) === self (mod p)
+    ///
+    /// The modulus must be prime; computing a square root modulo
+    /// a composite number is equivalent to factoring the composite.
+    pub fn mod_sqrt(&self, p: &Mpi) -> ::Result<Mpi> {
+        let zero = Mpi::new(0)?;
+
+        if self < &zero || self >= p {
+            return Err(::Error::MpiBadInputData);
+        }
+        if self == &zero {
+            return Ok(zero);
+        }
+
+        // This ignores p=2 (for which this algorithm is valid), as not cryptographically interesting.
+        if p.get_bit(0) == false || p <= &zero {
+            return Err(::Error::MpiBadInputData);
+        }
+
+        if self.jacobi(p)? != 1 {
+            // a is not a quadratic residue mod p
+            return Err(::Error::MpiBadInputData);
+        }
+
+        if (p % 4)?.as_u32()? == 3 {
+            // simple case for which we can avoid Shanks-Tonelli
+            let exp = ((p + 1)? >> 2)?;
+            return self.mod_exp(&exp, p);
+        }
+
+        /*
+        The case p % 4 == 1 requires Shanks-Tonelli algorithm
+
+        See http://www.math.vt.edu/people/brown/class_homepages/shanks_tonelli.pdf
+        */
+        let p_minus_1 = (p - 1)?;
+        let e = p_minus_1.trailing_zeros();
+        let s = (p_minus_1 >> e)?;
+
+        /*
+        Find a random quadratic nonresidue mod p.
+        */
+        let mut n = Mpi::new(2)?;
+        while n.jacobi(p)? != -1 {
+            n += 1;
+        }
+
+        let mut x = self.mod_exp(&(&(&s + 1)? >> 1)?, p)?;
+        let mut b = self.mod_exp(&s, p)?;
+        let mut g = n.mod_exp(&s, p)?;
+        let mut r = e;
+
+        let one = Mpi::new(1)?;
+        let two = Mpi::new(2)?;
+
+        loop {
+            if b == one {
+                return Ok(x); // and p-x
+            }
+
+            // Find by repeated squaring first m such that b^(2*m) == 1 mod p
+            let mut m = 0;
+
+            let mut bo = b.clone();
+            while bo != one {
+                bo = bo.mod_exp(&two, p)?;
+                m += 1;
+                if m >= r {
+                    return Err(::Error::MpiBadInputData);
+                }
+            }
+
+            // g^(2^(r-m-1))
+            let exp = (&one << (r - m - 1))?;
+            let t = g.mod_exp(&exp, p)?;
+            // g^(2^(r-m))
+            let t2 = t.mod_exp(&two, p)?;
+
+            x = (&x * &t)?.modulo(p)?;
+            b = (&b * &t2)?.modulo(p)?;
+            g = t2;
+            r = m;
+        }
+    }
+
+    pub fn trailing_zeros(&self) -> usize {
+        let mut low_zero = 0;
+
+        while self.get_bit(low_zero) == false {
+            low_zero += 1;
+        }
+
+        low_zero
+    }
+
+    /// Calculates Jacobi symbol (self|N)
+    pub fn jacobi(&self, n: &Mpi) -> ::Result<i32> {
+        let zero = Mpi::new(0)?;
+        let one = Mpi::new(1)?;
+
+        if self < &zero || n < &zero || n.get_bit(0) == false {
+            return Err(::Error::MpiBadInputData);
+        }
+
+        let mut x = self.modulo(n)?;
+        let mut y = n.clone();
+
+        let mut j: i32 = 1;
+
+        while &y > &one {
+            x = x.modulo(&y)?;
+            if x > (&y / 2)? {
+                x = (&y - &x)?;
+                if (&y % 4)?.as_u32()? == 3 {
+                    j = -j;
+                }
+            }
+
+            if x == zero {
+                return Ok(0);
+            }
+
+            let trailing_zeros = x.trailing_zeros();
+            x >>= trailing_zeros;
+
+            if trailing_zeros % 2 == 1 {
+                let y_mod_8 = (&y % 8)?.as_u32()?;
+                if y_mod_8 == 3 || y_mod_8 == 5 {
+                    j = -j
+                }
+            }
+
+            if (&x % 4)?.as_u32()? == 3 && (&y % 4)?.as_u32()? == 3 {
+                j = -j;
+            }
+
+            ::core::mem::swap(&mut x, &mut y);
+        }
+
+        Ok(j)
+    }
+
     /// Return (self^exponent) % n
     pub fn mod_exp(&self, exponent: &Mpi, modulus: &Mpi) -> ::Result<Mpi> {
         let mut r = Self::init();
@@ -603,7 +745,6 @@ impl ShrAssign<usize> for Mpi {
 }
 
 // TODO
-// mbedtls_mpi_swap
 // mbedtls_mpi_safe_cond_assign
 // mbedtls_mpi_safe_cond_swap
 // mbedtls_mpi_lset

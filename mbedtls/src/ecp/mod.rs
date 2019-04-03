@@ -120,7 +120,14 @@ impl EcGroup {
     }
 
     pub fn a(&self) -> ::Result<Mpi> {
-        Mpi::copy(&self.inner.A)
+        // Mbedtls uses A == NULL to indicate -3 mod p
+        if self.inner.A.p == ::core::ptr::null_mut() {
+            let mut neg3 = self.p()?;
+            neg3 -= 3;
+            Ok(neg3)
+        } else {
+            Mpi::copy(&self.inner.A)
+        }
     }
 
     pub fn b(&self) -> ::Result<Mpi> {
@@ -170,18 +177,47 @@ impl EcPoint {
     }
 
     pub fn from_binary(group: &EcGroup, bin: &[u8]) -> ::Result<EcPoint> {
-        let mut ret = Self::init();
-        unsafe { ecp_point_read_binary(&group.inner, &mut ret.inner, bin.as_ptr(), bin.len()) }
-            .into_result()?;
-        Ok(ret)
+        let prefix = *bin.get(0).ok_or(::Error::EcpBadInputData)?;
+
+        if prefix == 0x02 || prefix == 0x03 {
+            // Compressed point, which mbedtls does not understand
+            let y_mod_2 = if prefix == 0x03 { true } else { false };
+
+            let p = group.p()?;
+            let a = group.a()?;
+            let b = group.b()?;
+
+            if bin.len() != (p.byte_length()? + 1) {
+                return Err(::Error::EcpBadInputData);
+            }
+
+            let x = Mpi::from_binary(&bin[1..]).unwrap();
+
+            // Now compute y = sqrt(x^3 + ax + b)
+            let three = Mpi::new(3)?;
+            let ax = (&x * &a)?.modulo(&p)?;
+            let x3 = x.mod_exp(&three, &p)?;
+            let x3_ax_b = (&(&x3 + &ax)? + &b)?.modulo(&p)?;
+            let mut y = x3_ax_b.mod_sqrt(&p)?;
+
+            if y.get_bit(0) != y_mod_2 {
+                y = (&p - &y)?;
+            }
+            EcPoint::from_components(x, y)
+        } else {
+            let mut ret = Self::init();
+            unsafe { ecp_point_read_binary(&group.inner, &mut ret.inner, bin.as_ptr(), bin.len()) }
+                .into_result()?;
+            Ok(ret)
+        }
     }
 
-    pub fn from_components(x: &Mpi, y: &Mpi) -> ::Result<EcPoint> {
+    pub fn from_components(x: Mpi, y: Mpi) -> ::Result<EcPoint> {
         let mut ret = Self::init();
 
         unsafe {
-            mpi_copy(&mut ret.inner.X, x.handle()).into_result()?;
-            mpi_copy(&mut ret.inner.Y, y.handle()).into_result()?;
+            ret.inner.X = x.into_inner();
+            ret.inner.Y = y.into_inner();
             mpi_lset(&mut ret.inner.Z, 1).into_result()?;
         };
 
@@ -338,6 +374,53 @@ mod tests {
     }
 
     #[test]
+    fn test_ec_compressed_points() {
+        let groups = [
+            EcGroupId::Bp256R1,
+            EcGroupId::Bp384R1,
+            EcGroupId::Bp512R1,
+            EcGroupId::SecP192K1,
+            EcGroupId::SecP192R1,
+            EcGroupId::SecP224K1,
+            EcGroupId::SecP224R1,
+            EcGroupId::SecP256K1,
+            EcGroupId::SecP256R1,
+            EcGroupId::SecP384R1,
+            EcGroupId::SecP521R1,
+        ];
+
+        let mut k = Mpi::new(0xB00FB00F).unwrap();
+
+        for group_id in &groups {
+            let mut group = EcGroup::new(*group_id).unwrap();
+
+            let p_len = group.p().unwrap().byte_length().unwrap();
+
+            let generator = group.generator().unwrap();
+
+            for i in 0..32 {
+                k += i;
+
+                let pt = generator.mul(&mut group, &k).unwrap();
+
+                let uncompressed_pt = pt.to_binary(&group, false).unwrap();
+                assert_eq!(uncompressed_pt.len(), 1 + p_len * 2);
+
+                let pt_u = EcPoint::from_binary(&group, &uncompressed_pt).unwrap();
+                assert_eq!(pt_u.x().unwrap(), pt.x().unwrap());
+                assert_eq!(pt_u.y().unwrap(), pt.y().unwrap());
+
+                let compressed_pt = pt.to_binary(&group, true).unwrap();
+                assert_eq!(compressed_pt.len(), 1 + p_len);
+
+                let pt_c = EcPoint::from_binary(&group, &compressed_pt).unwrap();
+                assert_eq!(pt_c.x().unwrap(), pt.x().unwrap());
+                assert_eq!(pt_c.y().unwrap(), pt.y().unwrap());
+            }
+        }
+    }
+
+    #[test]
     #[cfg(feature = "std")]
     fn test_ecp_encode() {
         use std::str::FromStr;
@@ -357,11 +440,8 @@ mod tests {
 
         let pt_compressed = pt.to_binary(&secp256k1, true).unwrap();
         assert_eq!(pt_compressed.len(), 1 + bitlen / 8);
-
-        /*
-        Mbedtls supports encoding a point to compressed, but does not
-        support reading it back, so skip trying to do that.
-         */
+        let rec_pt = EcPoint::from_binary(&secp256k1, &pt_compressed).unwrap();
+        assert_eq!(pt.eq(&rec_pt).unwrap(), true);
 
         let affine_x = pt.x().unwrap();
         assert_eq!(
@@ -375,7 +455,7 @@ mod tests {
             Mpi::from_str("0x821F40015051C2E37E85A97D96B83A9948FB108E06C98F5AD2CF275C8A9B004B")
                 .unwrap()
         );
-        let pt_from_components = EcPoint::from_components(&affine_x, &affine_y).unwrap();
+        let pt_from_components = EcPoint::from_components(affine_x, affine_y).unwrap();
         assert!(pt.eq(&pt_from_components).unwrap());
     }
 
