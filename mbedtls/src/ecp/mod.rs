@@ -23,6 +23,16 @@ define!(
     impl<'a> Into<ptr> {}
 );
 
+impl Clone for EcGroup {
+    fn clone(&self) -> Self {
+        let mut ret = Self::init();
+        unsafe { ecp_group_copy(&mut ret.inner, &self.inner) }
+            .into_result()
+            .expect("ecp_group_copy success");
+        ret
+    }
+}
+
 impl EcGroup {
     pub fn new(group: EcGroupId) -> ::Result<EcGroup> {
         let mut ret = Self::init();
@@ -155,6 +165,16 @@ define!(
     const drop: fn(&mut Self) = ecp_point_free;
     impl<'a> Into<ptr> {}
 );
+
+impl Clone for EcPoint {
+    fn clone(&self) -> Self {
+        let mut ret = Self::init();
+        unsafe { ecp_copy(&mut ret.inner, &self.inner) }
+            .into_result()
+            .expect("ecp_copy success");
+        ret
+    }
+}
 
 impl EcPoint {
     pub fn new() -> ::Result<EcPoint> {
@@ -578,18 +598,20 @@ mod tests {
 
     #[test]
     fn test_ecp_mul_add() {
-        let mut secp256r1 = EcGroup::new(EcGroupId::SecP256R1).unwrap();
+        let mut group1 = EcGroup::new(EcGroupId::SecP256R1).unwrap();
+        let mut group2 = group1.clone();
 
-        let g = secp256r1.generator().unwrap();
+        let g = group1.generator().unwrap();
 
         let k1 = Mpi::new(1212238156).unwrap();
         let k2 = Mpi::new(1163020627).unwrap();
 
         // Test that k1*g + k2*g == k2*g + k1*g
-        let pt1 = EcPoint::muladd(&mut secp256r1, &g, &k2, &g, &k1).unwrap();
-        let pt2 = EcPoint::muladd(&mut secp256r1, &g, &k1, &g, &k2).unwrap();
+        let pt1 = EcPoint::muladd(&mut group1, &g, &k2, &g, &k1).unwrap();
+        let pt2 = EcPoint::muladd(&mut group2, &g, &k1, &g, &k2).unwrap();
         assert_eq!(pt1.eq(&pt2).unwrap(), true);
 
-        // Todo a better test ...
+        let pt3 = pt1.clone();
+        assert_eq!(pt2.eq(&pt3).unwrap(), true);
     }
 }
