@@ -67,10 +67,13 @@ fn client(
             }
         };
 
-        session.write_all(b"Client2Server").unwrap();
-        let mut buf = [0u8; 13];
+        let ciphersuite = session.ciphersuite();
+        session
+            .write_all(format!("Client2Server {:4x}", ciphersuite).as_bytes())
+            .unwrap();
+        let mut buf = [0u8; 13 + 4 + 1];
         session.read_exact(&mut buf).unwrap();
-        assert_eq!(&buf, b"Server2Client");
+        assert_eq!(&buf, format!("Server2Client {:4x}", ciphersuite).as_bytes());
     } // drop verify_callback, releasing borrow of verify_args
     assert_eq!(verify_args, Some((keys::PEM_CERT_SUBJECT.to_owned(), 0, 0)));
     Ok(())
@@ -111,10 +114,14 @@ fn server(
         }
     };
 
-    session.write_all(b"Server2Client").unwrap();
-    let mut buf = [0u8; 13];
+    let ciphersuite = session.ciphersuite();
+    session
+        .write_all(format!("Server2Client {:4x}", ciphersuite).as_bytes())
+        .unwrap();
+    let mut buf = [0u8; 13 + 1 + 4];
     session.read_exact(&mut buf).unwrap();
-    assert_eq!(&buf, b"Client2Server");
+
+    assert_eq!(&buf, format!("Client2Server {:4x}", ciphersuite).as_bytes());
     Ok(())
 }
 
@@ -151,7 +158,7 @@ mod test {
             let server_max_ver = config[3];
             let exp_version = config[4];
 
-            if (client_max_ver < 3 || server_max_ver < 3) && !cfg!(feature="legacy_protocols") {
+            if (client_max_ver < 3 || server_max_ver < 3) && !cfg!(feature = "legacy_protocols") {
                 continue;
             }
 
@@ -174,7 +181,6 @@ mod test {
                 };
                 super::server(s, server_min_ver, server_max_ver, exp_result).unwrap()
             });
-
 
             c.join().unwrap();
             s.join().unwrap();
