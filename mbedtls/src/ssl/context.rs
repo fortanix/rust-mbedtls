@@ -214,12 +214,25 @@ impl<'ctx> ::private::UnsafeFrom<*mut ssl_context> for HandshakeContext<'ctx> {
 }
 
 impl<'a> Session<'a> {
+    /// Return the minor number of the negotiated TLS version
     pub fn minor_version(&self) -> i32 {
         self.inner.minor_ver
     }
 
+    /// Return the major number of the negotiated TLS version
     pub fn major_version(&self) -> i32 {
         self.inner.major_ver
+    }
+
+    /// Return the 16-bit ciphersuite identifier.
+    /// All assigned ciphersuites are listed by the IANA in
+    /// https://www.iana.org/assignments/tls-parameters/tls-parameters.txt
+    pub fn ciphersuite(&self) -> u16 {
+        if self.inner.session == ::core::ptr::null_mut() {
+            0
+        } else {
+            unsafe { self.inner.session.as_ref().unwrap().ciphersuite as u16 }
+        }
     }
 
     pub fn peer_cert(&self) -> Option<::x509::certificate::Iter> {
