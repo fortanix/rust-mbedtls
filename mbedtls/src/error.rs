@@ -8,6 +8,7 @@
 
 use core::fmt;
 use core::str::Utf8Error;
+use core::convert::Infallible;
 #[cfg(feature = "std")]
 use std::error::Error as StdError;
 
@@ -85,6 +86,12 @@ macro_rules! error_enum {
 impl From<Utf8Error> for Error {
     fn from(e: Utf8Error) -> Error {
         Error::Utf8Error(Some(e))
+    }
+}
+
+impl From<Infallible> for Error {
+    fn from(x: Infallible) -> Error {
+        match x {}
     }
 }
 

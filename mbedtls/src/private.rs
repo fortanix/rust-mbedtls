@@ -26,6 +26,13 @@ pub fn alloc_vec_repeat<F>(mut f: F, data_at_end: bool) -> ::Result<Vec<u8>>
 where
     F: FnMut(*mut c_uchar, size_t) -> c_int,
 {
+    /*
+    Avoid allocating more than a limited amount of memory. In certain conditions
+    with malformed datastructures, mbedtls may return a too-small error regardless of how much
+    buffer space is provided. This causes a loop which terminates with a out of memory panic.
+    */
+    const MAX_VECTOR_ALLOCATION : usize = 4 * 1024 * 1024;
+
     let mut vec = Vec::with_capacity(2048 /* big because of bug in x509write */);
     loop {
         match f(vec.as_mut_ptr(), vec.capacity()).into_result() {
@@ -36,7 +43,9 @@ where
             | Err(::Error::NetBufferTooSmall)
             | Err(::Error::OidBufTooSmall)
             | Err(::Error::SslBufferTooSmall)
-            | Err(::Error::X509BufferTooSmall) => {
+            | Err(::Error::X509BufferTooSmall)
+                if vec.capacity() < MAX_VECTOR_ALLOCATION =>
+            {
                 let cap = vec.capacity();
                 vec.reserve(cap * 2)
             }
