@@ -219,7 +219,7 @@ dependencies = [
 
 [[package]]
 name = "mbedtls-sys-auto"
-version = "2.16.0"
+version = "2.18.0"
 dependencies = [
  "bindgen 0.19.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cmake 0.1.40 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -132,6 +132,7 @@ pub const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_ECP_RANDOMIZE_JAC_ALT",                     Undefined),
     ("MBEDTLS_ECP_ADD_MIXED_ALT",                         Undefined),
     ("MBEDTLS_ECP_DOUBLE_JAC_ALT",                        Undefined),
+    ("MBEDTLS_ECDH_LEGACY_CONTEXT",                       Defined),
     ("MBEDTLS_ECP_NORMALIZE_JAC_MANY_ALT",                Undefined),
     ("MBEDTLS_ECP_NORMALIZE_JAC_ALT",                     Undefined),
     ("MBEDTLS_ECP_DOUBLE_ADD_MXZ_ALT",                    Undefined),
