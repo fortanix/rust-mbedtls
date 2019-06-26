@@ -10,6 +10,8 @@
 use alloc_prelude::*;
 use mbedtls_sys::*;
 
+use mbedtls_sys::types::raw_types::c_void;
+
 use core::ptr;
 use core::convert::TryInto;
 use error::IntoResult;
@@ -31,6 +33,9 @@ pub use self::ec::{EcGroupId, ECDSA_MAX_LEN};
 #[doc(inline)]
 pub use ecp::EcGroup;
 
+// SHA-256("Fortanix")[:4]
+const CUSTOM_PK_TYPE: pk_type_t = 0x8b205408 as pk_type_t;
+
 define!(
     #[c_ty(pk_type_t)]
     #[derive(Copy, Clone, PartialEq, Debug)]
@@ -43,6 +48,7 @@ define!(
         Ecdsa = PK_ECDSA,
         RsaAlt = PK_RSA_ALT,
         RsassaPss = PK_RSASSA_PSS,
+        Custom = CUSTOM_PK_TYPE,
     }
 );
 
@@ -56,6 +62,7 @@ impl From<pk_type_t> for Type {
             PK_ECDSA => Type::Ecdsa,
             PK_RSA_ALT => Type::RsaAlt,
             PK_RSASSA_PSS => Type::RsassaPss,
+            CUSTOM_PK_TYPE => Type::Custom,
             _ => panic!("Invalid PK type"),
         }
     }
@@ -73,6 +80,52 @@ pub enum RsaPadding {
 pub enum Options {
     Rsa { padding: RsaPadding },
 }
+
+struct CustomPkContext {
+    pub algo_id: Vec<u64>,
+    pub pk: Vec<u8>,
+    pub sk: Vec<u8>,
+}
+
+impl CustomPkContext {
+    fn new() -> CustomPkContext {
+        CustomPkContext {
+            algo_id: Vec::new(),
+            pk: Vec::new(),
+            sk: Vec::new(),
+        }
+    }
+}
+
+extern "C" fn alloc_custom_pk_ctx() -> *mut c_void {
+    let boxed = Box::new(CustomPkContext::new());
+    Box::into_raw(boxed) as *mut c_void
+}
+
+unsafe extern "C" fn free_custom_pk_ctx(p: *mut c_void) {
+    Box::from_raw(p as *mut CustomPkContext);
+}
+
+extern "C" fn custom_pk_can_do(_t: u32) -> i32 {
+    0
+}
+
+const CUSTOM_PK_INFO: pk_info_t = {
+    pk_info_t {
+        type_: CUSTOM_PK_TYPE,
+        can_do: Some(custom_pk_can_do),
+        check_pair_func: None,
+        debug_func: None,
+        encrypt_func: None,
+        decrypt_func: None,
+        sign_func: None,
+        verify_func: None,
+        get_bitlen: None,
+        name: b"\0" as *const u8 as *const i8,
+        ctx_alloc_func: Some(alloc_custom_pk_ctx),
+        ctx_free_func: Some(free_custom_pk_ctx),
+    }
+};
 
 define!(
     #[c_ty(pk_context)]
@@ -170,6 +223,63 @@ impl Pk {
             (*ctx).Q = public_point.into_inner();
         }
         Ok(ret)
+    }
+
+    pub fn public_custom_algo(algo_id: &[u64], pk: &[u8]) -> ::Result<Pk> {
+        let mut ret = Self::init();
+        unsafe {
+            pk_setup(&mut ret.inner, &CUSTOM_PK_INFO).into_result()?;
+            let ctx = ret.inner.pk_ctx as *mut CustomPkContext;
+            (*ctx).algo_id = algo_id.to_owned();
+            (*ctx).pk = pk.to_owned();
+        }
+        Ok(ret)
+    }
+
+    pub fn private_custom_algo(algo_id: &[u64], pk: &[u8], sk: &[u8]) -> ::Result<Pk> {
+        let mut ret = Self::init();
+        unsafe {
+            pk_setup(&mut ret.inner, &CUSTOM_PK_INFO).into_result()?;
+            let ctx = ret.inner.pk_ctx as *mut CustomPkContext;
+            (*ctx).algo_id = algo_id.to_owned();
+            (*ctx).pk = pk.to_owned();
+            (*ctx).sk = sk.to_owned();
+        }
+        Ok(ret)
+    }
+
+    pub fn custom_algo_id(&self) -> ::Result<&[u64]> {
+        if self.pk_type() != Type::Custom {
+            return Err(::Error::PkInvalidAlg);
+        }
+
+        unsafe {
+            let ctx = self.inner.pk_ctx as *const CustomPkContext;
+            Ok(&(*ctx).algo_id)
+        }
+    }
+
+    pub fn custom_public_key(&self) -> ::Result<&[u8]> {
+        if self.pk_type() != Type::Custom {
+            return Err(::Error::PkInvalidAlg);
+        }
+
+        let ctx = self.inner.pk_ctx as *const CustomPkContext;
+        unsafe { Ok(&(*ctx).pk) }
+    }
+
+    pub fn custom_private_key(&self) -> ::Result<&[u8]> {
+        if self.pk_type() != Type::Custom {
+            return Err(::Error::PkInvalidAlg);
+        }
+
+        let ctx = self.inner.pk_ctx as *const CustomPkContext;
+        unsafe {
+            if (*ctx).sk.len() == 0 {
+                return Err(::Error::PkTypeMismatch);
+            }
+            Ok(&(*ctx).sk)
+        }
     }
 
     /// Panics if the options are not valid for this key type.
@@ -653,6 +763,7 @@ impl Pk {
 mod tests {
     use super::*;
     use mbedtls::hash::Type;
+    use mbedtls::pk::Type as PkType;
 
     // This is test data that must match library output *exactly*
     const TEST_PEM: &'static str = "-----BEGIN RSA PRIVATE KEY-----
@@ -952,4 +1063,27 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         );
         assert_ne!(&cipher1[..], &cipher2[..]);
     }
+
+    #[test]
+    fn custom_pk_obj() {
+        let pk = Pk::public_custom_algo(&[8, 0, 2], &[1, 2, 3, 4]).unwrap();
+        assert_eq!(pk.pk_type(), PkType::Custom);
+        assert_eq!(pk.custom_algo_id().unwrap(), &[8, 0, 2]);
+        assert_eq!(pk.custom_public_key().unwrap(), &[1, 2, 3, 4]);
+        assert!(pk.custom_private_key().is_err());
+        assert!(!pk.can_do(PkType::Rsa));
+
+        let pk = Pk::private_custom_algo(&[23], &[1, 2, 3, 4], &[9, 1, 1]).unwrap();
+        assert_eq!(pk.pk_type(), PkType::Custom);
+        assert_eq!(pk.custom_algo_id().unwrap(), &[23]);
+        assert_eq!(pk.custom_public_key().unwrap(), &[1, 2, 3, 4]);
+        assert_eq!(pk.custom_private_key().unwrap(), &[9, 1, 1]);
+
+        // Verify custom_x functions don't crash if called on some other type
+        let pk = Pk::from_private_key(TEST_DER, None).unwrap();
+        assert!(pk.custom_algo_id().is_err());
+        assert!(pk.custom_public_key().is_err());
+        assert!(pk.custom_private_key().is_err());
+    }
+
 }

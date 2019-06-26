@@ -7,6 +7,7 @@
  * according to those terms. */
 
 use mbedtls_sys::types::raw_types::c_int;
+use mbedtls_sys::*;
 
 define!(
     #[non_exhaustive]
