@@ -26,7 +26,7 @@ env:
     - RUST_BACKTRACE=1
     # Pinned to this particular nightly version because of core_io. This can be
     # re-pinned whenever core_io is updated to the latest nightly.
-    - CORE_IO_NIGHTLY=nightly-2018-03-07
+    - CORE_IO_NIGHTLY=nightly-2019-07-01
     - LLVM_CONFIG_PATH=llvm-config-3.8
 script:
   - rustup toolchain add $CORE_IO_NIGHTLY
