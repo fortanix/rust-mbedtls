@@ -190,6 +190,7 @@ impl EcGroup {
     pub fn cofactor(&self) -> ::Result<u32> {
         match self.group_id()? {
             EcGroupId::Curve25519 => Ok(8),
+            EcGroupId::Curve448 => Ok(4),
             _ => Ok(1),
         }
     }

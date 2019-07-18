@@ -28,6 +28,7 @@ define!(
         SecP192K1 = ECP_DP_SECP192K1,
         SecP224K1 = ECP_DP_SECP224K1,
         SecP256K1 = ECP_DP_SECP256K1,
+        Curve448 = ECP_DP_CURVE448,
     }
 );
 
@@ -47,6 +48,7 @@ impl From<ecp_group_id> for EcGroupId {
             ECP_DP_SECP192K1 => EcGroupId::SecP192K1,
             ECP_DP_SECP224K1 => EcGroupId::SecP224K1,
             ECP_DP_SECP256K1 => EcGroupId::SecP256K1,
+            ECP_DP_CURVE448 => EcGroupId::Curve448,
             _ => panic!("Invalid EC group ID"),
         }
     }
