@@ -75,7 +75,7 @@ impl TryFrom<EcGroupId> for EcGroup {
 impl EcGroup {
     pub fn new(group: EcGroupId) -> ::Result<EcGroup> {
         let mut ret = Self::init();
-        unsafe { ecp_group_load(&mut ret.inner, group as u32) }.into_result()?;
+        unsafe { ecp_group_load(&mut ret.inner, group.into()) }.into_result()?;
         Ok(ret)
     }
 
