@@ -120,6 +120,14 @@ macro_rules! define_struct {
                 ::core::mem::forget(self);
                 inner
             }
+
+            pub(crate) fn handle(&self) -> &::mbedtls_sys::$inner {
+                &self.inner
+            }
+
+            pub(crate) fn handle_mut(&mut self) -> &mut ::mbedtls_sys::$inner {
+                &mut self.inner
+            }
         }
         );
 

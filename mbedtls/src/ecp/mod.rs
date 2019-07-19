@@ -6,6 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+use core::convert::TryFrom;
 use error::IntoResult;
 use mbedtls_sys::*;
 
@@ -25,18 +26,56 @@ define!(
 
 impl Clone for EcGroup {
     fn clone(&self) -> Self {
-        let mut ret = Self::init();
-        unsafe { ecp_group_copy(&mut ret.inner, &self.inner) }
-            .into_result()
-            .expect("ecp_group_copy success");
-        ret
+        fn copy_group(group: &EcGroup) -> ::Result<EcGroup> {
+            /*
+            ecp_group_copy only works for named groups, for custom groups we
+            must perform the copy manually.
+            */
+            if group.group_id()? != EcGroupId::None {
+                let mut ret = EcGroup::init();
+                unsafe { ecp_group_copy(ret.handle_mut(), group.handle()) }.into_result()?;
+                Ok(ret)
+            } else {
+                let generator = group.generator()?;
+                EcGroup::from_parameters(
+                    group.p()?,
+                    group.a()?,
+                    group.b()?,
+                    generator.x()?,
+                    generator.y()?,
+                    group.order()?,
+                )
+            }
+        }
+
+        copy_group(self).expect("EcGroup::copy success")
+    }
+}
+
+impl PartialEq for EcGroup {
+    fn eq(&self, other: &EcGroup) -> bool {
+        self.p() == other.p()
+            && self.a() == other.a()
+            && self.b() == other.b()
+            && self.order() == other.order()
+            && self.generator() == other.generator()
+    }
+}
+
+impl Eq for EcGroup {}
+
+impl TryFrom<EcGroupId> for EcGroup {
+    type Error = ::Error;
+
+    fn try_from(id: EcGroupId) -> ::Result<EcGroup> {
+        EcGroup::new(id)
     }
 }
 
 impl EcGroup {
     pub fn new(group: EcGroupId) -> ::Result<EcGroup> {
         let mut ret = Self::init();
-        unsafe { ecp_group_load(&mut ret.inner, group as u32) }.into_result()?;
+        unsafe { ecp_group_load(&mut ret.inner, group.into()) }.into_result()?;
         Ok(ret)
     }
 
@@ -52,7 +91,7 @@ impl EcGroup {
 
         ret.inner.pbits = p.bit_length()?;
         ret.inner.nbits = order.bit_length()?;
-        ret.inner.h = 0;
+        ret.inner.h = 0; // indicate to mbedtls that the values are not static constants
 
         let zero = Mpi::new(0)?;
 
@@ -149,7 +188,11 @@ impl EcGroup {
     }
 
     pub fn cofactor(&self) -> ::Result<u32> {
-        Ok(self.inner.h)
+        match self.group_id()? {
+            EcGroupId::Curve25519 => Ok(8),
+            EcGroupId::Curve448 => Ok(4),
+            _ => Ok(1),
+        }
     }
 
     pub fn generator(&self) -> ::Result<EcPoint> {
@@ -180,6 +223,12 @@ impl Clone for EcPoint {
             .into_result()
             .expect("ecp_copy success");
         ret
+    }
+}
+
+impl PartialEq for EcPoint {
+    fn eq(&self, other: &EcPoint) -> bool {
+        self.eq(other).unwrap()
     }
 }
 
@@ -391,6 +440,18 @@ mod tests {
         assert_eq!(p, p256);
 
         assert_eq!(secp256r1.cofactor().unwrap(), 1);
+
+        let copy = EcGroup::from_parameters(
+            secp256r1.p().unwrap(),
+            secp256r1.a().unwrap(),
+            secp256r1.b().unwrap(),
+            secp256r1.generator().unwrap().x().unwrap(),
+            secp256r1.generator().unwrap().y().unwrap(),
+            secp256r1.order().unwrap(),
+        )
+        .unwrap();
+
+        assert!(secp256r1 == copy); //can't use assert_eq as EcGroup doesn't impl Debug
     }
 
     #[test]

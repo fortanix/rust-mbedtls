@@ -11,6 +11,7 @@ use alloc_prelude::*;
 use mbedtls_sys::*;
 
 use core::ptr;
+use core::convert::TryInto;
 use error::IntoResult;
 use private::UnsafeFrom;
 
@@ -26,6 +27,9 @@ use ecp::EcPoint;
 
 #[doc(inline)]
 pub use self::ec::{EcGroupId, ECDSA_MAX_LEN};
+
+#[doc(inline)]
+pub use ecp::EcGroup;
 
 define!(
     #[c_ty(pk_type_t)]
@@ -124,17 +128,46 @@ impl Pk {
         Ok(ret)
     }
 
-    pub fn generate_ec<F: ::rng::Random>(rng: &mut F, curve: EcGroupId) -> ::Result<Pk> {
+    pub fn generate_ec<F: ::rng::Random, C: TryInto<EcGroup, Error = impl Into<::Error>>>(rng: &mut F, curve: C) -> ::Result<Pk> {
         let mut ret = Self::init();
         unsafe {
+            let curve : EcGroup = curve.try_into().map_err(|e| e.into())?;
             pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result()?;
-            ecp_gen_key(
-                curve.into(),
-                ret.inner.pk_ctx as *mut _,
+            let ctx = ret.inner.pk_ctx as *mut ecp_keypair;
+            (*ctx).grp = curve.clone().into_inner();
+            ecp_gen_keypair(
+                &mut (*ctx).grp,
+                &mut (*ctx).d,
+                &mut (*ctx).Q,
                 Some(F::call),
                 rng.data_ptr(),
             )
             .into_result()?;
+        }
+        Ok(ret)
+    }
+
+    pub fn private_from_ec_components(mut curve: EcGroup, private_key: Mpi) -> ::Result<Pk> {
+        let mut ret = Self::init();
+        let curve_generator = curve.generator()?;
+        let public_point = curve_generator.mul(&mut curve, &private_key)?;
+        unsafe {
+            pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result()?;
+            let ctx = ret.inner.pk_ctx as *mut ecp_keypair;
+            (*ctx).grp = curve.into_inner();
+            (*ctx).d = private_key.into_inner();
+            (*ctx).Q = public_point.into_inner();
+        }
+        Ok(ret)
+    }
+
+    pub fn public_from_ec_components(curve: EcGroup, public_point: EcPoint) -> ::Result<Pk> {
+        let mut ret = Self::init();
+        unsafe {
+            pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result()?;
+            let ctx = ret.inner.pk_ctx as *mut ecp_keypair;
+            (*ctx).grp = curve.into_inner();
+            (*ctx).Q = public_point.into_inner();
         }
         Ok(ret)
     }
@@ -181,6 +214,48 @@ impl Pk {
         }
 
         unsafe { Ok((*(self.inner.pk_ctx as *const ecp_keypair)).grp.id.into()) }
+    }
+
+    pub fn curve_oid(&self) -> ::Result<Vec<u64>> {
+        match self.curve()? {
+            EcGroupId::Bp256R1 => Ok(vec![1, 3, 36, 3, 3, 2, 8, 1, 1, 7]),
+            EcGroupId::Bp384R1 => Ok(vec![1, 3, 36, 3, 3, 2, 8, 1, 1, 11]),
+            EcGroupId::Bp512R1 => Ok(vec![1, 3, 36, 3, 3, 2, 8, 1, 1, 13]),
+            EcGroupId::SecP192K1 => Ok(vec![1, 3, 132, 0, 31]),
+            EcGroupId::SecP192R1 => Ok(vec![1, 2, 840, 10045, 3, 1, 1]),
+            EcGroupId::SecP224K1 => Ok(vec![1, 3, 132, 0, 32]),
+            EcGroupId::SecP224R1 => Ok(vec![1, 3, 132, 0, 33]),
+            EcGroupId::SecP256K1 => Ok(vec![1, 3, 132, 0, 10]),
+            EcGroupId::SecP256R1 => Ok(vec![1, 2, 840, 10045, 3, 1, 7]),
+            EcGroupId::SecP384R1 => Ok(vec![1, 3, 132, 0, 34]),
+            EcGroupId::SecP521R1 => Ok(vec![1, 3, 132, 0, 35]),
+            _ => Err(::Error::OidNotFound),
+        }
+    }
+
+    pub fn ec_group(&self) -> ::Result<EcGroup> {
+        match self.pk_type() {
+            Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
+            _ => return Err(::Error::PkTypeMismatch),
+        }
+
+        match self.curve()? {
+            EcGroupId::None => {
+                // custom curve, need to read params
+                unsafe {
+                    let ecp = self.inner.pk_ctx as *const ecp_keypair;
+                    let p = Mpi::copy(&(*ecp).grp.P)?;
+                    let a = Mpi::copy(&(*ecp).grp.A)?;
+                    let b = Mpi::copy(&(*ecp).grp.B)?;
+                    let n = Mpi::copy(&(*ecp).grp.N)?;
+                    let g_x = Mpi::copy(&(*ecp).grp.G.X)?;
+                    let g_y = Mpi::copy(&(*ecp).grp.G.Y)?;
+                    EcGroup::from_parameters(p, a, b, g_x, g_y, n)
+                }
+            }
+
+            curve_id => EcGroup::new(curve_id),
+        }
     }
 
     pub fn ec_public(&self) -> ::Result<EcPoint> {
@@ -719,11 +794,32 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
 
     #[test]
     fn generate_ec_secp256r1() {
-        let mut _generated =
-            Pk::generate_ec(&mut ::test_support::rand::test_rng(), EcGroupId::SecP256R1)
-                .unwrap()
-                .write_private_pem_string()
+        let mut key1 =
+            Pk::generate_ec(&mut ::test_support::rand::test_rng(), EcGroupId::SecP256R1).unwrap();
+        let pem1 = key1.write_private_pem_string().unwrap();
+
+        let secp256r1 = ::ecp::EcGroup::new(EcGroupId::SecP256R1).unwrap();
+        let mut key2 =
+            Pk::generate_ec(&mut ::test_support::rand::test_rng(), secp256r1.clone())
                 .unwrap();
+        let pem2 = key2.write_private_pem_string().unwrap();
+
+        assert_eq!(pem1, pem2);
+
+        let mut key_from_components =
+            Pk::private_from_ec_components(secp256r1.clone(), key1.ec_private().unwrap()).unwrap();
+        let pem3 = key_from_components.write_private_pem_string().unwrap();
+
+        assert_eq!(pem3, pem2);
+
+        let mut pub1 = Pk::from_public_key(&key1.write_public_der_vec().unwrap()).unwrap();
+        let mut pub2 =
+            Pk::public_from_ec_components(secp256r1.clone(), key1.ec_public().unwrap()).unwrap();
+
+        assert_eq!(
+            pub1.write_public_pem_string().unwrap(),
+            pub2.write_public_pem_string().unwrap()
+        );
     }
 
     #[test]

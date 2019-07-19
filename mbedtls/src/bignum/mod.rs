@@ -87,14 +87,6 @@ impl Clone for Mpi {
 }
 
 impl Mpi {
-    pub(crate) fn handle(&self) -> &::mbedtls_sys::mpi {
-        &self.inner
-    }
-
-    pub(crate) fn handle_mut(&mut self) -> &mut ::mbedtls_sys::mpi {
-        &mut self.inner
-    }
-
     pub(crate) fn copy(value: &mpi) -> ::Result<Mpi> {
         let mut ret = Self::init();
         unsafe { mpi_copy(&mut ret.inner, value) }.into_result()?;
