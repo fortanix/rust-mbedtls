@@ -56,6 +56,8 @@ define!(
         GCM = MODE_GCM,
         STREAM = MODE_STREAM,
         CCM = MODE_CCM,
+        KW = MODE_KW,
+        KWP = MODE_KWP,
     }
 );
 
@@ -71,6 +73,8 @@ impl From<cipher_mode_t> for CipherMode {
             MODE_GCM => CipherMode::GCM,
             MODE_STREAM => CipherMode::STREAM,
             MODE_CCM => CipherMode::CCM,
+            MODE_KW => CipherMode::KW,
+            MODE_KWP => CipherMode::KWP,
             // This should be replaced with TryFrom once it is stable.
             _ => panic!("Invalid cipher_mode_t"),
         }
@@ -129,6 +133,12 @@ define!(
         Camellia128Ccm = CIPHER_CAMELLIA_128_CCM,
         Camellia192Ccm = CIPHER_CAMELLIA_192_CCM,
         Camellia256Ccm = CIPHER_CAMELLIA_256_CCM,
+        Aes128Kw = CIPHER_AES_128_KW,
+        Aes192Kw = CIPHER_AES_192_KW,
+        Aes256Kw = CIPHER_AES_256_KW,
+        Aes128Kwp = CIPHER_AES_128_KWP,
+        Aes192Kwp = CIPHER_AES_192_KWP,
+        Aes256Kwp = CIPHER_AES_256_KWP,
     }
 );
 
@@ -336,7 +346,8 @@ impl Cipher {
         plain: &mut [u8],
         tag: &[u8],
     ) -> ::Result<usize> {
-        if cipher.len() > plain.len() {
+        // For AES KW and KWP cipher text length can be greater than plain text length
+        if self.is_authenticated() && cipher.len() > plain.len() {
             return Err(::Error::CipherBadInputData);
         }
 
