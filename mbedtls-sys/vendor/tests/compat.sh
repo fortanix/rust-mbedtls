@@ -21,7 +21,7 @@ FAILED=0
 SKIPPED=0
 SRVMEM=0
 
-# default commands, can be overriden by the environment
+# default commands, can be overridden by the environment
 : ${M_SRV:=../programs/ssl/ssl_server2}
 : ${M_CLI:=../programs/ssl/ssl_client2}
 : ${OPENSSL_CMD:=openssl} # OPENSSL would conflict with the build system
@@ -62,7 +62,8 @@ FILTER=""
 #   avoid plain DES but keep 3DES-EDE-CBC (mbedTLS), DES-CBC3 (OpenSSL)
 # - ARIA: not in default config.h + requires OpenSSL >= 1.1.1
 # - ChachaPoly: requires OpenSSL >= 1.1.0
-EXCLUDE='NULL\|DES-CBC-\|RC4\|ARCFOUR\|ARIA\|CHACHA20-POLY1305'
+# - 3DES: not in default config
+EXCLUDE='NULL\|DES\|RC4\|ARCFOUR\|ARIA\|CHACHA20-POLY1305'
 VERBOSE=""
 MEMCHECK=0
 PEERS="OpenSSL$PEER_GNUTLS mbedTLS"

@@ -20,9 +20,9 @@ pub(crate) mod dhparam;
 mod ec;
 mod rfc6979;
 
+use self::rfc6979::Rfc6979Rng;
 use bignum::Mpi;
 use ecp::EcPoint;
-use self::rfc6979::Rfc6979Rng;
 
 #[doc(inline)]
 pub use self::ec::{EcGroupId, ECDSA_MAX_LEN};
@@ -577,6 +577,7 @@ impl Pk {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mbedtls::hash::Type;
 
     // This is test data that must match library output *exactly*
     const TEST_PEM: &'static str = "-----BEGIN RSA PRIVATE KEY-----
@@ -750,6 +751,87 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             .write_private_der_vec()
             .unwrap();
         assert!(parsed == TEST_DER);
+    }
+
+    #[test]
+    fn rsa_sign_verify_pkcs1v15() {
+        let mut pk =
+            Pk::generate_rsa(&mut ::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
+        let data = b"SIGNATURE TEST SIGNATURE TEST SI";
+        let mut signature = vec![0u8; (pk.len() + 7) / 8];
+
+        let digests = [
+            Type::None,
+            Type::Md2,
+            Type::Md4,
+            Type::Md5,
+            Type::Sha1,
+            Type::Sha224,
+            Type::Sha256,
+            Type::Sha384,
+            Type::Sha512,
+            Type::Ripemd,
+        ];
+
+        for digest in &digests {
+            let len = pk
+                .sign(
+                    *digest,
+                    data,
+                    &mut signature,
+                    &mut ::test_support::rand::test_rng(),
+                )
+                .unwrap();
+            pk.verify(*digest, data, &signature[0..len]).unwrap();
+        }
+    }
+
+    #[test]
+    fn rsa_sign_verify_pss() {
+        let mut pk =
+            Pk::generate_rsa(&mut ::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
+        let data = b"SIGNATURE TEST SIGNATURE TEST SI";
+        let mut signature = vec![0u8; (pk.len() + 7) / 8];
+
+        let digests = [
+            Type::None,
+            Type::Md2,
+            Type::Md4,
+            Type::Md5,
+            Type::Sha1,
+            Type::Sha224,
+            Type::Sha256,
+            Type::Sha384,
+            Type::Sha512,
+            Type::Ripemd,
+        ];
+
+        for digest in &digests {
+            pk.set_options(Options::Rsa {
+                padding: RsaPadding::Pkcs1V21 { mgf: *digest },
+            });
+
+            if *digest == Type::None {
+                assert!(pk
+                    .sign(
+                        *digest,
+                        data,
+                        &mut signature,
+                        &mut ::test_support::rand::test_rng()
+                    )
+                    .is_err());
+            } else {
+                let len = pk
+                    .sign(
+                        *digest,
+                        data,
+                        &mut signature,
+                        &mut ::test_support::rand::test_rng(),
+                    )
+                    .unwrap();
+                pk.verify(*digest, data, &signature[0..len]).unwrap();
+            }
+        }
     }
 
     #[test]

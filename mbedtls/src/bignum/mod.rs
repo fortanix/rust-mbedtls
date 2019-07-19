@@ -170,10 +170,12 @@ impl Mpi {
         }
         .into_result()?;
 
-        let s = String::from_utf8(buf).expect("from_utf8 can't fail on radix-N data");
+        // There is a null terminator plus (possibly) some garbage data. Remove it
+        if let Some(idx) = buf.iter().position(|&b| b == 0) {
+            buf.truncate(idx)
+        }
 
-        #[allow(deprecated)]
-        Ok(s.trim_right_matches(char::from(0)).to_owned())
+        Ok(String::from_utf8(buf).expect("radix-N data is valid UTF8"))
     }
 
     /// Serialize the MPI as big endian binary data

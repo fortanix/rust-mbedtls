@@ -139,7 +139,7 @@
  *
  * System has time.h, time(), and an implementation for
  * mbedtls_platform_gmtime_r() (see below).
- * The time needs to be correct (not necesarily very accurate, but at least
+ * The time needs to be correct (not necessarily very accurate, but at least
  * the date should be correct). This is used to verify the validity period of
  * X.509 certificates.
  *
@@ -226,6 +226,7 @@
 //#define MBEDTLS_PLATFORM_FPRINTF_ALT
 //#define MBEDTLS_PLATFORM_PRINTF_ALT
 //#define MBEDTLS_PLATFORM_SNPRINTF_ALT
+//#define MBEDTLS_PLATFORM_VSNPRINTF_ALT
 //#define MBEDTLS_PLATFORM_NV_SEED_ALT
 //#define MBEDTLS_PLATFORM_SETUP_TEARDOWN_ALT
 
@@ -401,7 +402,7 @@
  * \note Because of a signature change, the core AES encryption and decryption routines are
  *       currently named mbedtls_aes_internal_encrypt and mbedtls_aes_internal_decrypt,
  *       respectively. When setting up alternative implementations, these functions should
- *       be overriden, but the wrapper functions mbedtls_aes_decrypt and mbedtls_aes_encrypt
+ *       be overridden, but the wrapper functions mbedtls_aes_decrypt and mbedtls_aes_encrypt
  *       must stay untouched.
  *
  * \note If you use the AES_xxx_ALT macros, then is is recommended to also set
@@ -687,6 +688,26 @@
 #define MBEDTLS_REMOVE_ARC4_CIPHERSUITES
 
 /**
+ * \def MBEDTLS_REMOVE_3DES_CIPHERSUITES
+ *
+ * Remove 3DES ciphersuites by default in SSL / TLS.
+ * This flag removes the ciphersuites based on 3DES from the default list as
+ * returned by mbedtls_ssl_list_ciphersuites(). However, it is still possible
+ * to enable (some of) them with mbedtls_ssl_conf_ciphersuites() by including
+ * them explicitly.
+ *
+ * A man-in-the-browser attacker can recover authentication tokens sent through
+ * a TLS connection using a 3DES based cipher suite (see "On the Practical
+ * (In-)Security of 64-bit Block Ciphers" by Karthikeyan Bhargavan and Gaëtan
+ * Leurent, see https://sweet32.info/SWEET32_CCS16.pdf). If this attack falls
+ * in your threat model or you are unsure, then you should keep this option
+ * enabled to remove 3DES based cipher suites.
+ *
+ * Comment this macro to keep 3DES in the default ciphersuite list.
+ */
+#define MBEDTLS_REMOVE_3DES_CIPHERSUITES
+
+/**
  * \def MBEDTLS_ECP_DP_SECP192R1_ENABLED
  *
  * MBEDTLS_ECP_XXXX_ENABLED: Enables specific curves within the Elliptic Curve
@@ -739,9 +760,38 @@
  *
  * \note  This option only works with the default software implementation of
  *        elliptic curve functionality. It is incompatible with
- *        MBEDTLS_ECP_ALT, MBEDTLS_ECDH_XXX_ALT and MBEDTLS_ECDSA_XXX_ALT.
+ *        MBEDTLS_ECP_ALT, MBEDTLS_ECDH_XXX_ALT, MBEDTLS_ECDSA_XXX_ALT
+ *        and MBEDTLS_ECDH_LEGACY_CONTEXT.
  */
 //#define MBEDTLS_ECP_RESTARTABLE
+
+/**
+ * \def MBEDTLS_ECDH_LEGACY_CONTEXT
+ *
+ * Use a backward compatible ECDH context.
+ *
+ * Mbed TLS supports two formats for ECDH contexts (#mbedtls_ecdh_context
+ * defined in `ecdh.h`). For most applications, the choice of format makes
+ * no difference, since all library functions can work with either format,
+ * except that the new format is incompatible with MBEDTLS_ECP_RESTARTABLE.
+
+ * The new format used when this option is disabled is smaller
+ * (56 bytes on a 32-bit platform). In future versions of the library, it
+ * will support alternative implementations of ECDH operations.
+ * The new format is incompatible with applications that access
+ * context fields directly and with restartable ECP operations.
+ *
+ * Define this macro if you enable MBEDTLS_ECP_RESTARTABLE or if you
+ * want to access ECDH context fields directly. Otherwise you should
+ * comment out this macro definition.
+ *
+ * This option has no effect if #MBEDTLS_ECDH_C is not enabled.
+ *
+ * \note This configuration option is experimental. Future versions of the
+ *       library may modify the way the ECDH context layout is configured
+ *       and may modify the layout of the new context type.
+ */
+#define MBEDTLS_ECDH_LEGACY_CONTEXT
 
 /**
  * \def MBEDTLS_ECDSA_DETERMINISTIC
@@ -1202,6 +1252,33 @@
 #define MBEDTLS_PKCS1_V21
 
 /**
+ * \def MBEDTLS_PSA_CRYPTO_SPM
+ *
+ * When MBEDTLS_PSA_CRYPTO_SPM is defined, the code is built for SPM (Secure
+ * Partition Manager) integration which separates the code into two parts: a
+ * NSPE (Non-Secure Process Environment) and an SPE (Secure Process
+ * Environment).
+ *
+ * Module:  library/psa_crypto.c
+ * Requires: MBEDTLS_PSA_CRYPTO_C
+ *
+ */
+//#define MBEDTLS_PSA_CRYPTO_SPM
+
+/**
+ * \def MBEDTLS_PSA_INJECT_ENTROPY
+ *
+ * Enable support for entropy injection at first boot. This feature is
+ * required on systems that do not have a built-in entropy source (TRNG).
+ * This feature is currently not supported on systems that have a built-in
+ * entropy source.
+ *
+ * Requires: MBEDTLS_PSA_CRYPTO_STORAGE_C, MBEDTLS_ENTROPY_NV_SEED
+ *
+ */
+//#define MBEDTLS_PSA_INJECT_ENTROPY
+
+/**
  * \def MBEDTLS_RSA_NO_CRT
  *
  * Do not use the Chinese Remainder Theorem
@@ -1248,6 +1325,34 @@
  * Enable sending of all alert messages
  */
 #define MBEDTLS_SSL_ALL_ALERT_MESSAGES
+
+/**
+ * \def MBEDTLS_SSL_DTLS_CONNECTION_ID
+ *
+ * Enable support for the DTLS Connection ID extension
+ * (version draft-ietf-tls-dtls-connection-id-05,
+ * https://tools.ietf.org/html/draft-ietf-tls-dtls-connection-id-05)
+ * which allows to identify DTLS connections across changes
+ * in the underlying transport.
+ *
+ * Setting this option enables the SSL APIs `mbedtls_ssl_set_cid()`,
+ * `mbedtls_ssl_get_peer_cid()` and `mbedtls_ssl_conf_cid()`.
+ * See the corresponding documentation for more information.
+ *
+ * \warning The Connection ID extension is still in draft state.
+ *          We make no stability promises for the availability
+ *          or the shape of the API controlled by this option.
+ *
+ * The maximum lengths of outgoing and incoming CIDs can be configured
+ * through the options
+ * - MBEDTLS_SSL_CID_OUT_LEN_MAX
+ * - MBEDTLS_SSL_CID_IN_LEN_MAX.
+ *
+ * Requires: MBEDTLS_SSL_PROTO_DTLS
+ *
+ * Uncomment to enable the Connection ID extension.
+ */
+//#define MBEDTLS_SSL_DTLS_CONNECTION_ID
 
 /**
  * \def MBEDTLS_SSL_ASYNC_PRIVATE
@@ -1328,6 +1433,28 @@
  * Comment this macro to disable support for FALLBACK_SCSV
  */
 #define MBEDTLS_SSL_FALLBACK_SCSV
+
+/**
+ * \def MBEDTLS_SSL_KEEP_PEER_CERTIFICATE
+ *
+ * This option controls the availability of the API mbedtls_ssl_get_peer_cert()
+ * giving access to the peer's certificate after completion of the handshake.
+ *
+ * Unless you need mbedtls_ssl_peer_cert() in your application, it is
+ * recommended to disable this option for reduced RAM usage.
+ *
+ * \note If this option is disabled, mbedtls_ssl_get_peer_cert() is still
+ *       defined, but always returns \c NULL.
+ *
+ * \note This option has no influence on the protection against the
+ *       triple handshake attack. Even if it is disabled, Mbed TLS will
+ *       still ensure that certificates do not change during renegotiation,
+ *       for exaple by keeping a hash of the peer's certificate.
+ *
+ * Comment this macro to disable storing the peer's certificate
+ * after the handshake.
+ */
+#define MBEDTLS_SSL_KEEP_PEER_CERTIFICATE
 
 /**
  * \def MBEDTLS_SSL_HW_RECORD_ACCEL
@@ -1538,7 +1665,7 @@
  * \def MBEDTLS_SSL_SESSION_TICKETS
  *
  * Enable support for RFC 5077 session tickets in SSL.
- * Client-side, provides full support for session tickets (maintainance of a
+ * Client-side, provides full support for session tickets (maintenance of a
  * session store remains the responsibility of the application, though).
  * Server-side, you also need to provide callbacks for writing and parsing
  * tickets, including authenticated encryption and key management. Example
@@ -1625,6 +1752,33 @@
 //#define MBEDTLS_THREADING_PTHREAD
 
 /**
+ * \def MBEDTLS_USE_PSA_CRYPTO
+ *
+ * Make the X.509 and TLS library use PSA for cryptographic operations, and
+ * enable new APIs for using keys handled by PSA Crypto.
+ *
+ * \note Development of this option is currently in progress, and parts
+ * of the X.509 and TLS modules are not ported to PSA yet. However, these parts
+ * will still continue to work as usual, so enabling this option should not
+ * break backwards compatibility.
+ *
+ * \warning The PSA Crypto API is in beta stage. While you're welcome to
+ * experiment using it, incompatible API changes are still possible, and some
+ * parts may not have reached the same quality as the rest of Mbed TLS yet.
+ *
+ * \warning This option enables new Mbed TLS APIs that are dependent on the
+ * PSA Crypto API, so can't come with the same stability guarantees as the
+ * rest of the Mbed TLS APIs. You're welcome to experiment with them, but for
+ * now, access to these APIs is opt-in (via enabling the present option), in
+ * order to clearly differentiate them from the stable Mbed TLS APIs.
+ *
+ * Requires: MBEDTLS_PSA_CRYPTO_C.
+ *
+ * Uncomment this to enable internal use of PSA Crypto and new associated APIs.
+ */
+//#define MBEDTLS_USE_PSA_CRYPTO
+
+/**
  * \def MBEDTLS_VERSION_FEATURES
  *
  * Allow run-time checking of compile-time enabled features. Thus allowing users
@@ -1658,6 +1812,25 @@
  * Uncomment to prevent an error.
  */
 //#define MBEDTLS_X509_ALLOW_UNSUPPORTED_CRITICAL_EXTENSION
+
+/**
+ * \def MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK
+ *
+ * If set, this enables the X.509 API `mbedtls_x509_crt_verify_with_ca_cb()`
+ * and the SSL API `mbedtls_ssl_conf_ca_cb()` which allow users to configure
+ * the set of trusted certificates through a callback instead of a linked
+ * list.
+ *
+ * This is useful for example in environments where a large number of trusted
+ * certificates is present and storing them in a linked list isn't efficient
+ * enough, or when the set of trusted certificates changes frequently.
+ *
+ * See the documentation of `mbedtls_x509_crt_verify_with_ca_cb()` and
+ * `mbedtls_ssl_conf_ca_cb()` for more information.
+ *
+ * Uncomment to enable trusted certificate callbacks.
+ */
+//#define MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK
 
 /**
  * \def MBEDTLS_X509_CHECK_KEY_USAGE
@@ -1704,7 +1877,7 @@
  *
  * \warning TLS-level compression MAY REDUCE SECURITY! See for example the
  * CRIME attack. Before enabling this option, you should examine with care if
- * CRIME or similar exploits may be a applicable to your use case.
+ * CRIME or similar exploits may be applicable to your use case.
  *
  * \note Currently compression can't be used with DTLS.
  *
@@ -2633,6 +2806,48 @@
 #define MBEDTLS_POLY1305_C
 
 /**
+ * \def MBEDTLS_PSA_CRYPTO_C
+ *
+ * Enable the Platform Security Architecture cryptography API.
+ *
+ * \warning The PSA Crypto API is still beta status. While you're welcome to
+ * experiment using it, incompatible API changes are still possible, and some
+ * parts may not have reached the same quality as the rest of Mbed TLS yet.
+ *
+ * Module:  crypto/library/psa_crypto.c
+ *
+ * Requires: MBEDTLS_CTR_DRBG_C, MBEDTLS_ENTROPY_C
+ *
+ */
+#define MBEDTLS_PSA_CRYPTO_C
+
+/**
+ * \def MBEDTLS_PSA_CRYPTO_STORAGE_C
+ *
+ * Enable the Platform Security Architecture persistent key storage.
+ *
+ * Module:  crypto/library/psa_crypto_storage.c
+ *
+ * Requires: MBEDTLS_PSA_CRYPTO_C,
+ *           either MBEDTLS_PSA_ITS_FILE_C or a native implementation of
+ *           the PSA ITS interface
+ */
+//#define MBEDTLS_PSA_CRYPTO_STORAGE_C
+
+/**
+ * \def MBEDTLS_PSA_ITS_FILE_C
+ *
+ * Enable the emulation of the Platform Security Architecture
+ * Internal Trusted Storage (PSA ITS) over files.
+ *
+ * Module:  crypto/library/psa_its_file.c
+ *
+ * Requires: MBEDTLS_FS_IO
+ *
+ */
+//#define MBEDTLS_PSA_ITS_FILE_C
+
+/**
  * \def MBEDTLS_RIPEMD160_C
  *
  * Enable the RIPEMD-160 hash algorithm.
@@ -3016,7 +3231,7 @@
 //#define MBEDTLS_PLATFORM_STD_TIME            time /**< Default time to use, can be undefined. MBEDTLS_HAVE_TIME must be enabled */
 //#define MBEDTLS_PLATFORM_STD_FPRINTF      fprintf /**< Default fprintf to use, can be undefined */
 //#define MBEDTLS_PLATFORM_STD_PRINTF        printf /**< Default printf to use, can be undefined */
-/* Note: your snprintf must correclty zero-terminate the buffer! */
+/* Note: your snprintf must correctly zero-terminate the buffer! */
 //#define MBEDTLS_PLATFORM_STD_SNPRINTF    snprintf /**< Default snprintf to use, can be undefined */
 //#define MBEDTLS_PLATFORM_STD_EXIT_SUCCESS       0 /**< Default exit value to use, can be undefined */
 //#define MBEDTLS_PLATFORM_STD_EXIT_FAILURE       1 /**< Default exit value to use, can be undefined */
@@ -3033,8 +3248,9 @@
 //#define MBEDTLS_PLATFORM_TIME_TYPE_MACRO       time_t /**< Default time macro to use, can be undefined. MBEDTLS_HAVE_TIME must be enabled */
 //#define MBEDTLS_PLATFORM_FPRINTF_MACRO      fprintf /**< Default fprintf macro to use, can be undefined */
 //#define MBEDTLS_PLATFORM_PRINTF_MACRO        printf /**< Default printf macro to use, can be undefined */
-/* Note: your snprintf must correclty zero-terminate the buffer! */
+/* Note: your snprintf must correctly zero-terminate the buffer! */
 //#define MBEDTLS_PLATFORM_SNPRINTF_MACRO    snprintf /**< Default snprintf macro to use, can be undefined */
+//#define MBEDTLS_PLATFORM_VSNPRINTF_MACRO    vsnprintf /**< Default vsnprintf macro to use, can be undefined */
 //#define MBEDTLS_PLATFORM_NV_SEED_READ_MACRO   mbedtls_platform_std_nv_seed_read /**< Default nv_seed_read function to use, can be undefined */
 //#define MBEDTLS_PLATFORM_NV_SEED_WRITE_MACRO  mbedtls_platform_std_nv_seed_write /**< Default nv_seed_write function to use, can be undefined */
 
@@ -3124,6 +3340,37 @@
  * independently of the outgoing I/O buffer.
  */
 //#define MBEDTLS_SSL_IN_CONTENT_LEN              16384
+
+/** \def MBEDTLS_SSL_CID_IN_LEN_MAX
+ *
+ * The maximum length of CIDs used for incoming DTLS messages.
+ *
+ */
+//#define MBEDTLS_SSL_CID_IN_LEN_MAX 32
+
+/** \def MBEDTLS_SSL_CID_OUT_LEN_MAX
+ *
+ * The maximum length of CIDs used for outgoing DTLS messages.
+ *
+ */
+//#define MBEDTLS_SSL_CID_OUT_LEN_MAX 32
+
+/** \def MBEDTLS_SSL_CID_PADDING_GRANULARITY
+ *
+ * This option controls the use of record plaintext padding
+ * when using the Connection ID extension in DTLS 1.2.
+ *
+ * The padding will always be chosen so that the length of the
+ * padded plaintext is a multiple of the value of this option.
+ *
+ * Note: A value of \c 1 means that no padding will be used
+ *       for outgoing records.
+ *
+ * Note: On systems lacking division instructions,
+ *       a power of two should be preferred.
+ *
+ */
+//#define MBEDTLS_SSL_CID_PADDING_GRANULARITY 16
 
 /** \def MBEDTLS_SSL_OUT_CONTENT_LEN
  *
