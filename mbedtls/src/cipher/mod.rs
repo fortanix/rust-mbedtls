@@ -61,7 +61,7 @@ pub enum Authenticated {}
 impl Type for Authenticated {
     fn is_valid_mode(mode: raw::CipherMode) -> bool {
         match mode {
-            raw::CipherMode::GCM | raw::CipherMode::CCM => true,
+            raw::CipherMode::GCM | raw::CipherMode::CCM | raw::CipherMode::KW | raw::CipherMode::KWP => true,
             _ => false,
         }
     }
@@ -362,4 +362,44 @@ fn ccm() {
     let cipher = cipher.set_key_iv(&k, &iv).unwrap();
     cipher.decrypt_auth(&ad, &c, &mut p_out, &t).unwrap();
     assert_eq!(p, p_out);
+}
+
+#[test]
+fn aes_kw() {
+	let k = [0x75, 0x75, 0xda, 0x3a, 0x93, 0x60, 0x7c, 0xc2, 0xbf, 0xd8, 0xce, 0xc7, 0xaa, 0xdf, 0xd9, 0xa6];
+	let p = [0x42, 0x13, 0x6d, 0x3c, 0x38, 0x4a, 0x3e, 0xea, 0xc9, 0x5a, 0x06, 0x6f, 0xd2, 0x8f, 0xed, 0x3f];
+	let mut p_out = [0u8; 16];
+	let c = [0x03, 0x1f, 0x6b, 0xd7, 0xe6, 0x1e, 0x64, 0x3d,
+	         0xf6, 0x85, 0x94, 0x81, 0x6f, 0x64, 0xca, 0xa3,
+             0xf5, 0x6f, 0xab, 0xea, 0x25, 0x48, 0xf5, 0xfb];
+	let mut c_out = [0u8; 24];
+
+	let cipher = Cipher::<_, Authenticated, _>::new(raw::CipherId::Aes, raw::CipherMode::KW, (k.len() * 8) as _).unwrap();
+	let cipher = cipher.set_key_iv(&k, &[]).unwrap();
+	cipher.encrypt_auth(&[], &p, &mut c_out, &mut[]).unwrap();
+	assert_eq!(c, c_out);
+	let cipher = Cipher::<_, Authenticated, _>::new(raw::CipherId::Aes, raw::CipherMode::KW, (k.len() * 8) as _).unwrap();
+	let cipher = cipher.set_key_iv(&k, &[]).unwrap();
+	cipher.decrypt_auth(&[], &c, &mut p_out, &[]).unwrap();
+	assert_eq!(p, p_out);
+}
+
+#[test]
+fn aes_kwp() {
+	let k = [0x78, 0x65, 0xe2, 0x0f, 0x3c, 0x21, 0x65, 0x9a, 0xb4, 0x69, 0x0b, 0x62, 0x9c, 0xdf, 0x3c, 0xc4];
+	let p = [0xbd, 0x68, 0x43, 0xd4, 0x20, 0x37, 0x8d, 0xc8, 0x96];
+	let mut p_out = [0u8; 16];
+	let c = [0x41, 0xec, 0xa9, 0x56, 0xd4, 0xaa, 0x04, 0x7e,
+	         0xb5, 0xcf, 0x4e, 0xfe, 0x65, 0x96, 0x61, 0xe7,
+             0x4d, 0xb6, 0xf8, 0xc5, 0x64, 0xe2, 0x35, 0x00];
+	let mut c_out = [0u8; 24];
+
+	let cipher = Cipher::<_, Authenticated, _>::new(raw::CipherId::Aes, raw::CipherMode::KWP, (k.len() * 8) as _).unwrap();
+	let cipher = cipher.set_key_iv(&k, &[]).unwrap();
+	cipher.encrypt_auth(&[], &p, &mut c_out, &mut[]).unwrap();
+	assert_eq!(c, c_out);
+	let cipher = Cipher::<_, Authenticated, _>::new(raw::CipherId::Aes, raw::CipherMode::KWP, (k.len() * 8) as _).unwrap();
+	let cipher = cipher.set_key_iv(&k, &[]).unwrap();
+	let out_len = cipher.decrypt_auth(&[], &c, &mut p_out, &[]).unwrap().0;
+	assert_eq!(p, &p_out[..out_len]);
 }

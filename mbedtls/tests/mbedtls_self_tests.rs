@@ -74,6 +74,7 @@ tests! {
     fn sha512,
     fn x509,
     fn xtea,
+    fn nist_kw,
 }
 
 // these can't run concurrently
