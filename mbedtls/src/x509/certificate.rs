@@ -12,7 +12,7 @@ use core::ops::{Deref, DerefMut};
 use core::ptr;
 
 #[cfg(not(feature = "std"))]
-use alloc_prelude::*;
+use crate::alloc_prelude::*;
 
 use mbedtls_sys::types::raw_types::c_char;
 use mbedtls_sys::*;

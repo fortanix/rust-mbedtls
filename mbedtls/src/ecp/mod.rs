@@ -11,7 +11,7 @@ use crate::error::{Error, IntoResult, Result};
 use mbedtls_sys::*;
 
 #[cfg(not(feature = "std"))]
-use alloc_prelude::*;
+use crate::alloc_prelude::*;
 
 use crate::bignum::Mpi;
 use crate::pk::EcGroupId;

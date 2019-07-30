@@ -15,7 +15,7 @@
 
 #[forbid(unsafe_code)]
 #[cfg(not(feature = "std"))]
-use alloc_prelude::*;
+use crate::alloc_prelude::*;
 
 use core::result::Result as StdResult;
 

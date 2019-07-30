@@ -40,7 +40,7 @@ use crate::error::{IntoResult, Result};
 
 use self::private::CtrDrbgInner;
 #[cfg(not(feature = "std"))]
-use alloc_prelude::*;
+use crate::alloc_prelude::*;
 use core::ops::{Deref, DerefMut};
 
 mod private {

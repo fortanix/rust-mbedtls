@@ -7,7 +7,7 @@
  * according to those terms. */
 
 #[cfg(not(feature = "std"))]
-use alloc_prelude::*;
+use crate::alloc_prelude::*;
 use crate::cipher::*;
 use core::fmt;
 use core::marker::PhantomData;
