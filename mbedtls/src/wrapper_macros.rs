@@ -79,7 +79,7 @@ macro_rules! define_enum {
         impl Into<$raw> for $n {
             fn into(self) -> $raw {
                 match self {
-                    $($n::$rust => ::mbedtls_sys::$c,)*
+                    $($n::$rust => $c,)*
                     $n::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
                 }
             }
@@ -94,7 +94,7 @@ macro_rules! define_enum {
         impl Into<$raw> for $n {
             fn into(self) -> $raw {
                 match self {
-                    $($n::$rust => ::mbedtls_sys::$c,)*
+                    $($n::$rust => $c,)*
                 }
             }
         }
