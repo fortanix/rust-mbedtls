@@ -206,7 +206,7 @@ macro_rules! define_struct {
     };
     { unsafe_from $name:ident inner $inner:ident $(lifetime $l:tt)* lifetime2 $l2:tt } => {
         as_item!(
-        impl<$l2,$($l),*> ::private::UnsafeFrom<*const $inner> for &$l2 $name<$($l)*> {
+        impl<$l2,$($l),*> crate::private::UnsafeFrom<*const $inner> for &$l2 $name<$($l)*> {
             unsafe fn from(ptr: *const $inner) -> Option<Self> {
                 (ptr as *const $name).as_ref()
             }
@@ -214,7 +214,7 @@ macro_rules! define_struct {
         );
 
         as_item!(
-        impl<$l2,$($l),*> ::private::UnsafeFrom<*mut $inner> for &$l2 mut $name<$($l)*> {
+        impl<$l2,$($l),*> crate::private::UnsafeFrom<*mut $inner> for &$l2 mut $name<$($l)*> {
             unsafe fn from(ptr: *mut $inner) -> Option<Self> {
                 (ptr as *mut $name).as_mut()
             }

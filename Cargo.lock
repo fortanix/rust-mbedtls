@@ -206,7 +206,7 @@ dependencies = [
  "cc 1.0.37 (registry+https://github.com/rust-lang/crates.io-index)",
  "core_io 0.1.20190701 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.60 (registry+https://github.com/rust-lang/crates.io-index)",
- "mbedtls-sys-auto 2.16.0",
+ "mbedtls-sys-auto 2.18.0",
  "rand 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rc2 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rs-libc 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",

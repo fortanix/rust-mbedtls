@@ -6,7 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use error::IntoResult;
+use crate::error::{IntoResult, Result};
 use mbedtls_sys::*;
 
 define!(
@@ -22,9 +22,9 @@ impl Dhm {
     /// Takes both DER and PEM forms of FFDH parameters in `DHParams` format.
     ///
     /// When calling on PEM-encoded data, `params` must be NULL-terminated
-    pub(crate) fn from_params(params: &[u8]) -> ::Result<Dhm> {
+    pub(crate) fn from_params(params: &[u8]) -> Result<Dhm> {
         let mut ret = Self::init();
-        unsafe { try!(dhm_parse_dhm(&mut ret.inner, params.as_ptr(), params.len()).into_result()) };
+        unsafe { dhm_parse_dhm(&mut ret.inner, params.as_ptr(), params.len()) }.into_result()?;
         Ok(ret)
     }
 }

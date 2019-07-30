@@ -11,7 +11,7 @@ use bindgen;
 use std::fs::File;
 use std::io::{stderr, Write};
 
-use headers;
+use crate::headers;
 
 #[derive(Debug)]
 struct StderrLogger;
@@ -31,7 +31,7 @@ impl super::BuildConfig {
         File::create(&header)
             .and_then(|mut f| {
                 Ok(for h in headers::enabled_ordered() {
-                    try!(writeln!(f, "#include <mbedtls/{}>", h));
+                    writeln!(f, "#include <mbedtls/{}>", h)?;
                 })
             }).expect("bindgen-input.h I/O error");
 
@@ -73,8 +73,8 @@ impl super::BuildConfig {
         let bindings_rs = self.out_dir.join("bindings.rs");
         File::create(&bindings_rs)
             .and_then(|mut f| {
-                try!(bindings.write(Box::new(&mut f)));
-                f.write_all(b"use ::types::*;\n") // for FILE, time_t, etc.
+                bindings.write(Box::new(&mut f))?;
+                f.write_all(b"use crate::types::*;\n") // for FILE, time_t, etc.
             }).expect("bindings.rs I/O error");
 
         let mod_bindings = self.out_dir.join("mod-bindings.rs");

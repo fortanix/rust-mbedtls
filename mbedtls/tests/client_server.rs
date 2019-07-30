@@ -32,8 +32,8 @@ fn client(
     exp_minor: Result<i32, ()>,
 ) -> TlsResult<()> {
     let mut entropy = entropy_new();
-    let mut rng = try!(CtrDrbg::new(&mut entropy, None));
-    let mut cert = try!(Certificate::from_pem(keys::PEM_CERT));
+    let mut rng = CtrDrbg::new(&mut entropy, None)?;
+    let mut cert = Certificate::from_pem(keys::PEM_CERT)?;
     let mut verify_args = None;
     {
         let verify_callback =
@@ -47,7 +47,7 @@ fn client(
         config.set_ca_list(Some(&mut *cert), None);
         config.set_min_version(3, min_minor)?;
         config.set_max_version(3, max_minor)?;
-        let mut ctx = try!(Context::new(&config));
+        let mut ctx = Context::new(&config)?;
 
         let session = ctx.establish(&mut conn, None);
 
@@ -86,15 +86,15 @@ fn server(
     exp_minor: Result<i32, ()>,
 ) -> TlsResult<()> {
     let mut entropy = entropy_new();
-    let mut rng = try!(CtrDrbg::new(&mut entropy, None));
-    let mut cert = try!(Certificate::from_pem(keys::PEM_CERT));
-    let mut key = try!(Pk::from_private_key(keys::PEM_KEY, None));
+    let mut rng = CtrDrbg::new(&mut entropy, None)?;
+    let mut cert = Certificate::from_pem(keys::PEM_CERT)?;
+    let mut key = Pk::from_private_key(keys::PEM_KEY, None)?;
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(Some(&mut rng));
     config.set_min_version(3, min_minor)?;
     config.set_max_version(3, max_minor)?;
-    try!(config.push_cert(&mut *cert, &mut key));
-    let mut ctx = try!(Context::new(&config));
+    config.push_cert(&mut *cert, &mut key)?;
+    let mut ctx = Context::new(&config)?;
 
     let session = ctx.establish(&mut conn, None);
     let mut session = match session {
@@ -128,7 +128,6 @@ fn server(
 #[cfg(unix)]
 mod test {
     use std::thread;
-    use support::net::create_tcp_pair;
 
     #[test]
     fn client_server_test() {
@@ -162,7 +161,7 @@ mod test {
                 continue;
             }
 
-            let (c, s) = create_tcp_pair().unwrap();
+            let (c, s) = crate::support::net::create_tcp_pair().unwrap();
 
             let c = thread::spawn(move || {
                 let exp_result = if exp_version < 0 {

@@ -15,7 +15,8 @@ use mbedtls_sys::{
 };
 
 use super::{EntropyCallback, RngCallback};
-use error::IntoResult;
+use crate::error::{IntoResult, Result};
+use crate::hash::MdInfo;
 
 define!(
     #[c_ty(hmac_drbg_context)]
@@ -29,13 +30,13 @@ unsafe impl<'entropy> Sync for HmacDrbg<'entropy> {}
 
 impl<'entropy> HmacDrbg<'entropy> {
     pub fn new<F: EntropyCallback>(
-        md_info: ::hash::MdInfo,
+        md_info: MdInfo,
         source: &'entropy mut F,
         additional_entropy: Option<&[u8]>,
-    ) -> ::Result<HmacDrbg<'entropy>> {
+    ) -> Result<HmacDrbg<'entropy>> {
         let mut ret = Self::init();
         unsafe {
-            try!(hmac_drbg_seed(
+            hmac_drbg_seed(
                 &mut ret.inner,
                 md_info.into(),
                 Some(F::call),
@@ -45,21 +46,21 @@ impl<'entropy> HmacDrbg<'entropy> {
                     .unwrap_or(::core::ptr::null()),
                 additional_entropy.map(<[_]>::len).unwrap_or(0)
             )
-            .into_result())
+            .into_result()?
         };
         Ok(ret)
     }
 
-    pub fn from_buf(md_info: ::hash::MdInfo, entropy: &[u8]) -> ::Result<HmacDrbg<'entropy>> {
+    pub fn from_buf(md_info: MdInfo, entropy: &[u8]) -> Result<HmacDrbg<'entropy>> {
         let mut ret = Self::init();
         unsafe {
-            try!(hmac_drbg_seed_buf(
+            hmac_drbg_seed_buf(
                 &mut ret.inner,
                 md_info.into(),
                 entropy.as_ptr(),
                 entropy.len()
             )
-            .into_result())
+            .into_result()?
         };
         Ok(ret)
     }
@@ -90,16 +91,16 @@ impl<'entropy> HmacDrbg<'entropy> {
     getter!(reseed_interval() -> c_int = .reseed_interval);
     setter!(set_reseed_interval(i: c_int) = hmac_drbg_set_reseed_interval);
 
-    pub fn reseed(&mut self, additional_entropy: Option<&[u8]>) -> ::Result<()> {
+    pub fn reseed(&mut self, additional_entropy: Option<&[u8]>) -> Result<()> {
         unsafe {
-            try!(hmac_drbg_reseed(
+            hmac_drbg_reseed(
                 &mut self.inner,
                 additional_entropy
                     .map(<[_]>::as_ptr)
                     .unwrap_or(::core::ptr::null()),
                 additional_entropy.map(<[_]>::len).unwrap_or(0)
             )
-            .into_result())
+            .into_result()?
         };
         Ok(())
     }

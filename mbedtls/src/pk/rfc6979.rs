@@ -12,12 +12,13 @@ use alloc_prelude::*;
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 
-use rng::{HmacDrbg, Random, RngCallback};
+use crate::rng::{HmacDrbg, Random, RngCallback};
 
-use bignum::Mpi;
-use hash::{MdInfo, Type};
+use crate::error::Result;
+use crate::bignum::Mpi;
+use crate::hash::{MdInfo, Type};
 
-fn generate_rfc6979_nonce(md: &MdInfo, x: &Mpi, q: &Mpi, digest_bytes: &[u8]) -> ::Result<Vec<u8>> {
+fn generate_rfc6979_nonce(md: &MdInfo, x: &Mpi, q: &Mpi, digest_bytes: &[u8]) -> Result<Vec<u8>> {
     let q_bits = q.bit_length()?;
     let q_bytes = q.byte_length()?;
 
@@ -77,7 +78,7 @@ impl Rfc6979Rng {
         x: &Mpi,
         digest_bytes: &[u8],
         random_seed: &[u8],
-    ) -> ::Result<Rfc6979Rng> {
+    ) -> Result<Rfc6979Rng> {
         let md: MdInfo = match md_type.into() {
             Some(md) => md,
             None => panic!("no such digest"),
@@ -92,7 +93,7 @@ impl Rfc6979Rng {
         })
     }
 
-    fn random_callback(&mut self, data: &mut [u8]) -> ::Result<()> {
+    fn random_callback(&mut self, data: &mut [u8]) -> Result<()> {
         let avail_k = self.k.len() - self.k_read;
 
         if data.len() <= avail_k {

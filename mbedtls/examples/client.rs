@@ -24,15 +24,15 @@ use support::keys;
 
 fn result_main(addr: &str) -> TlsResult<()> {
     let mut entropy = entropy_new();
-    let mut rng = try!(CtrDrbg::new(&mut entropy, None));
-    let mut cert = try!(Certificate::from_pem(keys::PEM_CERT));
+    let mut rng = CtrDrbg::new(&mut entropy, None)?;
+    let mut cert = Certificate::from_pem(keys::PEM_CERT)?;
     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
     config.set_rng(Some(&mut rng));
     config.set_ca_list(Some(&mut *cert), None);
-    let mut ctx = try!(Context::new(&config));
+    let mut ctx = Context::new(&config)?;
 
     let mut conn = TcpStream::connect(addr).unwrap();
-    let mut session = try!(ctx.establish(&mut conn, None));
+    let mut session = ctx.establish(&mut conn, None)?;
 
     let mut line = String::new();
     stdin().read_line(&mut line).unwrap();

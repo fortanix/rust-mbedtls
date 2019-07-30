@@ -7,14 +7,14 @@
  * according to those terms. */
 
 use core::convert::TryFrom;
-use error::IntoResult;
+use crate::error::{Error, IntoResult, Result};
 use mbedtls_sys::*;
 
 #[cfg(not(feature = "std"))]
 use alloc_prelude::*;
 
-use bignum::Mpi;
-use pk::EcGroupId;
+use crate::bignum::Mpi;
+use crate::pk::EcGroupId;
 
 define!(
     #[c_ty(ecp_group)]
@@ -26,7 +26,7 @@ define!(
 
 impl Clone for EcGroup {
     fn clone(&self) -> Self {
-        fn copy_group(group: &EcGroup) -> ::Result<EcGroup> {
+        fn copy_group(group: &EcGroup) -> Result<EcGroup> {
             /*
             ecp_group_copy only works for named groups, for custom groups we
             must perform the copy manually.
@@ -65,15 +65,15 @@ impl PartialEq for EcGroup {
 impl Eq for EcGroup {}
 
 impl TryFrom<EcGroupId> for EcGroup {
-    type Error = ::Error;
+    type Error = Error;
 
-    fn try_from(id: EcGroupId) -> ::Result<EcGroup> {
+    fn try_from(id: EcGroupId) -> Result<EcGroup> {
         EcGroup::new(id)
     }
 }
 
 impl EcGroup {
-    pub fn new(group: EcGroupId) -> ::Result<EcGroup> {
+    pub fn new(group: EcGroupId) -> Result<EcGroup> {
         let mut ret = Self::init();
         unsafe { ecp_group_load(&mut ret.inner, group.into()) }.into_result()?;
         Ok(ret)
@@ -86,7 +86,7 @@ impl EcGroup {
         g_x: Mpi,
         g_y: Mpi,
         order: Mpi,
-    ) -> ::Result<EcGroup> {
+    ) -> Result<EcGroup> {
         let mut ret = Self::init();
 
         ret.inner.pbits = p.bit_length()?;
@@ -106,7 +106,7 @@ impl EcGroup {
             || &g_y >= &p
             || &order <= &zero
         {
-            return Err(::Error::EcpBadInputData);
+            return Err(Error::EcpBadInputData);
         }
 
         // Compute `order - 2`, needed below.
@@ -127,7 +127,7 @@ impl EcGroup {
         Test that the provided generator satisfies the curve equation
          */
         if unsafe { ecp_check_pubkey(&ret.inner, &ret.inner.G) } != 0 {
-            return Err(::Error::EcpBadInputData);
+            return Err(Error::EcpBadInputData);
         }
 
         /*
@@ -154,21 +154,21 @@ impl EcGroup {
         let is_zero = unsafe { ecp_is_zero(&g_m.inner as *const ecp_point as *mut ecp_point) };
 
         if is_zero != 1 {
-            return Err(::Error::EcpBadInputData);
+            return Err(Error::EcpBadInputData);
         }
 
         Ok(ret)
     }
 
-    pub fn group_id(&self) -> ::Result<EcGroupId> {
+    pub fn group_id(&self) -> Result<EcGroupId> {
         Ok(EcGroupId::from(self.inner.id))
     }
 
-    pub fn p(&self) -> ::Result<Mpi> {
+    pub fn p(&self) -> Result<Mpi> {
         Mpi::copy(&self.inner.P)
     }
 
-    pub fn a(&self) -> ::Result<Mpi> {
+    pub fn a(&self) -> Result<Mpi> {
         // Mbedtls uses A == NULL to indicate -3 mod p
         if self.inner.A.p == ::core::ptr::null_mut() {
             let mut neg3 = self.p()?;
@@ -179,15 +179,15 @@ impl EcGroup {
         }
     }
 
-    pub fn b(&self) -> ::Result<Mpi> {
+    pub fn b(&self) -> Result<Mpi> {
         Mpi::copy(&self.inner.B)
     }
 
-    pub fn order(&self) -> ::Result<Mpi> {
+    pub fn order(&self) -> Result<Mpi> {
         Mpi::copy(&self.inner.N)
     }
 
-    pub fn cofactor(&self) -> ::Result<u32> {
+    pub fn cofactor(&self) -> Result<u32> {
         match self.group_id()? {
             EcGroupId::Curve25519 => Ok(8),
             EcGroupId::Curve448 => Ok(4),
@@ -195,15 +195,15 @@ impl EcGroup {
         }
     }
 
-    pub fn generator(&self) -> ::Result<EcPoint> {
+    pub fn generator(&self) -> Result<EcPoint> {
         EcPoint::copy(&self.inner.G)
     }
 
-    pub fn contains_point(&self, point: &EcPoint) -> ::Result<bool> {
+    pub fn contains_point(&self, point: &EcPoint) -> Result<bool> {
         match unsafe { ecp_check_pubkey(&self.inner, &point.inner) } {
             0 => Ok(true),
             ERR_ECP_INVALID_KEY => Ok(false),
-            err => Err(::Error::from_mbedtls_code(err)),
+            err => Err(Error::from_mbedtls_code(err)),
         }
     }
 }
@@ -233,20 +233,20 @@ impl PartialEq for EcPoint {
 }
 
 impl EcPoint {
-    pub fn new() -> ::Result<EcPoint> {
+    pub fn new() -> Result<EcPoint> {
         let mut ret = Self::init();
         unsafe { ecp_set_zero(&mut ret.inner) }.into_result()?;
         Ok(ret)
     }
 
-    pub(crate) fn copy(other: &ecp_point) -> ::Result<EcPoint> {
+    pub(crate) fn copy(other: &ecp_point) -> Result<EcPoint> {
         let mut ret = Self::init();
         unsafe { ecp_copy(&mut ret.inner, other) }.into_result()?;
         Ok(ret)
     }
 
-    pub fn from_binary(group: &EcGroup, bin: &[u8]) -> ::Result<EcPoint> {
-        let prefix = *bin.get(0).ok_or(::Error::EcpBadInputData)?;
+    pub fn from_binary(group: &EcGroup, bin: &[u8]) -> Result<EcPoint> {
+        let prefix = *bin.get(0).ok_or(Error::EcpBadInputData)?;
 
         if prefix == 0x02 || prefix == 0x03 {
             // Compressed point, which mbedtls does not understand
@@ -257,7 +257,7 @@ impl EcPoint {
             let b = group.b()?;
 
             if bin.len() != (p.byte_length()? + 1) {
-                return Err(::Error::EcpBadInputData);
+                return Err(Error::EcpBadInputData);
             }
 
             let x = Mpi::from_binary(&bin[1..]).unwrap();
@@ -281,7 +281,7 @@ impl EcPoint {
         }
     }
 
-    pub fn from_components(x: Mpi, y: Mpi) -> ::Result<EcPoint> {
+    pub fn from_components(x: Mpi, y: Mpi) -> Result<EcPoint> {
         let mut ret = Self::init();
 
         unsafe {
@@ -293,15 +293,15 @@ impl EcPoint {
         Ok(ret)
     }
 
-    pub fn x(&self) -> ::Result<Mpi> {
+    pub fn x(&self) -> Result<Mpi> {
         Mpi::copy(&self.inner.X)
     }
 
-    pub fn y(&self) -> ::Result<Mpi> {
+    pub fn y(&self) -> Result<Mpi> {
         Mpi::copy(&self.inner.Y)
     }
 
-    pub fn is_zero(&self) -> ::Result<bool> {
+    pub fn is_zero(&self) -> Result<bool> {
         /*
         mbedtls_ecp_is_zero takes arg as non-const for no particular reason
         use this unsafe cast here to avoid having to take &mut self
@@ -309,11 +309,11 @@ impl EcPoint {
         match unsafe { ecp_is_zero(&self.inner as *const ecp_point as *mut ecp_point) } {
             0 => Ok(false),
             1 => Ok(true),
-            _ => Err(::Error::EcpInvalidKey),
+            _ => Err(Error::EcpInvalidKey),
         }
     }
 
-    pub fn mul(&self, group: &mut EcGroup, k: &Mpi) -> ::Result<EcPoint> {
+    pub fn mul(&self, group: &mut EcGroup, k: &Mpi) -> Result<EcPoint> {
         // TODO provide random number generator for blinding
         // Note: mbedtls_ecp_mul performs point validation itself so we skip that here
 
@@ -341,15 +341,15 @@ impl EcPoint {
         k1: &Mpi,
         pt2: &EcPoint,
         k2: &Mpi,
-    ) -> ::Result<EcPoint> {
+    ) -> Result<EcPoint> {
         let mut ret = Self::init();
 
         if group.contains_point(&pt1)? == false {
-            return Err(::Error::EcpInvalidKey);
+            return Err(Error::EcpInvalidKey);
         }
 
         if group.contains_point(&pt2)? == false {
-            return Err(::Error::EcpInvalidKey);
+            return Err(Error::EcpInvalidKey);
         }
 
         unsafe {
@@ -367,17 +367,17 @@ impl EcPoint {
         Ok(ret)
     }
 
-    pub fn eq(&self, other: &EcPoint) -> ::Result<bool> {
+    pub fn eq(&self, other: &EcPoint) -> Result<bool> {
         let r = unsafe { ecp_point_cmp(&self.inner, &other.inner) };
 
         match r {
             0 => Ok(true),
             ERR_ECP_BAD_INPUT_DATA => Ok(false),
-            x => Err(::Error::from_mbedtls_code(x)),
+            x => Err(Error::from_mbedtls_code(x)),
         }
     }
 
-    pub fn to_binary(&self, group: &EcGroup, compressed: bool) -> ::Result<Vec<u8>> {
+    pub fn to_binary(&self, group: &EcGroup, compressed: bool) -> Result<Vec<u8>> {
         /*
         We know biggest group supported is P-521 so just allocate a
         vector big enough and then resize it down to the actual output
@@ -418,10 +418,9 @@ impl EcPoint {
 #[cfg(test)]
 mod tests {
 
-    use bignum::Mpi;
-    use ecp::EcGroup;
-    use ecp::EcPoint;
-    use pk::EcGroupId;
+    use crate::bignum::Mpi;
+    use crate::ecp::{EcGroup, EcPoint};
+    use crate::pk::EcGroupId;
 
     #[test]
     fn test_ec_group() {

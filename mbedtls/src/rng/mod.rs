@@ -23,7 +23,7 @@ pub use self::os_entropy::OsEntropy;
 #[cfg(feature = "rdrand")]
 pub use self::rdrand::{Entropy as Rdseed, Nrbg as Rdrand};
 
-use error::IntoResult;
+use crate::error::{Result, IntoResult};
 use mbedtls_sys::types::raw_types::{c_int, c_uchar};
 use mbedtls_sys::types::size_t;
 
@@ -31,8 +31,8 @@ callback!(EntropyCallback:Sync(data: *mut c_uchar, len: size_t) -> c_int);
 callback!(RngCallback:Sync(data: *mut c_uchar, len: size_t) -> c_int);
 
 pub trait Random: RngCallback {
-    fn random(&mut self, data: &mut [u8]) -> ::Result<()> {
-        try!(unsafe { Self::call(self.data_ptr(), data.as_mut_ptr(), data.len()) }.into_result());
+    fn random(&mut self, data: &mut [u8]) -> Result<()> {
+        unsafe { Self::call(self.data_ptr(), data.as_mut_ptr(), data.len()) }.into_result()?;
         Ok(())
     }
 }

@@ -50,7 +50,7 @@ extern crate block_modes;
 // ==============
 pub mod bignum;
 mod error;
-pub use error::{Error, Result};
+pub use crate::error::{Error, Result};
 pub mod cipher;
 pub mod ecp;
 pub mod hash;

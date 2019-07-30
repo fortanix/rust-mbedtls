@@ -12,12 +12,14 @@ use mbedtls_sys::types::raw_types::{c_char, c_int, c_uchar, c_uint, c_void};
 use mbedtls_sys::types::size_t;
 use mbedtls_sys::*;
 
-use error::{Error, IntoResult};
-use pk::dhparam::Dhm;
-use private::UnsafeFrom;
-use ssl::context::HandshakeContext;
-use ssl::ticket::TicketCallback;
-use x509::{certificate, Crl, LinkedCertificate, Profile, VerifyError};
+use crate::error::{Error, IntoResult, Result};
+use core::result::Result as StdResult;
+use crate::pk::dhparam::Dhm;
+use crate::pk::Pk;
+use crate::private::UnsafeFrom;
+use crate::ssl::context::HandshakeContext;
+use crate::ssl::ticket::TicketCallback;
+use crate::x509::{certificate, Crl, LinkedCertificate, Profile, VerifyError};
 
 define!(
     #[c_ty(c_int)]
@@ -116,7 +118,7 @@ impl<'c> Config<'c> {
         unsafe { ssl_conf_curves(&mut self.inner, list.as_ptr()) }
     }
 
-    pub fn set_min_version(&mut self, major: i32, minor: i32) -> ::Result<()> {
+    pub fn set_min_version(&mut self, major: i32, minor: i32) -> Result<()> {
         // mbedtls does not check the versions so sanity check first
 
         if major != 3 || minor < 0 || minor > 3 {
@@ -126,7 +128,7 @@ impl<'c> Config<'c> {
         Ok(())
     }
 
-    pub fn set_max_version(&mut self, major: i32, minor: i32) -> ::Result<()> {
+    pub fn set_max_version(&mut self, major: i32, minor: i32) -> Result<()> {
         if major != 3 || minor < 0 || minor > 3 {
             return Err(Error::SslBadHsProtocolVersion);
         }
@@ -139,7 +141,7 @@ impl<'c> Config<'c> {
     /// Takes both DER and PEM forms of FFDH parameters in `DHParams` format.
     ///
     /// When calling on PEM-encoded data, `params` must be NULL-terminated
-    pub fn set_dh_params(&mut self, params: &[u8]) -> ::Result<()> {
+    pub fn set_dh_params(&mut self, params: &[u8]) -> Result<()> {
         let mut ctx = Dhm::from_params(params)?;
         unsafe {
             ssl_conf_dh_param_ctx(&mut self.inner, (&mut ctx).into())
@@ -167,8 +169,8 @@ impl<'c> Config<'c> {
     pub fn push_cert<C: Into<&'c mut LinkedCertificate>>(
         &mut self,
         chain: C,
-        key: &'c mut ::pk::Pk,
-    ) -> ::Result<()> {
+        key: &'c mut Pk,
+    ) -> Result<()> {
         unsafe {
             ssl_conf_own_cert(&mut self.inner, chain.into().into(), key.into())
                 .into_result()
@@ -202,12 +204,12 @@ impl<'c> Config<'c> {
 
     // TODO: The lifetime restrictions on HandshakeContext here are too strict.
     // Once we need something else, we might fix it.
-    pub fn set_sni_callback<F: FnMut(&mut HandshakeContext, &[u8]) -> Result<(), ()>>(
+    pub fn set_sni_callback<F: FnMut(&mut HandshakeContext, &[u8]) -> StdResult<(), ()>>(
         &mut self,
         cb: &'c mut F,
     ) {
         unsafe extern "C" fn sni_callback<
-            F: FnMut(&mut HandshakeContext, &[u8]) -> Result<(), ()>,
+            F: FnMut(&mut HandshakeContext, &[u8]) -> StdResult<(), ()>,
         >(
             closure: *mut c_void,
             ctx: *mut ssl_context,
@@ -215,7 +217,7 @@ impl<'c> Config<'c> {
             name_len: size_t,
         ) -> c_int {
             let cb = &mut *(closure as *mut F);
-            let mut ctx = ::private::UnsafeFrom::from(ctx).expect("valid context");
+            let mut ctx = UnsafeFrom::from(ctx).expect("valid context");
             let name = from_raw_parts(name, name_len);
             match cb(&mut ctx, name) {
                 Ok(()) => 0,
@@ -231,7 +233,7 @@ impl<'c> Config<'c> {
     // Report verification errors by updating the flags in VerifyError.
     pub fn set_verify_callback<F>(&mut self, cb: &'c mut F)
     where
-        F: FnMut(&mut LinkedCertificate, i32, &mut VerifyError) -> ::Result<()>,
+        F: FnMut(&mut LinkedCertificate, i32, &mut VerifyError) -> Result<()>,
     {
         unsafe extern "C" fn verify_callback<F>(
             closure: *mut c_void,
@@ -240,11 +242,11 @@ impl<'c> Config<'c> {
             flags: *mut u32,
         ) -> c_int
         where
-            F: FnMut(&mut LinkedCertificate, i32, &mut VerifyError) -> ::Result<()>,
+            F: FnMut(&mut LinkedCertificate, i32, &mut VerifyError) -> Result<()>,
         {
             let cb = &mut *(closure as *mut F);
             let crt: &mut LinkedCertificate =
-                ::private::UnsafeFrom::from(crt).expect("valid certificate");
+                UnsafeFrom::from(crt).expect("valid certificate");
             let mut verify_error = match VerifyError::from_bits(*flags) {
                 Some(ve) => ve,
                 // This can only happen if mbedtls is setting flags in VerifyError that are
@@ -269,7 +271,7 @@ impl<'c> Config<'c> {
     }
 }
 
-setter_callback!(Config<'c>::set_rng(f: ::rng::Random) = ssl_conf_rng);
+setter_callback!(Config<'c>::set_rng(f: crate::rng::Random) = ssl_conf_rng);
 setter_callback!(Config<'c>::set_dbg(f: DbgCallback) = ssl_conf_dbg);
 
 define!(
@@ -283,7 +285,7 @@ pub struct KeyCertIter<'a> {
 }
 
 impl<'a> Iterator for KeyCertIter<'a> {
-    type Item = (certificate::Iter<'a>, &'a ::pk::Pk);
+    type Item = (certificate::Iter<'a>, &'a Pk);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.key_cert.take().map(|key_cert| unsafe {

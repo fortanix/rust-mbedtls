@@ -6,8 +6,8 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use cipher::raw::CipherType;
-use error::IntoResult;
+use crate::cipher::raw::CipherType;
+use crate::error::{IntoResult, Result};
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 use mbedtls_sys::*;
@@ -39,11 +39,11 @@ define!(
 );
 
 impl<'rng> TicketContext<'rng> {
-    pub fn new<F: ::rng::Random>(
+    pub fn new<F: crate::rng::Random>(
         rng: &'rng mut F,
         cipher: CipherType,
         lifetime: u32,
-    ) -> ::Result<TicketContext<'rng>> {
+    ) -> Result<TicketContext<'rng>> {
         let mut ret = Self::init();
         unsafe {
             ssl_ticket_setup(

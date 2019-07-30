@@ -8,13 +8,14 @@
 
 #[cfg(not(feature = "std"))]
 use alloc_prelude::*;
-use cipher::*;
+use crate::cipher::*;
 use core::fmt;
 use core::marker::PhantomData;
 use core::mem::size_of;
 use core::ptr;
 use core::slice::from_raw_parts;
 use core::str;
+use core::result::Result;
 use mbedtls_sys::*;
 use serde;
 use serde::de::Unexpected;
@@ -121,7 +122,7 @@ impl<'de, Op: Operation> Deserialize<'de> for Cipher<Op, Traditional, CipherData
     where
         D: Deserializer<'de>,
     {
-        let saved_cipher: SavedCipher = try!(SavedCipher::deserialize(d));
+        let saved_cipher: SavedCipher = SavedCipher::deserialize(d)?;
 
         let (raw, padding) = match saved_cipher {
             SavedCipher::Encryption(..) if !Op::is_encrypt() => {
@@ -156,12 +157,12 @@ impl<'de, Op: Operation> Deserialize<'de> for Cipher<Op, Traditional, CipherData
         };
 
         if raw.cipher_mode == MODE_CBC {
-            try!(raw_cipher
+            raw_cipher
                 .set_padding(padding)
                 .map_err(|_| de::Error::invalid_value(
                     Unexpected::Other("bad padding mode"),
                     &"valid mode"
-                )));
+                ))?;
         }
 
         unsafe {
@@ -216,12 +217,12 @@ impl Serialize for SavedRawCipher {
     where
         S: Serializer,
     {
-        let mut seq = try!(s.serialize_seq(Some(5)));
-        try!(seq.serialize_element(&self.cipher_id));
-        try!(seq.serialize_element(&self.cipher_mode));
-        try!(seq.serialize_element(&self.key_bit_len));
-        try!(seq.serialize_element(&self.context));
-        try!(seq.serialize_element(&self.algorithm_ctx));
+        let mut seq = s.serialize_seq(Some(5))?;
+        seq.serialize_element(&self.cipher_id)?;
+        seq.serialize_element(&self.cipher_mode)?;
+        seq.serialize_element(&self.key_bit_len)?;
+        seq.serialize_element(&self.context)?;
+        seq.serialize_element(&self.algorithm_ctx)?;
         seq.end()
     }
 }

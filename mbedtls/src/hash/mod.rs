@@ -6,7 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use error::IntoResult;
+use crate::error::{Error, IntoResult, Result};
 use mbedtls_sys::*;
 
 define!(
@@ -71,87 +71,79 @@ define!(
 
 impl MdInfo {
     pub fn size(&self) -> usize {
-        unsafe { ::mbedtls_sys::md_get_size(self.inner).into() }
+        unsafe { md_get_size(self.inner).into() }
     }
     pub fn get_type(&self) -> Type {
-        unsafe { ::mbedtls_sys::md_get_type(self.inner).into() }
+        unsafe { md_get_type(self.inner).into() }
     }
 }
 
 impl Md {
-    pub fn new(md: Type) -> ::Result<Md> {
+    pub fn new(md: Type) -> Result<Md> {
         let md: MdInfo = match md.into() {
             Some(md) => md,
-            None => return Err(::Error::MdBadInputData),
+            None => return Err(Error::MdBadInputData),
         };
 
         let mut ctx = Md::init();
         unsafe {
-            try!(md_setup(&mut ctx.inner, md.into(), 0).into_result());
-            try!(md_starts(&mut ctx.inner).into_result());
+            md_setup(&mut ctx.inner, md.into(), 0).into_result()?;
+            md_starts(&mut ctx.inner).into_result()?;
         }
         Ok(ctx)
     }
 
-    pub fn update(&mut self, data: &[u8]) -> ::Result<()> {
-        unsafe {
-            try!(
-                ::mbedtls_sys::md_update(&mut self.inner, data.as_ptr(), data.len()).into_result()
-            );
-        }
+    pub fn update(&mut self, data: &[u8]) -> Result<()> {
+        unsafe { md_update(&mut self.inner, data.as_ptr(), data.len()) }.into_result()?;
         Ok(())
     }
 
-    pub fn finish(mut self, out: &mut [u8]) -> ::Result<usize> {
+    pub fn finish(mut self, out: &mut [u8]) -> Result<usize> {
         unsafe {
             let olen = (*self.inner.md_info).size as usize;
             if out.len() < olen {
-                return Err(::Error::MdBadInputData);
+                return Err(Error::MdBadInputData);
             }
-            try!(::mbedtls_sys::md_finish(&mut self.inner, out.as_mut_ptr()).into_result());
+            md_finish(&mut self.inner, out.as_mut_ptr()).into_result()?;
             Ok(olen)
         }
     }
 
-    pub fn hash(md: Type, data: &[u8], out: &mut [u8]) -> ::Result<usize> {
+    pub fn hash(mdt: Type, data: &[u8], out: &mut [u8]) -> Result<usize> {
+        let mdinfo: MdInfo = match mdt.into() {
+            Some(md) => md,
+            None => return Err(Error::MdBadInputData),
+        };
+
+        unsafe {
+            let olen = mdinfo.inner.size as usize;
+            if out.len() < olen {
+                return Err(Error::MdBadInputData);
+            }
+            md(mdinfo.inner, data.as_ptr(), data.len(), out.as_mut_ptr()).into_result()?;
+            Ok(olen)
+        }
+    }
+
+    pub fn hmac(md: Type, key: &[u8], data: &[u8], out: &mut [u8]) -> Result<usize> {
         let md: MdInfo = match md.into() {
             Some(md) => md,
-            None => return Err(::Error::MdBadInputData),
+            None => return Err(Error::MdBadInputData),
         };
 
         unsafe {
             let olen = md.inner.size as usize;
             if out.len() < olen {
-                return Err(::Error::MdBadInputData);
+                return Err(Error::MdBadInputData);
             }
-            try!(
-                ::mbedtls_sys::md(md.inner, data.as_ptr(), data.len(), out.as_mut_ptr())
-                    .into_result()
-            );
-            Ok(olen)
-        }
-    }
-
-    pub fn hmac(md: Type, key: &[u8], data: &[u8], out: &mut [u8]) -> ::Result<usize> {
-        let md: MdInfo = match md.into() {
-            Some(md) => md,
-            None => return Err(::Error::MdBadInputData),
-        };
-
-        unsafe {
-            let olen = md.inner.size as usize;
-            if out.len() < olen {
-                return Err(::Error::MdBadInputData);
-            }
-            try!(::mbedtls_sys::md_hmac(
+            md_hmac(
                 md.inner,
                 key.as_ptr(),
                 key.len(),
                 data.as_ptr(),
                 data.len(),
                 out.as_mut_ptr()
-            )
-            .into_result());
+            ).into_result()?;
             Ok(olen)
         }
     }
@@ -163,16 +155,16 @@ pub fn pbkdf2_hmac(
     salt: &[u8],
     iterations: u32,
     key: &mut [u8],
-) -> ::Result<()> {
+) -> Result<()> {
     let md: MdInfo = match md.into() {
         Some(md) => md,
-        None => return Err(::Error::MdBadInputData),
+        None => return Err(Error::MdBadInputData),
     };
 
     unsafe {
         let mut ctx = Md::init();
-        try!(md_setup((&mut ctx).into(), md.into(), 1).into_result());
-        try!(pkcs5_pbkdf2_hmac(
+        md_setup((&mut ctx).into(), md.into(), 1).into_result()?;
+        pkcs5_pbkdf2_hmac(
             (&mut ctx).into(),
             password.as_ptr(),
             password.len(),
@@ -182,7 +174,7 @@ pub fn pbkdf2_hmac(
             key.len() as u32,
             key.as_mut_ptr()
         )
-        .into_result());
+        .into_result()?;
         Ok(())
     }
 }
@@ -194,7 +186,7 @@ pub fn pbkdf_pkcs12(
     id: u8,
     iterations: u32,
     key: &mut [u8],
-) -> ::Result<()> {
+) -> Result<()> {
     unsafe {
         pkcs12_derivation(
             key.as_mut_ptr(),

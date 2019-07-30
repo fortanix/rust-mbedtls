@@ -18,7 +18,7 @@ use self::rand::{Rng, XorShiftRng};
 /// Not cryptographically secure!!! Use for testing only!!!
 pub struct TestRandom(XorShiftRng);
 
-impl ::mbedtls::rng::RngCallback for TestRandom {
+impl crate::mbedtls::rng::RngCallback for TestRandom {
     unsafe extern "C" fn call(p_rng: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
         (*(p_rng as *mut TestRandom))
             .0

@@ -55,15 +55,15 @@ impl BuildConfig {
 
         File::create(&self.config_h)
             .and_then(|mut f| {
-                try!(f.write_all(config::PREFIX.as_bytes()));
+                f.write_all(config::PREFIX.as_bytes())?;
                 for (name, def) in defines {
-                    try!(f.write_all(def.define(name).as_bytes()));
+                    f.write_all(def.define(name).as_bytes())?;
                 }
                 if have_feature("custom_printf") {
-                    try!(writeln!(f, "int mbedtls_printf(const char *format, ...);"));
+                    writeln!(f, "int mbedtls_printf(const char *format, ...);")?;
                 }
                 if have_feature("custom_threading") {
-                    try!(writeln!(f, "typedef void* mbedtls_threading_mutex_t;"));
+                    writeln!(f, "typedef void* mbedtls_threading_mutex_t;")?;
                 }
                 f.write_all(config::SUFFIX.as_bytes())
             })

@@ -9,7 +9,7 @@
 use mbedtls_sys::ECDSA_MAX_LEN as MBEDTLS_ECDSA_MAX_LEN;
 use mbedtls_sys::*;
 
-use error::IntoResult;
+use crate::error::{Error, IntoResult, Result};
 
 define!(
     #[c_ty(ecp_group_id)]
@@ -78,9 +78,9 @@ define!(
 );
 
 impl Ecdh {
-    pub fn from_keys(private: &EcpKeypair, public: &EcpKeypair) -> ::Result<Ecdh> {
+    pub fn from_keys(private: &EcpKeypair, public: &EcpKeypair) -> Result<Ecdh> {
         if public.inner.grp.id == ECP_DP_NONE || public.inner.grp.id != private.inner.grp.id {
-            return Err(::Error::EcpBadInputData);
+            return Err(Error::EcpBadInputData);
         }
 
         let mut ret = Self::init();
@@ -92,11 +92,11 @@ impl Ecdh {
         Ok(ret)
     }
 
-    pub fn calc_secret<F: ::rng::Random>(
+    pub fn calc_secret<F: crate::rng::Random>(
         &mut self,
         shared: &mut [u8],
         rng: &mut F,
-    ) -> ::Result<usize> {
+    ) -> Result<usize> {
         let mut olen = 0;
         unsafe {
             ecdh_calc_secret(
@@ -115,7 +115,7 @@ impl Ecdh {
 
 #[cfg(test)]
 mod tests {
-    use pk::Pk;
+    use crate::pk::Pk;
 
     #[test]
     fn p192_dh() {
@@ -142,7 +142,7 @@ hXzA375dfGH6yIsRgRveMo6KDRK/AanSBLUj
         let k_pb = Pk::from_public_key(PUBLIC_P192).unwrap();
         let mut out = [0; 192 / 8];
         let len = k_pr
-            .agree(&k_pb, &mut out, &mut ::test_support::rand::test_rng())
+            .agree(&k_pb, &mut out, &mut crate::test_support::rand::test_rng())
             .unwrap();
         assert_eq!(len, DH_P192.len());
         assert_eq!(out, DH_P192);

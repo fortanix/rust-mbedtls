@@ -8,7 +8,7 @@
 
 use cmake;
 
-use have_feature;
+use crate::have_feature;
 
 impl super::BuildConfig {
     pub fn cmake(&self) {

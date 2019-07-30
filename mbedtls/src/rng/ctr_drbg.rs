@@ -15,7 +15,7 @@ use mbedtls_sys::{
 };
 
 use super::{EntropyCallback, RngCallback};
-use error::IntoResult;
+use crate::error::{IntoResult, Result};
 
 // ==== BEGIN IMMOVABLE TYPE KLUDGE ====
 // `ctr_drbg_context` inlines an `aes_context`, which is immovable. See
@@ -109,10 +109,10 @@ impl<'entropy> CtrDrbg<'entropy> {
     pub fn new<F: EntropyCallback>(
         source: &'entropy mut F,
         additional_entropy: Option<&[u8]>,
-    ) -> ::Result<CtrDrbg<'entropy>> {
+    ) -> Result<CtrDrbg<'entropy>> {
         let mut ret = Self::init();
         unsafe {
-            try!(ctr_drbg_seed(
+            ctr_drbg_seed(
                 &mut ret.inner,
                 Some(F::call),
                 source.data_ptr(),
@@ -121,7 +121,7 @@ impl<'entropy> CtrDrbg<'entropy> {
                     .unwrap_or(::core::ptr::null()),
                 additional_entropy.map(<[_]>::len).unwrap_or(0)
             )
-            .into_result())
+            .into_result()?
         };
         Ok(ret)
     }
@@ -148,16 +148,16 @@ impl<'entropy> CtrDrbg<'entropy> {
     getter!(reseed_interval() -> c_int = .reseed_interval);
     setter!(set_reseed_interval(i: c_int) = ctr_drbg_set_reseed_interval);
 
-    pub fn reseed(&mut self, additional_entropy: Option<&[u8]>) -> ::Result<()> {
+    pub fn reseed(&mut self, additional_entropy: Option<&[u8]>) -> Result<()> {
         unsafe {
-            try!(ctr_drbg_reseed(
+            ctr_drbg_reseed(
                 &mut self.inner,
                 additional_entropy
                     .map(<[_]>::as_ptr)
                     .unwrap_or(::core::ptr::null()),
                 additional_entropy.map(<[_]>::len).unwrap_or(0)
             )
-            .into_result())
+            .into_result()?
         };
         Ok(())
     }

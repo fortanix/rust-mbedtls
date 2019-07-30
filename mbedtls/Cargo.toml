@@ -3,6 +3,7 @@ name = "mbedtls"
 version = "0.4.0"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
+edition = "2018"
 license = "Apache-2.0/GPL-2.0+"
 description = """
 Idiomatic Rust wrapper for MbedTLS, allowing you to use MbedTLS with only safe
