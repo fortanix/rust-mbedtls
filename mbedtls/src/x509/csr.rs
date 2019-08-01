@@ -9,11 +9,15 @@
 use core::fmt;
 
 #[cfg(not(feature = "std"))]
-use alloc_prelude::*;
+use crate::alloc_prelude::*;
 
 use mbedtls_sys::*;
 
-use error::IntoResult;
+use crate::private::{alloc_string_repeat, alloc_vec_repeat};
+use crate::error::{Error, IntoResult, Result};
+use crate::pk::Pk;
+use crate::hash::Type as MdType;
+use crate::rng::Random;
 
 define!(
     #[c_ty(x509_csr)]
@@ -24,32 +28,32 @@ define!(
 );
 
 impl Csr {
-    pub fn from_der(der: &[u8]) -> ::Result<Csr> {
+    pub fn from_der(der: &[u8]) -> Result<Csr> {
         let mut ret = Self::init();
-        unsafe { try!(x509_csr_parse_der(&mut ret.inner, der.as_ptr(), der.len()).into_result()) };
+        unsafe { x509_csr_parse_der(&mut ret.inner, der.as_ptr(), der.len()) }.into_result()?;
         Ok(ret)
     }
 
-    pub fn from_pem(pem: &[u8]) -> ::Result<Csr> {
+    pub fn from_pem(pem: &[u8]) -> Result<Csr> {
         let mut ret = Self::init();
-        unsafe { try!(x509_csr_parse(&mut ret.inner, pem.as_ptr(), pem.len()).into_result()) };
+        unsafe { x509_csr_parse(&mut ret.inner, pem.as_ptr(), pem.len()) }.into_result()?;
         Ok(ret)
     }
 
-    pub fn subject(&self) -> ::Result<String> {
-        ::private::alloc_string_repeat(|buf, size| unsafe {
+    pub fn subject(&self) -> Result<String> {
+        alloc_string_repeat(|buf, size| unsafe {
             x509_dn_gets(buf, size, &self.inner.subject)
         })
     }
 
-    pub fn subject_raw(&self) -> ::Result<Vec<u8>> {
-        ::private::alloc_vec_repeat(
+    pub fn subject_raw(&self) -> Result<Vec<u8>> {
+        alloc_vec_repeat(
             |buf, size| unsafe { x509_dn_gets(buf as _, size, &self.inner.subject) },
             false,
         )
     }
 
-    pub fn public_key(&self) -> &::pk::Pk {
+    pub fn public_key(&self) -> &Pk {
         unsafe { &*(&self.inner.pk as *const _ as *const _) }
     }
 
@@ -60,7 +64,7 @@ impl Csr {
 
 impl fmt::Debug for Csr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match ::private::alloc_string_repeat(|buf, size| unsafe {
+        match alloc_string_repeat(|buf, size| unsafe {
             x509_csr_info(buf, size, b"\0".as_ptr() as *const _, &self.inner)
         }) {
             Err(_) => Err(fmt::Error),
@@ -77,72 +81,66 @@ define!(
 );
 
 impl<'a> Builder<'a> {
-    unsafe fn subject_with_nul_unchecked(&mut self, subject: &[u8]) -> ::Result<&mut Self> {
-        try!(
-            x509write_csr_set_subject_name(&mut self.inner, subject.as_ptr() as *const _)
-                .into_result()
-        );
+    unsafe fn subject_with_nul_unchecked(&mut self, subject: &[u8]) -> Result<&mut Self> {
+        x509write_csr_set_subject_name(&mut self.inner, subject.as_ptr() as *const _).into_result()?;
         Ok(self)
     }
 
     #[cfg(feature = "std")]
-    pub fn subject(&mut self, subject: &str) -> ::Result<&mut Self> {
+    pub fn subject(&mut self, subject: &str) -> Result<&mut Self> {
         match ::std::ffi::CString::new(subject) {
-            Err(_) => Err(::Error::X509InvalidName),
+            Err(_) => Err(Error::X509InvalidName),
             Ok(s) => unsafe { self.subject_with_nul_unchecked(s.as_bytes_with_nul()) },
         }
     }
 
-    pub fn subject_with_nul(&mut self, subject: &str) -> ::Result<&mut Self> {
+    pub fn subject_with_nul(&mut self, subject: &str) -> Result<&mut Self> {
         if subject.as_bytes().iter().any(|&c| c == 0) {
             unsafe { self.subject_with_nul_unchecked(subject.as_bytes()) }
         } else {
-            Err(::Error::X509InvalidName)
+            Err(Error::X509InvalidName)
         }
     }
 
-    pub fn key(&mut self, key: &'a mut ::pk::Pk) -> &mut Self {
+    pub fn key(&mut self, key: &'a mut Pk) -> &mut Self {
         unsafe { x509write_csr_set_key(&mut self.inner, key.into()) };
         self
     }
 
-    pub fn signature_hash(&mut self, md: ::hash::Type) -> &mut Self {
+    pub fn signature_hash(&mut self, md: MdType) -> &mut Self {
         unsafe { x509write_csr_set_md_alg(&mut self.inner, md.into()) };
         self
     }
 
-    pub fn key_usage(&mut self, usage: ::x509::KeyUsage) -> ::Result<&mut Self> {
+    pub fn key_usage(&mut self, usage: crate::x509::KeyUsage) -> Result<&mut Self> {
         let usage = usage.bits();
         if (usage & !0xfe) != 0 {
             // according to x509write_**crt**_set_key_usage
-            return Err(::Error::X509FeatureUnavailable);
+            return Err(Error::X509FeatureUnavailable);
         }
 
-        unsafe {
-            try!(x509write_csr_set_key_usage(&mut self.inner, (usage & 0xfe) as u8).into_result())
-        };
+        unsafe { x509write_csr_set_key_usage(&mut self.inner, (usage & 0xfe) as u8) }.into_result()?;
         Ok(self)
     }
 
-    pub fn extension(&mut self, oid: &[u8], val: &[u8]) -> ::Result<&mut Self> {
+    pub fn extension(&mut self, oid: &[u8], val: &[u8]) -> Result<&mut Self> {
         unsafe {
-            try!(x509write_csr_set_extension(
+            x509write_csr_set_extension(
                 &mut self.inner,
                 oid.as_ptr() as *const _,
                 oid.len(),
                 val.as_ptr(),
                 val.len()
             )
-            .into_result())
-        };
+        }.into_result()?;
         Ok(self)
     }
 
-    pub fn write_der<'buf, F: ::rng::Random>(
+    pub fn write_der<'buf, F: Random>(
         &mut self,
         buf: &'buf mut [u8],
         rng: &mut F,
-    ) -> ::Result<Option<&'buf [u8]>> {
+    ) -> Result<Option<&'buf [u8]>> {
         match unsafe {
             x509write_csr_der(
                 &mut self.inner,
@@ -153,14 +151,14 @@ impl<'a> Builder<'a> {
             )
             .into_result()
         } {
-            Err(::Error::Asn1BufTooSmall) => Ok(None),
+            Err(Error::Asn1BufTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
     }
 
-    pub fn write_der_vec<F: ::rng::Random>(&mut self, rng: &mut F) -> ::Result<Vec<u8>> {
-        ::private::alloc_vec_repeat(
+    pub fn write_der_vec<F: Random>(&mut self, rng: &mut F) -> Result<Vec<u8>> {
+        alloc_vec_repeat(
             |buf, size| unsafe {
                 x509write_csr_der(&mut self.inner, buf, size, Some(F::call), rng.data_ptr())
             },
@@ -168,11 +166,11 @@ impl<'a> Builder<'a> {
         )
     }
 
-    pub fn write_pem<'buf, F: ::rng::Random>(
+    pub fn write_pem<'buf, F: Random>(
         &mut self,
         buf: &'buf mut [u8],
         rng: &mut F,
-    ) -> ::Result<Option<&'buf [u8]>> {
+    ) -> Result<Option<&'buf [u8]>> {
         match unsafe {
             x509write_csr_der(
                 &mut self.inner,
@@ -183,14 +181,14 @@ impl<'a> Builder<'a> {
             )
             .into_result()
         } {
-            Err(::Error::Base64BufferTooSmall) => Ok(None),
+            Err(Error::Base64BufferTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
     }
 
-    pub fn write_pem_string<F: ::rng::Random>(&mut self, rng: &mut F) -> ::Result<String> {
-        ::private::alloc_string_repeat(|buf, size| unsafe {
+    pub fn write_pem_string<F: Random>(&mut self, rng: &mut F) -> Result<String> {
+        alloc_string_repeat(|buf, size| unsafe {
             match x509write_csr_pem(
                 &mut self.inner,
                 buf as _,
@@ -198,7 +196,7 @@ impl<'a> Builder<'a> {
                 Some(F::call),
                 rng.data_ptr(),
             ) {
-                0 => ::private::cstr_to_slice(buf as _).len() as _,
+                0 => crate::private::cstr_to_slice(buf as _).len() as _,
                 r => r,
             }
         })
@@ -212,7 +210,6 @@ impl<'a> Builder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pk::Pk;
 
     struct Test {
         key: Pk,
@@ -221,7 +218,7 @@ mod tests {
     impl Test {
         fn new() -> Self {
             Test {
-                key: Pk::from_private_key(::test_support::keys::PEM_KEY, None).unwrap(),
+                key: Pk::from_private_key(crate::test_support::keys::PEM_KEY, None).unwrap(),
             }
         }
 
@@ -299,8 +296,8 @@ S8qlfwzPdie+Prd73sTapfFAUYei0t274xW/b0eWeo20QzI=
         let mut t = Test::new();
         let output = t
             .builder()
-            .signature_hash(::hash::Type::Sha256)
-            .write_der_vec(&mut ::test_support::rand::test_rng())
+            .signature_hash(MdType::Sha256)
+            .write_der_vec(&mut crate::test_support::rand::test_rng())
             .unwrap();
         assert!(output == TEST_DER);
     }
@@ -310,8 +307,8 @@ S8qlfwzPdie+Prd73sTapfFAUYei0t274xW/b0eWeo20QzI=
         let mut t = Test::new();
         let output = t
             .builder()
-            .signature_hash(::hash::Type::Sha256)
-            .write_pem_string(&mut ::test_support::rand::test_rng())
+            .signature_hash(MdType::Sha256)
+            .write_pem_string(&mut crate::test_support::rand::test_rng())
             .unwrap();
         assert_eq!(output, TEST_PEM);
     }

@@ -10,7 +10,7 @@ use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 use mbedtls_sys::*;
 
-use error::IntoResult;
+use crate::error::{IntoResult, Result};
 
 callback!(EntropySourceCallback(data: *mut c_uchar, size: size_t, out: *mut size_t) -> c_int);
 
@@ -30,9 +30,9 @@ impl<'source> OsEntropy<'source> {
         source: &'source mut F,
         threshold: size_t,
         strong: bool,
-    ) -> ::Result<()> {
+    ) -> Result<()> {
         unsafe {
-            try!(entropy_add_source(
+            entropy_add_source(
                 &mut self.inner,
                 Some(F::call),
                 source.data_ptr(),
@@ -43,20 +43,18 @@ impl<'source> OsEntropy<'source> {
                     ENTROPY_SOURCE_WEAK
                 }
             )
-            .into_result())
+            .into_result()?
         };
         Ok(())
     }
 
-    pub fn gather(&mut self) -> ::Result<()> {
-        unsafe { try!(entropy_gather(&mut self.inner).into_result()) };
+    pub fn gather(&mut self) -> Result<()> {
+        unsafe { entropy_gather(&mut self.inner) }.into_result()?;
         Ok(())
     }
 
-    pub fn update_manual(&mut self, data: &[u8]) -> ::Result<()> {
-        unsafe {
-            try!(entropy_update_manual(&mut self.inner, data.as_ptr(), data.len()).into_result())
-        };
+    pub fn update_manual(&mut self, data: &[u8]) -> Result<()> {
+        unsafe { entropy_update_manual(&mut self.inner, data.as_ptr(), data.len()) }.into_result()?;
         Ok(())
     }
 

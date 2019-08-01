@@ -7,13 +7,13 @@
  * according to those terms. */
 
 #[cfg(all(feature = "std", not(feature = "rdrand")))]
-pub fn entropy_new<'a>() -> ::mbedtls::rng::OsEntropy<'a> {
-    ::mbedtls::rng::OsEntropy::new()
+pub fn entropy_new<'a>() -> crate::mbedtls::rng::OsEntropy<'a> {
+    crate::mbedtls::rng::OsEntropy::new()
 }
 
 #[cfg(feature = "rdrand")]
-pub fn entropy_new() -> ::mbedtls::rng::Rdseed {
-    ::mbedtls::rng::Rdseed
+pub fn entropy_new() -> crate::mbedtls::rng::Rdseed {
+    crate::mbedtls::rng::Rdseed
 }
 
 #[cfg(all(not(feature = "std"), not(feature = "rdrand")))]

@@ -10,7 +10,7 @@ use core::fmt;
 
 use mbedtls_sys::*;
 
-use error::IntoResult;
+use crate::error::{IntoResult, Result};
 
 define!(
     #[c_ty(x509_crl)]
@@ -22,7 +22,7 @@ define!(
 );
 
 impl Crl {
-    pub fn push_from_der(&mut self, der: &[u8]) -> ::Result<()> {
+    pub fn push_from_der(&mut self, der: &[u8]) -> Result<()> {
         unsafe {
             x509_crl_parse_der(&mut self.inner, der.as_ptr(), der.len())
                 .into_result()
@@ -30,7 +30,7 @@ impl Crl {
         }
     }
 
-    pub fn push_from_pem(&mut self, pem: &[u8]) -> ::Result<()> {
+    pub fn push_from_pem(&mut self, pem: &[u8]) -> Result<()> {
         unsafe {
             x509_crl_parse(&mut self.inner, pem.as_ptr(), pem.len())
                 .into_result()
@@ -41,7 +41,7 @@ impl Crl {
 
 impl fmt::Debug for Crl {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match ::private::alloc_string_repeat(|buf, size| unsafe {
+        match crate::private::alloc_string_repeat(|buf, size| unsafe {
             x509_crl_info(buf, size, b"\0".as_ptr() as *const _, &self.inner)
         }) {
             Err(_) => Err(fmt::Error),

@@ -10,6 +10,8 @@ use core::marker::PhantomData;
 use core::ops::Range;
 pub mod raw;
 
+use crate::error::Result;
+
 // Type-level operations
 pub trait Operation: Sized {
     fn is_encrypt() -> bool;
@@ -129,11 +131,11 @@ impl<O: Operation, T: Type> Cipher<O, T, Fresh> {
         cipher_id: raw::CipherId,
         cipher_mode: raw::CipherMode,
         key_bit_len: u32,
-    ) -> ::Result<Cipher<O, T, Fresh>> {
+    ) -> Result<Cipher<O, T, Fresh>> {
         assert!(T::is_valid_mode(cipher_mode));
 
         // Create raw cipher object
-        let raw_cipher = try!(raw::Cipher::setup(cipher_id, cipher_mode, key_bit_len));
+        let raw_cipher = raw::Cipher::setup(cipher_id, cipher_mode, key_bit_len)?;
 
         // Put together the structure to return
         Ok(Cipher {
@@ -145,13 +147,13 @@ impl<O: Operation, T: Type> Cipher<O, T, Fresh> {
         })
     }
 
-    pub fn set_parity(key: &mut [u8]) -> ::Result<()> {
+    pub fn set_parity(key: &mut [u8]) -> Result<()> {
         raw::Cipher::set_parity(key)
     }
 }
 
 impl<Op: Operation, T: Type> Cipher<Op, T, Fresh> {
-    fn set_key_and_maybe_iv(&mut self, key: &[u8], iv: Option<&[u8]>) -> ::Result<()> {
+    fn set_key_and_maybe_iv(&mut self, key: &[u8], iv: Option<&[u8]>) -> Result<()> {
         let cipher_op = if Op::is_encrypt() {
             raw::Operation::Encrypt
         } else {
@@ -170,14 +172,14 @@ impl<Op: Operation, T: Type> Cipher<Op, T, Fresh> {
         self.raw_cipher.reset()
     }
 
-    pub fn set_padding(&mut self, padding: raw::CipherPadding) -> ::Result<()> {
+    pub fn set_padding(&mut self, padding: raw::CipherPadding) -> Result<()> {
         self.padding = padding;
         self.raw_cipher.set_padding(padding)
     }
 }
 
 impl<O: Operation> Cipher<O, TraditionalNoIv, Fresh> {
-    pub fn set_key(mut self, key: &[u8]) -> ::Result<Cipher<O, Traditional, CipherData>> {
+    pub fn set_key(mut self, key: &[u8]) -> Result<Cipher<O, Traditional, CipherData>> {
         self.set_key_and_maybe_iv(key, None)?;
 
         // Put together the structure to return
@@ -190,7 +192,7 @@ impl<O: Operation> Cipher<O, Traditional, Fresh> {
         mut self,
         key: &[u8],
         iv: &[u8],
-    ) -> ::Result<Cipher<O, Traditional, CipherData>> {
+    ) -> Result<Cipher<O, Traditional, CipherData>> {
         self.set_key_and_maybe_iv(key, Some(iv))?;
 
         // Put together the structure to return
@@ -203,7 +205,7 @@ impl<O: Operation> Cipher<O, Authenticated, Fresh> {
         mut self,
         key: &[u8],
         iv: &[u8],
-    ) -> ::Result<Cipher<O, Authenticated, AdditionalData>> {
+    ) -> Result<Cipher<O, Authenticated, AdditionalData>> {
         self.set_key_and_maybe_iv(key, Some(iv))?;
 
         // Put together the structure to return
@@ -216,9 +218,9 @@ impl Cipher<Encryption, Traditional, CipherData> {
         mut self,
         plain_text: &[u8],
         cipher_text: &mut [u8],
-    ) -> ::Result<(usize, Cipher<Encryption, Traditional, Finished>)> {
+    ) -> Result<(usize, Cipher<Encryption, Traditional, Finished>)> {
         // Call the wrapper function to encrypt all
-        let len = try!(self.raw_cipher.encrypt(plain_text, cipher_text));
+        let len = self.raw_cipher.encrypt(plain_text, cipher_text)?;
 
         // Put together the structure to return
         Ok((len, self.change_state()))
@@ -230,9 +232,9 @@ impl Cipher<Decryption, Traditional, CipherData> {
         mut self,
         cipher_text: &[u8],
         plain_text: &mut [u8],
-    ) -> ::Result<(usize, Cipher<Decryption, Traditional, Finished>)> {
+    ) -> Result<(usize, Cipher<Decryption, Traditional, Finished>)> {
         // Call the wrapper function to decrypt all
-        let len = try!(self.raw_cipher.decrypt(cipher_text, plain_text));
+        let len = self.raw_cipher.decrypt(cipher_text, plain_text)?;
 
         // Put together the structure to return
         Ok((len, self.change_state()))
@@ -244,7 +246,7 @@ impl Cipher<Encryption, TraditionalNoIv, Fresh> {
                 key: &[u8],
                 in_data: &[u8],
                 out_data: &mut [u8])
-                -> ::Result<Cipher<Encryption, TraditionalNoIv, Finished>> {
+                -> Result<Cipher<Encryption, TraditionalNoIv, Finished>> {
         self.raw_cipher.cmac(key, in_data, out_data)?;
         Ok(self.change_state())
     }
@@ -257,7 +259,7 @@ impl Cipher<Encryption, Authenticated, AdditionalData> {
         plain_text: &[u8],
         cipher_text: &mut [u8],
         tag: &mut [u8],
-    ) -> ::Result<(usize, Cipher<Encryption, Authenticated, Finished>)> {
+    ) -> Result<(usize, Cipher<Encryption, Authenticated, Finished>)> {
         Ok((
             self.raw_cipher
                 .encrypt_auth(ad, plain_text, cipher_text, tag)?,
@@ -273,7 +275,7 @@ impl Cipher<Decryption, Authenticated, AdditionalData> {
         cipher_text: &[u8],
         plain_text: &mut [u8],
         tag: &[u8],
-    ) -> ::Result<(usize, Cipher<Decryption, Authenticated, Finished>)> {
+    ) -> Result<(usize, Cipher<Decryption, Authenticated, Finished>)> {
         Ok((
             self.raw_cipher
                 .decrypt_auth(ad, cipher_text, plain_text, tag)?,
@@ -287,17 +289,17 @@ impl<O: Operation, T: Type> Cipher<O, T, CipherData> {
         mut self,
         in_data: &[u8],
         out_data: &mut [u8],
-    ) -> ::Result<(usize, Cipher<O, T, CipherData>)> {
+    ) -> Result<(usize, Cipher<O, T, CipherData>)> {
         // Call the wrapper function to do update operation (multi part)
-        let len = try!(self.raw_cipher.update(in_data, out_data));
+        let len = self.raw_cipher.update(in_data, out_data)?;
 
         // Put together the structure to return
         Ok((len, self.change_state()))
     }
 
-    pub fn finish(mut self, out_data: &mut [u8]) -> ::Result<(usize, Cipher<O, T, Finished>)> {
+    pub fn finish(mut self, out_data: &mut [u8]) -> Result<(usize, Cipher<O, T, Finished>)> {
         // Call the wrapper function to finish operation (multi part)
-        let len = try!(self.raw_cipher.finish(out_data));
+        let len = self.raw_cipher.finish(out_data)?;
 
         // Put together the structure to return
         Ok((len, self.change_state()))

@@ -7,7 +7,7 @@
  * according to those terms. */
 
 #[cfg(not(feature = "std"))]
-use alloc_prelude::*;
+use crate::alloc_prelude::*;
 
 #[cfg(feature = "spin_threading")]
 extern crate spin;

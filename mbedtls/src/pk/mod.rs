@@ -7,15 +7,17 @@
  * according to those terms. */
 
 #[cfg(not(feature = "std"))]
-use alloc_prelude::*;
+use crate::alloc_prelude::*;
 use mbedtls_sys::*;
 
 use mbedtls_sys::types::raw_types::c_void;
 
 use core::ptr;
 use core::convert::TryInto;
-use error::IntoResult;
-use private::UnsafeFrom;
+use crate::error::{Error, IntoResult, Result};
+use crate::private::UnsafeFrom;
+use crate::rng::Random;
+use crate::hash::Type as MdType;
 
 use byteorder::{BigEndian, ByteOrder};
 
@@ -24,14 +26,14 @@ mod ec;
 mod rfc6979;
 
 use self::rfc6979::Rfc6979Rng;
-use bignum::Mpi;
-use ecp::EcPoint;
+use crate::bignum::Mpi;
+use crate::ecp::EcPoint;
 
 #[doc(inline)]
 pub use self::ec::{EcGroupId, ECDSA_MAX_LEN};
 
 #[doc(inline)]
-pub use ecp::EcGroup;
+pub use crate::ecp::EcGroup;
 
 // SHA-256("Fortanix")[:4]
 const CUSTOM_PK_TYPE: pk_type_t = 0x8b205408 as pk_type_t;
@@ -73,7 +75,7 @@ pub enum RsaPadding {
     /// Use OAEP for encryption, or PSS for signing.
     Pkcs1V21 {
         /// The Mask Generating Function (MGF) to use.
-        mgf: ::hash::Type,
+        mgf: MdType,
     },
 }
 
@@ -141,7 +143,7 @@ impl Pk {
     /// Takes both DER and PEM forms of PKCS#1 or PKCS#8 encoded keys.
     ///
     /// When calling on PEM-encoded data, `key` must be NULL-terminated
-    pub fn from_private_key(key: &[u8], password: Option<&[u8]>) -> ::Result<Pk> {
+    pub fn from_private_key(key: &[u8], password: Option<&[u8]>) -> Result<Pk> {
         let mut ret = Self::init();
         unsafe {
             pk_parse_key(
@@ -159,13 +161,13 @@ impl Pk {
     /// Takes both DER and PEM encoded SubjectPublicKeyInfo keys.
     ///
     /// When calling on PEM-encoded data, `key` must be NULL-terminated
-    pub fn from_public_key(key: &[u8]) -> ::Result<Pk> {
+    pub fn from_public_key(key: &[u8]) -> Result<Pk> {
         let mut ret = Self::init();
         unsafe { pk_parse_public_key(&mut ret.inner, key.as_ptr(), key.len()).into_result()? };
         Ok(ret)
     }
 
-    pub fn generate_rsa<F: ::rng::Random>(rng: &mut F, bits: u32, exponent: u32) -> ::Result<Pk> {
+    pub fn generate_rsa<F: Random>(rng: &mut F, bits: u32, exponent: u32) -> Result<Pk> {
         let mut ret = Self::init();
         unsafe {
             pk_setup(&mut ret.inner, pk_info_from_type(Type::Rsa.into())).into_result()?;
@@ -181,7 +183,7 @@ impl Pk {
         Ok(ret)
     }
 
-    pub fn generate_ec<F: ::rng::Random, C: TryInto<EcGroup, Error = impl Into<::Error>>>(rng: &mut F, curve: C) -> ::Result<Pk> {
+    pub fn generate_ec<F: Random, C: TryInto<EcGroup, Error = impl Into<Error>>>(rng: &mut F, curve: C) -> Result<Pk> {
         let mut ret = Self::init();
         unsafe {
             let curve : EcGroup = curve.try_into().map_err(|e| e.into())?;
@@ -200,7 +202,7 @@ impl Pk {
         Ok(ret)
     }
 
-    pub fn private_from_ec_components(mut curve: EcGroup, private_key: Mpi) -> ::Result<Pk> {
+    pub fn private_from_ec_components(mut curve: EcGroup, private_key: Mpi) -> Result<Pk> {
         let mut ret = Self::init();
         let curve_generator = curve.generator()?;
         let public_point = curve_generator.mul(&mut curve, &private_key)?;
@@ -214,7 +216,7 @@ impl Pk {
         Ok(ret)
     }
 
-    pub fn public_from_ec_components(curve: EcGroup, public_point: EcPoint) -> ::Result<Pk> {
+    pub fn public_from_ec_components(curve: EcGroup, public_point: EcPoint) -> Result<Pk> {
         let mut ret = Self::init();
         unsafe {
             pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result()?;
@@ -225,7 +227,7 @@ impl Pk {
         Ok(ret)
     }
 
-    pub fn public_custom_algo(algo_id: &[u64], pk: &[u8]) -> ::Result<Pk> {
+    pub fn public_custom_algo(algo_id: &[u64], pk: &[u8]) -> Result<Pk> {
         let mut ret = Self::init();
         unsafe {
             pk_setup(&mut ret.inner, &CUSTOM_PK_INFO).into_result()?;
@@ -236,7 +238,7 @@ impl Pk {
         Ok(ret)
     }
 
-    pub fn private_custom_algo(algo_id: &[u64], pk: &[u8], sk: &[u8]) -> ::Result<Pk> {
+    pub fn private_custom_algo(algo_id: &[u64], pk: &[u8], sk: &[u8]) -> Result<Pk> {
         let mut ret = Self::init();
         unsafe {
             pk_setup(&mut ret.inner, &CUSTOM_PK_INFO).into_result()?;
@@ -248,9 +250,9 @@ impl Pk {
         Ok(ret)
     }
 
-    pub fn custom_algo_id(&self) -> ::Result<&[u64]> {
+    pub fn custom_algo_id(&self) -> Result<&[u64]> {
         if self.pk_type() != Type::Custom {
-            return Err(::Error::PkInvalidAlg);
+            return Err(Error::PkInvalidAlg);
         }
 
         unsafe {
@@ -259,24 +261,24 @@ impl Pk {
         }
     }
 
-    pub fn custom_public_key(&self) -> ::Result<&[u8]> {
+    pub fn custom_public_key(&self) -> Result<&[u8]> {
         if self.pk_type() != Type::Custom {
-            return Err(::Error::PkInvalidAlg);
+            return Err(Error::PkInvalidAlg);
         }
 
         let ctx = self.inner.pk_ctx as *const CustomPkContext;
         unsafe { Ok(&(*ctx).pk) }
     }
 
-    pub fn custom_private_key(&self) -> ::Result<&[u8]> {
+    pub fn custom_private_key(&self) -> Result<&[u8]> {
         if self.pk_type() != Type::Custom {
-            return Err(::Error::PkInvalidAlg);
+            return Err(Error::PkInvalidAlg);
         }
 
         let ctx = self.inner.pk_ctx as *const CustomPkContext;
         unsafe {
             if (*ctx).sk.len() == 0 {
-                return Err(::Error::PkTypeMismatch);
+                return Err(Error::PkTypeMismatch);
             }
             Ok(&(*ctx).sk)
         }
@@ -317,16 +319,16 @@ impl Pk {
     getter!(len() -> usize = fn pk_get_bitlen);
     getter!(pk_type() -> Type = fn pk_get_type);
 
-    pub fn curve(&self) -> ::Result<EcGroupId> {
+    pub fn curve(&self) -> Result<EcGroupId> {
         match self.pk_type() {
             Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
-            _ => return Err(::Error::PkTypeMismatch),
+            _ => return Err(Error::PkTypeMismatch),
         }
 
         unsafe { Ok((*(self.inner.pk_ctx as *const ecp_keypair)).grp.id.into()) }
     }
 
-    pub fn curve_oid(&self) -> ::Result<Vec<u64>> {
+    pub fn curve_oid(&self) -> Result<Vec<u64>> {
         match self.curve()? {
             EcGroupId::Bp256R1 => Ok(vec![1, 3, 36, 3, 3, 2, 8, 1, 1, 7]),
             EcGroupId::Bp384R1 => Ok(vec![1, 3, 36, 3, 3, 2, 8, 1, 1, 11]),
@@ -339,14 +341,14 @@ impl Pk {
             EcGroupId::SecP256R1 => Ok(vec![1, 2, 840, 10045, 3, 1, 7]),
             EcGroupId::SecP384R1 => Ok(vec![1, 3, 132, 0, 34]),
             EcGroupId::SecP521R1 => Ok(vec![1, 3, 132, 0, 35]),
-            _ => Err(::Error::OidNotFound),
+            _ => Err(Error::OidNotFound),
         }
     }
 
-    pub fn ec_group(&self) -> ::Result<EcGroup> {
+    pub fn ec_group(&self) -> Result<EcGroup> {
         match self.pk_type() {
             Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
-            _ => return Err(::Error::PkTypeMismatch),
+            _ => return Err(Error::PkTypeMismatch),
         }
 
         match self.curve()? {
@@ -368,30 +370,30 @@ impl Pk {
         }
     }
 
-    pub fn ec_public(&self) -> ::Result<EcPoint> {
+    pub fn ec_public(&self) -> Result<EcPoint> {
         match self.pk_type() {
             Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
-            _ => return Err(::Error::PkTypeMismatch),
+            _ => return Err(Error::PkTypeMismatch),
         }
 
         let q = &unsafe { (*(self.inner.pk_ctx as *const ecp_keypair)).Q };
         EcPoint::copy(q)
     }
 
-    pub fn ec_private(&self) -> ::Result<Mpi> {
+    pub fn ec_private(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
-            _ => return Err(::Error::PkTypeMismatch),
+            _ => return Err(Error::PkTypeMismatch),
         }
 
         let d = &unsafe { (*(self.inner.pk_ctx as *const ecp_keypair)).d };
         Mpi::copy(d)
     }
 
-    pub fn rsa_public_modulus(&self) -> ::Result<Mpi> {
+    pub fn rsa_public_modulus(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(::Error::PkTypeMismatch),
+            _ => return Err(Error::PkTypeMismatch),
         }
 
         let mut n = Mpi::new(0)?;
@@ -411,10 +413,10 @@ impl Pk {
         Ok(n)
     }
 
-    pub fn rsa_private_prime1(&self) -> ::Result<Mpi> {
+    pub fn rsa_private_prime1(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(::Error::PkTypeMismatch),
+            _ => return Err(Error::PkTypeMismatch),
         }
 
         let mut p = Mpi::new(0)?;
@@ -434,10 +436,10 @@ impl Pk {
         Ok(p)
     }
 
-    pub fn rsa_private_prime2(&self) -> ::Result<Mpi> {
+    pub fn rsa_private_prime2(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(::Error::PkTypeMismatch),
+            _ => return Err(Error::PkTypeMismatch),
         }
 
         let mut q = Mpi::new(0)?;
@@ -457,10 +459,10 @@ impl Pk {
         Ok(q)
     }
 
-    pub fn rsa_public_exponent(&self) -> ::Result<u32> {
+    pub fn rsa_public_exponent(&self) -> Result<u32> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(::Error::PkTypeMismatch),
+            _ => return Err(Error::PkTypeMismatch),
         }
 
         let mut e: [u8; 4] = [0, 0, 0, 0];
@@ -483,17 +485,17 @@ impl Pk {
         Ok(BigEndian::read_u32(&e))
     }
 
-    pub fn name(&self) -> ::Result<&str> {
-        let s = unsafe { ::private::cstr_to_slice(pk_get_name(&self.inner)) };
+    pub fn name(&self) -> Result<&str> {
+        let s = unsafe { crate::private::cstr_to_slice(pk_get_name(&self.inner)) };
         Ok(::core::str::from_utf8(s)?)
     }
 
-    pub fn decrypt<F: ::rng::Random>(
+    pub fn decrypt<F: Random>(
         &mut self,
         cipher: &[u8],
         plain: &mut [u8],
         rng: &mut F,
-    ) -> ::Result<usize> {
+    ) -> Result<usize> {
         let mut ret;
         unsafe {
             ret = ::core::mem::uninitialized();
@@ -512,12 +514,12 @@ impl Pk {
         Ok(ret)
     }
 
-    pub fn encrypt<F: ::rng::Random>(
+    pub fn encrypt<F: Random>(
         &mut self,
         plain: &[u8],
         cipher: &mut [u8],
         rng: &mut F,
-    ) -> ::Result<usize> {
+    ) -> Result<usize> {
         let mut ret;
         unsafe {
             ret = ::core::mem::uninitialized();
@@ -546,26 +548,26 @@ impl Pk {
     /// otherwise `sign()` fails with `Error::PkSigLenMismatch`.
     ///
     /// On success, returns the actual number of bytes written to `sig`.
-    pub fn sign<F: ::rng::Random>(
+    pub fn sign<F: Random>(
         &mut self,
-        md: ::hash::Type,
+        md: MdType,
         hash: &[u8],
         sig: &mut [u8],
         rng: &mut F,
-    ) -> ::Result<usize> {
+    ) -> Result<usize> {
         let mut ret;
         match self.pk_type() {
             Type::Rsa | Type::RsaAlt | Type::RsassaPss => {
                 if sig.len() < (self.len() / 8) {
-                    return Err(::Error::PkSigLenMismatch);
+                    return Err(Error::PkSigLenMismatch);
                 }
             }
             Type::Eckey | Type::Ecdsa => {
                 if sig.len() < ECDSA_MAX_LEN {
-                    return Err(::Error::PkSigLenMismatch);
+                    return Err(Error::PkSigLenMismatch);
                 }
             }
-            _ => return Err(::Error::PkSigLenMismatch),
+            _ => return Err(Error::PkSigLenMismatch),
         }
         unsafe {
             ret = ::core::mem::uninitialized();
@@ -584,19 +586,19 @@ impl Pk {
         Ok(ret)
     }
 
-    pub fn sign_deterministic<F: ::rng::Random>(
+    pub fn sign_deterministic<F: Random>(
         &mut self,
-        md: ::hash::Type,
+        md: MdType,
         hash: &[u8],
         sig: &mut [u8],
         rng: &mut F,
-    ) -> ::Result<usize> {
-        use rng::RngCallback;
+    ) -> Result<usize> {
+        use crate::rng::RngCallback;
 
         if self.pk_type() == Type::Ecdsa || self.pk_type() == Type::Eckey {
             // RFC 6979 signature scheme
 
-            let q = ::ecp::EcGroup::new(self.curve()?)?.order()?;
+            let q = EcGroup::new(self.curve()?)?.order()?;
             let x = self.ec_private()?;
 
             let mut random_seed = [0u8; 64];
@@ -623,18 +625,18 @@ impl Pk {
         } else if self.pk_type() == Type::Rsa {
             // Reject sign_deterministic being use for PSS
             if unsafe { (*(self.inner.pk_ctx as *mut rsa_context)).padding } != RSA_PKCS_V15 {
-                return Err(::Error::PkInvalidAlg);
+                return Err(Error::PkInvalidAlg);
             }
 
             // This is a PKCSv1.5 signature which is already deterministic; just pass it to sign
             return self.sign(md, hash, sig, rng);
         } else {
             // Some non-deterministic scheme
-            return Err(::Error::PkInvalidAlg);
+            return Err(Error::PkInvalidAlg);
         }
     }
 
-    pub fn verify(&mut self, md: ::hash::Type, hash: &[u8], sig: &[u8]) -> ::Result<()> {
+    pub fn verify(&mut self, md: MdType, hash: &[u8], sig: &[u8]) -> Result<()> {
         unsafe {
             pk_verify(
                 &mut self.inner,
@@ -650,12 +652,12 @@ impl Pk {
     }
 
     /// Agree on a shared secret with another public key.
-    pub fn agree<F: ::rng::Random>(
+    pub fn agree<F: Random>(
         &mut self,
         other: &Pk,
         shared: &mut [u8],
         rng: &mut F,
-    ) -> ::Result<usize> {
+    ) -> Result<usize> {
         match (self.pk_type(), other.pk_type()) {
             (Type::Eckey, Type::Eckey)
             | (Type::EckeyDh, Type::Eckey)
@@ -667,77 +669,77 @@ impl Pk {
                 )?;
                 ecdh.calc_secret(shared, rng)
             },
-            _ => return Err(::Error::PkTypeMismatch),
+            _ => return Err(Error::PkTypeMismatch),
         }
     }
 
-    pub fn write_private_der<'buf>(&mut self, buf: &'buf mut [u8]) -> ::Result<Option<&'buf [u8]>> {
+    pub fn write_private_der<'buf>(&mut self, buf: &'buf mut [u8]) -> Result<Option<&'buf [u8]>> {
         match unsafe {
             pk_write_key_der(&mut self.inner, buf.as_mut_ptr(), buf.len()).into_result()
         } {
-            Err(::Error::Asn1BufTooSmall) => Ok(None),
+            Err(Error::Asn1BufTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
     }
 
-    pub fn write_private_der_vec(&mut self) -> ::Result<Vec<u8>> {
-        ::private::alloc_vec_repeat(
+    pub fn write_private_der_vec(&mut self) -> Result<Vec<u8>> {
+        crate::private::alloc_vec_repeat(
             |buf, size| unsafe { pk_write_key_der(&mut self.inner, buf, size) },
             true,
         )
     }
 
-    pub fn write_private_pem<'buf>(&mut self, buf: &'buf mut [u8]) -> ::Result<Option<&'buf [u8]>> {
+    pub fn write_private_pem<'buf>(&mut self, buf: &'buf mut [u8]) -> Result<Option<&'buf [u8]>> {
         match unsafe {
             pk_write_key_pem(&mut self.inner, buf.as_mut_ptr(), buf.len()).into_result()
         } {
-            Err(::Error::Base64BufferTooSmall) => Ok(None),
+            Err(Error::Base64BufferTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
     }
 
-    pub fn write_private_pem_string(&mut self) -> ::Result<String> {
-        ::private::alloc_string_repeat(|buf, size| unsafe {
+    pub fn write_private_pem_string(&mut self) -> Result<String> {
+        crate::private::alloc_string_repeat(|buf, size| unsafe {
             match pk_write_key_pem(&mut self.inner, buf as _, size) {
-                0 => ::private::cstr_to_slice(buf as _).len() as _,
+                0 => crate::private::cstr_to_slice(buf as _).len() as _,
                 r => r,
             }
         })
     }
 
-    pub fn write_public_der<'buf>(&mut self, buf: &'buf mut [u8]) -> ::Result<Option<&'buf [u8]>> {
+    pub fn write_public_der<'buf>(&mut self, buf: &'buf mut [u8]) -> Result<Option<&'buf [u8]>> {
         match unsafe {
             pk_write_pubkey_der(&mut self.inner, buf.as_mut_ptr(), buf.len()).into_result()
         } {
-            Err(::Error::Asn1BufTooSmall) => Ok(None),
+            Err(Error::Asn1BufTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
     }
 
-    pub fn write_public_der_vec(&mut self) -> ::Result<Vec<u8>> {
-        ::private::alloc_vec_repeat(
+    pub fn write_public_der_vec(&mut self) -> Result<Vec<u8>> {
+        crate::private::alloc_vec_repeat(
             |buf, size| unsafe { pk_write_pubkey_der(&mut self.inner, buf, size) },
             true,
         )
     }
 
-    pub fn write_public_pem<'buf>(&mut self, buf: &'buf mut [u8]) -> ::Result<Option<&'buf [u8]>> {
+    pub fn write_public_pem<'buf>(&mut self, buf: &'buf mut [u8]) -> Result<Option<&'buf [u8]>> {
         match unsafe {
             pk_write_pubkey_pem(&mut self.inner, buf.as_mut_ptr(), buf.len()).into_result()
         } {
-            Err(::Error::Base64BufferTooSmall) => Ok(None),
+            Err(Error::Base64BufferTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
     }
 
-    pub fn write_public_pem_string(&mut self) -> ::Result<String> {
-        ::private::alloc_string_repeat(|buf, size| unsafe {
+    pub fn write_public_pem_string(&mut self) -> Result<String> {
+        crate::private::alloc_string_repeat(|buf, size| unsafe {
             match pk_write_pubkey_pem(&mut self.inner, buf as _, size) {
-                0 => ::private::cstr_to_slice(buf as _).len() as _,
+                0 => crate::private::cstr_to_slice(buf as _).len() as _,
                 r => r,
             }
         })
@@ -762,8 +764,8 @@ impl Pk {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mbedtls::hash::Type;
-    use mbedtls::pk::Type as PkType;
+    use crate::hash::Type;
+    use crate::pk::Type as PkType;
 
     // This is test data that must match library output *exactly*
     const TEST_PEM: &'static str = "-----BEGIN RSA PRIVATE KEY-----
@@ -881,7 +883,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
     #[test]
     fn generate_rsa() {
         let mut pk =
-            Pk::generate_rsa(&mut ::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
+            Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
         let generated = pk.write_private_pem_string().unwrap();
         assert_eq!(0x10001, pk.rsa_public_exponent().unwrap());
         assert_eq!(generated, TEST_PEM[..TEST_PEM.len() - 1]);
@@ -890,14 +892,14 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
     #[test]
     fn generate_ec_curve25519() {
         let _generated =
-            Pk::generate_ec(&mut ::test_support::rand::test_rng(), EcGroupId::Curve25519).unwrap();
+            Pk::generate_ec(&mut crate::test_support::rand::test_rng(), EcGroupId::Curve25519).unwrap();
         // mbedtls does not have an OID for Curve25519, so can't write it as PEM
     }
 
     #[test]
     fn generate_ec_secp192r1() {
         let _generated =
-            Pk::generate_ec(&mut ::test_support::rand::test_rng(), EcGroupId::SecP192R1)
+            Pk::generate_ec(&mut crate::test_support::rand::test_rng(), EcGroupId::SecP192R1)
                 .unwrap()
                 .write_private_pem_string()
                 .unwrap();
@@ -906,12 +908,12 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
     #[test]
     fn generate_ec_secp256r1() {
         let mut key1 =
-            Pk::generate_ec(&mut ::test_support::rand::test_rng(), EcGroupId::SecP256R1).unwrap();
+            Pk::generate_ec(&mut crate::test_support::rand::test_rng(), EcGroupId::SecP256R1).unwrap();
         let pem1 = key1.write_private_pem_string().unwrap();
 
-        let secp256r1 = ::ecp::EcGroup::new(EcGroupId::SecP256R1).unwrap();
+        let secp256r1 = EcGroup::new(EcGroupId::SecP256R1).unwrap();
         let mut key2 =
-            Pk::generate_ec(&mut ::test_support::rand::test_rng(), secp256r1.clone())
+            Pk::generate_ec(&mut crate::test_support::rand::test_rng(), secp256r1.clone())
                 .unwrap();
         let pem2 = key2.write_private_pem_string().unwrap();
 
@@ -936,7 +938,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
     #[test]
     fn generate_ec_secp256k1() {
         let _generated =
-            Pk::generate_ec(&mut ::test_support::rand::test_rng(), EcGroupId::SecP256K1)
+            Pk::generate_ec(&mut crate::test_support::rand::test_rng(), EcGroupId::SecP256K1)
                 .unwrap()
                 .write_private_pem_string()
                 .unwrap();
@@ -963,7 +965,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
     #[test]
     fn rsa_sign_verify_pkcs1v15() {
         let mut pk =
-            Pk::generate_rsa(&mut ::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
+            Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
         let data = b"SIGNATURE TEST SIGNATURE TEST SI";
         let mut signature = vec![0u8; (pk.len() + 7) / 8];
 
@@ -986,7 +988,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
                     *digest,
                     data,
                     &mut signature,
-                    &mut ::test_support::rand::test_rng(),
+                    &mut crate::test_support::rand::test_rng(),
                 )
                 .unwrap();
             pk.verify(*digest, data, &signature[0..len]).unwrap();
@@ -996,7 +998,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
     #[test]
     fn rsa_sign_verify_pss() {
         let mut pk =
-            Pk::generate_rsa(&mut ::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
+            Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
         let data = b"SIGNATURE TEST SIGNATURE TEST SI";
         let mut signature = vec![0u8; (pk.len() + 7) / 8];
 
@@ -1024,7 +1026,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
                         *digest,
                         data,
                         &mut signature,
-                        &mut ::test_support::rand::test_rng()
+                        &mut crate::test_support::rand::test_rng()
                     )
                     .is_err());
             } else {
@@ -1033,7 +1035,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
                         *digest,
                         data,
                         &mut signature,
-                        &mut ::test_support::rand::test_rng(),
+                        &mut crate::test_support::rand::test_rng(),
                     )
                     .unwrap();
                 pk.verify(*digest, data, &signature[0..len]).unwrap();
@@ -1047,17 +1049,17 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         let mut cipher1 = [0u8; 2048 / 8];
         let mut cipher2 = [0u8; 2048 / 8];
         assert_eq!(
-            pk.encrypt(b"test", &mut cipher1, &mut ::test_support::rand::test_rng())
+            pk.encrypt(b"test", &mut cipher1, &mut crate::test_support::rand::test_rng())
                 .unwrap(),
             cipher1.len()
         );
         pk.set_options(Options::Rsa {
             padding: RsaPadding::Pkcs1V21 {
-                mgf: ::hash::Type::Sha256,
+                mgf: Type::Sha256,
             },
         });
         assert_eq!(
-            pk.encrypt(b"test", &mut cipher2, &mut ::test_support::rand::test_rng())
+            pk.encrypt(b"test", &mut cipher2, &mut crate::test_support::rand::test_rng())
                 .unwrap(),
             cipher2.len()
         );

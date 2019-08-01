@@ -7,22 +7,22 @@
  * according to those terms. */
 
 #[cfg(not(feature = "std"))]
-use alloc_prelude::*;
+use crate::alloc_prelude::*;
 
 use mbedtls_sys::types::raw_types::c_char;
 use mbedtls_sys::types::raw_types::{c_int, c_uchar};
 use mbedtls_sys::types::size_t;
 
-use error::IntoResult;
+use crate::error::{Error, IntoResult, Result};
 
 pub trait UnsafeFrom<T>
 where
     Self: Sized,
 {
-    unsafe fn from(T) -> Option<Self>;
+    unsafe fn from(_: T) -> Option<Self>;
 }
 
-pub fn alloc_vec_repeat<F>(mut f: F, data_at_end: bool) -> ::Result<Vec<u8>>
+pub fn alloc_vec_repeat<F>(mut f: F, data_at_end: bool) -> Result<Vec<u8>>
 where
     F: FnMut(*mut c_uchar, size_t) -> c_int,
 {
@@ -36,14 +36,14 @@ where
     let mut vec = Vec::with_capacity(2048 /* big because of bug in x509write */);
     loop {
         match f(vec.as_mut_ptr(), vec.capacity()).into_result() {
-            Err(::Error::Asn1BufTooSmall)
-            | Err(::Error::Base64BufferTooSmall)
-            | Err(::Error::EcpBufferTooSmall)
-            | Err(::Error::MpiBufferTooSmall)
-            | Err(::Error::NetBufferTooSmall)
-            | Err(::Error::OidBufTooSmall)
-            | Err(::Error::SslBufferTooSmall)
-            | Err(::Error::X509BufferTooSmall)
+            Err(Error::Asn1BufTooSmall)
+            | Err(Error::Base64BufferTooSmall)
+            | Err(Error::EcpBufferTooSmall)
+            | Err(Error::MpiBufferTooSmall)
+            | Err(Error::NetBufferTooSmall)
+            | Err(Error::OidBufTooSmall)
+            | Err(Error::SslBufferTooSmall)
+            | Err(Error::X509BufferTooSmall)
                 if vec.capacity() < MAX_VECTOR_ALLOCATION =>
             {
                 let cap = vec.capacity();
@@ -66,11 +66,11 @@ where
     Ok(vec)
 }
 
-pub fn alloc_string_repeat<F>(mut f: F) -> ::Result<String>
+pub fn alloc_string_repeat<F>(mut f: F) -> Result<String>
 where
     F: FnMut(*mut c_char, size_t) -> c_int,
 {
-    let vec = try!(alloc_vec_repeat(|b, s| f(b as _, s), false));
+    let vec = alloc_vec_repeat(|b, s| f(b as _, s), false)?;
     String::from_utf8(vec).map_err(|e| e.utf8_error().into())
 }
 
@@ -93,6 +93,6 @@ use core_io::{Error as IoError, ErrorKind as IoErrorKind};
 #[cfg(feature = "std")]
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 
-pub fn error_to_io_error(e: ::Error) -> IoError {
+pub fn error_to_io_error(e: Error) -> IoError {
     IoError::new(IoErrorKind::Other, e.to_string())
 }

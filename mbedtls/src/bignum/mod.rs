@@ -6,11 +6,11 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use error::{Error, IntoResult};
+use crate::error::{Error, IntoResult, Result};
 use mbedtls_sys::*;
 
 #[cfg(not(feature = "std"))]
-use alloc_prelude::*;
+use crate::alloc_prelude::*;
 
 use core::cmp::Ordering;
 use core::fmt::{Binary, Debug, Display, Formatter, Octal, Result as FmtResult, UpperHex};
@@ -64,9 +64,9 @@ impl Binary for Mpi {
 
 #[cfg(feature = "std")]
 impl ::core::str::FromStr for Mpi {
-    type Err = ::Error;
+    type Err = Error;
 
-    fn from_str(s: &str) -> ::Result<Mpi> {
+    fn from_str(s: &str) -> Result<Mpi> {
         let is_hex = s.starts_with("0x");
         let radix = if is_hex { 16 } else { 10 };
         let skip = if is_hex { 2 } else { 0 };
@@ -87,22 +87,22 @@ impl Clone for Mpi {
 }
 
 impl Mpi {
-    pub(crate) fn copy(value: &mpi) -> ::Result<Mpi> {
+    pub(crate) fn copy(value: &mpi) -> Result<Mpi> {
         let mut ret = Self::init();
         unsafe { mpi_copy(&mut ret.inner, value) }.into_result()?;
         Ok(ret)
     }
 
-    pub fn new(value: mpi_sint) -> ::Result<Mpi> {
+    pub fn new(value: mpi_sint) -> Result<Mpi> {
         let mut ret = Self::init();
-        try!(unsafe { mpi_lset(&mut ret.inner, value).into_result() });
+        unsafe { mpi_lset(&mut ret.inner, value) }.into_result()?;
         Ok(ret)
     }
 
     /// Initialize an MPI number from big endian binary data
-    pub fn from_binary(num: &[u8]) -> ::Result<Mpi> {
+    pub fn from_binary(num: &[u8]) -> Result<Mpi> {
         let mut ret = Self::init();
-        try!(unsafe { mpi_read_binary(&mut ret.inner, num.as_ptr(), num.len()).into_result() });
+        unsafe { mpi_read_binary(&mut ret.inner, num.as_ptr(), num.len()) }.into_result()?;
         Ok(ret)
     }
 
@@ -115,7 +115,7 @@ impl Mpi {
         }
     }
 
-    pub fn set_bit(&mut self, bit: usize, val: bool) -> ::Result<()> {
+    pub fn set_bit(&mut self, bit: usize, val: bool) -> Result<()> {
         unsafe {
             mpi_set_bit(&mut self.inner, bit, val as u8).into_result()?;
         }
@@ -131,7 +131,7 @@ impl Mpi {
         }
     }
 
-    pub fn as_u32(&self) -> ::Result<u32> {
+    pub fn as_u32(&self) -> Result<u32> {
         if self.bit_length()? > 32 {
             // Not exactly correct but close enough
             return Err(Error::MpiBufferTooSmall);
@@ -140,7 +140,7 @@ impl Mpi {
         Ok(self.get_limb(0) as u32)
     }
 
-    pub fn to_string_radix(&self, radix: i32) -> ::Result<String> {
+    pub fn to_string_radix(&self, radix: i32) -> Result<String> {
         let mut olen = 0;
         let r =
             unsafe { mpi_write_string(&self.inner, radix, ::core::ptr::null_mut(), 0, &mut olen) };
@@ -171,7 +171,7 @@ impl Mpi {
     }
 
     /// Serialize the MPI as big endian binary data
-    pub fn to_binary(&self) -> ::Result<Vec<u8>> {
+    pub fn to_binary(&self) -> Result<Vec<u8>> {
         let len = self.byte_length()?;
         let mut ret = vec![0u8; len];
         unsafe { mpi_write_binary(&self.inner, ret.as_mut_ptr(), ret.len()).into_result() }?;
@@ -179,7 +179,7 @@ impl Mpi {
     }
 
     /// Serialize the MPI as big endian binary data, padding to at least min_len bytes
-    pub fn to_binary_padded(&self, min_len: usize) -> ::Result<Vec<u8>> {
+    pub fn to_binary_padded(&self, min_len: usize) -> Result<Vec<u8>> {
         let len = self.byte_length()?;
         let larger_len = if len < min_len { min_len } else { len };
         let mut ret = vec![0u8; larger_len];
@@ -192,18 +192,18 @@ impl Mpi {
     }
 
     /// Return size of this MPI in bits
-    pub fn bit_length(&self) -> ::Result<usize> {
+    pub fn bit_length(&self) -> Result<usize> {
         let l = unsafe { mpi_bitlen(&self.inner) };
         Ok(l)
     }
 
     /// Return size of this MPI in bytes (rounded up)
-    pub fn byte_length(&self) -> ::Result<usize> {
+    pub fn byte_length(&self) -> Result<usize> {
         let l = unsafe { mpi_size(&self.inner) };
         Ok(l)
     }
 
-    pub fn divrem(&self, other: &Mpi) -> ::Result<(Mpi, Mpi)> {
+    pub fn divrem(&self, other: &Mpi) -> Result<(Mpi, Mpi)> {
         let mut q = Self::init();
         let mut r = Self::init();
         unsafe { mpi_div_mpi(&mut q.inner, &mut r.inner, &self.inner, &other.inner) }
@@ -212,20 +212,20 @@ impl Mpi {
     }
 
     /// Reduce self modulo other
-    pub fn modulo(&self, other: &Mpi) -> ::Result<Mpi> {
+    pub fn modulo(&self, other: &Mpi) -> Result<Mpi> {
         let mut ret = Self::init();
         unsafe { mpi_mod_mpi(&mut ret.inner, &self.inner, &other.inner) }.into_result()?;
         Ok(ret)
     }
 
-    pub fn divrem_int(&self, other: mpi_sint) -> ::Result<(Mpi, Mpi)> {
+    pub fn divrem_int(&self, other: mpi_sint) -> Result<(Mpi, Mpi)> {
         let mut q = Self::init();
         let mut r = Self::init();
         unsafe { mpi_div_int(&mut q.inner, &mut r.inner, &self.inner, other) }.into_result()?;
         Ok((q, r))
     }
 
-    pub fn modinv(&self, modulus: &Mpi) -> ::Result<Mpi> {
+    pub fn modinv(&self, modulus: &Mpi) -> Result<Mpi> {
         let mut r = Self::init();
         unsafe { mpi_inv_mod(&mut r.inner, &self.inner, &modulus.inner) }.into_result()?;
         Ok(r)
@@ -235,11 +235,11 @@ impl Mpi {
     ///
     /// The modulus must be prime; computing a square root modulo
     /// a composite number is equivalent to factoring the composite.
-    pub fn mod_sqrt(&self, p: &Mpi) -> ::Result<Mpi> {
+    pub fn mod_sqrt(&self, p: &Mpi) -> Result<Mpi> {
         let zero = Mpi::new(0)?;
 
         if self < &zero || self >= p {
-            return Err(::Error::MpiBadInputData);
+            return Err(Error::MpiBadInputData);
         }
         if self == &zero {
             return Ok(zero);
@@ -247,12 +247,12 @@ impl Mpi {
 
         // This ignores p=2 (for which this algorithm is valid), as not cryptographically interesting.
         if p.get_bit(0) == false || p <= &zero {
-            return Err(::Error::MpiBadInputData);
+            return Err(Error::MpiBadInputData);
         }
 
         if self.jacobi(p)? != 1 {
             // a is not a quadratic residue mod p
-            return Err(::Error::MpiBadInputData);
+            return Err(Error::MpiBadInputData);
         }
 
         if (p % 4)?.as_u32()? == 3 {
@@ -299,7 +299,7 @@ impl Mpi {
                 bo = bo.mod_exp(&two, p)?;
                 m += 1;
                 if m >= r {
-                    return Err(::Error::MpiBadInputData);
+                    return Err(Error::MpiBadInputData);
                 }
             }
 
@@ -327,12 +327,12 @@ impl Mpi {
     }
 
     /// Calculates Jacobi symbol (self|N)
-    pub fn jacobi(&self, n: &Mpi) -> ::Result<i32> {
+    pub fn jacobi(&self, n: &Mpi) -> Result<i32> {
         let zero = Mpi::new(0)?;
         let one = Mpi::new(1)?;
 
         if self < &zero || n < &zero || n.get_bit(0) == false {
-            return Err(::Error::MpiBadInputData);
+            return Err(Error::MpiBadInputData);
         }
 
         let mut x = self.modulo(n)?;
@@ -374,7 +374,7 @@ impl Mpi {
     }
 
     /// Return (self^exponent) % n
-    pub fn mod_exp(&self, exponent: &Mpi, modulus: &Mpi) -> ::Result<Mpi> {
+    pub fn mod_exp(&self, exponent: &Mpi, modulus: &Mpi) -> Result<Mpi> {
         let mut r = Self::init();
         unsafe {
             mpi_exp_mod(
@@ -420,9 +420,9 @@ impl Eq for Mpi {}
 macro_rules! impl_arithmetic_op {
     ($op_trait:ident, $op_assign_trait:ident, $trait_func:ident, $trait_assign_func:ident, $func:expr, $int_func:expr) => {
         impl<'a, 'b> $op_trait<&'a Mpi> for &'b Mpi {
-            type Output = ::Result<Mpi>;
+            type Output = Result<Mpi>;
 
-            fn $trait_func(self, other: &Mpi) -> ::Result<Mpi> {
+            fn $trait_func(self, other: &Mpi) -> Result<Mpi> {
                 let mut ret = Mpi::init();
                 unsafe { $func(&mut ret.inner, &self.inner, &other.inner) }.into_result()?;
                 Ok(ret)
@@ -430,9 +430,9 @@ macro_rules! impl_arithmetic_op {
         }
 
         impl<'a> $op_trait<mpi_sint> for &'a Mpi {
-            type Output = ::Result<Mpi>;
+            type Output = Result<Mpi>;
 
-            fn $trait_func(self, other: mpi_sint) -> ::Result<Mpi> {
+            fn $trait_func(self, other: mpi_sint) -> Result<Mpi> {
                 let mut ret = Mpi::init();
                 unsafe { $int_func(&mut ret.inner, &self.inner, other as _) }.into_result()?;
                 Ok(ret)
@@ -470,9 +470,9 @@ impl_arithmetic_op!(Sub, SubAssign, sub, sub_assign, mpi_sub_mpi, mpi_sub_int);
 impl_arithmetic_op!(Mul, MulAssign, mul, mul_assign, mpi_mul_mpi, mpi_mul_int);
 
 impl<'a, 'b> Div<&'b Mpi> for &'a Mpi {
-    type Output = ::Result<Mpi>;
+    type Output = Result<Mpi>;
 
-    fn div(self, other: &Mpi) -> ::Result<Mpi> {
+    fn div(self, other: &Mpi) -> Result<Mpi> {
         let mut q = Mpi::init();
         unsafe {
             mpi_div_mpi(
@@ -488,9 +488,9 @@ impl<'a, 'b> Div<&'b Mpi> for &'a Mpi {
 }
 
 impl<'a> Div<Mpi> for &'a Mpi {
-    type Output = ::Result<Mpi>;
+    type Output = Result<Mpi>;
 
-    fn div(self, other: Mpi) -> ::Result<Mpi> {
+    fn div(self, other: Mpi) -> Result<Mpi> {
         let mut q = Mpi::init();
         unsafe {
             mpi_div_mpi(
@@ -506,9 +506,9 @@ impl<'a> Div<Mpi> for &'a Mpi {
 }
 
 impl<'a> Div<mpi_sint> for &'a Mpi {
-    type Output = ::Result<Mpi>;
+    type Output = Result<Mpi>;
 
-    fn div(self, other: mpi_sint) -> ::Result<Mpi> {
+    fn div(self, other: mpi_sint) -> Result<Mpi> {
         let mut q = Mpi::init();
         unsafe { mpi_div_int(&mut q.inner, ::core::ptr::null_mut(), &self.inner, other) }
             .into_result()?;
@@ -571,9 +571,9 @@ impl DivAssign<mpi_sint> for Mpi {
 }
 
 impl<'a, 'b> Rem<&'b Mpi> for &'a Mpi {
-    type Output = ::Result<Mpi>;
+    type Output = Result<Mpi>;
 
-    fn rem(self, other: &Mpi) -> ::Result<Mpi> {
+    fn rem(self, other: &Mpi) -> Result<Mpi> {
         let mut r = Mpi::init();
         unsafe {
             mpi_div_mpi(
@@ -589,9 +589,9 @@ impl<'a, 'b> Rem<&'b Mpi> for &'a Mpi {
 }
 
 impl<'a> Rem<Mpi> for &'a Mpi {
-    type Output = ::Result<Mpi>;
+    type Output = Result<Mpi>;
 
-    fn rem(self, other: Mpi) -> ::Result<Mpi> {
+    fn rem(self, other: Mpi) -> Result<Mpi> {
         let mut r = Mpi::init();
         unsafe {
             mpi_div_mpi(
@@ -607,9 +607,9 @@ impl<'a> Rem<Mpi> for &'a Mpi {
 }
 
 impl Rem<mpi_sint> for Mpi {
-    type Output = ::Result<Mpi>;
+    type Output = Result<Mpi>;
 
-    fn rem(self, other: mpi_sint) -> ::Result<Mpi> {
+    fn rem(self, other: mpi_sint) -> Result<Mpi> {
         let mut r = Mpi::init();
         unsafe { mpi_div_int(::core::ptr::null_mut(), &mut r.inner, &self.inner, other) }
             .into_result()?;
@@ -618,9 +618,9 @@ impl Rem<mpi_sint> for Mpi {
 }
 
 impl<'a> Rem<mpi_sint> for &'a Mpi {
-    type Output = ::Result<Mpi>;
+    type Output = Result<Mpi>;
 
-    fn rem(self, other: mpi_sint) -> ::Result<Mpi> {
+    fn rem(self, other: mpi_sint) -> Result<Mpi> {
         let mut r = Mpi::init();
         unsafe { mpi_div_int(::core::ptr::null_mut(), &mut r.inner, &self.inner, other) }
             .into_result()?;
@@ -683,9 +683,9 @@ impl RemAssign<mpi_sint> for Mpi {
 }
 
 impl<'a> Shl<usize> for &'a Mpi {
-    type Output = ::Result<Mpi>;
+    type Output = Result<Mpi>;
 
-    fn shl(self, shift: usize) -> ::Result<Mpi> {
+    fn shl(self, shift: usize) -> Result<Mpi> {
         let mut r = Mpi::copy(self.handle())?;
         unsafe { mpi_shift_l(&mut r.inner, shift) }.into_result()?;
         Ok(r)
@@ -693,9 +693,9 @@ impl<'a> Shl<usize> for &'a Mpi {
 }
 
 impl Shl<usize> for Mpi {
-    type Output = ::Result<Mpi>;
+    type Output = Result<Mpi>;
 
-    fn shl(self, shift: usize) -> ::Result<Mpi> {
+    fn shl(self, shift: usize) -> Result<Mpi> {
         let mut r = Mpi::copy(self.handle())?;
         unsafe { mpi_shift_l(&mut r.inner, shift) }.into_result()?;
         Ok(r)
@@ -711,9 +711,9 @@ impl ShlAssign<usize> for Mpi {
 }
 
 impl<'a> Shr<usize> for &'a Mpi {
-    type Output = ::Result<Mpi>;
+    type Output = Result<Mpi>;
 
-    fn shr(self, shift: usize) -> ::Result<Mpi> {
+    fn shr(self, shift: usize) -> Result<Mpi> {
         let mut r = Mpi::copy(self.handle())?;
         unsafe { mpi_shift_r(&mut r.inner, shift) }.into_result()?;
         Ok(r)
@@ -721,9 +721,9 @@ impl<'a> Shr<usize> for &'a Mpi {
 }
 
 impl Shr<usize> for Mpi {
-    type Output = ::Result<Mpi>;
+    type Output = Result<Mpi>;
 
-    fn shr(self, shift: usize) -> ::Result<Mpi> {
+    fn shr(self, shift: usize) -> Result<Mpi> {
         let mut r = Mpi::copy(self.handle())?;
         unsafe { mpi_shift_r(&mut r.inner, shift) }.into_result()?;
         Ok(r)

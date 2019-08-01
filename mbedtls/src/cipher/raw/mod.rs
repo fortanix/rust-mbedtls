@@ -8,7 +8,7 @@
 
 use mbedtls_sys::*;
 
-use error::IntoResult;
+use crate::error::{Error, IntoResult, Result};
 
 mod serde;
 
@@ -180,21 +180,21 @@ impl Cipher {
         cipher_id: CipherId,
         cipher_mode: CipherMode,
         key_bit_len: u32,
-    ) -> ::Result<Cipher> {
+    ) -> Result<Cipher> {
         let mut ret = Self::init();
         unsafe {
             // Do setup with proper cipher_info based on algorithm, key length and mode
-            try!(cipher_setup(
+            cipher_setup(
                 &mut ret.inner,
                 cipher_info_from_values(cipher_id.into(), key_bit_len as i32, cipher_mode.into())
             )
-            .into_result());
+            .into_result()?;
         }
         Ok(ret)
     }
 
     // Cipher set key - should be called after setup
-    pub fn set_key(&mut self, op: Operation, key: &[u8]) -> ::Result<()> {
+    pub fn set_key(&mut self, op: Operation, key: &[u8]) -> Result<()> {
         unsafe {
             cipher_setkey(
                 &mut self.inner,
@@ -206,20 +206,20 @@ impl Cipher {
         }
     }
 
-    pub fn set_padding(&mut self, padding: CipherPadding) -> ::Result<()> {
+    pub fn set_padding(&mut self, padding: CipherPadding) -> Result<()> {
         unsafe { cipher_set_padding_mode(&mut self.inner, padding.into()).into_result_discard() }
     }
 
     // Cipher set IV - should be called after setup
-    pub fn set_iv(&mut self, iv: &[u8]) -> ::Result<()> {
+    pub fn set_iv(&mut self, iv: &[u8]) -> Result<()> {
         unsafe { cipher_set_iv(&mut self.inner, iv.as_ptr(), iv.len()).into_result_discard() }
     }
 
-    pub fn reset(&mut self) -> ::Result<()> {
+    pub fn reset(&mut self) -> Result<()> {
         unsafe { cipher_reset(&mut self.inner).into_result_discard() }
     }
 
-    pub fn update(&mut self, indata: &[u8], outdata: &mut [u8]) -> ::Result<usize> {
+    pub fn update(&mut self, indata: &[u8], outdata: &mut [u8]) -> Result<usize> {
         // Check that minimum required space is available in outdata buffer
         let reqd_size = if unsafe { *self.inner.cipher_info }.mode == MODE_ECB {
             self.block_size()
@@ -228,43 +228,43 @@ impl Cipher {
         };
 
         if outdata.len() < reqd_size {
-            return Err(::Error::CipherFullBlockExpected);
+            return Err(Error::CipherFullBlockExpected);
         }
 
         let mut olen = 0;
         unsafe {
-            try!(cipher_update(
+            cipher_update(
                 &mut self.inner,
                 indata.as_ptr(),
                 indata.len(),
                 outdata.as_mut_ptr(),
                 &mut olen
             )
-            .into_result());
+            .into_result()?;
         }
         Ok(olen)
     }
 
-    pub fn finish(&mut self, outdata: &mut [u8]) -> ::Result<usize> {
+    pub fn finish(&mut self, outdata: &mut [u8]) -> Result<usize> {
         // Check that minimum required space is available in outdata buffer
         if outdata.len() < self.block_size() {
-            return Err(::Error::CipherFullBlockExpected);
+            return Err(Error::CipherFullBlockExpected);
         }
 
         let mut olen = 0;
         unsafe {
-            try!(cipher_finish(&mut self.inner, outdata.as_mut_ptr(), &mut olen).into_result());
+            cipher_finish(&mut self.inner, outdata.as_mut_ptr(), &mut olen).into_result()?;
         }
         Ok(olen)
     }
 
-    pub fn write_tag(&mut self, tag: &mut [u8]) -> ::Result<()> {
+    pub fn write_tag(&mut self, tag: &mut [u8]) -> Result<()> {
         unsafe {
             cipher_write_tag(&mut self.inner, tag.as_mut_ptr(), tag.len()).into_result_discard()
         }
     }
 
-    pub fn check_tag(&mut self, tag: &[u8]) -> ::Result<()> {
+    pub fn check_tag(&mut self, tag: &[u8]) -> Result<()> {
         unsafe { cipher_check_tag(&mut self.inner, tag.as_ptr(), tag.len()).into_result_discard() }
     }
 
@@ -292,16 +292,16 @@ impl Cipher {
     }
 
     // Utility function to set odd parity - used for DES keys
-    pub fn set_parity(key: &mut [u8]) -> ::Result<()> {
+    pub fn set_parity(key: &mut [u8]) -> Result<()> {
         unsafe { des_key_set_parity(key.as_mut_ptr()) }
         Ok(())
     }
 
-    pub fn encrypt(&mut self, plain: &[u8], cipher: &mut [u8]) -> ::Result<usize> {
+    pub fn encrypt(&mut self, plain: &[u8], cipher: &mut [u8]) -> Result<usize> {
         self.do_crypto(plain, cipher)
     }
 
-    pub fn decrypt(&mut self, cipher: &[u8], plain: &mut [u8]) -> ::Result<usize> {
+    pub fn decrypt(&mut self, cipher: &[u8], plain: &mut [u8]) -> Result<usize> {
         self.do_crypto(cipher, plain)
     }
 
@@ -311,9 +311,9 @@ impl Cipher {
         plain: &[u8],
         cipher: &mut [u8],
         tag: &mut [u8],
-    ) -> ::Result<usize> {
+    ) -> Result<usize> {
         if plain.len() > cipher.len() {
-            return Err(::Error::CipherBadInputData);
+            return Err(Error::CipherBadInputData);
         }
 
         let iv = self.inner.iv;
@@ -345,10 +345,10 @@ impl Cipher {
         cipher: &[u8],
         plain: &mut [u8],
         tag: &[u8],
-    ) -> ::Result<usize> {
+    ) -> Result<usize> {
         // For AES KW and KWP cipher text length can be greater than plain text length
         if self.is_authenticated() && cipher.len() > plain.len() {
-            return Err(::Error::CipherBadInputData);
+            return Err(Error::CipherBadInputData);
         }
 
         let iv = self.inner.iv;
@@ -374,7 +374,7 @@ impl Cipher {
         Ok(plain_len)
     }
 
-    fn do_crypto(&mut self, indata: &[u8], outdata: &mut [u8]) -> ::Result<usize> {
+    fn do_crypto(&mut self, indata: &[u8], outdata: &mut [u8]) -> Result<usize> {
         self.reset()?;
 
         // The total number of bytes writte to outdata so far. It's safe to
@@ -396,10 +396,10 @@ impl Cipher {
         Ok(total_len)
     }
 
-    pub fn cmac(&mut self, key: &[u8], data: &[u8], outdata: &mut [u8]) -> ::Result<()> {
+    pub fn cmac(&mut self, key: &[u8], data: &[u8], outdata: &mut [u8]) -> Result<()> {
         // Check that outdata buffer has enough space
         if outdata.len() < self.block_size() {
-            return Err(::Error::CipherFullBlockExpected);
+            return Err(Error::CipherFullBlockExpected);
         }
         self.reset()?;
         unsafe {

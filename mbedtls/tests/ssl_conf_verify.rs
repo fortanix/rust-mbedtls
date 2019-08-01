@@ -32,8 +32,8 @@ enum Test {
 
 fn client(mut conn: TcpStream, test: Test) -> TlsResult<()> {
     let mut entropy = entropy_new();
-    let mut rng = try!(CtrDrbg::new(&mut entropy, None));
-    let mut cert = try!(Certificate::from_pem(keys::PEM_CERT));
+    let mut rng = CtrDrbg::new(&mut entropy, None)?;
+    let mut cert = Certificate::from_pem(keys::PEM_CERT)?;
     let verify_callback =
         &mut |_: &mut LinkedCertificate, _, verify_flags: &mut VerifyError| match test {
             Test::CallbackSetVerifyFlags => {
@@ -46,7 +46,7 @@ fn client(mut conn: TcpStream, test: Test) -> TlsResult<()> {
     config.set_rng(Some(&mut rng));
     config.set_verify_callback(verify_callback);
     config.set_ca_list(Some(&mut *cert), None);
-    let mut ctx = try!(Context::new(&config));
+    let mut ctx = Context::new(&config)?;
 
     match (
         test,
@@ -64,13 +64,13 @@ fn client(mut conn: TcpStream, test: Test) -> TlsResult<()> {
 
 fn server(mut conn: TcpStream) -> TlsResult<()> {
     let mut entropy = entropy_new();
-    let mut rng = try!(CtrDrbg::new(&mut entropy, None));
-    let mut cert = try!(Certificate::from_pem(keys::PEM_CERT));
-    let mut key = try!(Pk::from_private_key(keys::PEM_KEY, None));
+    let mut rng = CtrDrbg::new(&mut entropy, None)?;
+    let mut cert = Certificate::from_pem(keys::PEM_CERT)?;
+    let mut key = Pk::from_private_key(keys::PEM_KEY, None)?;
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(Some(&mut rng));
-    try!(config.push_cert(&mut *cert, &mut key));
-    let mut ctx = try!(Context::new(&config));
+    config.push_cert(&mut *cert, &mut key)?;
+    let mut ctx = Context::new(&config)?;
 
     let _ = ctx.establish(&mut conn, None);
     Ok(())
@@ -79,7 +79,7 @@ fn server(mut conn: TcpStream) -> TlsResult<()> {
 #[cfg(unix)]
 mod test {
     use std::thread;
-    use support::net::create_tcp_pair;
+    use crate::support::net::create_tcp_pair;
 
     #[test]
     fn callback_set_verify_flags() {

@@ -15,7 +15,7 @@
 
 #[forbid(unsafe_code)]
 #[cfg(not(feature = "std"))]
-use alloc_prelude::*;
+use crate::alloc_prelude::*;
 
 use core::result::Result as StdResult;
 
@@ -36,12 +36,12 @@ use yasna::tags::*;
 pub use yasna::{ASN1Error, ASN1ErrorKind};
 use yasna::{ASN1Result, BERDecodable, BERReader, BERReaderSeq, Tag};
 
-use cipher::raw::{CipherId, CipherMode};
-use cipher::{Cipher, Decryption, Fresh, Traditional};
-use hash::{pbkdf_pkcs12, Md, MdInfo, Type as MdType};
-use pk::Pk;
-use x509::Certificate;
-use Error as MbedtlsError;
+use crate::cipher::raw::{CipherId, CipherMode};
+use crate::cipher::{Cipher, Decryption, Fresh, Traditional};
+use crate::hash::{pbkdf_pkcs12, Md, MdInfo, Type as MdType};
+use crate::pk::Pk;
+use crate::x509::Certificate;
+use crate::Error as MbedtlsError;
 
 // Constants for various object identifiers used in PKCS12:
 
@@ -734,7 +734,7 @@ impl Pfx {
 
             let md_info: MdInfo = match md.into() {
                 Some(md) => md,
-                None => return Err(Pkcs12Error::from(::Error::MdBadInputData)),
+                None => return Err(Pkcs12Error::from(MbedtlsError::MdBadInputData)),
             };
 
             if stored_mac.len() != md_info.size() {
@@ -923,7 +923,7 @@ impl BERDecodable for Pfx {
 #[cfg(test)]
 mod tests {
 
-    use mbedtls::pkcs12::{ASN1Error, ASN1ErrorKind, Pfx, Pkcs12Error};
+    use crate::mbedtls::pkcs12::{ASN1Error, ASN1ErrorKind, Pfx, Pkcs12Error};
 
     #[test]
     fn parse_shibboleth() {
@@ -1066,7 +1066,7 @@ mod tests {
         assert!(pfx.is_err());
         assert_eq!(
             pfx.unwrap_err(),
-            Pkcs12Error::Crypto(::error::Error::CipherInvalidPadding)
+            Pkcs12Error::Crypto(crate::Error::CipherInvalidPadding)
         );
 
         let pfx = parsed_pfx.decrypt(&wrong_password_correct_padding, None);

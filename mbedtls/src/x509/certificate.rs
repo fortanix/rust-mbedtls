@@ -12,13 +12,16 @@ use core::ops::{Deref, DerefMut};
 use core::ptr;
 
 #[cfg(not(feature = "std"))]
-use alloc_prelude::*;
+use crate::alloc_prelude::*;
 
 use mbedtls_sys::types::raw_types::c_char;
 use mbedtls_sys::*;
 
-use error::IntoResult;
-use private::UnsafeFrom;
+use crate::pk::Pk;
+use crate::error::{Error, IntoResult, Result};
+use crate::private::UnsafeFrom;
+use crate::rng::Random;
+use crate::hash::Type as MdType;
 
 define!(
     #[c_ty(x509_crt)]
@@ -28,16 +31,16 @@ define!(
 );
 
 impl Certificate {
-    pub fn from_der(der: &[u8]) -> ::Result<Certificate> {
+    pub fn from_der(der: &[u8]) -> Result<Certificate> {
         let mut ret = Self::init();
-        unsafe { try!(x509_crt_parse_der(&mut ret.inner, der.as_ptr(), der.len()).into_result()) };
+        unsafe { x509_crt_parse_der(&mut ret.inner, der.as_ptr(), der.len()) }.into_result()?;
         Ok(ret)
     }
 
     /// Input must be NULL-terminated
-    pub fn from_pem(pem: &[u8]) -> ::Result<Certificate> {
+    pub fn from_pem(pem: &[u8]) -> Result<Certificate> {
         let mut ret = Self::init();
-        unsafe { try!(x509_crt_parse(&mut ret.inner, pem.as_ptr(), pem.len()).into_result()) };
+        unsafe { x509_crt_parse(&mut ret.inner, pem.as_ptr(), pem.len()) }.into_result()?;
         let mut fake = Self::init();
         ::core::mem::swap(&mut fake.inner.next, &mut ret.inner.next);
         Ok(ret)
@@ -45,12 +48,12 @@ impl Certificate {
 
     /// Input must be NULL-terminated
     #[cfg(buggy)]
-    pub fn from_pem_multiple(pem: &[u8]) -> ::Result<Vec<Certificate>> {
+    pub fn from_pem_multiple(pem: &[u8]) -> Result<Vec<Certificate>> {
         let mut vec;
         unsafe {
             // first, find out how many certificates we're parsing
             let mut dummy = Certificate::init();
-            try!(x509_crt_parse(&mut dummy.inner, pem.as_ptr(), pem.len()).into_result());
+            x509_crt_parse(&mut dummy.inner, pem.as_ptr(), pem.len()).into_result()?;
 
             // then allocate enough certs with our allocator
             vec = Vec::new();
@@ -64,7 +67,7 @@ impl Certificate {
             let list = List::from_vec(&mut vec).unwrap();
 
             // load the data again but into our allocated list
-            try!(x509_crt_parse(&mut list.head.inner, pem.as_ptr(), pem.len()).into_result());
+            x509_crt_parse(&mut list.head.inner, pem.as_ptr(), pem.len()).into_result()?;
         };
         Ok(vec)
     }
@@ -72,7 +75,7 @@ impl Certificate {
 
 impl fmt::Debug for Certificate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match ::private::alloc_string_repeat(|buf, size| unsafe {
+        match crate::private::alloc_string_repeat(|buf, size| unsafe {
             x509_crt_info(buf, size, b"\0".as_ptr() as *const _, &self.inner)
         }) {
             Err(_) => Err(fmt::Error),
@@ -126,50 +129,50 @@ impl LinkedCertificate {
         .is_ok()
     }
 
-    pub fn issuer(&self) -> ::Result<String> {
-        ::private::alloc_string_repeat(|buf, size| unsafe {
+    pub fn issuer(&self) -> Result<String> {
+        crate::private::alloc_string_repeat(|buf, size| unsafe {
             x509_dn_gets(buf, size, &self.inner.issuer)
         })
     }
 
-    pub fn issuer_raw(&self) -> ::Result<Vec<u8>> {
-        ::private::alloc_vec_repeat(
+    pub fn issuer_raw(&self) -> Result<Vec<u8>> {
+        crate::private::alloc_vec_repeat(
             |buf, size| unsafe { x509_dn_gets(buf as _, size, &self.inner.issuer) },
             false,
         )
     }
 
-    pub fn subject(&self) -> ::Result<String> {
-        ::private::alloc_string_repeat(|buf, size| unsafe {
+    pub fn subject(&self) -> Result<String> {
+        crate::private::alloc_string_repeat(|buf, size| unsafe {
             x509_dn_gets(buf, size, &self.inner.subject)
         })
     }
 
-    pub fn subject_raw(&self) -> ::Result<Vec<u8>> {
-        ::private::alloc_vec_repeat(
+    pub fn subject_raw(&self) -> Result<Vec<u8>> {
+        crate::private::alloc_vec_repeat(
             |buf, size| unsafe { x509_dn_gets(buf as _, size, &self.inner.subject) },
             false,
         )
     }
 
-    pub fn serial(&self) -> ::Result<String> {
-        ::private::alloc_string_repeat(|buf, size| unsafe {
+    pub fn serial(&self) -> Result<String> {
+        crate::private::alloc_string_repeat(|buf, size| unsafe {
             x509_serial_gets(buf, size, &self.inner.serial)
         })
     }
 
-    pub fn serial_raw(&self) -> ::Result<Vec<u8>> {
-        ::private::alloc_vec_repeat(
+    pub fn serial_raw(&self) -> Result<Vec<u8>> {
+        crate::private::alloc_vec_repeat(
             |buf, size| unsafe { x509_serial_gets(buf as _, size, &self.inner.serial) },
             false,
         )
     }
 
-    pub fn public_key(&self) -> &::pk::Pk {
+    pub fn public_key(&self) -> &Pk {
         unsafe { &*(&self.inner.pk as *const _ as *const _) }
     }
 
-    pub fn public_key_mut(&mut self) -> &mut ::pk::Pk {
+    pub fn public_key_mut(&mut self) -> &mut Pk {
         unsafe { &mut *(&mut self.inner.pk as *mut _ as *mut _) }
     }
 
@@ -177,15 +180,15 @@ impl LinkedCertificate {
         unsafe { ::core::slice::from_raw_parts(self.inner.raw.p, self.inner.raw.len) }
     }
 
-    pub fn digest_type(&self) -> ::hash::Type {
-        ::hash::Type::from(self.inner.sig_md)
+    pub fn digest_type(&self) -> MdType {
+        MdType::from(self.inner.sig_md)
     }
 
     pub fn verify(
         &mut self,
         trust_ca: &mut Certificate,
         err_info: Option<&mut String>,
-    ) -> ::Result<()> {
+    ) -> Result<()> {
         let mut flags = 0;
         let result = unsafe {
             x509_crt_verify(
@@ -202,7 +205,7 @@ impl LinkedCertificate {
 
         if result.is_err() {
             if let Some(err_info) = err_info {
-                let verify_info = ::private::alloc_string_repeat(|buf, size| unsafe {
+                let verify_info = crate::private::alloc_string_repeat(|buf, size| unsafe {
                     x509_crt_verify_info(buf, size, ptr::null_mut(), flags)
                 });
                 if let Ok(error_str) = verify_info {
@@ -225,7 +228,7 @@ impl LinkedCertificate {
 
 impl fmt::Debug for LinkedCertificate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match ::private::alloc_string_repeat(|buf, size| unsafe {
+        match crate::private::alloc_string_repeat(|buf, size| unsafe {
             x509_crt_info(buf, size, b"\0".as_ptr() as *const _, &self.inner)
         }) {
             Err(_) => Err(fmt::Error),
@@ -407,98 +410,89 @@ define!(
 );
 
 impl<'a> Builder<'a> {
-    unsafe fn subject_with_nul_unchecked(&mut self, subject: &[u8]) -> ::Result<&mut Self> {
-        try!(
-            x509write_crt_set_subject_name(&mut self.inner, subject.as_ptr() as *const _)
-                .into_result()
-        );
+    unsafe fn subject_with_nul_unchecked(&mut self, subject: &[u8]) -> Result<&mut Self> {
+        x509write_crt_set_subject_name(&mut self.inner, subject.as_ptr() as *const _).into_result()?;
         Ok(self)
     }
 
     #[cfg(feature = "std")]
-    pub fn subject(&mut self, subject: &str) -> ::Result<&mut Self> {
+    pub fn subject(&mut self, subject: &str) -> Result<&mut Self> {
         match ::std::ffi::CString::new(subject) {
-            Err(_) => Err(::Error::X509InvalidName),
+            Err(_) => Err(Error::X509InvalidName),
             Ok(s) => unsafe { self.subject_with_nul_unchecked(s.as_bytes_with_nul()) },
         }
     }
 
-    pub fn subject_with_nul(&mut self, subject: &str) -> ::Result<&mut Self> {
+    pub fn subject_with_nul(&mut self, subject: &str) -> Result<&mut Self> {
         if subject.as_bytes().iter().any(|&c| c == 0) {
             unsafe { self.subject_with_nul_unchecked(subject.as_bytes()) }
         } else {
-            Err(::Error::X509InvalidName)
+            Err(Error::X509InvalidName)
         }
     }
 
-    unsafe fn issuer_with_nul_unchecked(&mut self, issuer: &[u8]) -> ::Result<&mut Self> {
-        try!(
-            x509write_crt_set_issuer_name(&mut self.inner, issuer.as_ptr() as *const _)
-                .into_result()
-        );
+    unsafe fn issuer_with_nul_unchecked(&mut self, issuer: &[u8]) -> Result<&mut Self> {
+        x509write_crt_set_issuer_name(&mut self.inner, issuer.as_ptr() as *const _).into_result()?;
         Ok(self)
     }
 
     #[cfg(feature = "std")]
-    pub fn issuer(&mut self, issuer: &str) -> ::Result<&mut Self> {
+    pub fn issuer(&mut self, issuer: &str) -> Result<&mut Self> {
         match ::std::ffi::CString::new(issuer) {
-            Err(_) => Err(::Error::X509InvalidName),
+            Err(_) => Err(Error::X509InvalidName),
             Ok(s) => unsafe { self.issuer_with_nul_unchecked(s.as_bytes_with_nul()) },
         }
     }
 
-    pub fn issuer_with_nul(&mut self, issuer: &str) -> ::Result<&mut Self> {
+    pub fn issuer_with_nul(&mut self, issuer: &str) -> Result<&mut Self> {
         if issuer.as_bytes().iter().any(|&c| c == 0) {
             unsafe { self.issuer_with_nul_unchecked(issuer.as_bytes()) }
         } else {
-            Err(::Error::X509InvalidName)
+            Err(Error::X509InvalidName)
         }
     }
 
-    pub fn subject_key(&mut self, key: &'a mut ::pk::Pk) -> &mut Self {
+    pub fn subject_key(&mut self, key: &'a mut Pk) -> &mut Self {
         unsafe { x509write_crt_set_subject_key(&mut self.inner, key.into()) };
         self
     }
 
-    pub fn issuer_key(&mut self, key: &'a mut ::pk::Pk) -> &mut Self {
+    pub fn issuer_key(&mut self, key: &'a mut Pk) -> &mut Self {
         unsafe { x509write_crt_set_issuer_key(&mut self.inner, key.into()) };
         self
     }
 
-    pub fn signature_hash(&mut self, md: ::hash::Type) -> &mut Self {
+    pub fn signature_hash(&mut self, md: MdType) -> &mut Self {
         unsafe { x509write_crt_set_md_alg(&mut self.inner, md.into()) };
         self
     }
 
-    pub fn key_usage(&mut self, usage: ::x509::KeyUsage) -> ::Result<&mut Self> {
-        unsafe { try!(x509write_crt_set_key_usage(&mut self.inner, usage.bits()).into_result()) };
+    pub fn key_usage(&mut self, usage: crate::x509::KeyUsage) -> Result<&mut Self> {
+        unsafe { x509write_crt_set_key_usage(&mut self.inner, usage.bits()) }.into_result()?;
         Ok(self)
     }
 
-    pub fn extension(&mut self, oid: &[u8], val: &[u8], critical: bool) -> ::Result<&mut Self> {
+    pub fn extension(&mut self, oid: &[u8], val: &[u8], critical: bool) -> Result<&mut Self> {
         unsafe {
-            try!(x509write_crt_set_extension(
+            x509write_crt_set_extension(
                 &mut self.inner,
                 oid.as_ptr() as *const _,
                 oid.len(),
                 critical as _,
                 val.as_ptr(),
                 val.len()
-            )
-            .into_result())
-        };
+            ) }.into_result()?;
         Ok(self)
     }
 
-    pub fn basic_constraints(&mut self, ca: bool, pathlen: Option<u32>) -> ::Result<&mut Self> {
+    pub fn basic_constraints(&mut self, ca: bool, pathlen: Option<u32>) -> Result<&mut Self> {
         unsafe {
-            try!(x509write_crt_set_basic_constraints(
+            x509write_crt_set_basic_constraints(
                 &mut self.inner,
                 ca as _,
                 pathlen.unwrap_or(0) as _
             )
-            .into_result())
-        };
+        }.into_result()?;
         Ok(self)
     }
 
@@ -506,29 +500,28 @@ impl<'a> Builder<'a> {
         &mut self,
         not_before: super::Time,
         not_after: super::Time,
-    ) -> ::Result<&mut Self> {
+    ) -> Result<&mut Self> {
         unsafe {
-            try!(x509write_crt_set_validity(
+            x509write_crt_set_validity(
                 &mut self.inner,
                 not_before.to_x509_time().as_ptr() as _,
                 not_after.to_x509_time().as_ptr() as _
             )
-            .into_result())
-        };
+        }.into_result()?;
         Ok(self)
     }
 
-    pub fn serial(&mut self, serial: &[u8]) -> ::Result<&mut Self> {
-        let serial = try!(::bignum::Mpi::from_binary(serial));
-        unsafe { try!(x509write_crt_set_serial(&mut self.inner, (&serial).into()).into_result()) };
+    pub fn serial(&mut self, serial: &[u8]) -> Result<&mut Self> {
+        let serial = crate::bignum::Mpi::from_binary(serial)?;
+        unsafe { x509write_crt_set_serial(&mut self.inner, (&serial).into()) }.into_result()?;
         Ok(self)
     }
 
-    pub fn write_der<'buf, F: ::rng::Random>(
+    pub fn write_der<'buf, F: Random>(
         &mut self,
         buf: &'buf mut [u8],
         rng: &mut F,
-    ) -> ::Result<Option<&'buf [u8]>> {
+    ) -> Result<Option<&'buf [u8]>> {
         match unsafe {
             x509write_crt_der(
                 &mut self.inner,
@@ -539,14 +532,14 @@ impl<'a> Builder<'a> {
             )
             .into_result()
         } {
-            Err(::Error::Asn1BufTooSmall) => Ok(None),
+            Err(Error::Asn1BufTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
     }
 
-    pub fn write_der_vec<F: ::rng::Random>(&mut self, rng: &mut F) -> ::Result<Vec<u8>> {
-        ::private::alloc_vec_repeat(
+    pub fn write_der_vec<F: Random>(&mut self, rng: &mut F) -> Result<Vec<u8>> {
+        crate::private::alloc_vec_repeat(
             |buf, size| unsafe {
                 x509write_crt_der(&mut self.inner, buf, size, Some(F::call), rng.data_ptr())
             },
@@ -554,11 +547,11 @@ impl<'a> Builder<'a> {
         )
     }
 
-    pub fn write_pem<'buf, F: ::rng::Random>(
+    pub fn write_pem<'buf, F: Random>(
         &mut self,
         buf: &'buf mut [u8],
         rng: &mut F,
-    ) -> ::Result<Option<&'buf [u8]>> {
+    ) -> Result<Option<&'buf [u8]>> {
         match unsafe {
             x509write_crt_der(
                 &mut self.inner,
@@ -569,14 +562,14 @@ impl<'a> Builder<'a> {
             )
             .into_result()
         } {
-            Err(::Error::Base64BufferTooSmall) => Ok(None),
+            Err(Error::Base64BufferTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
     }
 
-    pub fn write_pem_string<F: ::rng::Random>(&mut self, rng: &mut F) -> ::Result<String> {
-        ::private::alloc_string_repeat(|buf, size| unsafe {
+    pub fn write_pem_string<F: Random>(&mut self, rng: &mut F) -> Result<String> {
+        crate::private::alloc_string_repeat(|buf, size| unsafe {
             match x509write_crt_pem(
                 &mut self.inner,
                 buf as _,
@@ -584,7 +577,7 @@ impl<'a> Builder<'a> {
                 Some(F::call),
                 rng.data_ptr(),
             ) {
-                0 => ::private::cstr_to_slice(buf as _).len() as _,
+                0 => crate::private::cstr_to_slice(buf as _).len() as _,
                 r => r,
             }
         })
@@ -601,7 +594,6 @@ impl<'a> Builder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pk::Pk;
 
     struct Test {
         key1: Pk,
@@ -611,13 +603,13 @@ mod tests {
     impl Test {
         fn new() -> Self {
             Test {
-                key1: Pk::from_private_key(::test_support::keys::PEM_KEY, None).unwrap(),
-                key2: Pk::from_private_key(::test_support::keys::PEM_KEY, None).unwrap(),
+                key1: Pk::from_private_key(crate::test_support::keys::PEM_KEY, None).unwrap(),
+                key2: Pk::from_private_key(crate::test_support::keys::PEM_KEY, None).unwrap(),
             }
         }
 
         fn builder<'a>(&'a mut self) -> Builder<'a> {
-            use x509::Time;
+            use crate::x509::Time;
 
             let mut b = Builder::new();
             b.subject_key(&mut self.key1)
@@ -710,8 +702,8 @@ JS7pkcufTIoN0Yj0SxAWLW711FgB
         let output = t
             .builder()
             .serial(&[5]).unwrap()
-            .signature_hash(::hash::Type::Sha256)
-            .write_der_vec(&mut ::test_support::rand::test_rng())
+            .signature_hash(MdType::Sha256)
+            .write_der_vec(&mut crate::test_support::rand::test_rng())
             .unwrap();
         assert!(output == TEST_DER);
     }
@@ -722,8 +714,8 @@ JS7pkcufTIoN0Yj0SxAWLW711FgB
         let output = t
             .builder()
             .serial(&[5]).unwrap()
-            .signature_hash(::hash::Type::Sha256)
-            .write_pem_string(&mut ::test_support::rand::test_rng())
+            .signature_hash(MdType::Sha256)
+            .write_pem_string(&mut crate::test_support::rand::test_rng())
             .unwrap();
         assert_eq!(output, TEST_PEM);
     }
@@ -758,21 +750,21 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             cert.serial().unwrap(),
             "B6:34:49:2E:69:63:D6:1B:FD:A2:07:BD:20:2F:98:EB"
         );
-        assert_eq!(cert.digest_type(), ::hash::Type::Sha256);
+        assert_eq!(cert.digest_type(), MdType::Sha256);
 
         let pk = cert.public_key();
 
-        assert_eq!(pk.pk_type(), ::pk::Type::Rsa);
+        assert_eq!(pk.pk_type(), crate::pk::Type::Rsa);
         assert_eq!(pk.rsa_public_exponent().unwrap(), 0x10001);
 
         let channel_binding_hash = match cert.digest_type() {
-            ::hash::Type::Md5 | ::hash::Type::Sha1 => ::hash::Type::Sha256,
+            MdType::Md5 | MdType::Sha1 => MdType::Sha256,
             digest => digest,
         };
 
         let mut digest = [0u8; 64];
         let digest_len =
-            ::hash::Md::hash(channel_binding_hash, cert.as_der(), &mut digest).unwrap();
+            crate::hash::Md::hash(channel_binding_hash, cert.as_der(), &mut digest).unwrap();
 
         assert_eq!(
             digest[0..digest_len],
