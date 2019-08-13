@@ -7,7 +7,6 @@
  * according to those terms. */
 
 #![deny(warnings)]
-#![cfg_attr(feature = "rdrand", feature(asm))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(all(not(feature = "std"), not(feature = "core_io")))]
