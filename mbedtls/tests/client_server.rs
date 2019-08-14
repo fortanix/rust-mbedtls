@@ -16,7 +16,7 @@ use std::net::TcpStream;
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
-use mbedtls::ssl::{Config, Context};
+use mbedtls::ssl::{Config, Context, Version};
 use mbedtls::x509::{Certificate, LinkedCertificate, VerifyError};
 use mbedtls::Error;
 use mbedtls::Result as TlsResult;
@@ -27,10 +27,9 @@ use support::keys;
 
 fn client(
     mut conn: TcpStream,
-    min_minor: i32,
-    max_minor: i32,
-    exp_minor: Result<i32, ()>,
-) -> TlsResult<()> {
+    min_version: Version,
+    max_version: Version,
+    exp_version: Result<Version, ()>) -> TlsResult<()> {
     let mut entropy = entropy_new();
     let mut rng = CtrDrbg::new(&mut entropy, None)?;
     let mut cert = Certificate::from_pem(keys::PEM_CERT)?;
@@ -45,19 +44,19 @@ fn client(
         config.set_rng(Some(&mut rng));
         config.set_verify_callback(verify_callback);
         config.set_ca_list(Some(&mut *cert), None);
-        config.set_min_version(3, min_minor)?;
-        config.set_max_version(3, max_minor)?;
+        config.set_min_version(min_version)?;
+        config.set_max_version(max_version)?;
         let mut ctx = Context::new(&config)?;
 
         let session = ctx.establish(&mut conn, None);
 
         let mut session = match session {
             Ok(s) => {
-                assert_eq!(s.minor_version(), exp_minor.unwrap());
+                assert_eq!(s.version(), exp_version.unwrap());
                 s
             }
             Err(e) => {
-                assert!(exp_minor.is_err());
+                assert!(exp_version.is_err());
                 match e {
                     Error::SslBadHsProtocolVersion => {}
                     Error::SslFatalAlertMessage => {}
@@ -81,9 +80,9 @@ fn client(
 
 fn server(
     mut conn: TcpStream,
-    min_minor: i32,
-    max_minor: i32,
-    exp_minor: Result<i32, ()>,
+    min_version: Version,
+    max_version: Version,
+    exp_version: Result<Version, ()>,
 ) -> TlsResult<()> {
     let mut entropy = entropy_new();
     let mut rng = CtrDrbg::new(&mut entropy, None)?;
@@ -91,19 +90,19 @@ fn server(
     let mut key = Pk::from_private_key(keys::PEM_KEY, None)?;
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(Some(&mut rng));
-    config.set_min_version(3, min_minor)?;
-    config.set_max_version(3, max_minor)?;
+    config.set_min_version(min_version)?;
+    config.set_max_version(max_version)?;
     config.push_cert(&mut *cert, &mut key)?;
     let mut ctx = Context::new(&config)?;
 
     let session = ctx.establish(&mut conn, None);
     let mut session = match session {
         Ok(s) => {
-            assert_eq!(s.minor_version(), exp_minor.unwrap());
+            assert_eq!(s.version(), exp_version.unwrap());
             s
         }
         Err(e) => {
-            assert!(exp_minor.is_err());
+            assert!(exp_version.is_err());
             match e {
                 // client just closes connection instead of sending alert
                 Error::NetSendFailed => {}
@@ -131,55 +130,48 @@ mod test {
 
     #[test]
     fn client_server_test() {
+        //use mbedtls::ssl::Version;
+
+        #[derive(Copy,Clone)]
+        struct TestConfig {
+            min_c: Version,
+            max_c: Version,
+            min_s: Version,
+            max_s: Version,
+            exp_ver: Result<Version, ()>,
+        }
+
+        impl TestConfig {
+            pub fn new(min_c: Version, max_c: Version, min_s: Version, max_s: Version, exp_ver: Result<Version, ()>) -> Self {
+                TestConfig { min_c, max_c, min_s, max_s, exp_ver }
+            }
+        }
+
         let test_configs = [
-            [0, 0, 0, 0, 0],
-            [1, 1, 1, 1, 1],
-            [2, 2, 2, 2, 2],
-            [1, 1, 0, 2, 1],
-            [0, 2, 0, 1, 1],
-            [1, 2, 1, 1, 1],
-            [1, 2, 1, 2, 2],
-            [2, 2, 1, 2, 2],
-            [1, 3, 1, 2, 2],
-            [0, 3, 0, 3, 3],
-            [1, 3, 2, 3, 3],
-            [3, 3, 3, 3, 3],
-            [2, 2, 3, 2, -1],
-            [2, 2, 0, 1, -1],
-            [0, 1, 2, 2, -1],
-            [0, 0, 1, 2, -1],
+            TestConfig::new(Version::Ssl3, Version::Ssl3, Version::Ssl3, Version::Ssl3, Ok(Version::Ssl3)),
+            TestConfig::new(Version::Ssl3, Version::Tls1_2, Version::Ssl3, Version::Ssl3, Ok(Version::Ssl3)),
+            TestConfig::new(Version::Tls1_0, Version::Tls1_0, Version::Tls1_0, Version::Tls1_0, Ok(Version::Tls1_0)),
+            TestConfig::new(Version::Tls1_1, Version::Tls1_1, Version::Tls1_1, Version::Tls1_1, Ok(Version::Tls1_1)),
+            TestConfig::new(Version::Tls1_2, Version::Tls1_2, Version::Tls1_2, Version::Tls1_2, Ok(Version::Tls1_2)),
+            TestConfig::new(Version::Tls1_0, Version::Tls1_2, Version::Tls1_0, Version::Tls1_2, Ok(Version::Tls1_2)),
+            TestConfig::new(Version::Tls1_2, Version::Tls1_2, Version::Tls1_0, Version::Tls1_2, Ok(Version::Tls1_2)),
+            TestConfig::new(Version::Tls1_0, Version::Tls1_1, Version::Tls1_2, Version::Tls1_2, Err(()))
         ];
 
         for config in &test_configs {
-            let client_min_ver = config[0];
-            let client_max_ver = config[1];
-            let server_min_ver = config[2];
-            let server_max_ver = config[3];
-            let exp_version = config[4];
+            let min_c = config.min_c;
+            let max_c = config.max_c;
+            let min_s = config.min_s;
+            let max_s = config.max_s;
+            let exp_ver = config.exp_ver;
 
-            if (client_max_ver < 3 || server_max_ver < 3) && !cfg!(feature = "legacy_protocols") {
+            if (max_c < Version::Tls1_2 || max_s < Version::Tls1_2) && !cfg!(feature = "legacy_protocols") {
                 continue;
             }
 
             let (c, s) = crate::support::net::create_tcp_pair().unwrap();
-
-            let c = thread::spawn(move || {
-                let exp_result = if exp_version < 0 {
-                    Err(())
-                } else {
-                    Ok(exp_version)
-                };
-                super::client(c, client_min_ver, client_max_ver, exp_result).unwrap()
-            });
-
-            let s = thread::spawn(move || {
-                let exp_result = if exp_version < 0 {
-                    Err(())
-                } else {
-                    Ok(exp_version)
-                };
-                super::server(s, server_min_ver, server_max_ver, exp_result).unwrap()
-            });
+            let c = thread::spawn(move || super::client(c, min_c, max_c, exp_ver.clone()).unwrap());
+            let s = thread::spawn(move || super::server(s, min_s, max_s, exp_ver).unwrap());
 
             c.join().unwrap();
             s.join().unwrap();

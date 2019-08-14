@@ -21,6 +21,17 @@ use crate::ssl::context::HandshakeContext;
 use crate::ssl::ticket::TicketCallback;
 use crate::x509::{certificate, Crl, LinkedCertificate, Profile, VerifyError};
 
+#[allow(non_camel_case_types)]
+#[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Copy, Clone)]
+pub enum Version {
+    Ssl3,
+    Tls1_0,
+    Tls1_1,
+    Tls1_2,
+    #[doc(hidden)]
+    __NonExhaustive,
+}
+
 define!(
     #[c_ty(c_int)]
     enum Endpoint {
@@ -118,21 +129,28 @@ impl<'c> Config<'c> {
         unsafe { ssl_conf_curves(&mut self.inner, list.as_ptr()) }
     }
 
-    pub fn set_min_version(&mut self, major: i32, minor: i32) -> Result<()> {
-        // mbedtls does not check the versions so sanity check first
+    pub fn set_min_version(&mut self, version: Version) -> Result<()> {
+        let minor = match version {
+            Version::Ssl3 => 0,
+            Version::Tls1_0 => 1,
+            Version::Tls1_1 => 2,
+            Version::Tls1_2 => 3,
+            _ => { return Err(Error::SslBadHsProtocolVersion); }
+        };
 
-        if major != 3 || minor < 0 || minor > 3 {
-            return Err(Error::SslBadHsProtocolVersion);
-        }
-        unsafe { ssl_conf_min_version(&mut self.inner, major, minor) };
+        unsafe { ssl_conf_min_version(&mut self.inner, 3, minor) };
         Ok(())
     }
 
-    pub fn set_max_version(&mut self, major: i32, minor: i32) -> Result<()> {
-        if major != 3 || minor < 0 || minor > 3 {
-            return Err(Error::SslBadHsProtocolVersion);
-        }
-        unsafe { ssl_conf_max_version(&mut self.inner, major, minor) };
+    pub fn set_max_version(&mut self, version: Version) -> Result<()> {
+        let minor = match version {
+            Version::Ssl3 => 0,
+            Version::Tls1_0 => 1,
+            Version::Tls1_1 => 2,
+            Version::Tls1_2 => 3,
+            _ => { return Err(Error::SslBadHsProtocolVersion); }
+        };
+        unsafe { ssl_conf_max_version(&mut self.inner, 3, minor) };
         Ok(())
     }
 
