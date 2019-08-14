@@ -29,7 +29,7 @@ fn client(
     mut conn: TcpStream,
     min_version: Version,
     max_version: Version,
-    exp_version: Result<Version, ()>) -> TlsResult<()> {
+    exp_version: Option<Version>) -> TlsResult<()> {
     let mut entropy = entropy_new();
     let mut rng = CtrDrbg::new(&mut entropy, None)?;
     let mut cert = Certificate::from_pem(keys::PEM_CERT)?;
@@ -56,7 +56,7 @@ fn client(
                 s
             }
             Err(e) => {
-                assert!(exp_version.is_err());
+                assert!(exp_version.is_none());
                 match e {
                     Error::SslBadHsProtocolVersion => {}
                     Error::SslFatalAlertMessage => {}
@@ -82,7 +82,7 @@ fn server(
     mut conn: TcpStream,
     min_version: Version,
     max_version: Version,
-    exp_version: Result<Version, ()>,
+    exp_version: Option<Version>,
 ) -> TlsResult<()> {
     let mut entropy = entropy_new();
     let mut rng = CtrDrbg::new(&mut entropy, None)?;
@@ -102,7 +102,7 @@ fn server(
             s
         }
         Err(e) => {
-            assert!(exp_version.is_err());
+            assert!(exp_version.is_none());
             match e {
                 // client just closes connection instead of sending alert
                 Error::NetSendFailed => {}
@@ -138,24 +138,24 @@ mod test {
             max_c: Version,
             min_s: Version,
             max_s: Version,
-            exp_ver: Result<Version, ()>,
+            exp_ver: Option<Version>,
         }
 
         impl TestConfig {
-            pub fn new(min_c: Version, max_c: Version, min_s: Version, max_s: Version, exp_ver: Result<Version, ()>) -> Self {
+            pub fn new(min_c: Version, max_c: Version, min_s: Version, max_s: Version, exp_ver: Option<Version>) -> Self {
                 TestConfig { min_c, max_c, min_s, max_s, exp_ver }
             }
         }
 
         let test_configs = [
-            TestConfig::new(Version::Ssl3, Version::Ssl3, Version::Ssl3, Version::Ssl3, Ok(Version::Ssl3)),
-            TestConfig::new(Version::Ssl3, Version::Tls1_2, Version::Ssl3, Version::Ssl3, Ok(Version::Ssl3)),
-            TestConfig::new(Version::Tls1_0, Version::Tls1_0, Version::Tls1_0, Version::Tls1_0, Ok(Version::Tls1_0)),
-            TestConfig::new(Version::Tls1_1, Version::Tls1_1, Version::Tls1_1, Version::Tls1_1, Ok(Version::Tls1_1)),
-            TestConfig::new(Version::Tls1_2, Version::Tls1_2, Version::Tls1_2, Version::Tls1_2, Ok(Version::Tls1_2)),
-            TestConfig::new(Version::Tls1_0, Version::Tls1_2, Version::Tls1_0, Version::Tls1_2, Ok(Version::Tls1_2)),
-            TestConfig::new(Version::Tls1_2, Version::Tls1_2, Version::Tls1_0, Version::Tls1_2, Ok(Version::Tls1_2)),
-            TestConfig::new(Version::Tls1_0, Version::Tls1_1, Version::Tls1_2, Version::Tls1_2, Err(()))
+            TestConfig::new(Version::Ssl3, Version::Ssl3, Version::Ssl3, Version::Ssl3, Some(Version::Ssl3)),
+            TestConfig::new(Version::Ssl3, Version::Tls1_2, Version::Ssl3, Version::Ssl3, Some(Version::Ssl3)),
+            TestConfig::new(Version::Tls1_0, Version::Tls1_0, Version::Tls1_0, Version::Tls1_0, Some(Version::Tls1_0)),
+            TestConfig::new(Version::Tls1_1, Version::Tls1_1, Version::Tls1_1, Version::Tls1_1, Some(Version::Tls1_1)),
+            TestConfig::new(Version::Tls1_2, Version::Tls1_2, Version::Tls1_2, Version::Tls1_2, Some(Version::Tls1_2)),
+            TestConfig::new(Version::Tls1_0, Version::Tls1_2, Version::Tls1_0, Version::Tls1_2, Some(Version::Tls1_2)),
+            TestConfig::new(Version::Tls1_2, Version::Tls1_2, Version::Tls1_0, Version::Tls1_2, Some(Version::Tls1_2)),
+            TestConfig::new(Version::Tls1_0, Version::Tls1_1, Version::Tls1_2, Version::Tls1_2, None)
         ];
 
         for config in &test_configs {
