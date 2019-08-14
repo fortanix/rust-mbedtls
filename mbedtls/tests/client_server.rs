@@ -130,7 +130,7 @@ mod test {
 
     #[test]
     fn client_server_test() {
-        //use mbedtls::ssl::Version;
+        use mbedtls::ssl::Version;
 
         #[derive(Copy,Clone)]
         struct TestConfig {
