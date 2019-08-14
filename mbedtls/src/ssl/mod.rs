@@ -14,7 +14,7 @@ pub mod ticket;
 #[doc(inline)]
 pub use self::ciphersuites::CipherSuite;
 #[doc(inline)]
-pub use self::config::Config;
+pub use self::config::{Config, Version};
 #[doc(inline)]
 pub use self::context::{Context, HandshakeContext, Session};
 #[doc(inline)]

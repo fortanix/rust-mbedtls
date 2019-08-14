@@ -18,7 +18,7 @@ use mbedtls_sys::*;
 use crate::error::{Error, IntoResult, Result};
 use core::result::Result as StdResult;
 use crate::private::UnsafeFrom;
-use crate::ssl::config::{AuthMode, Config};
+use crate::ssl::config::{AuthMode, Config, Version};
 use crate::x509::{Crl, LinkedCertificate, VerifyError};
 
 pub trait IoCallback {
@@ -223,6 +223,19 @@ impl<'a> Session<'a> {
     /// Return the major number of the negotiated TLS version
     pub fn major_version(&self) -> i32 {
         self.inner.major_ver
+    }
+
+    pub fn version(&self) -> Version {
+        let major = self.major_version();
+        assert_eq!(major, 3);
+        let minor = self.minor_version();
+        match minor {
+            0 => Version::Ssl3,
+            1 => Version::Tls1_0,
+            2 => Version::Tls1_1,
+            3 => Version::Tls1_2,
+            _ => unreachable!("unexpected TLS version")
+        }
     }
 
     /// Return the 16-bit ciphersuite identifier.
