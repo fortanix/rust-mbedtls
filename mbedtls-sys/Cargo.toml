@@ -32,10 +32,7 @@ cmake = "0.1.17"
 # * strstr/strlen/strncpy/strncmp/strcmp/snprintf
 # * memmove/memcpy/memcmp/memset
 # * rand/printf (used only for self tests. optionally use custom_printf)
-# If you use it without libc support, you need to provide
-# * time_t* mbedtls_time(time_t* t) for time
-# * tm* mbedtls_platform_gmtime_r(time_t* tt, tp: *mut tm) for gmtime_r
-default = ["std", "zlib", "time", "libc", "pthread", "aesni", "padlock", "legacy_protocols"]
+default = ["std", "zlib", "time", "pthread", "aesni", "padlock", "legacy_protocols"]
 std = []
 custom_printf = []
 custom_time = ["custom_gmtime_r", "time"]

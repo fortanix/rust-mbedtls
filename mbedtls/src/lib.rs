@@ -117,3 +117,48 @@ mod alloc_prelude {
     pub(crate) use alloc::string::ToString;
     pub(crate) use alloc::vec::Vec;
 }
+
+#[cfg(all(feature="time", any(feature="custom_gmtime_r", feature="custom_time")))]
+use mbedtls_sys::types::{time_t, tm};
+
+#[cfg(any(feature = "custom_gmtime_r", feature = "custom_time"))]
+extern crate chrono;
+
+#[cfg(feature="custom_gmtime_r")]
+#[doc(hidden)]
+#[no_mangle]
+pub unsafe extern "C" fn mbedtls_platform_gmtime_r(tt: *const time_t, tp: *mut tm) -> *mut tm {
+    use chrono::prelude::*;
+
+    //0 means no TZ offset
+    let naive = if tp.is_null() {
+        return std::ptr::null_mut()
+    } else {
+        NaiveDateTime::from_timestamp(*tt, 0)
+    };
+    let utc = DateTime::<Utc>::from_utc(naive, Utc);
+
+    let tp = &mut *tp;
+    tp.tm_sec   = utc.second()   as i32;
+    tp.tm_min   = utc.minute()   as i32;
+    tp.tm_hour  = utc.hour()     as i32;
+    tp.tm_mday  = utc.day()      as i32;
+    tp.tm_mon   = utc.month0()   as i32;
+    tp.tm_year  = utc.year()     as i32 - 1900;
+    tp.tm_wday  = utc.weekday().num_days_from_monday() as i32;
+    tp.tm_yday  = utc.ordinal0() as i32;
+    tp.tm_isdst = 0;
+
+    tp
+}
+
+#[cfg(feature="custom_time")]
+#[doc(hidden)]
+#[no_mangle]
+pub unsafe extern "C" fn mbedtls_time(tp: *mut time_t) -> time_t {
+    let timestamp = chrono::Utc::now().timestamp() as time_t;
+    if !tp.is_null() {
+        *tp = timestamp;
+    }
+    timestamp
+}

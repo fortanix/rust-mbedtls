@@ -23,5 +23,5 @@ pub const ECDSA_MAX_LEN : u32 = 141;
 #[cfg(all(feature = "time", not(feature = "custom_time"), not(feature = "libc")))]
 impl _ERROR_MUST_ENABLE_EITHER_CUSTOM_TIME_OR_LIBC_ for _TIME_FEATURE_ {}
 
-#[cfg(all(feature = "time", not(feature = "custom_time_r"), not(feature = "libc")))]
-impl _ERROR_MUST_ENABLE_EITHER_CUSTOM_TIME_R_OR_LIBC_ for _TIME_FEATURE_ {}
+#[cfg(all(feature = "time", not(feature = "custom_gmtime_r"), not(feature = "libc")))]
+impl _ERROR_MUST_ENABLE_EITHER_CUSTOM_GMTIME_R_OR_LIBC_ for _TIME_FEATURE_ {}

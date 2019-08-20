@@ -206,7 +206,8 @@ impl LinkedCertificate {
         if result.is_err() {
             if let Some(err_info) = err_info {
                 let verify_info = crate::private::alloc_string_repeat(|buf, size| unsafe {
-                    x509_crt_verify_info(buf, size, ptr::null_mut(), flags)
+                    let prefix = "\0";
+                    x509_crt_verify_info(buf, size, prefix.as_ptr() as *const _, flags)
                 });
                 if let Ok(error_str) = verify_info {
                     *err_info = error_str;
