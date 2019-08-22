@@ -225,6 +225,12 @@ impl<'a> Session<'a> {
         self.inner.major_ver
     }
 
+    /// Return the number of bytes currently available to read that
+    /// are stored in the Session's internal read buffer
+    pub fn bytes_available(&self) -> usize {
+        unsafe { ssl_get_bytes_avail(self.inner) }
+    }
+
     pub fn version(&self) -> Version {
         let major = self.major_version();
         assert_eq!(major, 3);
@@ -295,7 +301,6 @@ impl<'a> Drop for Session<'a> {
 }
 
 // ssl_get_alpn_protocol
-// ssl_get_bytes_avail
 // ssl_get_max_frag_len
 // ssl_get_record_expansion
 // ssl_get_verify_result
