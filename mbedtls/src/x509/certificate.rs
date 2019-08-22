@@ -40,6 +40,9 @@ define!(
     const drop: fn(&mut Self) = x509_crt_free;
 );
 
+#[cfg(feature="threading")]
+unsafe impl Sync for Certificate {}
+
 #[cfg(feature = "std")]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Extension {
