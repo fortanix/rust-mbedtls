@@ -496,21 +496,20 @@ impl Pk {
         plain: &mut [u8],
         rng: &mut F,
     ) -> Result<usize> {
-        let mut ret;
-        unsafe {
-            ret = ::core::mem::uninitialized();
+        let mut ret = ::core::mem::MaybeUninit::uninit();
+        let ret = unsafe {
             pk_decrypt(
                 &mut self.inner,
                 cipher.as_ptr(),
                 cipher.len(),
                 plain.as_mut_ptr(),
-                &mut ret,
+                ret.as_mut_ptr(),
                 plain.len(),
                 Some(F::call),
                 rng.data_ptr(),
-            )
-            .into_result()?;
-        }
+            ).into_result()?;
+            ret.assume_init()
+        };
         Ok(ret)
     }
 
@@ -520,21 +519,20 @@ impl Pk {
         cipher: &mut [u8],
         rng: &mut F,
     ) -> Result<usize> {
-        let mut ret;
-        unsafe {
-            ret = ::core::mem::uninitialized();
+        let mut ret = ::core::mem::MaybeUninit::uninit();
+        let ret = unsafe {
             pk_encrypt(
                 &mut self.inner,
                 plain.as_ptr(),
                 plain.len(),
                 cipher.as_mut_ptr(),
-                &mut ret,
+                ret.as_mut_ptr(),
                 cipher.len(),
                 Some(F::call),
                 rng.data_ptr(),
-            )
-            .into_result()?;
-        }
+            ).into_result()?;
+            ret.assume_init()
+        };
         Ok(ret)
     }
 
@@ -555,7 +553,6 @@ impl Pk {
         sig: &mut [u8],
         rng: &mut F,
     ) -> Result<usize> {
-        let mut ret;
         match self.pk_type() {
             Type::Rsa | Type::RsaAlt | Type::RsassaPss => {
                 if sig.len() < (self.len() / 8) {
@@ -569,20 +566,20 @@ impl Pk {
             }
             _ => return Err(Error::PkSigLenMismatch),
         }
-        unsafe {
-            ret = ::core::mem::uninitialized();
+        let mut ret = ::core::mem::MaybeUninit::uninit();
+        let ret = unsafe {
             pk_sign(
                 &mut self.inner,
                 md.into(),
                 hash.as_ptr(),
                 hash.len(),
                 sig.as_mut_ptr(),
-                &mut ret,
+                ret.as_mut_ptr(),
                 Some(F::call),
                 rng.data_ptr(),
-            )
-            .into_result()?;
-        }
+            ).into_result()?;
+            ret.assume_init()
+        };
         Ok(ret)
     }
 
@@ -606,21 +603,20 @@ impl Pk {
 
             let mut rng = Rfc6979Rng::new(md, &q, &x, hash, &random_seed)?;
 
-            let mut ret;
-            unsafe {
-                ret = ::core::mem::uninitialized();
+            let mut ret = ::core::mem::MaybeUninit::uninit();
+            let ret = unsafe {
                 pk_sign(
                     &mut self.inner,
                     md.into(),
                     hash.as_ptr(),
                     hash.len(),
                     sig.as_mut_ptr(),
-                    &mut ret,
+                    ret.as_mut_ptr(),
                     Some(Rfc6979Rng::call),
                     rng.data_ptr(),
-                )
-                .into_result()?;
-            }
+                ).into_result()?;
+                ret.assume_init()
+            };
             Ok(ret)
         } else if self.pk_type() == Type::Rsa {
             // Reject sign_deterministic being use for PSS

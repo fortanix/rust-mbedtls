@@ -150,10 +150,10 @@ macro_rules! define_struct {
         #[allow(dead_code)]
         impl<$($l)*> $name<$($l)*> {
             $($vis)* fn $new() -> Self {
-                let mut inner;
-                unsafe{
-                    inner=::core::mem::uninitialized();
-                    ::mbedtls_sys::$ctor(&mut inner)
+                let mut inner = ::core::mem::MaybeUninit::uninit();
+                let inner = unsafe {
+                    ::mbedtls_sys::$ctor(inner.as_mut_ptr());
+                    inner.assume_init()
                 };
                 $name{
                     inner:inner,

@@ -54,10 +54,10 @@ mod private {
 
     impl<'entropy> CtrDrbgInner<'entropy> {
         pub(super) fn init() -> Self {
-            let mut inner;
-            unsafe {
-                inner = ::core::mem::uninitialized();
-                ctr_drbg_init(&mut inner)
+            let mut inner = ::core::mem::MaybeUninit::uninit();
+            let inner = unsafe {
+                ctr_drbg_init(inner.as_mut_ptr());
+                inner.assume_init()
             };
             CtrDrbgInner {
                 inner,
