@@ -16,7 +16,7 @@ use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::{Config, Context};
-use mbedtls::x509::{verify_error, Certificate, LinkedCertificate, VerifyError};
+use mbedtls::x509::{Certificate, LinkedCertificate, VerifyError};
 use mbedtls::Error;
 use mbedtls::Result as TlsResult;
 
@@ -37,7 +37,7 @@ fn client(mut conn: TcpStream, test: Test) -> TlsResult<()> {
     let verify_callback =
         &mut |_: &mut LinkedCertificate, _, verify_flags: &mut VerifyError| match test {
             Test::CallbackSetVerifyFlags => {
-                *verify_flags |= verify_error::CERT_OTHER;
+                *verify_flags |= VerifyError::CERT_OTHER;
                 Ok(())
             }
             Test::CallbackError => Err(Error::Asn1InvalidData),

@@ -18,7 +18,7 @@ documentation = "https://docs.rs/mbedtls/"
 keywords = ["MbedTLS","mbed","TLS","SSL","cryptography"]
 
 [dependencies]
-bitflags = "0.7.0"
+bitflags = "1"
 core_io = { version = "0.1", features = ["collections"], optional = true }
 spin = { version = "0.4.0", default-features = false, optional = true }
 serde = { version = "1.0.7", default-features = false }
