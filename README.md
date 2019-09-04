@@ -77,6 +77,8 @@ This is a list of the Cargo features available for mbedtls-sys. Features in
 **bold** are enabled by default.
 
 * **aesni** Enable support for the AES-NI instructions.
+* *aes_alt* Allow an alternative implementation of AES, replacing the
+  T-tables code.
 * *custom_has_support* Override runtime feature detection. In a dependent
                        crate, you must define the functions
                        `mbedtls_aesni_has_support` and

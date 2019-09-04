@@ -36,6 +36,7 @@ default = ["std", "zlib", "time", "pthread", "aesni", "padlock", "legacy_protoco
 std = []
 custom_printf = []
 custom_has_support = []
+aes_alt = []
 custom_threading = ["threading"]
 pthread = ["libc","threading"]
 threading = []
