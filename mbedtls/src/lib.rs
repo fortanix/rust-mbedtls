@@ -80,6 +80,36 @@ pub extern "C" fn mbedtls_aesni_has_support(_what: u32) -> i32 {
     return 1;
 }
 
+#[cfg(all(feature = "force_aesni_support", feature = "std"))]
+fn abend() -> i32 { std::process::abort() }
+
+#[cfg(all(feature = "force_aesni_support", not(feature = "std")))]
+fn abend() -> i32 {
+    // can't panic, can't abort, can't exit ... so deref a null pointer
+    let null = ::core::ptr::null_mut();
+    unsafe { *null }
+}
+
+// needs to be pub for global visiblity
+#[cfg(feature = "force_aesni_support")]
+#[doc(hidden)]
+#[no_mangle]
+pub extern "C" fn mbedtls_internal_aes_encrypt(_ctx: *mut mbedtls_sys::types::raw_types::c_void,
+                                               _input: *const u8,
+                                               _output: *mut u8) -> i32 {
+    abend()
+}
+
+// needs to be pub for global visiblity
+#[cfg(feature = "force_aesni_support")]
+#[doc(hidden)]
+#[no_mangle]
+pub extern "C" fn mbedtls_internal_aes_decrypt(_ctx: *mut mbedtls_sys::types::raw_types::c_void,
+                                               _input: *const u8,
+                                               _output: *mut u8) -> i32 {
+    abend()
+}
+
 #[cfg(test)]
 #[path = "../tests/support/mod.rs"]
 mod test_support;
