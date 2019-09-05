@@ -32,18 +32,23 @@ fn client(
     exp_version: Option<Version>) -> TlsResult<()> {
     let mut entropy = entropy_new();
     let mut rng = CtrDrbg::new(&mut entropy, None)?;
-    let mut cert = Certificate::from_pem(keys::PEM_CERT)?;
+    let mut cacert = Certificate::from_pem(keys::ROOT_CA_CERT)?;
+    let expected_flags = VerifyError::empty();
+    #[cfg(feature = "time")]
+    let expected_flags = expected_flags | VerifyError::CERT_EXPIRED;
     let mut verify_args = None;
     {
         let verify_callback =
             &mut |crt: &mut LinkedCertificate, depth, verify_flags: &mut VerifyError| {
-                verify_args = Some((crt.subject().unwrap(), depth, verify_flags.bits()));
+                verify_args = Some((crt.subject().unwrap(), depth, *verify_flags));
+                verify_flags.remove(VerifyError::CERT_EXPIRED); //we check the flags at the end,
+                //so removing this flag here prevents the connections from failing with VerifyError
                 Ok(())
             };
         let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
         config.set_rng(Some(&mut rng));
         config.set_verify_callback(verify_callback);
-        config.set_ca_list(Some(&mut *cert), None);
+        config.set_ca_list(Some(&mut *cacert), None);
         config.set_min_version(min_version)?;
         config.set_max_version(max_version)?;
         let mut ctx = Context::new(&config)?;
@@ -56,10 +61,9 @@ fn client(
                 s
             }
             Err(e) => {
-                assert!(exp_version.is_none());
                 match e {
-                    Error::SslBadHsProtocolVersion => {}
-                    Error::SslFatalAlertMessage => {}
+                    Error::SslBadHsProtocolVersion => {assert!(exp_version.is_none())},
+                    Error::SslFatalAlertMessage => {},
                     e => panic!("Unexpected error {}", e),
                 };
                 return Ok(());
@@ -74,7 +78,7 @@ fn client(
         session.read_exact(&mut buf).unwrap();
         assert_eq!(&buf, format!("Server2Client {:4x}", ciphersuite).as_bytes());
     } // drop verify_callback, releasing borrow of verify_args
-    assert_eq!(verify_args, Some((keys::PEM_CERT_SUBJECT.to_owned(), 0, 0)));
+    assert_eq!(verify_args, Some((keys::EXPIRED_CERT_SUBJECT.to_owned(), 0, expected_flags)));
     Ok(())
 }
 
@@ -86,8 +90,8 @@ fn server(
 ) -> TlsResult<()> {
     let mut entropy = entropy_new();
     let mut rng = CtrDrbg::new(&mut entropy, None)?;
-    let mut cert = Certificate::from_pem(keys::PEM_CERT)?;
-    let mut key = Pk::from_private_key(keys::PEM_KEY, None)?;
+    let mut cert = Certificate::from_pem(keys::EXPIRED_CERT)?;
+    let mut key = Pk::from_private_key(keys::EXPIRED_KEY, None)?;
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(Some(&mut rng));
     config.set_min_version(min_version)?;
@@ -102,11 +106,10 @@ fn server(
             s
         }
         Err(e) => {
-            assert!(exp_version.is_none());
             match e {
                 // client just closes connection instead of sending alert
-                Error::NetSendFailed => {}
-                Error::SslBadHsProtocolVersion => {}
+                Error::NetSendFailed => {assert!(exp_version.is_none())},
+                Error::SslBadHsProtocolVersion => {},
                 e => panic!("Unexpected error {}", e),
             };
             return Ok(());

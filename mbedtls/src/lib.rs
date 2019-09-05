@@ -132,7 +132,7 @@ pub unsafe extern "C" fn mbedtls_platform_gmtime_r(tt: *const time_t, tp: *mut t
 
     //0 means no TZ offset
     let naive = if tp.is_null() {
-        return std::ptr::null_mut()
+        return core::ptr::null_mut()
     } else {
         NaiveDateTime::from_timestamp(*tt, 0)
     };
