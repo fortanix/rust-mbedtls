@@ -89,20 +89,39 @@ extern crate libc;
 #[cfg(feature = "libc")]
 mod libc_types {
     pub use super::libc::FILE;
+
+    #[cfg(feature = "time")]
+    pub use super::libc::{time_t, tm};
+
 }
 
 #[cfg(not(feature = "libc"))]
 mod libc_types {
     pub enum FILE {}
+
+    #[cfg(feature = "time")]
+    pub type time_t = i64;
+
+    #[cfg(feature = "time")]
+    #[repr(C)]
+    pub struct tm {
+        pub tm_sec:   i32,            /* Seconds.        [0-60] (1 leap second) */
+        pub tm_min:   i32,            /* Minutes.        [0-59] */
+        pub tm_hour:  i32,            /* Hours.          [0-23] */
+        pub tm_mday:  i32,            /* Day.            [1-31] */
+        pub tm_mon:   i32,            /* Month.          [0-11] */
+        pub tm_year:  i32,            /* Year          - 1900.  */
+        pub tm_wday:  i32,            /* Day of week.    [0-6]  */
+        pub tm_yday:  i32,            /* Days in year.   [0-365]*/
+        pub tm_isdst: i32,
+    }
+
 }
 
 pub use self::libc_types::*;
 
 #[cfg(feature = "pthread")]
 pub use self::libc::pthread_mutex_t;
-
-#[cfg(feature = "time")]
-pub use self::libc::{time_t, tm};
 
 #[cfg(feature = "zlib")]
 extern crate libz_sys;
