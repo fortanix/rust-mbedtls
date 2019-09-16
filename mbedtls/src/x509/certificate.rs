@@ -23,6 +23,13 @@ use crate::private::UnsafeFrom;
 use crate::rng::Random;
 use crate::hash::Type as MdType;
 
+#[derive(Debug,Copy,Clone,Eq,PartialEq)]
+pub enum CertificateVersion {
+    V1,
+    V2,
+    V3
+}
+
 define!(
     #[c_ty(x509_crt)]
     struct Certificate;
@@ -189,8 +196,13 @@ impl LinkedCertificate {
         unsafe { ::core::slice::from_raw_parts(self.inner.raw.p, self.inner.raw.len) }
     }
 
-    pub fn version(&self) -> i32 {
-        self.inner.version
+    pub fn version(&self) -> Result<CertificateVersion> {
+        match self.inner.version {
+            1 => Ok(CertificateVersion::V1),
+            2 => Ok(CertificateVersion::V2),
+            3 => Ok(CertificateVersion::V3),
+            _ => Err(Error::X509InvalidVersion)
+        }
     }
 
     pub fn not_before(&self) -> Result<super::Time> {
@@ -774,7 +786,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
         let cert = Certificate::from_pem(&TEST_CERT_PEM.as_bytes()).unwrap();
 
-        assert_eq!(cert.version(), 3);
+        assert_eq!(cert.version().unwrap(), CertificateVersion::V3);
         assert_eq!(cert.issuer().unwrap(), "CN=Test CA, C=US");
         assert_eq!(cert.subject().unwrap(), "CN=Test Cert, O=Test");
         assert_eq!(
