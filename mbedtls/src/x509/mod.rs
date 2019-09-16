@@ -78,6 +78,7 @@ bitflags! {
 }
 
 /// A specific moment in time in UTC
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Time {
     year: u16,
     month: u8,
