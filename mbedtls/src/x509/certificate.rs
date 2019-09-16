@@ -23,6 +23,13 @@ use crate::private::UnsafeFrom;
 use crate::rng::Random;
 use crate::hash::Type as MdType;
 
+#[derive(Debug,Copy,Clone,Eq,PartialEq)]
+pub enum CertificateVersion {
+    V1,
+    V2,
+    V3
+}
+
 define!(
     #[c_ty(x509_crt)]
     struct Certificate;
@@ -114,6 +121,24 @@ pub struct LinkedCertificate {
     inner: x509_crt,
 }
 
+fn x509_buf_to_vec(buf: &x509_buf) -> Vec<u8> {
+    if buf.p == core::ptr::null_mut() || buf.len == 0 {
+        return vec![];
+    }
+
+    let slice = unsafe { core::slice::from_raw_parts(buf.p, buf.len) };
+    slice.to_owned()
+}
+
+fn x509_time_to_time(tm: &x509_time) -> Result<super::Time> {
+    // ensure casts don't underflow
+    if tm.year < 0 || tm.mon < 0 || tm.day < 0 || tm.hour < 0 || tm.min < 0 || tm.sec < 0 {
+        return Err(Error::X509InvalidDate);
+    }
+
+    super::Time::new(tm.year as u16, tm.mon as u8, tm.day as u8, tm.hour as u8, tm.min as u8, tm.sec as u8).ok_or(Error::X509InvalidDate)
+}
+
 impl LinkedCertificate {
     pub fn check_key_usage(&self, usage: super::KeyUsage) -> bool {
         unsafe { x509_crt_check_key_usage(&self.inner, usage.bits()) }
@@ -136,10 +161,7 @@ impl LinkedCertificate {
     }
 
     pub fn issuer_raw(&self) -> Result<Vec<u8>> {
-        crate::private::alloc_vec_repeat(
-            |buf, size| unsafe { x509_dn_gets(buf as _, size, &self.inner.issuer) },
-            false,
-        )
+        Ok(x509_buf_to_vec(&self.inner.issuer_raw))
     }
 
     pub fn subject(&self) -> Result<String> {
@@ -149,10 +171,7 @@ impl LinkedCertificate {
     }
 
     pub fn subject_raw(&self) -> Result<Vec<u8>> {
-        crate::private::alloc_vec_repeat(
-            |buf, size| unsafe { x509_dn_gets(buf as _, size, &self.inner.subject) },
-            false,
-        )
+        Ok(x509_buf_to_vec(&self.inner.subject_raw))
     }
 
     pub fn serial(&self) -> Result<String> {
@@ -162,10 +181,7 @@ impl LinkedCertificate {
     }
 
     pub fn serial_raw(&self) -> Result<Vec<u8>> {
-        crate::private::alloc_vec_repeat(
-            |buf, size| unsafe { x509_serial_gets(buf as _, size, &self.inner.serial) },
-            false,
-        )
+        Ok(x509_buf_to_vec(&self.inner.serial))
     }
 
     pub fn public_key(&self) -> &Pk {
@@ -178,6 +194,31 @@ impl LinkedCertificate {
 
     pub fn as_der(&self) -> &[u8] {
         unsafe { ::core::slice::from_raw_parts(self.inner.raw.p, self.inner.raw.len) }
+    }
+
+    pub fn version(&self) -> Result<CertificateVersion> {
+        match self.inner.version {
+            1 => Ok(CertificateVersion::V1),
+            2 => Ok(CertificateVersion::V2),
+            3 => Ok(CertificateVersion::V3),
+            _ => Err(Error::X509InvalidVersion)
+        }
+    }
+
+    pub fn not_before(&self) -> Result<super::Time> {
+        x509_time_to_time(&self.inner.valid_from)
+    }
+
+    pub fn not_after(&self) -> Result<super::Time> {
+        x509_time_to_time(&self.inner.valid_to)
+    }
+
+    pub fn extensions_raw(&self) -> Result<Vec<u8>> {
+        Ok(x509_buf_to_vec(&self.inner.v3_ext))
+    }
+
+    pub fn signature(&self) -> Result<Vec<u8>> {
+        Ok(x509_buf_to_vec(&self.inner.sig))
     }
 
     pub fn digest_type(&self) -> MdType {
@@ -722,7 +763,7 @@ JS7pkcufTIoN0Yj0SxAWLW711FgB
     }
 
     #[test]
-    fn channel_binding_hash() {
+    fn cert_field_access() {
         const TEST_CERT_PEM: &'static str = "-----BEGIN CERTIFICATE-----
 MIIDLDCCAhSgAwIBAgIRALY0SS5pY9Yb/aIHvSAvmOswDQYJKoZIhvcNAQELBQAw
 HzEQMA4GA1UEAxMHVGVzdCBDQTELMAkGA1UEBhMCVVMwHhcNMTkwMTA4MDAxODM1
@@ -745,6 +786,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
         let cert = Certificate::from_pem(&TEST_CERT_PEM.as_bytes()).unwrap();
 
+        assert_eq!(cert.version().unwrap(), CertificateVersion::V3);
         assert_eq!(cert.issuer().unwrap(), "CN=Test CA, C=US");
         assert_eq!(cert.subject().unwrap(), "CN=Test Cert, O=Test");
         assert_eq!(
@@ -752,6 +794,41 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             "B6:34:49:2E:69:63:D6:1B:FD:A2:07:BD:20:2F:98:EB"
         );
         assert_eq!(cert.digest_type(), MdType::Sha256);
+
+        assert_eq!(hex::encode(cert.serial_raw().unwrap()), "00b634492e6963d61bfda207bd202f98eb");
+        assert_eq!(hex::encode(cert.issuer_raw().unwrap()), "301f3110300e0603550403130754657374204341310b3009060355040613025553");
+        assert_eq!(hex::encode(cert.subject_raw().unwrap()), "30233112301006035504031309546573742043657274310d300b060355040a130454657374");
+        assert_eq!(hex::encode(cert.signature().unwrap()), "4a4b2638e636a0c0121b0334e04b342ac17b178b1a3000d5dc84c0612941519e3ac99da72823809e643f9d1c0ff7ca2734c63974215879f6286532d43b0da6086fb212a96c8f573de4230c9ab3ae09d621719d2e35b3e91963d5e763a273f0e25d6bbc5fcd0cd7ace688821df1724fb3956c96046cd58126f3ae2a66680cccc8aaecbe680fa5fc79684ef33f64153b319713f42ea17aa3fdb99b94d95466ed75e572789d2c7388a49d35a6590429fe9b6959896e8658aee276f3474ff315051e6633be236d2acf552164ea6936122f9d718a746c7fd170f4c2d19f996aa49632d7f146b93adcc25017d117a4309dbd045c4cc0fd0fce4326b30a9fc6ae9aad0c");
+        assert_eq!(hex::encode(cert.extensions_raw().unwrap()), "30819f30210603551d0e041a04186839fad57e6544121cc6bc421953cc9620655c57cfac060230320603551d11042b302981117465737440666f7274616e69782e636f6d82146578616d706c652e666f7274616e69782e636f6d300c0603551d130101ff0402300030230603551d23041c301a801879076bcc8da0077e4116f84b8e4c9c5c6af7ec4fa000d98730130603551d25040c300a06082b06010505070302");
+
+        use crate::x509::Time;
+        assert_eq!(cert.not_before().unwrap(), Time::new(2019,1,8,0,18,35).unwrap());
+        assert_eq!(cert.not_after().unwrap(), Time::new(2029,1,5,0,18,35).unwrap());
+    }
+
+    #[test]
+    fn channel_binding_hash() {
+        const TEST_CERT_PEM: &'static str = "-----BEGIN CERTIFICATE-----
+MIIDLDCCAhSgAwIBAgIRALY0SS5pY9Yb/aIHvSAvmOswDQYJKoZIhvcNAQELBQAw
+HzEQMA4GA1UEAxMHVGVzdCBDQTELMAkGA1UEBhMCVVMwHhcNMTkwMTA4MDAxODM1
+WhcNMjkwMTA1MDAxODM1WjAjMRIwEAYDVQQDEwlUZXN0IENlcnQxDTALBgNVBAoT
+BFRlc3Qwgd8wDQYJKoZIhvcNAQEBBQADgc0AMIHJAoHBAKYINzSAKG1/Kn/5dWXq
+cfJgfQkzVn1HPzdb4NNZL+H7woGuzDGrcQ7EPi7r4EuAEE2fCjhSfiYlacoBOxd/
+k9Fp4Iv2ygCY1nj8RY0tFCZcZDVYj5F7uqyJMf7+QSOpnZ4cb3zdj1HkBmq7ac0C
+7tXkubvM6gBS3H3XlhfszcEjvhavaxVVoitdqW8RJ2DHvqGwFUxPgFCuuQudeCI/
+UzBiPMRqu3Pr9Xhcc0ruG5SkCg5isbWWnKNj7X1gTre6WwIDAQABo4GiMIGfMCEG
+A1UdDgQaBBhoOfrVfmVEEhzGvEIZU8yWIGVcV8+sBgIwMgYDVR0RBCswKYERdGVz
+dEBmb3J0YW5peC5jb22CFGV4YW1wbGUuZm9ydGFuaXguY29tMAwGA1UdEwEB/wQC
+MAAwIwYDVR0jBBwwGoAYeQdrzI2gB35BFvhLjkycXGr37E+gANmHMBMGA1UdJQQM
+MAoGCCsGAQUFBwMCMA0GCSqGSIb3DQEBCwUAA4IBAQBKSyY45jagwBIbAzTgSzQq
+wXsXixowANXchMBhKUFRnjrJnacoI4CeZD+dHA/3yic0xjl0IVh59ihlMtQ7DaYI
+b7ISqWyPVz3kIwyas64J1iFxnS41s+kZY9XnY6Jz8OJda7xfzQzXrOaIgh3xck+z
+lWyWBGzVgSbzripmaAzMyKrsvmgPpfx5aE7zP2QVOzGXE/QuoXqj/bmblNlUZu11
+5XJ4nSxziKSdNaZZBCn+m2lZiW6GWK7idvNHT/MVBR5mM74jbSrPVSFk6mk2Ei+d
+cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
+-----END CERTIFICATE-----\0";
+
+        let cert = Certificate::from_pem(&TEST_CERT_PEM.as_bytes()).unwrap();
 
         let pk = cert.public_key();
 
