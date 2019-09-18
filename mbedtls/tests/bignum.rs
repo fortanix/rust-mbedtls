@@ -356,7 +356,7 @@ const BASE58_ALPHABET: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmno
 
 fn base58_encode(bits: &[u8]) -> mbedtls::Result<String> {
     let zero = Mpi::new(0)?;
-    assert_eq!(zero.sign(), Sign::Positive);
+    assert_eq!(zero.sign(), Sign::Zero);
     let mut n = Mpi::from_binary(bits)?;
     let radix: i64 = 58;
 
