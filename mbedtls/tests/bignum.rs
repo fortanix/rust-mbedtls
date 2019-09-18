@@ -8,7 +8,7 @@
 
 extern crate mbedtls;
 
-use mbedtls::bignum::Mpi;
+use mbedtls::bignum::{Mpi, Sign};
 
 #[cfg(feature = "std")]
 #[test]
@@ -130,8 +130,10 @@ fn bignum_op_assign() {
     x *= 2;
     assert_eq!(format!("{}", x), "360");
 
+    assert_eq!(x.sign(), Sign::Positive);
     x *= Mpi::new(-2).unwrap();
     assert_eq!(format!("{}", x), "-720");
+    assert_eq!(x.sign(), Sign::Negative);
 
     x /= Mpi::new(-3).unwrap();
     assert_eq!(format!("{}", x), "240");
@@ -354,6 +356,7 @@ const BASE58_ALPHABET: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmno
 
 fn base58_encode(bits: &[u8]) -> mbedtls::Result<String> {
     let zero = Mpi::new(0)?;
+    assert_eq!(zero.sign(), Sign::Positive);
     let mut n = Mpi::from_binary(bits)?;
     let radix: i64 = 58;
 
