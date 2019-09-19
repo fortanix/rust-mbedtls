@@ -80,6 +80,13 @@ impl ::core::str::FromStr for Mpi {
     }
 }
 
+#[derive(Debug,Copy,Clone,Eq,PartialEq)]
+pub enum Sign {
+    Negative,
+    Zero,
+    Positive,
+}
+
 impl Clone for Mpi {
     fn clone(&self) -> Self {
         Mpi::copy(&self.handle()).expect("copy succeeded")
@@ -138,6 +145,17 @@ impl Mpi {
         }
 
         Ok(self.get_limb(0) as u32)
+    }
+
+    pub fn sign(&self) -> Sign {
+        let cmp = unsafe { mpi_cmp_int(&self.inner, 0) };
+        if cmp < 0 {
+            Sign::Negative
+        } else if cmp == 0 {
+            Sign::Zero
+        } else {
+            Sign::Positive
+        }
     }
 
     pub fn to_string_radix(&self, radix: i32) -> Result<String> {
