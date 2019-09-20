@@ -26,6 +26,8 @@ extern crate mbedtls_sys;
 
 extern crate byteorder;
 
+extern crate yasna;
+
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;

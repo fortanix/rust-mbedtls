@@ -17,6 +17,9 @@ use crate::alloc_prelude::*;
 use mbedtls_sys::types::raw_types::c_char;
 use mbedtls_sys::*;
 
+use yasna::models::ObjectIdentifier;
+use yasna::{BERDecodable, BERReader, ASN1Result, ASN1Error, ASN1ErrorKind};
+
 use crate::pk::Pk;
 use crate::error::{Error, IntoResult, Result};
 use crate::private::UnsafeFrom;
@@ -36,6 +39,24 @@ define!(
     const init: fn() -> Self = x509_crt_init;
     const drop: fn(&mut Self) = x509_crt_free;
 );
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Extension {
+    pub oid: ObjectIdentifier,
+    pub critical: bool,
+    pub value: Vec<u8>,
+}
+
+impl BERDecodable for Extension {
+    fn decode_ber(reader: BERReader) -> ASN1Result<Self> {
+        reader.read_sequence(|reader| {
+            let oid = reader.next().read_oid()?;
+            let critical = reader.read_optional(|r| r.read_bool())?.unwrap_or(false);
+            let value = reader.next().read_bytes()?;
+            Ok(Extension { oid, critical, value })
+        })
+    }
+}
 
 impl Certificate {
     pub fn from_der(der: &[u8]) -> Result<Certificate> {
@@ -215,6 +236,25 @@ impl LinkedCertificate {
 
     pub fn extensions_raw(&self) -> Result<Vec<u8>> {
         Ok(x509_buf_to_vec(&self.inner.v3_ext))
+    }
+
+    pub fn extensions(&self) -> Result<Vec<Extension>> {
+        let mut ext = Vec::new();
+
+        yasna::parse_der(&self.extensions_raw()?, |r| {
+            r.read_sequence_of(|r| {
+                if let Ok(data) = r.read_der() {
+                    let e: Extension = yasna::decode_der(&data)?;
+                    ext.push(e);
+                    return Ok(());
+                } else {
+                    return Err(ASN1Error::new(ASN1ErrorKind::Eof));
+                }
+            })?;
+            return Ok(());
+        }).map_err(|_| Error::X509InvalidExtensions)?;
+
+        Ok(ext)
     }
 
     pub fn signature(&self) -> Result<Vec<u8>> {
@@ -804,6 +844,35 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         use crate::x509::Time;
         assert_eq!(cert.not_before().unwrap(), Time::new(2019,1,8,0,18,35).unwrap());
         assert_eq!(cert.not_after().unwrap(), Time::new(2029,1,5,0,18,35).unwrap());
+
+        let ext = cert.extensions().unwrap();
+        assert_eq!(ext.len(), 5);
+
+        assert_eq!(ext[0], Extension {
+            oid: ObjectIdentifier::from_slice(&[2,5,29,14]),
+            critical: false,
+            value: hex::decode("04186839FAD57E6544121CC6BC421953CC9620655C57CFAC0602").unwrap(),
+        });
+        assert_eq!(ext[1], Extension {
+            oid: ObjectIdentifier::from_slice(&[2,5,29,17]),
+            critical: false,
+            value: hex::decode("302981117465737440666f7274616e69782e636f6d82146578616d706c652e666f7274616e69782e636f6d").unwrap()
+        });
+        assert_eq!(ext[2], Extension {
+            oid: ObjectIdentifier::from_slice(&[2,5,29,19]),
+            critical: true,
+            value: hex::decode("3000").unwrap()
+        });
+        assert_eq!(ext[3], Extension {
+            oid: ObjectIdentifier::from_slice(&[2,5,29,35]),
+            critical: false,
+            value: hex::decode("301a801879076BCC8DA0077E4116F84B8E4C9C5C6AF7EC4FA000D987").unwrap()
+        });
+        assert_eq!(ext[4], Extension {
+            oid: ObjectIdentifier::from_slice(&[2,5,29,37]),
+            critical: false,
+            value: hex::decode("300a06082b06010505070302").unwrap(),
+        });
     }
 
     #[test]
