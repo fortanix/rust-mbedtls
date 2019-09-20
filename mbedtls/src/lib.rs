@@ -38,9 +38,6 @@ extern crate rs_libc;
 #[macro_use]
 mod wrapper_macros;
 
-#[cfg(feature = "pkcs12")]
-extern crate yasna;
-
 #[cfg(feature="pkcs12_rc2")]
 extern crate rc2;
 #[cfg(feature="pkcs12_rc2")]
