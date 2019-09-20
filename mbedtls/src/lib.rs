@@ -26,6 +26,8 @@ extern crate mbedtls_sys;
 
 extern crate byteorder;
 
+extern crate yasna;
+
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -35,9 +37,6 @@ extern crate rs_libc;
 
 #[macro_use]
 mod wrapper_macros;
-
-#[cfg(feature = "pkcs12")]
-extern crate yasna;
 
 #[cfg(feature="pkcs12_rc2")]
 extern crate rc2;

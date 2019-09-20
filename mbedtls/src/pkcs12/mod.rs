@@ -19,8 +19,6 @@ use crate::alloc_prelude::*;
 
 use core::result::Result as StdResult;
 
-extern crate yasna;
-
 #[cfg(feature = "pkcs12_rc2")]
 extern crate block_modes;
 #[cfg(feature = "pkcs12_rc2")]
