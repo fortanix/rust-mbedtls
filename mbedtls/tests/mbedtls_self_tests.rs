@@ -75,6 +75,7 @@ tests! {
     fn x509,
     fn xtea,
     fn nist_kw,
+    fn cmac,
 }
 
 // these can't run concurrently
