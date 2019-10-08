@@ -7,6 +7,7 @@ branches:
     # Not really necessary, just to get a green badge on “master”
     - master
 language: rust
+os: linux
 dist: xenial
 addons:
   apt:
@@ -15,12 +16,6 @@ addons:
     - libclang-3.8-dev
     - clang-3.8
     - cmake
-rust:
-  - stable
-  - beta
-matrix:
-  allow_failures:
-  - rust: beta
 env:
   global:
     - RUST_BACKTRACE=1
@@ -28,8 +23,11 @@ env:
     # re-pinned whenever core_io is updated to the latest nightly.
     - CORE_IO_NIGHTLY=nightly-2019-07-01
     - LLVM_CONFIG_PATH=llvm-config-3.8
+matrix:
+  include:
+      - env: TOOLCHAIN="stable"
+      - env: TOOLCHAIN="beta"
+      - env: TOOLCHAIN="coreio_nightly"
+      - env: TOOLCHAIN="sgx"
 script:
-  - rustup toolchain add $CORE_IO_NIGHTLY
-  - rustup toolchain add nightly
-  - rustup target add --toolchain nightly x86_64-fortanix-unknown-sgx
   - ./ct.sh
