@@ -23,7 +23,9 @@ elif [ $TOOLCHAIN = "coreio_nightly" ]; then
     cargo +$CORE_IO_NIGHTLY test --no-default-features --features core_io,rdrand
 
 elif [ $TOOLCHAIN = "sgx" ]; then
-    rustup toolchain add nightly
-    cargo +nightly test --no-run --target=x86_64-fortanix-unknown-sgx --features=sgx --no-default-features
+
+    rustup toolchain add $SGX_NIGHTLY
+    rustup target add --toolchain $SGX_NIGHTLY x86_64-fortanix-unknown-sgx
+    cargo +$SGX_NIGHTLY test --no-run --target=x86_64-fortanix-unknown-sgx --features=sgx --no-default-features
 
 fi
