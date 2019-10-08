@@ -32,4 +32,5 @@ script:
   - rustup toolchain add $CORE_IO_NIGHTLY
   - rustup toolchain add nightly
   - rustup target add --toolchain nightly x86_64-fortanix-unknown-sgx
+  - rustup target add --toolchain nightly thumbv7m-none-eabi
   - ./ct.sh
