@@ -19,13 +19,14 @@ keywords = ["MbedTLS","mbed","TLS","SSL","cryptography"]
 
 [dependencies]
 bitflags = "1"
-chrono = "0.4"
+# make chrono optional until https://github.com/chronotope/chrono/pull/341 lands
+chrono = { version = "0.4", optional = true }
 core_io = { version = "0.1", features = ["collections"], optional = true }
 spin = { version = "0.4.0", default-features = false, optional = true }
 serde = { version = "1.0.7", default-features = false }
 serde_derive = "1.0.7"
-byteorder = "1.0.0"
-yasna = "0.2"
+byteorder = { version = "1.0.0", default-features = false }
+# yasna = "0.2"
 block-modes = { version = "0.3", optional = true }
 rc2 = { version = "0.3", optional = true }
 
@@ -38,11 +39,11 @@ default-features = false
 features = ["custom_printf"]
 path = "../mbedtls-sys"
 
-[dev-dependencies]
-libc = "0.2.0"
-rand = "0.4.0"
-serde_cbor = "0.6"
-hex = "0.3"
+# [dev-dependencies]
+# libc = "0.2.0"
+# rand = "0.4.0"
+# serde_cbor = "0.6"
+# hex = "0.3"
 
 [build-dependencies]
 cc = "1.0"
@@ -59,11 +60,11 @@ rust_threading = ["threading", "mbedtls-sys-auto/custom_threading", "std"]
 force_aesni_support = ["mbedtls-sys-auto/custom_has_support","mbedtls-sys-auto/aes_alt","aesni"]
 rdrand = []
 use_libc = ["mbedtls-sys-auto/libc"]
-custom_gmtime_r = ["mbedtls-sys-auto/custom_gmtime_r"]
-custom_time = ["mbedtls-sys-auto/custom_time"]
+custom_gmtime_r = ["mbedtls-sys-auto/custom_gmtime_r", "chrono"]
+custom_time = ["mbedtls-sys-auto/custom_time", "chrono"]
 aesni = ["mbedtls-sys-auto/aesni"]
 zlib = ["mbedtls-sys-auto/zlib"]
-time = ["mbedtls-sys-auto/time"]
+time = ["mbedtls-sys-auto/time", "chrono"]
 padlock = ["mbedtls-sys-auto/padlock"]
 legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
 pkcs12 = []

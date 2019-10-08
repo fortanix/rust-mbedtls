@@ -19,6 +19,8 @@ impl super::BuildConfig {
         ))
         .define("ENABLE_PROGRAMS", "OFF")
         .define("ENABLE_TESTING", "OFF")
+        // disable the compiler check - fails on non linux gnu compilers see: https://stackoverflow.com/a/24828015
+        .define("CMAKE_C_COMPILER_WORKS", "1")
         .build_target("lib");
         if !have_feature("std")
             || ::std::env::var("TARGET")
