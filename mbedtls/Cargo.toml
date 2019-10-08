@@ -19,7 +19,7 @@ keywords = ["MbedTLS","mbed","TLS","SSL","cryptography"]
 
 [dependencies]
 bitflags = "1"
-chrono = "0.4"
+chrono = { version = "0.4", optional = true }
 core_io = { version = "0.1", features = ["collections"], optional = true }
 spin = { version = "0.4.0", default-features = false, optional = true }
 serde = { version = "1.0.7", default-features = false }
@@ -59,8 +59,8 @@ rust_threading = ["threading", "mbedtls-sys-auto/custom_threading", "std"]
 force_aesni_support = ["mbedtls-sys-auto/custom_has_support","mbedtls-sys-auto/aes_alt","aesni"]
 rdrand = []
 use_libc = ["mbedtls-sys-auto/libc"]
-custom_gmtime_r = ["mbedtls-sys-auto/custom_gmtime_r"]
-custom_time = ["mbedtls-sys-auto/custom_time"]
+custom_gmtime_r = ["mbedtls-sys-auto/custom_gmtime_r", "chrono"]
+custom_time = ["mbedtls-sys-auto/custom_time", "chrono"]
 aesni = ["mbedtls-sys-auto/aesni"]
 zlib = ["mbedtls-sys-auto/zlib"]
 time = ["mbedtls-sys-auto/time"]
