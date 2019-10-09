@@ -20,13 +20,14 @@ extern crate core;
 #[cfg(not(feature = "std"))]
 extern crate core_io;
 
+#[cfg(feature = "std")]
+extern crate yasna;
+
 #[macro_use]
 extern crate bitflags;
 extern crate mbedtls_sys;
 
 extern crate byteorder;
-
-extern crate yasna;
 
 extern crate serde;
 #[macro_use]
