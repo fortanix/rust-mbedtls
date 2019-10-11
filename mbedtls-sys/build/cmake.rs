@@ -8,9 +8,9 @@
 
 use cmake;
 
-use crate::have_feature;
+use crate::real_build::have_feature;
 
-impl super::BuildConfig {
+impl super::real_build::BuildConfig {
     pub fn cmake(&self) {
         let mut cmk = cmake::Config::new(&self.mbedtls_src);
         cmk.cflag(format!(
@@ -19,16 +19,23 @@ impl super::BuildConfig {
         ))
         .define("ENABLE_PROGRAMS", "OFF")
         .define("ENABLE_TESTING", "OFF")
+        .define("CMAKE_C_COMPILER_WORKS", "1") // dont bother checking the compiler
         .build_target("lib");
         if !have_feature("std")
             || ::std::env::var("TARGET")
                 .map(|s| (s == "x86_64-unknown-none-gnu") || (s == "x86_64-fortanix-unknown-sgx"))
                 == Ok(true)
         {
+            #[cfg(feature = "abort")] // linking against gcc is not required when abort
             println!("cargo:rustc-link-lib=gcc");
+
             cmk.cflag("-fno-builtin")
-                .cflag("-D_FORTIFY_SOURCE=0")
-                .cflag("-fno-stack-protector");
+               .cflag("-D_FORTIFY_SOURCE=0")
+               .cflag("-fno-stack-protector")
+               .pic(false); // don't pass -fPIC to the compiler
+            #[cfg(not(feature = "abort"))]
+            cmk.cflag("-fno-exceptions"); // disable exceptions when aborting
+                
         }
         let mut dst = cmk.build();
         dst.push("build");

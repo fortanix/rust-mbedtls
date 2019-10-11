@@ -16,13 +16,20 @@ documentation = "https://docs.rs/mbedtls-sys-auto/"
 [lib]
 name = "mbedtls_sys"
 
+[[bin]]
+name = "build-script-build"
+path = "build/build.rs"
+
 [dependencies]
 libc = { version = "0.2.0", optional = true }
 libz-sys = { version = "1.0.0", optional = true }
 
+bindgen = { version = "0.19.0", optional = true }
+cmake = { version = "0.1.17", git = "https://github.com/lthiery/cmake-rs", optional = true }
+
 [build-dependencies]
-bindgen = "0.19.0"
-cmake = "0.1.17"
+bindgen = { version = "0.19.0", optional = true }
+cmake = { version = "0.1.17", git = "https://github.com/lthiery/cmake-rs", optional = true }
 
 [features]
 # If you use mbedtls-sys in a no_std configuration, you need to provide your
@@ -49,3 +56,8 @@ pkcs11 = []
 aesni = []
 padlock = []
 legacy_protocols = []
+abort = []
+cross-compile = []
+
+# internal use only
+build = ["bindgen", "cmake"]

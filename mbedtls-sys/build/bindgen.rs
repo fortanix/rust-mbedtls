@@ -25,7 +25,7 @@ impl bindgen::Logger for StderrLogger {
     }
 }
 
-impl super::BuildConfig {
+impl super::real_build::BuildConfig {
     pub fn bindgen(&self) {
         let header = self.out_dir.join("bindgen-input.h");
         File::create(&header)

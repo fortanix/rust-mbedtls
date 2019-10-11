@@ -40,6 +40,9 @@ This is a list of the Cargo features available for mbedtls. Features in
           work without libc will be provided.
 * **time** Enable time support in mbedtls-sys.
 * *zlib* Enable zlib support in mbedtls-sys.
+* *abort* Disables unwinding
+* *cross-compile* Use this feature to reduce compile times when cross compiling for a different arch
+* **mbedtls-test** Enables the test and example dependencies
 
 PRs adding new features are encouraged.
 

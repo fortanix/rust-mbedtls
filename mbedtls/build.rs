@@ -20,7 +20,10 @@ fn main() {
     {
         b.flag("-U_FORTIFY_SOURCE")
             .define("_FORTIFY_SOURCE", Some("0"))
-            .flag("-ffreestanding");
+            .flag("-ffreestanding")
+            .pic(false)
+            .static_flag(true)
+            .shared_flag(false);
     }
     b.compile("librust-mbedtls.a");
     // Force correct link order for mbedtls_printf

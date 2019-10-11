@@ -22,12 +22,18 @@ bitflags = "1"
 chrono = { version = "0.4", optional = true }
 core_io = { version = "0.1", features = ["collections"], optional = true }
 spin = { version = "0.4.0", default-features = false, optional = true }
-serde = { version = "1.0.7", default-features = false }
+serde = { version = "1.0.7", default-features = false, features = ["alloc"] }
 serde_derive = "1.0.7"
-byteorder = "1.0.0"
+byteorder = { version = "1.0.0", default-features = false }
 yasna = { version = "0.2", optional = true }
 block-modes = { version = "0.3", optional = true }
 rc2 = { version = "0.3", optional = true }
+
+# [dev-dependencies]
+libc = { version = "0.2.0", optional = true }
+rand = { version = "0.4.0", optional = true }
+serde_cbor = { version = "0.6", optional = true }
+hex = { version = "0.3", optional = true }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.1.0"
@@ -38,18 +44,12 @@ default-features = false
 features = ["custom_printf"]
 path = "../mbedtls-sys"
 
-[dev-dependencies]
-libc = "0.2.0"
-rand = "0.4.0"
-serde_cbor = "0.6"
-hex = "0.3"
-
 [build-dependencies]
 cc = "1.0"
 
 [features]
 # Features are documented in the README
-default = ["std", "aesni", "time", "padlock", "legacy_protocols", "use_libc"]
+default = ["std", "aesni", "time", "padlock", "legacy_protocols", "use_libc", "mbedtls-test"]
 std = ["mbedtls-sys-auto/std", "serde/std", "yasna"]
 threading = []
 pthread = ["threading","std","mbedtls-sys-auto/pthread"]
@@ -68,6 +68,9 @@ padlock = ["mbedtls-sys-auto/padlock"]
 legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "block-modes"]
+abort = ["mbedtls-sys-auto/abort"]
+cross-compile = ["mbedtls-sys-auto/cross-compile"]
+mbedtls-test = ["libc", "rand", "serde_cbor", "hex"]
 
 [[example]]
 name = "client"

@@ -6,7 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use crate::have_feature;
+use crate::real_build::have_feature;
 
 /* This list has been generated from a include/mbedtls/ directory as follows:
  *

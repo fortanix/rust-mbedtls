@@ -297,18 +297,18 @@ unsafe impl BytesSerde for des3_context {}
 
 // If the C API changes, the serde implementation needs to be reviewed for correctness.
 
-unsafe fn _check_cipher_context_t_size(ctx: cipher_context_t) -> [u8; 96] {
-    ::core::mem::transmute(ctx)
-}
+// unsafe fn _check_cipher_context_t_size(ctx: cipher_context_t) -> [u8; 96] {
+//     ::core::mem::transmute(ctx)
+// }
 
-unsafe fn _check_aes_context_size(ctx: aes_context) -> [u8; 288] {
-    ::core::mem::transmute(ctx)
-}
+// unsafe fn _check_aes_context_size(ctx: aes_context) -> [u8; 288] {
+//     ::core::mem::transmute(ctx)
+// }
 
-unsafe fn _check_des_context_size(ctx: des_context) -> [u8; 128] {
-    ::core::mem::transmute(ctx)
-}
+// unsafe fn _check_des_context_size(ctx: des_context) -> [u8; 128] {
+//     ::core::mem::transmute(ctx)
+// }
 
-unsafe fn _check_des3_context_size(ctx: des3_context) -> [u8; 384] {
-    ::core::mem::transmute(ctx)
-}
+// unsafe fn _check_des3_context_size(ctx: des3_context) -> [u8; 384] {
+//     ::core::mem::transmute(ctx)
+// }
