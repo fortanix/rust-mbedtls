@@ -404,7 +404,7 @@ impl BERDecodable for CertTypes {
 // CertBag from PKCS12, see RFC 7292 section 4.2.3
 #[derive(Debug, Clone)]
 struct CertBag {
-    cert: Option<Certificate>,
+    cert: Option<Vec<u8>>,
 }
 
 impl BERDecodable for CertBag {
@@ -414,9 +414,7 @@ impl BERDecodable for CertBag {
         let pkcs12cert = read_struct_from_bytes::<CertTypes>(&blob)?;
 
         if pkcs12cert.cert_type == ObjectIdentifier::from_slice(PKCS9_X509_CERT) {
-            let cert = Certificate::from_der(&pkcs12cert.cert_blob)
-                .map_err(|_| ASN1Error::new(ASN1ErrorKind::Invalid))?;
-            return Ok(CertBag { cert: Some(cert) });
+            return Ok(CertBag { cert: Some(pkcs12cert.cert_blob.to_vec()) });
         } else {
             return Ok(CertBag { cert: None });
         }
@@ -843,7 +841,9 @@ impl Pfx {
                 for sb in &d.0 {
                     if let &Pkcs12BagSet::Cert(ref cb) = &sb.bag_value {
                         if let Some(ref cert) = cb.cert {
-                            certificates.push((cert.clone(), sb.friendly_name()));
+                            if let Ok(cert) = Certificate::from_der(cert) {
+                                certificates.push((cert.clone(), sb.friendly_name()));
+                            }
                         }
                     }
                 }
