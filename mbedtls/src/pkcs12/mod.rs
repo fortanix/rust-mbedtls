@@ -403,9 +403,7 @@ impl BERDecodable for CertTypes {
 
 // CertBag from PKCS12, see RFC 7292 section 4.2.3
 #[derive(Debug, Clone)]
-struct CertBag {
-    cert: Option<Vec<u8>>,
-}
+struct CertBag(Option<Vec<u8>>);
 
 impl BERDecodable for CertBag {
     fn decode_ber(reader: BERReader) -> ASN1Result<Self> {
@@ -414,9 +412,9 @@ impl BERDecodable for CertBag {
         let pkcs12cert = read_struct_from_bytes::<CertTypes>(&blob)?;
 
         if pkcs12cert.cert_type == ObjectIdentifier::from_slice(PKCS9_X509_CERT) {
-            return Ok(CertBag { cert: Some(pkcs12cert.cert_blob.to_vec()) });
+            return Ok(CertBag(Some(pkcs12cert.cert_blob.to_vec())));
         } else {
-            return Ok(CertBag { cert: None });
+            return Ok(CertBag(None));
         }
     }
 }
@@ -833,24 +831,15 @@ impl Pfx {
     /// of "friendly names" which are associated with said certificate.
     /// Some or all of the certificates stored in a Pfx may be encrypted in which case
     /// decrypt must be called to access them.
-    pub fn certificates(&self) -> Pkcs12Result<Vec<(Certificate, Vec<String>)>> {
-        let mut certificates = Vec::new();
+    pub fn certificates(&self) -> Pkcs12Result<Vec<(Result<Certificate, crate::Error>, Vec<String>)>> {
+        let certs = self.authsafe.contents.iter()
+            .filter_map(|d| if let AuthenticatedSafe::Data(ref d) = d { Some(d) } else { None })
+            .flat_map(|d| &d.0)
+            .filter_map(|sb| if let Pkcs12BagSet::Cert(CertBag(Some(cert))) = &sb.bag_value {
+                Some((Certificate::from_der(&cert), sb.friendly_name()))
+            } else { None });
 
-        for content in &self.authsafe.contents {
-            if let &AuthenticatedSafe::Data(ref d) = content {
-                for sb in &d.0 {
-                    if let &Pkcs12BagSet::Cert(ref cb) = &sb.bag_value {
-                        if let Some(ref cert) = cb.cert {
-                            if let Ok(cert) = Certificate::from_der(cert) {
-                                certificates.push((cert.clone(), sb.friendly_name()));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(certificates)
+        Ok(certs.collect())
     }
 
     /// Return the private keys stored in this Pfx along with a possibly empty list
