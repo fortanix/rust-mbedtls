@@ -918,6 +918,9 @@ mod tests {
 
         let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
+        for cert in certs {
+            assert!(cert.0.is_ok());
+        }
 
         let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
@@ -953,6 +956,9 @@ mod tests {
 
         let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 2);
+        for cert in certs {
+            assert!(cert.0.is_ok());
+        }
 
         let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
@@ -974,6 +980,9 @@ mod tests {
 
         let certs = parsed_pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
+        for cert in certs {
+            assert!(cert.0.is_ok());
+        }
 
         let keys = parsed_pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
@@ -997,6 +1006,9 @@ mod tests {
 
         let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
+        for cert in certs {
+            assert!(cert.0.is_ok());
+        }
 
         let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
@@ -1020,6 +1032,9 @@ mod tests {
 
         let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
+        for cert in certs {
+            assert!(cert.0.is_ok());
+        }
 
         let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
@@ -1059,6 +1074,9 @@ mod tests {
 
         let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
+        for cert in certs {
+            assert!(cert.0.is_ok());
+        }
 
         let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
@@ -1082,6 +1100,9 @@ mod tests {
 
         let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
+        for cert in certs {
+            assert!(cert.0.is_ok());
+        }
 
         let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
@@ -1104,6 +1125,9 @@ mod tests {
 
         let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
+        for cert in certs {
+            assert!(cert.0.is_ok());
+        }
 
         let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
@@ -1126,6 +1150,9 @@ mod tests {
 
         let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 3);
+        for cert in certs {
+            assert!(cert.0.is_ok());
+        }
 
         let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
@@ -1151,6 +1178,9 @@ mod tests {
 
         let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
+        for cert in certs {
+            assert!(cert.0.is_ok());
+        }
 
         let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
@@ -1174,6 +1204,9 @@ mod tests {
         // Cert is not encrypted
         let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
+        for cert in certs {
+            assert!(cert.0.is_ok());
+        }
 
         let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 0);
