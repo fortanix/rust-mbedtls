@@ -827,47 +827,33 @@ impl Pfx {
         Ok(decrypted)
     }
 
+    fn authsafe_decrypted_contents(&self) -> impl Iterator<Item=&SafeBag> {
+        self.authsafe.contents.iter()
+            .flat_map(|d| if let AuthenticatedSafe::Data(ref d) = d { d.0.as_slice() } else { &[] })
+    }
+
     /// Return the certificates stored in this Pfx along with a possibly empty list
     /// of "friendly names" which are associated with said certificate.
     /// Some or all of the certificates stored in a Pfx may be encrypted in which case
     /// decrypt must be called to access them.
-    pub fn certificates(&self) -> Pkcs12Result<Vec<(Result<Certificate, crate::Error>, Vec<String>)>> {
-        let certs = self.authsafe.contents.iter()
-            .filter_map(|d| if let AuthenticatedSafe::Data(ref d) = d { Some(d) } else { None })
-            .flat_map(|d| &d.0)
+    pub fn certificates<'a>(&'a self) -> impl Iterator<Item=(Result<Certificate, crate::Error>, Vec<String>)> + 'a {
+        self.authsafe_decrypted_contents()
             .filter_map(|sb| if let Pkcs12BagSet::Cert(CertBag(Some(cert))) = &sb.bag_value {
-                Some((Certificate::from_der(&cert), sb.friendly_name()))
-            } else { None });
-
-        Ok(certs.collect())
+                Some((Certificate::from_der(cert), sb.friendly_name()))
+            } else { None })
     }
 
     /// Return the private keys stored in this Pfx along with a possibly empty list
     /// of "friendly names" which are associated with said private key.
-    pub fn private_keys(&self) -> Pkcs12Result<Vec<(Pk, Vec<String>)>> {
-        let mut private_keys = Vec::new();
-
-        for content in &self.authsafe.contents {
-            if let &AuthenticatedSafe::Data(ref d) = content {
-                for sb in &d.0 {
-                    let pkcs8 = match &sb.bag_value {
-                        &Pkcs12BagSet::Pkcs8(ref p8) => Some(p8.clone()),
-                        &Pkcs12BagSet::Key(ref key) => Some(key.pkcs8.clone()),
-                        _ => {
-                            /* not a private key */
-                            None
-                        }
-                    };
-
-                    if let Some(p8) = pkcs8 {
-                        let pk = Pk::from_private_key(&p8, None)?;
-                        private_keys.push((pk, sb.friendly_name()))
-                    }
+    pub fn private_keys<'a>(&'a self) -> impl Iterator<Item=(Result<Pk, crate::Error>, Vec<String>)> + 'a {
+        self.authsafe_decrypted_contents()
+            .filter_map(|sb|
+                match &sb.bag_value {
+                    Pkcs12BagSet::Pkcs8(pkcs8) | Pkcs12BagSet::Key(KeyBag { pkcs8 }) =>
+                        Some((Pk::from_private_key(pkcs8, None), sb.friendly_name())),
+                    _ => /* not a private key */ None
                 }
-            }
-        }
-
-        Ok(private_keys)
+            )
     }
 }
 
@@ -921,25 +907,27 @@ mod tests {
         let parsed_pfx = Pfx::parse(pfx_bits).unwrap();
 
         // Certs are not encrypted in this Pfx
-        let certs = parsed_pfx.certificates().unwrap();
+        let certs = parsed_pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
         assert_eq!(certs[0].1.len(), 0); // no friendly name set
 
-        let keys = parsed_pfx.private_keys().unwrap();
+        let keys = parsed_pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 0);
 
         let pfx = parsed_pfx.decrypt(&password, None).unwrap();
 
-        let certs = pfx.certificates().unwrap();
+        let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
 
-        let keys = pfx.private_keys().unwrap();
+        let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1); // has friendly name
         assert_eq!(keys[0].1[0], "3f71af65-1687-444a-9f46-c8be194c3e8e"); // which is this uuid
-        assert_eq!(keys[0].0.name().unwrap(), "RSA");
-        assert_eq!(keys[0].0.len(), 2048);
+
+        let pk = keys[0].0.as_ref().unwrap();
+        assert_eq!(pk.name().unwrap(), "RSA");
+        assert_eq!(pk.len(), 2048);
     }
 
     #[test]
@@ -953,26 +941,27 @@ mod tests {
 
         let parsed_pfx = Pfx::parse(pfx_bits).unwrap();
 
-        let certs = parsed_pfx.certificates().unwrap();
+        let certs = parsed_pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 0);
 
-        let keys = parsed_pfx.private_keys().unwrap();
+        let keys = parsed_pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 0);
 
         assert!(parsed_pfx.decrypt(&not_the_password, None).is_err());
 
         let pfx = parsed_pfx.decrypt(&password, None).unwrap();
 
-        let certs = pfx.certificates().unwrap();
+        let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 2);
 
-        let keys = pfx.private_keys().unwrap();
+        let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1); // has friendly name
         assert_eq!(keys[0].1[0], "foobar.com");
-        assert_eq!(keys[0].0.name().unwrap(), "RSA");
-        assert_eq!(keys[0].0.len(), 2048);
+        let pk = keys[0].0.as_ref().unwrap();
+        assert_eq!(pk.name().unwrap(), "RSA");
+        assert_eq!(pk.len(), 2048);
     }
 
     #[test]
@@ -983,15 +972,16 @@ mod tests {
 
         let parsed_pfx = Pfx::parse(pfx_bits).unwrap();
 
-        let certs = parsed_pfx.certificates().unwrap();
+        let certs = parsed_pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
 
-        let keys = parsed_pfx.private_keys().unwrap();
+        let keys = parsed_pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 0); // no name
-        assert_eq!(keys[0].0.name().unwrap(), "RSA");
-        assert_eq!(keys[0].0.len(), 2048);
+        let pk = keys[0].0.as_ref().unwrap();
+        assert_eq!(pk.name().unwrap(), "RSA");
+        assert_eq!(pk.len(), 2048);
     }
 
     #[test]
@@ -1005,16 +995,17 @@ mod tests {
 
         let pfx = parsed_pfx.decrypt(&password, None).unwrap();
 
-        let certs = pfx.certificates().unwrap();
+        let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
 
-        let keys = pfx.private_keys().unwrap();
+        let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1); // no name
         assert_eq!(keys[0].1[0], "Unity");
-        assert_eq!(keys[0].0.name().unwrap(), "RSA");
-        assert_eq!(keys[0].0.len(), 2048);
+        let pk = keys[0].0.as_ref().unwrap();
+        assert_eq!(pk.name().unwrap(), "RSA");
+        assert_eq!(pk.len(), 2048);
     }
 
     #[test]
@@ -1027,16 +1018,17 @@ mod tests {
 
         let pfx = parsed_pfx.decrypt(&password, None).unwrap();
 
-        let certs = pfx.certificates().unwrap();
+        let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
 
-        let keys = pfx.private_keys().unwrap();
+        let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1);
         assert_eq!(keys[0].1[0], "Bongo");
-        assert_eq!(keys[0].0.name().unwrap(), "RSA");
-        assert_eq!(keys[0].0.len(), 1536);
+        let pk = keys[0].0.as_ref().unwrap();
+        assert_eq!(pk.name().unwrap(), "RSA");
+        assert_eq!(pk.len(), 1536);
     }
 
     #[test]
@@ -1065,16 +1057,17 @@ mod tests {
 
         let pfx = parsed_pfx.decrypt(&correct_password, None).unwrap();
 
-        let certs = pfx.certificates().unwrap();
+        let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
 
-        let keys = pfx.private_keys().unwrap();
+        let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1);
         assert_eq!(keys[0].1[0], "Bogus");
-        assert_eq!(keys[0].0.name().unwrap(), "RSA");
-        assert_eq!(keys[0].0.len(), 1536);
+        let pk = keys[0].0.as_ref().unwrap();
+        assert_eq!(pk.name().unwrap(), "RSA");
+        assert_eq!(pk.len(), 1536);
     }
 
     #[test]
@@ -1087,16 +1080,17 @@ mod tests {
 
         let pfx = parsed_pfx.decrypt(&password, None).unwrap();
 
-        let certs = pfx.certificates().unwrap();
+        let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
 
-        let keys = pfx.private_keys().unwrap();
+        let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1);
         assert_eq!(keys[0].1[0], "Bongo");
-        assert_eq!(keys[0].0.name().unwrap(), "RSA");
-        assert_eq!(keys[0].0.len(), 1536);
+        let pk = keys[0].0.as_ref().unwrap();
+        assert_eq!(pk.name().unwrap(), "RSA");
+        assert_eq!(pk.len(), 1536);
     }
 
     #[test]
@@ -1108,16 +1102,17 @@ mod tests {
 
         let pfx = parsed_pfx.decrypt(&password, None).unwrap();
 
-        let certs = pfx.certificates().unwrap();
+        let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
 
-        let keys = pfx.private_keys().unwrap();
+        let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1);
         assert_eq!(keys[0].1[0], "Bongo");
-        assert_eq!(keys[0].0.name().unwrap(), "RSA");
-        assert_eq!(keys[0].0.len(), 1536);
+        let pk = keys[0].0.as_ref().unwrap();
+        assert_eq!(pk.name().unwrap(), "RSA");
+        assert_eq!(pk.len(), 1536);
     }
 
     #[test]
@@ -1129,14 +1124,15 @@ mod tests {
 
         let pfx = parsed_pfx.decrypt(&password, None).unwrap();
 
-        let certs = pfx.certificates().unwrap();
+        let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 3);
 
-        let keys = pfx.private_keys().unwrap();
+        let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
-        assert_eq!(keys[0].0.name().unwrap(), "RSA");
-        assert_eq!(keys[0].0.len(), 1536);
+        let pk = keys[0].0.as_ref().unwrap();
+        assert_eq!(pk.name().unwrap(), "RSA");
+        assert_eq!(pk.len(), 1536);
     }
 
     #[test]
@@ -1153,16 +1149,18 @@ mod tests {
             .unwrap();
         let pfx = pfx.decrypt(&enc_password, Some(&mac_password)).unwrap();
 
-        let certs = pfx.certificates().unwrap();
+        let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
 
-        let keys = pfx.private_keys().unwrap();
+        let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1);
         assert_eq!(keys[0].1[0], "Deus");
-        assert_eq!(keys[0].0.name().unwrap(), "RSA");
-        assert_eq!(keys[0].0.len(), 1536);
+
+        let pk = keys[0].0.as_ref().unwrap();
+        assert_eq!(pk.name().unwrap(), "RSA");
+        assert_eq!(pk.len(), 1536);
     }
 
     #[test]
@@ -1174,21 +1172,22 @@ mod tests {
         let pfx = Pfx::parse(pfx_bits).unwrap();
 
         // Cert is not encrypted
-        let certs = pfx.certificates().unwrap();
+        let certs = pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 1);
 
-        let keys = pfx.private_keys().unwrap();
+        let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 0);
 
         let pfx = pfx.decrypt(&password, None).unwrap();
 
-        let keys = pfx.private_keys().unwrap();
+        let keys = pfx.private_keys().collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1); // no name
         assert_eq!(keys[0].1[0], "PvkTmp:7708e756-dd3f-4399-bb07-f0b5b4f41c1b");
-        assert_eq!(keys[0].0.name().unwrap(), "RSA");
-        assert_eq!(keys[0].0.len(), 2048);
+        let pk = keys[0].0.as_ref().unwrap();
+        assert_eq!(pk.name().unwrap(), "RSA");
+        assert_eq!(pk.len(), 2048);
     }
 
 }
