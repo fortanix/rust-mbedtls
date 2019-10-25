@@ -4,7 +4,7 @@ cd "$(dirname "$0")"
 
 cd "./mbedtls"
 
-if [ $TRAVIS_RUST_VERSION = "stable" ] || [ $TRAVIS_RUST_VERSION = "beta" ]; then
+if [ $TRAVIS_RUST_VERSION = "stable" ] || [ $TRAVIS_RUST_VERSION = "beta" ] || [ $TRAVIS_RUST_VERSION = "nightly" ]; then
     rustup default $TRAVIS_RUST_VERSION
     cargo test
     cargo test --features spin_threading

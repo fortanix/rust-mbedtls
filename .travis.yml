@@ -19,6 +19,7 @@ addons:
 rust:
    - stable
    - beta
+   - nightly
    - nightly-2019-07-01
    - nightly-2019-07-11
 env:
