@@ -647,7 +647,7 @@ fn decrypt_data(
     encryption_algo: &ObjectIdentifier,
     passphrase: &[u8],
 ) -> Pkcs12Result<Vec<u8>> {
-    fn parse_encryption_algo(oid: &ObjectIdentifier) -> Pkcs12Result<(Pkcs12EncryptionAlgo)> {
+    fn parse_encryption_algo(oid: &ObjectIdentifier) -> Pkcs12Result<Pkcs12EncryptionAlgo> {
         match &**oid.components() {
             PKCS12_PBE_SHA_3DES_168 => Ok(Pkcs12EncryptionAlgo::TDES_168_SHA),
             PKCS12_PBE_SHA_3DES_112 => Ok(Pkcs12EncryptionAlgo::TDES_112_SHA),
