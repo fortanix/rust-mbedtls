@@ -43,6 +43,9 @@ pub static mut mbedtls_mutex_lock: unsafe extern "C" fn(mutex: *mut *mut StaticM
 pub static mut mbedtls_mutex_unlock: unsafe extern "C" fn(mutex: *mut *mut StaticMutex) -> c_int =
     StaticMutex::unlock;
 
+// The nightly compiler complains that StaticMutex has no representation hint,
+// but this is not an issue because this pointer is opaque to mbedtls
+#[allow(improper_ctypes)]
 impl StaticMutex {
     unsafe extern "C" fn init(mutex: *mut *mut StaticMutex) {
         if let Some(m) = mutex.as_mut() {
