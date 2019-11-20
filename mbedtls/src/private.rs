@@ -88,11 +88,11 @@ pub unsafe fn cstr_to_slice<'a>(ptr: *const c_char) -> &'a [u8] {
     ::core::slice::from_raw_parts(ptr as *const _, strlen(ptr))
 }
 
-#[cfg(not(feature = "std"))]
-use core_io::{Error as IoError, ErrorKind as IoErrorKind};
-#[cfg(feature = "std")]
-use std::io::{Error as IoError, ErrorKind as IoErrorKind};
+// #[cfg(not(feature = "std"))]
+// use core_io::{Error as IoError, ErrorKind as IoErrorKind};
+// #[cfg(feature = "std")]
+// use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 
-pub fn error_to_io_error(e: Error) -> IoError {
-    IoError::new(IoErrorKind::Other, e.to_string())
-}
+// pub fn error_to_io_error(e: Error) -> IoError {
+//     IoError::new(IoErrorKind::Other, e.to_string())
+// }

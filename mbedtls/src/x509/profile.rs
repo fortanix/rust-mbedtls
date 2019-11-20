@@ -7,6 +7,10 @@
  * according to those terms. */
 
 use mbedtls_sys::*;
+use crate::{hash, pk};
+
+#[cfg(not(feature = "std"))]
+use crate::alloc_prelude::*;
 
 define!(
     #[c_ty(x509_crt_profile)]
@@ -14,6 +18,31 @@ define!(
     struct Profile;
     impl<'a> Into<ptr> {}
 );
+
+impl Profile {
+    pub fn new(hash_types: Vec<hash::Type>, pk_types: Vec<pk::Type>, curves: Vec<pk::EcGroupId>, rsa_min_bitlen: u32) -> Self {
+        let mut allowed_mds = 0u32;
+        let mut allowed_pks = 0u32;
+        let mut allowed_curves = 0u32;
+        for md in hash_types {
+            allowed_mds |= 1 << (md as u32 - 1);
+        }
+        for algo in pk_types {
+            allowed_pks |= 1 << (algo as u32 - 1);
+        }
+        for curve in curves {
+            allowed_curves |= 1 << (curve as u32 - 1);
+        }
+        Profile {
+            inner: x509_crt_profile {
+                allowed_mds,
+                allowed_pks,
+                allowed_curves,
+                rsa_min_bitlen,
+            }
+        }
+    }
+}
 
 extern "C" {
     #[link_name = "mbedtls_x509_crt_profile_default"]

@@ -17,20 +17,27 @@ use crate::alloc_prelude::*;
 use mbedtls_sys::types::raw_types::c_char;
 use mbedtls_sys::*;
 
-#[cfg(feature = "std")]
-use yasna::{BERDecodable, BERReader, ASN1Result, ASN1Error, ASN1ErrorKind, models::ObjectIdentifier};
+use crate::x509::{Crl, Profile};
+use core::result::Result as StdResult;
+use serde::de::{Deserialize, Deserializer, Error as DeError, Visitor};
+use serde::ser::{Serialize, Serializer};
 
-use crate::pk::Pk;
+#[cfg(feature = "std")]
+use yasna::{
+    models::ObjectIdentifier, ASN1Error, ASN1ErrorKind, ASN1Result, BERDecodable, BERReader,
+};
+
 use crate::error::{Error, IntoResult, Result};
+use crate::hash::Type as MdType;
+use crate::pk::Pk;
 use crate::private::UnsafeFrom;
 use crate::rng::Random;
-use crate::hash::Type as MdType;
 
-#[derive(Debug,Copy,Clone,Eq,PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CertificateVersion {
     V1,
     V2,
-    V3
+    V3,
 }
 
 define!(
@@ -55,7 +62,11 @@ impl BERDecodable for Extension {
             let oid = reader.next().read_oid()?;
             let critical = reader.read_optional(|r| r.read_bool())?.unwrap_or(false);
             let value = reader.next().read_bytes()?;
-            Ok(Extension { oid, critical, value })
+            Ok(Extension {
+                oid,
+                critical,
+                value,
+            })
         })
     }
 }
@@ -139,6 +150,44 @@ impl DerefMut for Certificate {
     }
 }
 
+impl Serialize for Certificate {
+    /// Keys are serialized as DER-encoded byte streams
+    #[inline]
+    fn serialize<S: Serializer>(&self, serializer: S) -> StdResult<S::Ok, S::Error> {
+        serializer.serialize_bytes(self.as_der())
+    }
+}
+
+impl<'de> Deserialize<'de> for Certificate {
+    #[inline]
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> StdResult<Self, D::Error> {
+        struct CertVisitor;
+
+        impl<'de> Visitor<'de> for CertVisitor {
+            type Value = Certificate;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                write!(formatter, "An public key structure as DER bytes")
+            }
+
+            #[inline]
+            fn visit_bytes<E: DeError>(self, value: &[u8]) -> StdResult<Certificate, E> {
+                Ok(Certificate::from_der(value)
+                    .map_err(|tls_err| E::custom(tls_err.to_string()))?
+                    .into())
+            }
+        }
+
+        deserializer.deserialize_bytes(CertVisitor)
+    }
+}
+
+impl PartialEq for Certificate {
+    fn eq(&self, other: &Certificate) -> bool {
+        (self.as_der() == other.as_der())
+    }
+}
+
 #[repr(C)]
 pub struct LinkedCertificate {
     inner: x509_crt,
@@ -159,7 +208,15 @@ fn x509_time_to_time(tm: &x509_time) -> Result<super::Time> {
         return Err(Error::X509InvalidDate);
     }
 
-    super::Time::new(tm.year as u16, tm.mon as u8, tm.day as u8, tm.hour as u8, tm.min as u8, tm.sec as u8).ok_or(Error::X509InvalidDate)
+    super::Time::new(
+        tm.year as u16,
+        tm.mon as u8,
+        tm.day as u8,
+        tm.hour as u8,
+        tm.min as u8,
+        tm.sec as u8,
+    )
+    .ok_or(Error::X509InvalidDate)
 }
 
 impl LinkedCertificate {
@@ -224,7 +281,7 @@ impl LinkedCertificate {
             1 => Ok(CertificateVersion::V1),
             2 => Ok(CertificateVersion::V2),
             3 => Ok(CertificateVersion::V3),
-            _ => Err(Error::X509InvalidVersion)
+            _ => Err(Error::X509InvalidVersion),
         }
     }
 
@@ -255,7 +312,8 @@ impl LinkedCertificate {
                 }
             })?;
             return Ok(());
-        }).map_err(|_| Error::X509InvalidExtensions)?;
+        })
+        .map_err(|_| Error::X509InvalidExtensions)?;
 
         Ok(ext)
     }
@@ -268,17 +326,29 @@ impl LinkedCertificate {
         MdType::from(self.inner.sig_md)
     }
 
+    #[inline]
     pub fn verify(
         &mut self,
         trust_ca: &mut Certificate,
         err_info: Option<&mut String>,
     ) -> Result<()> {
+        self.verify_with_profile(trust_ca, None, None, err_info)
+    }
+
+    pub fn verify_with_profile(
+        &mut self,
+        trust_ca: &mut Certificate,
+        crl: Option<&mut Crl>,
+        profile: Option<&Profile>,
+        err_info: Option<&mut String>,
+    ) -> Result<()> {
         let mut flags = 0;
         let result = unsafe {
-            x509_crt_verify(
+            x509_crt_verify_with_profile(
                 &mut self.inner,
                 &mut trust_ca.inner,
-                ptr::null_mut(),
+                crl.map_or(ptr::null_mut(), |revlist| revlist.into()),
+                profile.map_or(ptr::null(), |prof| prof.into()),
                 ptr::null(),
                 &mut flags,
                 None,
@@ -496,7 +566,8 @@ define!(
 
 impl<'a> Builder<'a> {
     unsafe fn subject_with_nul_unchecked(&mut self, subject: &[u8]) -> Result<&mut Self> {
-        x509write_crt_set_subject_name(&mut self.inner, subject.as_ptr() as *const _).into_result()?;
+        x509write_crt_set_subject_name(&mut self.inner, subject.as_ptr() as *const _)
+            .into_result()?;
         Ok(self)
     }
 
@@ -517,7 +588,8 @@ impl<'a> Builder<'a> {
     }
 
     unsafe fn issuer_with_nul_unchecked(&mut self, issuer: &[u8]) -> Result<&mut Self> {
-        x509write_crt_set_issuer_name(&mut self.inner, issuer.as_ptr() as *const _).into_result()?;
+        x509write_crt_set_issuer_name(&mut self.inner, issuer.as_ptr() as *const _)
+            .into_result()?;
         Ok(self)
     }
 
@@ -565,19 +637,18 @@ impl<'a> Builder<'a> {
                 oid.len(),
                 critical as _,
                 val.as_ptr(),
-                val.len()
-            ) }.into_result()?;
+                val.len(),
+            )
+        }
+        .into_result()?;
         Ok(self)
     }
 
     pub fn basic_constraints(&mut self, ca: bool, pathlen: Option<u32>) -> Result<&mut Self> {
         unsafe {
-            x509write_crt_set_basic_constraints(
-                &mut self.inner,
-                ca as _,
-                pathlen.unwrap_or(0) as _
-            )
-        }.into_result()?;
+            x509write_crt_set_basic_constraints(&mut self.inner, ca as _, pathlen.unwrap_or(0) as _)
+        }
+        .into_result()?;
         Ok(self)
     }
 
@@ -590,9 +661,10 @@ impl<'a> Builder<'a> {
             x509write_crt_set_validity(
                 &mut self.inner,
                 not_before.to_x509_time().as_ptr() as _,
-                not_after.to_x509_time().as_ptr() as _
+                not_after.to_x509_time().as_ptr() as _,
             )
-        }.into_result()?;
+        }
+        .into_result()?;
         Ok(self)
     }
 
@@ -786,7 +858,8 @@ JS7pkcufTIoN0Yj0SxAWLW711FgB
         let mut t = Test::new();
         let output = t
             .builder()
-            .serial(&[5]).unwrap()
+            .serial(&[5])
+            .unwrap()
             .signature_hash(MdType::Sha256)
             .write_der_vec(&mut crate::test_support::rand::test_rng())
             .unwrap();
@@ -798,7 +871,8 @@ JS7pkcufTIoN0Yj0SxAWLW711FgB
         let mut t = Test::new();
         let output = t
             .builder()
-            .serial(&[5]).unwrap()
+            .serial(&[5])
+            .unwrap()
             .signature_hash(MdType::Sha256)
             .write_pem_string(&mut crate::test_support::rand::test_rng())
             .unwrap();
@@ -838,45 +912,75 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         );
         assert_eq!(cert.digest_type(), MdType::Sha256);
 
-        assert_eq!(hex::encode(cert.serial_raw().unwrap()), "00b634492e6963d61bfda207bd202f98eb");
-        assert_eq!(hex::encode(cert.issuer_raw().unwrap()), "301f3110300e0603550403130754657374204341310b3009060355040613025553");
-        assert_eq!(hex::encode(cert.subject_raw().unwrap()), "30233112301006035504031309546573742043657274310d300b060355040a130454657374");
+        assert_eq!(
+            hex::encode(cert.serial_raw().unwrap()),
+            "00b634492e6963d61bfda207bd202f98eb"
+        );
+        assert_eq!(
+            hex::encode(cert.issuer_raw().unwrap()),
+            "301f3110300e0603550403130754657374204341310b3009060355040613025553"
+        );
+        assert_eq!(
+            hex::encode(cert.subject_raw().unwrap()),
+            "30233112301006035504031309546573742043657274310d300b060355040a130454657374"
+        );
         assert_eq!(hex::encode(cert.signature().unwrap()), "4a4b2638e636a0c0121b0334e04b342ac17b178b1a3000d5dc84c0612941519e3ac99da72823809e643f9d1c0ff7ca2734c63974215879f6286532d43b0da6086fb212a96c8f573de4230c9ab3ae09d621719d2e35b3e91963d5e763a273f0e25d6bbc5fcd0cd7ace688821df1724fb3956c96046cd58126f3ae2a66680cccc8aaecbe680fa5fc79684ef33f64153b319713f42ea17aa3fdb99b94d95466ed75e572789d2c7388a49d35a6590429fe9b6959896e8658aee276f3474ff315051e6633be236d2acf552164ea6936122f9d718a746c7fd170f4c2d19f996aa49632d7f146b93adcc25017d117a4309dbd045c4cc0fd0fce4326b30a9fc6ae9aad0c");
         assert_eq!(hex::encode(cert.extensions_raw().unwrap()), "30819f30210603551d0e041a04186839fad57e6544121cc6bc421953cc9620655c57cfac060230320603551d11042b302981117465737440666f7274616e69782e636f6d82146578616d706c652e666f7274616e69782e636f6d300c0603551d130101ff0402300030230603551d23041c301a801879076bcc8da0077e4116f84b8e4c9c5c6af7ec4fa000d98730130603551d25040c300a06082b06010505070302");
 
         use crate::x509::Time;
-        assert_eq!(cert.not_before().unwrap(), Time::new(2019,1,8,0,18,35).unwrap());
-        assert_eq!(cert.not_after().unwrap(), Time::new(2029,1,5,0,18,35).unwrap());
+        assert_eq!(
+            cert.not_before().unwrap(),
+            Time::new(2019, 1, 8, 0, 18, 35).unwrap()
+        );
+        assert_eq!(
+            cert.not_after().unwrap(),
+            Time::new(2029, 1, 5, 0, 18, 35).unwrap()
+        );
 
-        #[cfg(feature = "std")] {
+        #[cfg(feature = "std")]
+        {
             let ext = cert.extensions().unwrap();
             assert_eq!(ext.len(), 5);
 
-            assert_eq!(ext[0], Extension {
-                oid: ObjectIdentifier::from_slice(&[2,5,29,14]),
-                critical: false,
-                value: hex::decode("04186839FAD57E6544121CC6BC421953CC9620655C57CFAC0602").unwrap(),
-            });
+            assert_eq!(
+                ext[0],
+                Extension {
+                    oid: ObjectIdentifier::from_slice(&[2, 5, 29, 14]),
+                    critical: false,
+                    value: hex::decode("04186839FAD57E6544121CC6BC421953CC9620655C57CFAC0602")
+                        .unwrap(),
+                }
+            );
             assert_eq!(ext[1], Extension {
                 oid: ObjectIdentifier::from_slice(&[2,5,29,17]),
                 critical: false,
                 value: hex::decode("302981117465737440666f7274616e69782e636f6d82146578616d706c652e666f7274616e69782e636f6d").unwrap()
             });
-            assert_eq!(ext[2], Extension {
-                oid: ObjectIdentifier::from_slice(&[2,5,29,19]),
-                critical: true,
-                value: hex::decode("3000").unwrap()
-            });
-            assert_eq!(ext[3], Extension {
-                oid: ObjectIdentifier::from_slice(&[2,5,29,35]),
-                critical: false,
-                value: hex::decode("301a801879076BCC8DA0077E4116F84B8E4C9C5C6AF7EC4FA000D987").unwrap()
-            });
-            assert_eq!(ext[4], Extension {
-                oid: ObjectIdentifier::from_slice(&[2,5,29,37]),
-                critical: false,
-                value: hex::decode("300a06082b06010505070302").unwrap(),
-            });
+            assert_eq!(
+                ext[2],
+                Extension {
+                    oid: ObjectIdentifier::from_slice(&[2, 5, 29, 19]),
+                    critical: true,
+                    value: hex::decode("3000").unwrap()
+                }
+            );
+            assert_eq!(
+                ext[3],
+                Extension {
+                    oid: ObjectIdentifier::from_slice(&[2, 5, 29, 35]),
+                    critical: false,
+                    value: hex::decode("301a801879076BCC8DA0077E4116F84B8E4C9C5C6AF7EC4FA000D987")
+                        .unwrap()
+                }
+            );
+            assert_eq!(
+                ext[4],
+                Extension {
+                    oid: ObjectIdentifier::from_slice(&[2, 5, 29, 37]),
+                    critical: false,
+                    value: hex::decode("300a06082b06010505070302").unwrap(),
+                }
+            );
         }
     }
 

@@ -1,2 +1,7 @@
 [workspace]
 members = ["mbedtls", "mbedtls-sys"]
+
+[patch.crates-io]
+# This is required because genio 0.1.0 isn't actually no_std, and 0.2.0 hasn't
+# been released yet.
+genio = { git = "https://github.com/Kixunil/genio.git" }

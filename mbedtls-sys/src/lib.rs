@@ -6,6 +6,10 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+#![allow(non_upper_case_globals)]
+#![allow(clippy::all)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #[cfg(feature = "std")]
 extern crate core;

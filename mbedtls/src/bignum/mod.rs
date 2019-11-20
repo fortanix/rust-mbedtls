@@ -8,6 +8,7 @@
 
 use crate::error::{Error, IntoResult, Result};
 use mbedtls_sys::*;
+use mbedtls_sys::types::raw_types::c_char;
 
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
@@ -173,7 +174,7 @@ impl Mpi {
             mpi_write_string(
                 &self.inner,
                 radix,
-                buf.as_mut_ptr() as *mut i8,
+                buf.as_mut_ptr() as *mut c_char,
                 buf.len(),
                 &mut olen,
             )

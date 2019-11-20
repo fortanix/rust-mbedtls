@@ -400,7 +400,7 @@ impl EcPoint {
             ecp_point_write_binary(
                 &group.inner,
                 &self.inner,
-                format,
+                format as i32,
                 &mut olen,
                 buf.as_mut_ptr(),
                 buf.len(),

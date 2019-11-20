@@ -5,6 +5,11 @@ else()
     project("mbed TLS" C)
 endif()
 
+if(TOOLCHAIN_PREFIX)
+  set( CMAKE_AR "${TOOLCHAIN_PREFIX}-ar" )
+  set( CMAKE_RANLIB "${TOOLCHAIN_PREFIX}-ranlib" )
+endif()
+
 option(USE_PKCS11_HELPER_LIBRARY "Build mbed TLS with the pkcs11-helper library." OFF)
 option(ENABLE_ZLIB_SUPPORT "Build mbed TLS with zlib library." OFF)
 

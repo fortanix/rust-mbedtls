@@ -6,19 +6,22 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-#![deny(warnings)]
+// FIXME: Have to deny warnings to get around the bindgen issues.
+// #![deny(warnings)]
+#![allow(clippy::all)]
+#![cfg_attr(feature = "rdrand", feature(asm))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(all(not(feature = "std"), not(feature = "core_io")))]
-const ERROR: _MUST_USE_EITHER_STD_OR_CORE_IO_ = ();
+// #[cfg(all(not(feature = "std"), not(feature = "core_io")))]
+// const ERROR: _MUST_USE_EITHER_STD_OR_CORE_IO_ = ();
 
 #[cfg(not(feature = "std"))]
 #[macro_use]
 extern crate alloc;
 #[cfg(feature = "std")]
 extern crate core;
-#[cfg(not(feature = "std"))]
-extern crate core_io;
+
+extern crate genio;
 
 #[cfg(feature = "std")]
 extern crate yasna;

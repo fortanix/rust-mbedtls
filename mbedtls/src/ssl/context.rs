@@ -6,10 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-#[cfg(not(feature = "std"))]
-use core_io::{self as io, Read, Write};
-#[cfg(feature = "std")]
-use std::io::{self, Read, Write};
+use genio::{Read, Write};
 
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
@@ -268,27 +265,37 @@ impl<'a> Session<'a> {
 }
 
 impl<'a> Read for Session<'a> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    type ReadError = Error;
+
+    fn read(&mut self, buf: &mut [u8]) -> StdResult<usize, Self::ReadError> {
         match unsafe { ssl_read(self.inner, buf.as_mut_ptr(), buf.len()).into_result() } {
             Err(Error::SslPeerCloseNotify) => Ok(0),
-            Err(e) => Err(crate::private::error_to_io_error(e)),
+            Err(e) => Err(e),
             Ok(i) => Ok(i as usize),
         }
     }
 }
 
 impl<'a> Write for Session<'a> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+    type WriteError = Error;
+    type FlushError = Error;
+
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> StdResult<usize, Self::WriteError> {
         match unsafe { ssl_write(self.inner, buf.as_ptr(), buf.len()).into_result() } {
             Err(Error::SslPeerCloseNotify) => Ok(0),
-            Err(e) => Err(crate::private::error_to_io_error(e)),
+            Err(e) => Err(e),
             Ok(i) => Ok(i as usize),
         }
     }
 
-    fn flush(&mut self) -> io::Result<()> {
+    #[inline]
+    fn flush(&mut self) -> StdResult<(), Self::FlushError> {
         Ok(())
     }
+
+    #[inline]
+    fn size_hint(&mut self, _byte_count: usize) {}
 }
 
 impl<'a> Drop for Session<'a> {

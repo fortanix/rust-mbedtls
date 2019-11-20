@@ -10,6 +10,7 @@ use mbedtls_sys::*;
 
 use crate::error::{Error, IntoResult, Result};
 
+#[cfg(buggy)]
 mod serde;
 
 define!(
@@ -403,7 +404,7 @@ impl Cipher {
         }
         self.reset()?;
         unsafe {
-            cipher_cmac(&*self.inner.cipher_info, key.as_ptr(), (key.len() * 8) as _, data.as_ptr(), data.len(), 
+            cipher_cmac(&*self.inner.cipher_info, key.as_ptr(), (key.len() * 8) as _, data.as_ptr(), data.len(),
                         outdata.as_mut_ptr()).into_result()?;
         }
         Ok(())
