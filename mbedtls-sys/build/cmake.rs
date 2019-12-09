@@ -25,7 +25,6 @@ impl super::BuildConfig {
                 .map(|s| (s == "x86_64-unknown-none-gnu") || (s == "x86_64-fortanix-unknown-sgx"))
                 == Ok(true)
         {
-            println!("cargo:rustc-link-lib=gcc");
             cmk.cflag("-fno-builtin")
                 .cflag("-D_FORTIFY_SOURCE=0")
                 .cflag("-fno-stack-protector");
