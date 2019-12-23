@@ -21,7 +21,7 @@ libc = { version = "0.2.0", optional = true }
 libz-sys = { version = "1.0.0", optional = true }
 
 [build-dependencies]
-bindgen = "0.19.0"
+bindgen = { git = "https://github.com/jseyfried/rust-bindgen", branch = "can-blacklisted-derive" }
 cmake = "0.1.17"
 
 [features]

@@ -7,21 +7,51 @@
  * according to those terms. */
 
 use bindgen;
+use bindgen::callbacks::{ParseCallbacks, IntKind, EnumVariantValue, DeriveTrait};
 
 use std::fs::File;
-use std::io::{stderr, Write};
+use std::io::Write;
 
 use crate::headers;
 
 #[derive(Debug)]
-struct StderrLogger;
+struct Callbacks;
 
-impl bindgen::Logger for StderrLogger {
-    fn error(&self, msg: &str) {
-        let _ = writeln!(stderr(), "Bindgen ERROR: {}", msg);
+impl ParseCallbacks for Callbacks {
+    fn int_macro(&self, _name: &str, i: i64) -> Option<IntKind> {
+        Some(if i >= 0 {
+            if i <= (::std::i32::MAX as i64) { IntKind::I32 } else { IntKind::I64 }
+        } else {
+            if i >= (::std::i32::MIN as i64) { IntKind::I32 } else { IntKind::I64 }
+        })
     }
-    fn warn(&self, msg: &str) {
-        let _ = writeln!(stderr(), "Bindgen WARNING: {}", msg);
+
+    fn item_name(&self, name: &str) -> Option<String> {
+        if (name.starts_with("mbedtls_") || name.starts_with("MBEDTLS_")) && name != "mbedtls_time_t" {
+            Some(name[8..].to_owned())
+        } else {
+            None
+        }
+    }
+
+    fn enum_variant_name(&self, _enum_name: Option<&str>, variant_name: &str, _variant_value: EnumVariantValue)
+                         -> Option<String> {
+        if variant_name.starts_with("MBEDTLS_") {
+            Some(variant_name[8..].to_owned())
+        } else {
+            None
+        }
+    }
+
+    fn can_blacklisted_derive(&self, item_name: &str, derive_trait: DeriveTrait) -> bool {
+        match item_name {
+            "uint8_t" | "uint16_t" | "uint32_t" | "uint64_t" |
+            "int8_t" | "int16_t" | "int32_t" | "int64_t" | "size_t" =>
+                match derive_trait { DeriveTrait::Copy | DeriveTrait::Debug => true, _ => false },
+            "pthread_mutex_t" =>
+                match derive_trait { DeriveTrait::Copy => true, _ => false },
+            _ => false,
+        }
     }
 }
 
@@ -37,37 +67,25 @@ impl super::BuildConfig {
 
         let include = self.mbedtls_src.join("include");
 
-        let logger = StderrLogger;
-        let mut bindgen = bindgen::Builder::new(header.into_os_string().into_string().unwrap());
-        let bindings = bindgen
-            .log(&logger)
-            .clang_arg("-Dmbedtls_t_udbl=mbedtls_t_udbl;") // bindgen can't handle unused uint128
+        let bindings = bindgen::builder()
+            .header(header.into_os_string().into_string().unwrap())
             .clang_arg(format!(
                 "-DMBEDTLS_CONFIG_FILE=<{}>",
                 self.config_h.to_str().expect("config.h UTF-8 error")
             )).clang_arg(format!(
                 "-I{}",
                 include.to_str().expect("include/ UTF-8 error")
-            )).match_pat(include.to_str().expect("include/ UTF-8 error"))
-            .match_pat(self.config_h.to_str().expect("config.h UTF-8 error"))
-            .use_core(true)
-            .derive_debug(false) // buggy :(
-            .ctypes_prefix(vec!["types".to_owned(), "raw_types".to_owned()])
-            .remove_prefix("mbedtls_")
-            .rust_enums(false)
-            .convert_macros(true)
-            .macro_int_types(
-                vec![
-                    "sint",
-                    "sint",
-                    "sint",
-                    "slonglong",
-                    "sint",
-                    "sint",
-                    "sint",
-                    "slonglong",
-                ].into_iter(),
-            ).generate()
+            ))
+            .whitelist_recursively(false)
+            .whitelist_type("mbedtls_.*")
+            .whitelist_function("mbedtls_.*")
+            .whitelist_var("mbedtls_.*")
+            .whitelist_var("MBEDTLS_.*")
+            .use_core()
+            .ctypes_prefix("crate::types::raw_types")
+            .prepend_enum_name(false)
+            .parse_callbacks(Box::new(Callbacks))
+            .generate()
             .expect("bindgen error");
 
         let bindings_rs = self.out_dir.join("bindings.rs");
