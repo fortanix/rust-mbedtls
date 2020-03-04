@@ -9,6 +9,28 @@ branches:
 language: rust
 os: linux
 dist: xenial
+
+jobs:
+  include:
+    - name: "Rust stable"
+      rust: stable
+    - name: "Rust beta"
+      rust: beta
+    - name: "Rust nightly"
+      rust: beta
+    - name: "Rust nightly (core_io)"
+      rust: nightly-2019-07-01
+    - name: "Rust nightly (SGX)"
+      rust: nightly-2019-10-28
+    - name: "Rust stable (Aarch64)"
+      arch: arm64
+      rust: stable
+
+  allow_failures:
+    - name: "Rust stable (Aarch64)"
+      arch: arm64
+      rust: stable
+
 addons:
   apt:
     packages:
@@ -16,12 +38,7 @@ addons:
     - libclang-3.8-dev
     - clang-3.8
     - cmake
-rust:
-   - stable
-   - beta
-   - nightly
-   - nightly-2019-07-01
-   - nightly-2019-10-28
+
 env:
   global:
     - RUST_BACKTRACE=1
