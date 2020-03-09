@@ -315,8 +315,10 @@ impl Pk {
             .is_ok()
     }
 
-    /// Key length in bits
-    getter!(len() -> usize = fn pk_get_bitlen);
+    getter!(
+        /// Key length in bits
+        len() -> usize = fn pk_get_bitlen
+    );
     getter!(pk_type() -> Type = fn pk_get_type);
 
     pub fn curve(&self) -> Result<EcGroupId> {

@@ -227,7 +227,8 @@ macro_rules! define_struct {
 }
 
 macro_rules! setter {
-    { $rfn:ident($n:ident : $rty:ty) = $cfn:ident } => {
+    { $(#[$m:meta])* $rfn:ident($n:ident : $rty:ty) = $cfn:ident } => {
+        $(#[$m])*
         pub fn $rfn(&mut self, $n: $rty) {
             unsafe{::mbedtls_sys::$cfn(&mut self.inner,$n.into())}
         }
@@ -236,9 +237,10 @@ macro_rules! setter {
 
 // can't make this work without as as_XXX! macro, and there is no as_method!...
 macro_rules! setter_callback {
-    { $s:ident<$l:tt>::$rfn:ident($n:ident : $($rty:tt)+) = $cfn:ident } => {
+    { $(#[$m:meta])* $s:ident<$l:tt>::$rfn:ident($n:ident : $($rty:tt)+) = $cfn:ident } => {
         as_item!(
         impl<$l> $s<$l> {
+            $(#[$m])*
             pub fn $rfn<F: $($rty)+>(&mut self, $n: Option<&$l mut F>) {
                 unsafe{::mbedtls_sys::$cfn(
                     &mut self.inner,
@@ -252,12 +254,14 @@ macro_rules! setter_callback {
 }
 
 macro_rules! getter {
-    { $rfn:ident() -> $rty:ty = .$cfield:ident } => {
+    { $(#[$m:meta])* $rfn:ident() -> $rty:ty = .$cfield:ident } => {
+        $(#[$m])*
         pub fn $rfn(&self) -> $rty {
             self.inner.$cfield.into()
         }
     };
-    { $rfn:ident() -> $rty:ty = fn $cfn:ident } => {
+    { $(#[$m:meta])* $rfn:ident() -> $rty:ty = fn $cfn:ident } => {
+        $(#[$m])*
         pub fn $rfn(&self) -> $rty {
             unsafe{::mbedtls_sys::$cfn(&self.inner).into()}
         }

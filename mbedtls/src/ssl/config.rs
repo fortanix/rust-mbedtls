@@ -214,11 +214,15 @@ impl<'c> Config<'c> {
         };
     }
 
-    /// Client only: whether to remember and use session tickets
-    setter!(set_session_tickets(u: UseSessionTickets) = ssl_conf_session_tickets);
+    setter!(
+        /// Client only: whether to remember and use session tickets
+        set_session_tickets(u: UseSessionTickets) = ssl_conf_session_tickets
+    );
 
-    /// Client only: minimal FFDH group size
-    setter!(set_ffdh_min_bitlen(bitlen: c_uint) = ssl_conf_dhm_min_bitlen);
+    setter!(
+        /// Client only: minimal FFDH group size
+        set_ffdh_min_bitlen(bitlen: c_uint) = ssl_conf_dhm_min_bitlen
+    );
 
     // TODO: The lifetime restrictions on HandshakeContext here are too strict.
     // Once we need something else, we might fix it.
