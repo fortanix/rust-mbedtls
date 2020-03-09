@@ -224,7 +224,7 @@ dependencies = [
 
 [[package]]
 name = "mbedtls"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "bitflags 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "block-modes 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -234,7 +234,7 @@ dependencies = [
  "core_io 0.1.20190701 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.62 (registry+https://github.com/rust-lang/crates.io-index)",
- "mbedtls-sys-auto 2.18.2",
+ "mbedtls-sys-auto 2.18.3",
  "rand 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rc2 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rs-libc 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -247,7 +247,7 @@ dependencies = [
 
 [[package]]
 name = "mbedtls-sys-auto"
-version = "2.18.2"
+version = "2.18.3"
 dependencies = [
  "bindgen 0.19.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "cmake 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",
