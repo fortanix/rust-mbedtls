@@ -73,7 +73,7 @@
 #endif /* bits in mbedtls_mpi_uint */
 
 /* *INDENT-OFF* */
-#if defined(MBEDTLS_HAVE_ASM)
+#if defined(MBEDTLS_HAVE_ASM) && !defined(MBEDTLS_MPI_FORCE_C_CODE)
 
 #ifndef asm
 #define asm __asm
@@ -952,7 +952,7 @@
 #endif /* SSE2 */
 #endif /* MSVC */
 
-#endif /* MBEDTLS_HAVE_ASM */
+#endif /* MBEDTLS_HAVE_ASM && !MBEDTLS_MPI_FORCE_C_CODE */
 
 #if !defined(MULADDC_CORE)
 #if defined(MBEDTLS_HAVE_UDBL)
