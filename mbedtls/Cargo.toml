@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.5.2"
+version = "0.5.3"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -57,6 +57,7 @@ spin_threading = ["threading","spin","mbedtls-sys-auto/custom_threading"]
 sgx = ["std", "rust_threading", "rdrand", "force_aesni_support"]
 rust_threading = ["threading", "mbedtls-sys-auto/custom_threading", "std"]
 force_aesni_support = ["mbedtls-sys-auto/custom_has_support","mbedtls-sys-auto/aes_alt","aesni"]
+mpi_force_c_code = ["mbedtls-sys-auto/mpi_force_c_code"]
 rdrand = []
 use_libc = ["mbedtls-sys-auto/libc"]
 custom_gmtime_r = ["mbedtls-sys-auto/custom_gmtime_r", "chrono"]
