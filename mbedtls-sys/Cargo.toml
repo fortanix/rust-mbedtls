@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls-sys-auto"
-version = "2.18.3"
+version = "2.18.4"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build/build.rs"
 license = "Apache-2.0/GPL-2.0+"
@@ -49,3 +49,4 @@ pkcs11 = []
 aesni = []
 padlock = []
 legacy_protocols = []
+mpi_force_c_code = []
