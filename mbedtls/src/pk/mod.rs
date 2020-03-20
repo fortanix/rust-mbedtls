@@ -284,6 +284,21 @@ impl Pk {
         }
     }
 
+    pub fn set_custom_private_key(&mut self, new_value: &[u8]) -> Result<()> {
+        if self.pk_type() != Type::Custom {
+            return Err(Error::PkInvalidAlg);
+        }
+
+        unsafe {
+            let ctx = self.inner.pk_ctx as *mut CustomPkContext;
+            if (*ctx).sk.len() != new_value.len() {
+                (*ctx).sk.resize(new_value.len(), 0u8);
+            }
+            (*ctx).sk.copy_from_slice(new_value);
+            Ok(())
+        }
+    }
+
     /// Panics if the options are not valid for this key type.
     pub fn set_options(&mut self, options: Options) {
         unsafe {
@@ -1073,11 +1088,14 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         assert!(pk.custom_private_key().is_err());
         assert!(!pk.can_do(PkType::Rsa));
 
-        let pk = Pk::private_custom_algo(&[23], &[1, 2, 3, 4], &[9, 1, 1]).unwrap();
+        let mut pk = Pk::private_custom_algo(&[23], &[1, 2, 3, 4], &[9, 1, 1]).unwrap();
         assert_eq!(pk.pk_type(), PkType::Custom);
         assert_eq!(pk.custom_algo_id().unwrap(), &[23]);
         assert_eq!(pk.custom_public_key().unwrap(), &[1, 2, 3, 4]);
         assert_eq!(pk.custom_private_key().unwrap(), &[9, 1, 1]);
+
+        pk.set_custom_private_key(&[8,6,7,9]).unwrap();
+        assert_eq!(pk.custom_private_key().unwrap(), &[8,6,7,9]);
 
         // Verify custom_x functions don't crash if called on some other type
         let pk = Pk::from_private_key(TEST_DER, None).unwrap();
