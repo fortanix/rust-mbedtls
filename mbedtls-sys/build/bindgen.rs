@@ -57,24 +57,40 @@ impl ParseCallbacks for Callbacks {
 
 impl super::BuildConfig {
     pub fn bindgen(&self) {
-        let header = self.out_dir.join("bindgen-input.h");
-        File::create(&header)
+        // Mbed TLS headers
+        let header_main = self.out_dir.join("bindgen-input-main.h");
+        File::create(&header_main)
             .and_then(|mut f| {
-                Ok(for h in headers::enabled_ordered() {
-                    writeln!(f, "#include <mbedtls/{}>", h)?;
+                Ok(for h in headers::enabled_ordered_main() {
+                    writeln!(f, "#include \"mbedtls/{}\"", h)?;
                 })
-            }).expect("bindgen-input.h I/O error");
+            }).expect("bindgen-input-main.h I/O error");
 
-        let include = self.mbedtls_src.join("include");
+        let include_main = self.mbedtls_src.join("include");
+
+        // Mbed TLS' crypto module headers
+        let header_crypto = self.out_dir.join("bindgen-input-crypto.h");
+        File::create(&header_crypto)
+            .and_then(|mut f| {
+                Ok(for h in headers::enabled_ordered_crypto() {
+                    writeln!(f, "#include \"mbedtls/{}\"", h)?;
+                })
+            }).expect("bindgen-input-crypto.h I/O error");
+
+        let include_crypto = self.mbedtls_src.join("crypto").join("include");
 
         let bindings = bindgen::builder()
-            .header(header.into_os_string().into_string().unwrap())
+            .header(header_main.into_os_string().into_string().unwrap())
+            .header(header_crypto.into_os_string().into_string().unwrap())
             .clang_arg(format!(
                 "-DMBEDTLS_CONFIG_FILE=<{}>",
                 self.config_h.to_str().expect("config.h UTF-8 error")
             )).clang_arg(format!(
                 "-I{}",
-                include.to_str().expect("include/ UTF-8 error")
+                include_main.to_str().expect("include/ UTF-8 error")
+            )).clang_arg(format!(
+                "-I{}",
+                include_crypto.to_str().expect("crypto/include/ UTF-8 error")
             ))
             .whitelist_recursively(false)
             .whitelist_type("mbedtls_.*")
