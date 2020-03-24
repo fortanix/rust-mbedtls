@@ -26,42 +26,21 @@ use crate::have_feature;
  */
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
-pub const ORDERED_MAIN: &'static [(Option<&'static str>, &'static str)] = &[
+pub const ORDERED: &'static [(Option<&'static str>, &'static str)] = &[
+    (None,                 "xtea.h"),
     (None,                 "x509_csr.h"),
     (None,                 "x509_crt.h"),
     (None,                 "x509_crl.h"),
     (None,                 "x509.h"),
     (None,                 "version.h"),
+    (None,                 "timing.h"),
+    (Some("threading"),    "threading.h"),
     (None,                 "ssl_ticket.h"),
     (None,                 "ssl_internal.h"),
     (None,                 "ssl_cookie.h"),
     (None,                 "ssl_ciphersuites.h"),
     (None,                 "ssl_cache.h"),
     (None,                 "ssl.h"),
-    (Some("pkcs11"),       "pkcs11.h"),
-    (None,                 "net_sockets.h"),
-    (None,                 "net.h"),
-    (None,                 "error.h"),
-    (None,                 "debug.h"),
-];
-
-pub fn enabled_ordered_main() -> Box<dyn Iterator<Item = &'static str>> {
-    Box::new(ORDERED_MAIN.iter().filter_map(|&(feat, h)| {
-        if feat.map(have_feature).unwrap_or(true) {
-            Some(h)
-        } else {
-            None
-        }
-    }))
-}
-
-#[cfg_attr(rustfmt, rustfmt_skip)]
-//TODO: headers in crypto module
-pub const ORDERED_CRYPTO: &'static [(Option<&'static str>, &'static str)] = &[
-    (None,                 "xtea.h"),
-    (None,                 "version.h"),
-    (None,                 "timing.h"),
-    (Some("threading"),    "threading.h"),
     (None,                 "sha512.h"),
     (None,                 "sha256.h"),
     (None,                 "sha1.h"),
@@ -75,12 +54,15 @@ pub const ORDERED_CRYPTO: &'static [(Option<&'static str>, &'static str)] = &[
     (None,                 "platform.h"),
     (None,                 "pkcs5.h"),
     (None,                 "pkcs12.h"),
+    (Some("pkcs11"),       "pkcs11.h"),
     (None,                 "pk_internal.h"),
     (None,                 "pk.h"),
     (None,                 "pem.h"),
     (Some("padlock"),      "padlock.h"),
     (None,                 "oid.h"),
     (None,                 "nist_kw.h"),
+    (None,                 "net_sockets.h"),
+    (None,                 "net.h"),
     (None,                 "memory_buffer_alloc.h"),
     (None,                 "md_internal.h"),
     (None,                 "md5.h"),
@@ -101,6 +83,7 @@ pub const ORDERED_CRYPTO: &'static [(Option<&'static str>, &'static str)] = &[
     (None,                 "ecdh.h"),
     (None,                 "dhm.h"),
     (None,                 "des.h"),
+    (None,                 "debug.h"),
     (None,                 "ctr_drbg.h"),
     (None,                 "cmac.h"),
     (None,                 "cipher_internal.h"),
@@ -121,8 +104,8 @@ pub const ORDERED_CRYPTO: &'static [(Option<&'static str>, &'static str)] = &[
     (None,                 "aes.h"),
 ];
 
-pub fn enabled_ordered_crypto() -> Box<dyn Iterator<Item = &'static str>> {
-    Box::new(ORDERED_CRYPTO.iter().filter_map(|&(feat, h)| {
+pub fn enabled_ordered() -> Box<dyn Iterator<Item = &'static str>> {
+    Box::new(ORDERED.iter().filter_map(|&(feat, h)| {
         if feat.map(have_feature).unwrap_or(true) {
             Some(h)
         } else {

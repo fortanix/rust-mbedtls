@@ -76,28 +76,12 @@ impl BuildConfig {
             "cargo:rerun-if-changed={}",
             self.mbedtls_src.join("CMakeLists.txt").display()
         );
-        let include_main = self.mbedtls_src.join(Path::new("include").join("mbedtls"));
-        for h in headers::enabled_ordered_main() {
-            println!("cargo:rerun-if-changed={}", include_main.join(h).display());
-        }
-        let include_crypto = self.mbedtls_src.join(Path::new("crypto").join("include").join("mbedtls"));
-        for h in headers::enabled_ordered_crypto() {
-            println!("cargo:rerun-if-changed={}", include_crypto.join(h).display());
+        let include = self.mbedtls_src.join(Path::new("include").join("mbedtls"));
+        for h in headers::enabled_ordered() {
+            println!("cargo:rerun-if-changed={}", include.join(h).display());
         }
         for f in self
             .mbedtls_src
-            .join("library")
-            .read_dir()
-            .expect("read_dir failed")
-        {
-            println!(
-                "cargo:rerun-if-changed={}",
-                f.expect("DirEntry failed").path().display()
-            );
-        }
-        for f in self
-            .mbedtls_src
-            .join("crypto")
             .join("library")
             .read_dir()
             .expect("read_dir failed")
