@@ -98,13 +98,14 @@ impl Md {
         Ok(())
     }
 
-    pub fn finish(mut self, out: &mut [u8]) -> Result<usize> {
+    pub fn finish(&mut self, out: &mut [u8]) -> Result<usize> {
         unsafe {
             let olen = (*self.inner.md_info).size as usize;
             if out.len() < olen {
                 return Err(Error::MdBadInputData);
             }
             md_finish(&mut self.inner, out.as_mut_ptr()).into_result()?;
+            md_starts(&mut self.inner).into_result()?;
             Ok(olen)
         }
     }
@@ -280,4 +281,38 @@ pub fn pbkdf_pkcs12(
         .into_result()?;
         Ok(())
     }
+}
+
+
+#[test]
+fn test_digest_restart() {
+
+    use crate::hash::Type as MdType;
+
+    let mut digest1 = vec![0u8; 32];
+    Md::hash(MdType::Sha256, &[0,1,2,3], &mut digest1).unwrap();
+
+    let mut digest2 = vec![0u8; 32];
+    let mut md = Md::new(MdType::Sha256).unwrap();
+    md.update(&[0]).unwrap();
+    md.update(&[]).unwrap();
+    md.update(&[1,2]).unwrap();
+    md.update(&[3]).unwrap();
+    md.finish(&mut digest2).unwrap();
+
+    assert_eq!(digest1, digest2);
+
+    // hash some other data using same context
+    let mut digest3 = vec![0u8; 32];
+    md.update(&[9,8,7,6,5,4,3,2,2]).unwrap();
+    md.finish(&mut digest3).unwrap();
+    assert!(digest1 != digest3);
+
+    // finally hash same message as prior ensuring same output
+    let mut digest4 = vec![0u8; 32];
+    md.update(&[0,1]).unwrap();
+    md.update(&[2]).unwrap();
+    md.update(&[3]).unwrap();
+    md.finish(&mut digest4).unwrap();
+    assert_eq!(digest1, digest4);
 }
