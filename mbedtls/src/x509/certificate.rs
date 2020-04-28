@@ -927,4 +927,36 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             ]
         );
     }
+
+    #[test]
+    fn verify_chain() {
+        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"),"\0");
+        const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"),"\0");
+        const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"),"\0");
+        const C_ROOT: &'static str = concat!(include_str!("../../tests/data/chain-root.crt"),"\0");
+
+        let mut c_leaf = Certificate::from_pem(C_LEAF.as_bytes()).unwrap();
+        let mut c_int1 = Certificate::from_pem(C_INT1.as_bytes()).unwrap();
+        let mut c_int2 = Certificate::from_pem(C_INT2.as_bytes()).unwrap();
+        let mut c_root = Certificate::from_pem(C_ROOT.as_bytes()).unwrap();
+
+        {
+            let mut chain = List::from(&mut c_leaf);
+            chain.push_back(&mut c_int1);
+
+            // incomplete chain
+            let err = LinkedCertificate::verify((&mut chain).into(), &mut c_root, None).unwrap_err();
+            assert_eq!(err, Error::X509CertVerifyFailed);
+
+            // try again after fixing the chain
+            chain.push_back(&mut c_int2);
+            LinkedCertificate::verify((&mut chain).into(), &mut c_root, None).unwrap();
+        }
+
+        #[cfg(feature = "std")]
+        {
+            let mut chain = vec![c_leaf, c_int1, c_int2];
+            LinkedCertificate::verify((&mut List::from_vec(&mut chain).unwrap()).into(), &mut c_root, None).unwrap();
+        }
+    }
 }
