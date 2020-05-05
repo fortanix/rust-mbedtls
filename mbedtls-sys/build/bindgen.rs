@@ -100,6 +100,7 @@ impl super::BuildConfig {
             .opaque_type("time_t")
             .generate_comments(false)
             .prepend_enum_name(false)
+            .size_t_is_usize(true)
             .generate()
             .expect("bindgen error");
 

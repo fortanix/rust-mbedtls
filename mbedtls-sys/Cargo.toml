@@ -17,12 +17,12 @@ documentation = "https://docs.rs/mbedtls-sys-auto/"
 name = "mbedtls_sys"
 
 [dependencies]
-libc = { version = "0.2.0", optional = true }
-libz-sys = { version = "1.0.0", optional = true }
+libc = { version = "=0.2.69", optional = true }
+libz-sys = { version = "1.0.25", optional = true }
 
 [build-dependencies]
-bindgen = "0.51.0"
-cmake = "0.1.17"
+bindgen = "0.53.2"
+cmake = "0.1.42"
 
 [features]
 # If you use mbedtls-sys in a no_std configuration, you need to provide your
