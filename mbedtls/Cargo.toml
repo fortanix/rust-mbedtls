@@ -69,6 +69,7 @@ padlock = ["mbedtls-sys-auto/padlock"]
 legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "block-modes"]
+trusted_cert_cb = ["mbedtls-sys-auto/trusted_cert_cb"]
 
 [[example]]
 name = "client"

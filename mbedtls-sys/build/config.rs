@@ -408,6 +408,7 @@ pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
     ("aes_alt",            ("MBEDTLS_AES_ENCRYPT_ALT",         Defined)),
     ("aes_alt",            ("MBEDTLS_AES_DECRYPT_ALT",         Defined)),
     ("mpi_force_c_code",   ("MBEDTLS_MPI_FORCE_C_CODE",        Defined)),
+    ("trusted_cert_cb",    ("MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK", Defined)),
 ];
 
 pub const SUFFIX: &'static str = r#"

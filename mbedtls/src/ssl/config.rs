@@ -184,6 +184,59 @@ impl<'c> Config<'c> {
         }
     }
 
+    #[cfg(feature = "trusted_cert_cb")]
+    pub fn set_ca_callback<F>(&mut self, cb: &'c mut F)
+        where
+            F: FnMut(&LinkedCertificate) -> Result<Vec<crate::x509::Certificate>>,
+    {
+        unsafe extern "C" fn ca_callback<F>(
+            closure: *mut c_void,
+            child: *const x509_crt,
+            candidate_cas: *mut *mut x509_crt
+        ) -> c_int
+        where
+            F: FnMut(&LinkedCertificate) -> Result<Vec<crate::x509::Certificate>>,
+        {
+            let cb = &mut *(closure as *mut F);
+            let child: &LinkedCertificate = UnsafeFrom::from(child).expect("valid child certificate");
+            let res = cb(child);
+            match res {
+                Ok(trusted_certs) => {
+                    // The user's certificate list has been allocated on Rust's heap, we must reallocate each cert
+                    // on the C heap, because the certificates will be freed on the C side. Unfortunately, we only
+                    // have access to libc::alloc() under certain configurations, so we use a trick that always works:
+                    // We first allocate a dummy certificate on the Rust heap, which is an empty certificate on which
+                    // we set the version to 1 to mark it as "in use". We then use x509_crt_parse_der() to append
+                    // additional certificates onto the dummy chain. These additional certificates will be allocated
+                    // by mbedtls on the C heap. We then split off the dummy cert from the chain and keep only the rest
+                    // of the certs (exactly the ones that have been allocated on the C heap).
+                    let mut chain = crate::x509::Certificate::dummy();
+                    for trusted_cert in trusted_certs {
+                        //let inner_cert: *const x509_crt = trusted_cert.into();
+                        let res = x509_crt_parse_der(chain.handle_mut(), trusted_cert.handle().raw.p, trusted_cert.handle().raw.len);
+                        if res < 0 {
+                            return res;
+                        }
+                    }
+
+                    *candidate_cas = chain.handle().next;
+                    chain.handle_mut().next = core::ptr::null_mut();
+                    0
+                },
+                Err(e) => e.to_int(),
+            }
+        }
+
+        unsafe {
+            ssl_conf_ca_cb(
+                &mut self.inner,
+                Some(ca_callback::<F>),
+                cb as *mut F as _,
+            )
+        }
+    }
+
+
     pub fn push_cert<C: Into<&'c mut LinkedCertificate>>(
         &mut self,
         chain: C,
