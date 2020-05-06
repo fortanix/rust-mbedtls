@@ -9,10 +9,11 @@
 extern crate core;
 extern crate mbedtls_sys;
 extern crate rand;
-use self::rand::{Rng, XorShiftRng};
 
 use self::mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use self::mbedtls_sys::types::size_t;
+
+use self::rand::{Rng, XorShiftRng};
 
 /// Not cryptographically secure!!! Use for testing only!!!
 pub struct TestRandom(XorShiftRng);
