@@ -93,7 +93,9 @@ mod test {
 
         let ca_callback =
             |child: &LinkedCertificate, cert_builder: &mut ForeignOwnedCertListBuilder| -> TlsResult<()> {
-                cert_builder.push_back(child);
+                if child.is_self_signed().unwrap_or(false) {
+                    cert_builder.push_back(child);
+                }
                 Ok(())
             };
         let c = thread::spawn(move || super::client(c, ca_callback).unwrap());
@@ -108,7 +110,9 @@ mod test {
 
         let ca_callback =
             |child: &LinkedCertificate, cert_builder: &mut ForeignOwnedCertListBuilder| -> TlsResult<()> {
-                cert_builder.push_back(child);
+                if child.is_self_signed().unwrap_or(false) {
+                    cert_builder.push_back(child);
+                }
                 Ok(())
             };
         let c =

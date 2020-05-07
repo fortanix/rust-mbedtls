@@ -197,6 +197,17 @@ impl LinkedCertificate {
         Ok(x509_buf_to_vec(&self.inner.subject_raw))
     }
 
+    pub fn is_self_signed(&self) -> Result<bool> {
+        if self.inner.subject_raw.p == core::ptr::null_mut() || self.inner.subject_raw.len == 0 ||
+            self.inner.issuer_raw.p == core::ptr::null_mut() || self.inner.issuer_raw.len == 0 {
+            return Err(Error::X509BadInputData)
+        }
+
+        let subject = unsafe { core::slice::from_raw_parts(self.inner.subject_raw.p, self.inner.subject_raw.len) };
+        let issuer = unsafe { core::slice::from_raw_parts(self.inner.issuer_raw.p, self.inner.issuer_raw.len) };
+        Ok(subject == issuer)
+    }
+
     pub fn serial(&self) -> Result<String> {
         crate::private::alloc_string_repeat(|buf, size| unsafe {
             x509_serial_gets(buf, size, &self.inner.serial)
