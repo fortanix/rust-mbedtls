@@ -17,12 +17,10 @@ use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport, ForeignOwnedCertListBuilder};
 use mbedtls::ssl::{Config, Context};
 use mbedtls::x509::{Certificate, LinkedCertificate};
-use mbedtls::Error;
 use mbedtls::Result as TlsResult;
 
 mod support;
 use support::entropy::entropy_new;
-use support::keys;
 
 
 fn client<F>(mut conn: TcpStream, mut ca_callback: F) -> TlsResult<()>
@@ -56,7 +54,9 @@ mod test {
     use super::*;
     use std::thread;
     use crate::support::net::create_tcp_pair;
+    use crate::support::keys;
     use mbedtls::x509::{LinkedCertificate, Certificate};
+    use mbedtls::Error;
 
     #[test]
     fn callback_standard_ca() {

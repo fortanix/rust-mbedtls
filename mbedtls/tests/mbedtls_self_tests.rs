@@ -21,9 +21,9 @@ fn rand() -> mbedtls_sys::types::raw_types::c_int {
 
 #[cfg(any(not(feature = "std"), target_env = "sgx"))]
 fn enable_self_test() {
-    use std::sync::{Once, ONCE_INIT};
+    use std::sync::Once;
 
-    static START: Once = ONCE_INIT;
+    static START: Once = Once::new();
 
     START.call_once(|| {
         // safe because synchronized

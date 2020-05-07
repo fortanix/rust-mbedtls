@@ -18,6 +18,7 @@ if [ $TRAVIS_RUST_VERSION = "stable" ] || [ $TRAVIS_RUST_VERSION = "beta" ] || [
     cargo test --features pkcs12
     cargo test --features pkcs12_rc2
     cargo test --features force_aesni_support
+    cargo test --features trusted_cert_callback
 
 elif [ $TRAVIS_RUST_VERSION = $CORE_IO_NIGHTLY ]; then
     cargo +$CORE_IO_NIGHTLY test --no-default-features --features core_io,rdrand,time,custom_time,custom_gmtime_r
@@ -25,7 +26,7 @@ elif [ $TRAVIS_RUST_VERSION = $CORE_IO_NIGHTLY ]; then
 
 elif [ $TRAVIS_RUST_VERSION = $SGX_NIGHTLY ]; then
     rustup target add --toolchain $SGX_NIGHTLY x86_64-fortanix-unknown-sgx
-    cargo +$SGX_NIGHTLY test --no-run --target=x86_64-fortanix-unknown-sgx --features=sgx --no-default-features
+    cargo +$SGX_NIGHTLY test --no-run --target=x86_64-fortanix-unknown-sgx --features=sgx,trusted_cert_callback --no-default-features
 
 else
     echo "Unknown version $TRAVIS_RUST_VERSION"
