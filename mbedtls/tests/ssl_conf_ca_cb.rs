@@ -14,7 +14,7 @@ use std::net::TcpStream;
 
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
-use mbedtls::ssl::config::{Endpoint, Preset, Transport};
+use mbedtls::ssl::config::{Endpoint, Preset, Transport, ForeignOwnedCertListBuilder};
 use mbedtls::ssl::{Config, Context};
 use mbedtls::x509::{Certificate, LinkedCertificate};
 use mbedtls::Error;
@@ -27,7 +27,7 @@ use support::keys;
 
 fn client<F>(mut conn: TcpStream, mut ca_callback: F) -> TlsResult<()>
     where
-        F: FnMut(&LinkedCertificate) -> TlsResult<Vec<Certificate>> {
+        F: FnMut(&LinkedCertificate, &mut ForeignOwnedCertListBuilder) -> TlsResult<()> {
     let mut entropy = entropy_new();
     let mut rng = CtrDrbg::new(&mut entropy, None)?;
     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
@@ -63,11 +63,11 @@ mod test {
         let (c, s) = create_tcp_pair().unwrap();
 
         let ca_callback =
-            |_child: &LinkedCertificate| -> TlsResult<Vec<Certificate>> {
-                Ok(vec![Certificate::from_pem(keys::PEM_CERT)?])
+            |_: &LinkedCertificate, cert_builder: &mut ForeignOwnedCertListBuilder| -> TlsResult<()> {
+                cert_builder.push_back(&*Certificate::from_pem(keys::PEM_CERT).unwrap());
+                Ok(())
             };
-        let c =
-            thread::spawn(move || super::client(c, ca_callback).unwrap());
+        let c = thread::spawn(move || super::client(c, ca_callback).unwrap());
         let s = thread::spawn(move || super::server(s, keys::PEM_CERT, keys::PEM_KEY).unwrap());
         c.join().unwrap();
         s.join().unwrap();
@@ -78,13 +78,10 @@ mod test {
         let (c, s) = create_tcp_pair().unwrap();
 
         let ca_callback =
-            |_child: &LinkedCertificate| -> TlsResult<Vec<Certificate>> {
-                Ok(vec![])
+            |_: &LinkedCertificate, _: &mut ForeignOwnedCertListBuilder| -> TlsResult<()> {
+                Ok(())
             };
-        let c =
-            thread::spawn(move || {
-                assert!(matches!(super::client(c, ca_callback), Err(Error::X509CertVerifyFailed)))
-            });
+        let c = thread::spawn(move || assert!(matches!(super::client(c, ca_callback), Err(Error::X509CertVerifyFailed))));
         let s = thread::spawn(move || super::server(s, keys::PEM_CERT, keys::PEM_KEY).unwrap());
         c.join().unwrap();
         s.join().unwrap();
@@ -95,12 +92,11 @@ mod test {
         let (c, s) = create_tcp_pair().unwrap();
 
         let ca_callback =
-            |child: &LinkedCertificate| -> TlsResult<Vec<Certificate>> {
-                let cert = Certificate::from_der(child.as_der()).unwrap();
-                Ok(vec![cert])
+            |child: &LinkedCertificate, cert_builder: &mut ForeignOwnedCertListBuilder| -> TlsResult<()> {
+                cert_builder.push_back(child);
+                Ok(())
             };
-        let c =
-            thread::spawn(move || super::client(c, ca_callback).unwrap());
+        let c = thread::spawn(move || super::client(c, ca_callback).unwrap());
         let s = thread::spawn(move || super::server(s, keys::PEM_CERT, keys::PEM_KEY).unwrap());
         c.join().unwrap();
         s.join().unwrap();
@@ -111,14 +107,12 @@ mod test {
         let (c, s) = create_tcp_pair().unwrap();
 
         let ca_callback =
-            |child: &LinkedCertificate| -> TlsResult<Vec<Certificate>> {
-                let cert = Certificate::from_der(child.as_der()).unwrap();
-                Ok(vec![cert])
+            |child: &LinkedCertificate, cert_builder: &mut ForeignOwnedCertListBuilder| -> TlsResult<()> {
+                cert_builder.push_back(child);
+                Ok(())
             };
         let c =
-            thread::spawn(move || {
-                assert!(matches!(super::client(c, ca_callback), Err(Error::X509CertVerifyFailed)))
-            });
+            thread::spawn(move || assert!(matches!(super::client(c, ca_callback), Err(Error::X509CertVerifyFailed))));
         let s = thread::spawn(move || super::server(s, keys::PEM_CERT_INVALID_SIG, keys::PEM_KEY).unwrap());
         c.join().unwrap();
         s.join().unwrap();

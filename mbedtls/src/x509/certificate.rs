@@ -61,13 +61,6 @@ impl BERDecodable for Extension {
 }
 
 impl Certificate {
-    #[allow(dead_code)]
-    pub(crate) fn dummy() -> Certificate {
-        let mut ret = Self::init();
-        ret.inner.version = 1;
-        ret
-    }
-
     pub fn from_der(der: &[u8]) -> Result<Certificate> {
         let mut ret = Self::init();
         unsafe { x509_crt_parse_der(&mut ret.inner, der.as_ptr(), der.len()) }.into_result()?;
