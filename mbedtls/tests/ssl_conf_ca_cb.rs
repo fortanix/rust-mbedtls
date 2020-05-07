@@ -24,42 +24,24 @@ mod support;
 use support::entropy::entropy_new;
 use support::keys;
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-enum Test {
-    CallbackValidCa,
-    CallbackNoCas,
-}
 
-fn client(mut conn: TcpStream, test: Test) -> TlsResult<()> {
+fn client<F>(mut conn: TcpStream, mut ca_callback: F) -> TlsResult<()>
+    where
+        F: FnMut(&LinkedCertificate) -> TlsResult<Vec<Certificate>> {
     let mut entropy = entropy_new();
     let mut rng = CtrDrbg::new(&mut entropy, None)?;
-    let certs = match test {
-        Test::CallbackValidCa => vec![Certificate::from_pem(keys::PEM_CERT)?],
-        Test::CallbackNoCas => vec![],
-    };
-    let ca_callback =
-        &mut |_child: &LinkedCertificate| -> TlsResult<Vec<Certificate>> {
-            Ok(certs.clone())
-        };
     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
     config.set_rng(Some(&mut rng));
-    config.set_ca_callback(ca_callback);
+    config.set_ca_callback(&mut ca_callback);
     let mut ctx = Context::new(&config)?;
-
-    match (test, ctx.establish(&mut conn, None)) {
-        (Test::CallbackValidCa, Ok(_)) => {}
-        (Test::CallbackNoCas, Err(Error::X509CertVerifyFailed)) => {}
-        (_, Ok(_)) => assert!(false, "ctx.establish() succeeded when it should have failed"),
-        (_, Err(err)) => assert!(false, "Unexpected result from ctx.establish(): {:?}", err),
-    }
-    Ok(())
+    ctx.establish(&mut conn, None).map(|_| ())
 }
 
-fn server(mut conn: TcpStream) -> TlsResult<()> {
+fn server(mut conn: TcpStream, cert: &[u8], key: &[u8]) -> TlsResult<()> {
     let mut entropy = entropy_new();
     let mut rng = CtrDrbg::new(&mut entropy, None)?;
-    let mut cert = Certificate::from_pem(keys::PEM_CERT)?;
-    let mut key = Pk::from_private_key(keys::PEM_KEY, None)?;
+    let mut cert = Certificate::from_pem(cert)?;
+    let mut key = Pk::from_private_key(key, None)?;
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(Some(&mut rng));
     config.push_cert(&mut *cert, &mut key)?;
@@ -71,30 +53,74 @@ fn server(mut conn: TcpStream) -> TlsResult<()> {
 
 #[cfg(unix)]
 mod test {
+    use super::*;
     use std::thread;
     use crate::support::net::create_tcp_pair;
-    use crate::Test;
+    use mbedtls::x509::{LinkedCertificate, Certificate};
 
     #[test]
-    fn callback_valid_ca() {
+    fn callback_standard_ca() {
         let (c, s) = create_tcp_pair().unwrap();
 
+        let ca_callback =
+            |_child: &LinkedCertificate| -> TlsResult<Vec<Certificate>> {
+                Ok(vec![Certificate::from_pem(keys::PEM_CERT)?])
+            };
         let c =
-            thread::spawn(move || super::client(c, Test::CallbackValidCa).unwrap());
-        let s = thread::spawn(move || super::server(s).unwrap());
+            thread::spawn(move || super::client(c, ca_callback).unwrap());
+        let s = thread::spawn(move || super::server(s, keys::PEM_CERT, keys::PEM_KEY).unwrap());
         c.join().unwrap();
         s.join().unwrap();
     }
 
     #[test]
-    fn callback_no_cas() {
+    fn callback_no_ca() {
         let (c, s) = create_tcp_pair().unwrap();
 
+        let ca_callback =
+            |_child: &LinkedCertificate| -> TlsResult<Vec<Certificate>> {
+                Ok(vec![])
+            };
         let c =
-            thread::spawn(move || super::client(c, Test::CallbackNoCas).unwrap());
-        let s = thread::spawn(move || super::server(s).unwrap());
+            thread::spawn(move || {
+                assert!(matches!(super::client(c, ca_callback), Err(Error::X509CertVerifyFailed)))
+            });
+        let s = thread::spawn(move || super::server(s, keys::PEM_CERT, keys::PEM_KEY).unwrap());
         c.join().unwrap();
         s.join().unwrap();
     }
 
+    #[test]
+    fn callback_self_signed_ca() {
+        let (c, s) = create_tcp_pair().unwrap();
+
+        let ca_callback =
+            |child: &LinkedCertificate| -> TlsResult<Vec<Certificate>> {
+                let cert = Certificate::from_der(child.as_der()).unwrap();
+                Ok(vec![cert])
+            };
+        let c =
+            thread::spawn(move || super::client(c, ca_callback).unwrap());
+        let s = thread::spawn(move || super::server(s, keys::PEM_CERT, keys::PEM_KEY).unwrap());
+        c.join().unwrap();
+        s.join().unwrap();
+    }
+
+    #[test]
+    fn callback_self_signed_invalid_sig() {
+        let (c, s) = create_tcp_pair().unwrap();
+
+        let ca_callback =
+            |child: &LinkedCertificate| -> TlsResult<Vec<Certificate>> {
+                let cert = Certificate::from_der(child.as_der()).unwrap();
+                Ok(vec![cert])
+            };
+        let c =
+            thread::spawn(move || {
+                assert!(matches!(super::client(c, ca_callback), Err(Error::X509CertVerifyFailed)))
+            });
+        let s = thread::spawn(move || super::server(s, keys::PEM_CERT_INVALID_SIG, keys::PEM_KEY).unwrap());
+        c.join().unwrap();
+        s.join().unwrap();
+    }
 }

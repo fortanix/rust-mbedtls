@@ -188,7 +188,7 @@ impl<'c> Config<'c> {
     pub fn set_ca_callback<F>(&mut self, cb: &'c mut F)
         where
             F: FnMut(&LinkedCertificate) -> Result<Vec<crate::x509::Certificate>>,
-    {
+    { // TODO: use more efficient builder-style signature?
         unsafe extern "C" fn ca_callback<F>(
             closure: *mut c_void,
             child: *const x509_crt,
@@ -212,7 +212,6 @@ impl<'c> Config<'c> {
                     // of the certs (exactly the ones that have been allocated on the C heap).
                     let mut chain = crate::x509::Certificate::dummy();
                     for trusted_cert in trusted_certs {
-                        //let inner_cert: *const x509_crt = trusted_cert.into();
                         let res = x509_crt_parse_der(chain.handle_mut(), trusted_cert.handle().raw.p, trusted_cert.handle().raw.len);
                         if res < 0 {
                             return res;
