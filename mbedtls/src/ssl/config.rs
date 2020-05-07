@@ -184,41 +184,6 @@ impl<'c> Config<'c> {
         }
     }
 
-    #[cfg(feature = "trusted_cert_cb")]
-    pub fn set_ca_callback<F>(&mut self, cb: &'c mut F)
-        where
-            F: FnMut(&LinkedCertificate, &mut ForeignOwnedCertListBuilder) -> Result<()>,
-    {
-        unsafe extern "C" fn ca_callback<F>(
-            closure: *mut c_void,
-            child: *const x509_crt,
-            candidate_cas: *mut *mut x509_crt
-        ) -> c_int
-        where
-            F: FnMut(&LinkedCertificate, &mut ForeignOwnedCertListBuilder) -> Result<()>,
-        {
-            let cb = &mut *(closure as *mut F);
-            let child: &LinkedCertificate = UnsafeFrom::from(child).expect("valid child certificate");
-            let mut cert_builder = ForeignOwnedCertListBuilder::new();
-            match cb(child, &mut cert_builder) {
-                Ok(()) => {
-                    *candidate_cas = cert_builder.to_x509_crt_ptr();
-                    0
-                },
-                Err(e) => e.to_int(),
-            }
-        }
-
-        unsafe {
-            ssl_conf_ca_cb(
-                &mut self.inner,
-                Some(ca_callback::<F>),
-                cb as *mut F as _,
-            )
-        }
-    }
-
-
     pub fn push_cert<C: Into<&'c mut LinkedCertificate>>(
         &mut self,
         chain: C,
@@ -326,6 +291,40 @@ impl<'c> Config<'c> {
             )
         }
     }
+
+    #[cfg(feature = "trusted_cert_callback")]
+    pub fn set_ca_callback<F>(&mut self, cb: &'c mut F)
+        where
+            F: FnMut(&LinkedCertificate, &mut ForeignOwnedCertListBuilder) -> Result<()>,
+    {
+        unsafe extern "C" fn ca_callback<F>(
+            closure: *mut c_void,
+            child: *const x509_crt,
+            candidate_cas: *mut *mut x509_crt
+        ) -> c_int
+            where
+                F: FnMut(&LinkedCertificate, &mut ForeignOwnedCertListBuilder) -> Result<()>,
+        {
+            let cb = &mut *(closure as *mut F);
+            let child: &LinkedCertificate = UnsafeFrom::from(child).expect("valid child certificate");
+            let mut cert_builder = ForeignOwnedCertListBuilder::new();
+            match cb(child, &mut cert_builder) {
+                Ok(()) => {
+                    *candidate_cas = cert_builder.to_x509_crt_ptr();
+                    0
+                },
+                Err(e) => e.to_int(),
+            }
+        }
+
+        unsafe {
+            ssl_conf_ca_cb(
+                &mut self.inner,
+                Some(ca_callback::<F>),
+                cb as *mut F as _,
+            )
+        }
+    }
 }
 
 /// Builds a linked list of x509_crt instances, all of which are owned by mbedtls. That is, the
@@ -334,10 +333,12 @@ impl<'c> Config<'c> {
 /// handing such functions a "normal" cert list such as certificate::LinkedCertificate or
 /// certificate::List, is that those lists (at least partly) consist of memory allocated on the
 /// rust-side and hence cannot be freed on the c-side.
+#[cfg(feature = "trusted_cert_callback")]
 pub struct ForeignOwnedCertListBuilder {
     dummy: ::mbedtls_sys::x509_crt,
 }
 
+#[cfg(feature = "trusted_cert_callback")]
 impl ForeignOwnedCertListBuilder {
     pub(crate) fn new() -> Self {
         let mut dummy = ::core::mem::MaybeUninit::uninit();
@@ -360,7 +361,6 @@ impl ForeignOwnedCertListBuilder {
     pub fn try_push_back(&mut self, cert: &[u8]) -> Result<()> {
         // x509_crt_parse_der will allocate memory for the cert on the C heap
         unsafe { x509_crt_parse_der(&mut self.dummy, cert.as_ptr(), cert.len()) }.into_result()?;
-        println!("Added cert");
         Ok(())
     }
 
@@ -373,11 +373,11 @@ impl ForeignOwnedCertListBuilder {
         // function.
         let res = self.dummy.next;
         self.dummy.next = core::ptr::null_mut();
-        println!("Returning {:?}", res);
         res
     }
 }
 
+#[cfg(feature = "trusted_cert_callback")]
 impl Drop for ForeignOwnedCertListBuilder {
     fn drop(&mut self) {
         unsafe { ::mbedtls_sys::x509_crt_free(&mut self.dummy); }

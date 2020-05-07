@@ -7,7 +7,7 @@
  * according to those terms. */
 
 #![allow(dead_code)]
-#![cfg(feature = "trusted_cert_cb")]
+#![cfg(feature = "trusted_cert_callback")]
 extern crate mbedtls;
 
 use std::net::TcpStream;
