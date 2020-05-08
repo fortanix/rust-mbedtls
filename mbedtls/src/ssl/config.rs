@@ -21,6 +21,11 @@ use crate::ssl::context::HandshakeContext;
 use crate::ssl::ticket::TicketCallback;
 use crate::x509::{certificate, Crl, LinkedCertificate, Profile, VerifyError};
 
+extern "C" {
+    fn calloc(n: usize, size: usize) -> *mut c_void;
+    fn free(ptr: *mut c_void);
+}
+
 #[allow(non_camel_case_types)]
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Copy, Clone)]
 pub enum Version {
@@ -327,27 +332,25 @@ impl<'c> Config<'c> {
 }
 
 /// Builds a linked list of x509_crt instances, all of which are owned by mbedtls. That is, the
-/// memory for these certificates has been allocated by mbedtls, on the C heap. This is useful for
+/// memory for these certificates has been allocated by mbedtls, on the C heap. This is needed for
 /// situations in which an mbedtls function takes ownership of a list of certs. The problem with
 /// handing such functions a "normal" cert list such as certificate::LinkedCertificate or
 /// certificate::List, is that those lists (at least partly) consist of memory allocated on the
 /// rust-side and hence cannot be freed on the c-side.
 pub struct ForeignOwnedCertListBuilder {
-    dummy: ::mbedtls_sys::x509_crt,
+    cert_list: *mut x509_crt,
 }
 
 impl ForeignOwnedCertListBuilder {
     pub(crate) fn new() -> Self {
-        let mut dummy = ::core::mem::MaybeUninit::uninit();
-        let mut dummy = unsafe {
-            ::mbedtls_sys::x509_crt_init(dummy.as_mut_ptr());
-            dummy.assume_init()
-        };
-        // We set the version to 1, to make the dummy cert appear to be in use. x509_crt_parse_der()
-        // will then allocate space for a new cert when called on the dummy cert.
-        dummy.version = 1;
+        let cert_list = unsafe { calloc(1, core::mem::size_of::<x509_crt>()) } as *mut x509_crt;
+        if cert_list == ::core::ptr::null_mut() {
+            panic!("Out of memory");
+        }
+        unsafe { ::mbedtls_sys::x509_crt_init(cert_list); }
+
         Self {
-            dummy
+            cert_list
         }
     }
 
@@ -357,7 +360,7 @@ impl ForeignOwnedCertListBuilder {
 
     pub fn try_push_back(&mut self, cert: &[u8]) -> Result<()> {
         // x509_crt_parse_der will allocate memory for the cert on the C heap
-        unsafe { x509_crt_parse_der(&mut self.dummy, cert.as_ptr(), cert.len()) }.into_result()?;
+        unsafe { x509_crt_parse_der(self.cert_list, cert.as_ptr(), cert.len()) }.into_result()?;
         Ok(())
     }
 
@@ -365,18 +368,18 @@ impl ForeignOwnedCertListBuilder {
     // dropped without handing it to an mbedtls-function that takes ownership of it, that memory
     // will be leaked.
     pub(crate) fn to_x509_crt_ptr(mut self) -> *mut x509_crt {
-        // Split off and return the mbedtls-owned memory of the list starting at self.dummy. The
-        // head of the list is memory owned by rust and will be dropped (freed) at the end of the
-        // function.
-        let res = self.dummy.next;
-        self.dummy.next = core::ptr::null_mut();
+        let res = self.cert_list;
+        self.cert_list = ::core::ptr::null_mut();
         res
     }
 }
 
 impl Drop for ForeignOwnedCertListBuilder {
     fn drop(&mut self) {
-        unsafe { ::mbedtls_sys::x509_crt_free(&mut self.dummy); }
+        unsafe {
+            ::mbedtls_sys::x509_crt_free(self.cert_list);
+            free(self.cert_list as *mut c_void);
+        }
     }
 }
 
