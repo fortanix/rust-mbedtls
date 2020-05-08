@@ -292,7 +292,6 @@ impl<'c> Config<'c> {
         }
     }
 
-    #[cfg(feature = "trusted_cert_callback")]
     pub fn set_ca_callback<F>(&mut self, cb: &'c mut F)
         where
             F: FnMut(&LinkedCertificate, &mut ForeignOwnedCertListBuilder) -> Result<()>,
@@ -333,12 +332,10 @@ impl<'c> Config<'c> {
 /// handing such functions a "normal" cert list such as certificate::LinkedCertificate or
 /// certificate::List, is that those lists (at least partly) consist of memory allocated on the
 /// rust-side and hence cannot be freed on the c-side.
-#[cfg(feature = "trusted_cert_callback")]
 pub struct ForeignOwnedCertListBuilder {
     dummy: ::mbedtls_sys::x509_crt,
 }
 
-#[cfg(feature = "trusted_cert_callback")]
 impl ForeignOwnedCertListBuilder {
     pub(crate) fn new() -> Self {
         let mut dummy = ::core::mem::MaybeUninit::uninit();
@@ -377,7 +374,6 @@ impl ForeignOwnedCertListBuilder {
     }
 }
 
-#[cfg(feature = "trusted_cert_callback")]
 impl Drop for ForeignOwnedCertListBuilder {
     fn drop(&mut self) {
         unsafe { ::mbedtls_sys::x509_crt_free(&mut self.dummy); }

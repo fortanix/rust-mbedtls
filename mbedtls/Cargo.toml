@@ -35,7 +35,7 @@ rs-libc = "0.1.0"
 [dependencies.mbedtls-sys-auto]
 version = "2.18.0"
 default-features = false
-features = ["custom_printf"]
+features = ["custom_printf", "trusted_cert_callback"]
 path = "../mbedtls-sys"
 
 [dev-dependencies]
@@ -70,7 +70,6 @@ padlock = ["mbedtls-sys-auto/padlock"]
 legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "block-modes"]
-trusted_cert_callback = ["mbedtls-sys-auto/trusted_cert_callback"]
 
 [[example]]
 name = "client"
