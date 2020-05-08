@@ -58,13 +58,19 @@ mod test {
     use mbedtls::x509::{LinkedCertificate, Certificate};
     use mbedtls::Error;
 
+    // This callback should accept any valid self-signed certificate
+    fn self_signed_ca_callback(child: &LinkedCertificate, cert_builder: &mut ForeignOwnedCertListBuilder) -> TlsResult<()> {
+        cert_builder.push_back(child);
+        Ok(())
+    }
+
     #[test]
     fn callback_standard_ca() {
         let (c, s) = create_tcp_pair().unwrap();
 
         let ca_callback =
             |_: &LinkedCertificate, cert_builder: &mut ForeignOwnedCertListBuilder| -> TlsResult<()> {
-                cert_builder.push_back(&*Certificate::from_pem(keys::PEM_CERT).unwrap());
+                cert_builder.push_back(&*Certificate::from_pem(keys::ROOT_CA_CERT).unwrap());
                 Ok(())
             };
         let c = thread::spawn(move || super::client(c, ca_callback).unwrap());
@@ -76,7 +82,6 @@ mod test {
     #[test]
     fn callback_no_ca() {
         let (c, s) = create_tcp_pair().unwrap();
-
         let ca_callback =
             |_: &LinkedCertificate, _: &mut ForeignOwnedCertListBuilder| -> TlsResult<()> {
                 Ok(())
@@ -88,17 +93,20 @@ mod test {
     }
 
     #[test]
-    fn callback_self_signed_ca() {
+    fn callback_self_signed() {
         let (c, s) = create_tcp_pair().unwrap();
+        let c = thread::spawn(move || super::client(c, self_signed_ca_callback).unwrap());
+        let s = thread::spawn(move || super::server(s, keys::PEM_SELF_SIGNED_CERT, keys::PEM_SELF_SIGNED_KEY).unwrap());
+        c.join().unwrap();
+        s.join().unwrap();
+    }
 
-        let ca_callback =
-            |child: &LinkedCertificate, cert_builder: &mut ForeignOwnedCertListBuilder| -> TlsResult<()> {
-                if child.is_self_signed().unwrap_or(false) {
-                    cert_builder.push_back(child);
-                }
-                Ok(())
-            };
-        let c = thread::spawn(move || super::client(c, ca_callback).unwrap());
+    #[test]
+    fn callback_self_signed_leaf_cert() {
+        // We set up the server to supply a non-self-signed leaf certificate. It should be rejected
+        // by the client, because the ca_callback should only accept self-signed certificates.
+        let (c, s) = create_tcp_pair().unwrap();
+        let c = thread::spawn(move || assert!(matches!(super::client(c, self_signed_ca_callback), Err(Error::X509CertVerifyFailed))));
         let s = thread::spawn(move || super::server(s, keys::PEM_CERT, keys::PEM_KEY).unwrap());
         c.join().unwrap();
         s.join().unwrap();
@@ -106,18 +114,12 @@ mod test {
 
     #[test]
     fn callback_self_signed_invalid_sig() {
+        // We set up the server to supply a self-signed certificate with an invalid signature. It
+        // should be rejected by the client.
         let (c, s) = create_tcp_pair().unwrap();
-
-        let ca_callback =
-            |child: &LinkedCertificate, cert_builder: &mut ForeignOwnedCertListBuilder| -> TlsResult<()> {
-                if child.is_self_signed().unwrap_or(false) {
-                    cert_builder.push_back(child);
-                }
-                Ok(())
-            };
         let c =
-            thread::spawn(move || assert!(matches!(super::client(c, ca_callback), Err(Error::X509CertVerifyFailed))));
-        let s = thread::spawn(move || super::server(s, keys::PEM_CERT_INVALID_SIG, keys::PEM_KEY).unwrap());
+            thread::spawn(move || assert!(matches!(super::client(c, self_signed_ca_callback), Err(Error::X509CertVerifyFailed))));
+        let s = thread::spawn(move || super::server(s, keys::PEM_SELF_SIGNED_CERT_INVALID_SIG, keys::PEM_SELF_SIGNED_KEY).unwrap());
         c.join().unwrap();
         s.join().unwrap();
     }
