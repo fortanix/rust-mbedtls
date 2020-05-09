@@ -218,7 +218,7 @@ mod tests {
     impl Test {
         fn new() -> Self {
             Test {
-                key: Pk::from_private_key(crate::test_support::keys::PEM_KEY, None).unwrap(),
+                key: Pk::from_private_key(crate::test_support::keys::PEM_SELF_SIGNED_KEY, None).unwrap(),
             }
         }
 
