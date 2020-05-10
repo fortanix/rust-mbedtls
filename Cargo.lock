@@ -240,7 +240,7 @@ dependencies = [
  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.62 (registry+https://github.com/rust-lang/crates.io-index)",
  "matches 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "mbedtls-sys-auto 2.18.4",
+ "mbedtls-sys-auto 2.18.5",
  "rand 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rc2 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rs-libc 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -253,7 +253,7 @@ dependencies = [
 
 [[package]]
 name = "mbedtls-sys-auto"
-version = "2.18.4"
+version = "2.18.5"
 dependencies = [
  "bindgen 0.19.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "cmake 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)",

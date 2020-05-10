@@ -33,7 +33,7 @@ rc2 = { version = "0.3", optional = true }
 rs-libc = "0.1.0"
 
 [dependencies.mbedtls-sys-auto]
-version = "2.18.0"
+version = "2.18.5"
 default-features = false
 features = ["custom_printf", "trusted_cert_callback"]
 path = "../mbedtls-sys"
