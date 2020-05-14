@@ -80,17 +80,6 @@ int main( void )
 }
 #else
 
-#if defined(MBEDTLS_CHECK_PARAMS)
-#include "mbedtls/platform_util.h"
-void mbedtls_param_failed( const char *failure_condition,
-                           const char *file,
-                           int line )
-{
-    mbedtls_printf( "%s:%i: Input param failed - %s\n",
-                    file, line, failure_condition );
-    mbedtls_exit( MBEDTLS_EXIT_FAILURE );
-}
-#endif
 
 int main( int argc, char *argv[] )
 {
@@ -107,7 +96,7 @@ int main( int argc, char *argv[] )
     unsigned char IV[16];
     unsigned char tmp[16];
     unsigned char key[512];
-    unsigned char digest[32];
+    unsigned char digest[64];
     unsigned char buffer[1024];
     unsigned char diff;
 

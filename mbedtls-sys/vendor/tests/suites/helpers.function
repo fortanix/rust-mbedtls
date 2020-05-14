@@ -116,6 +116,102 @@ typedef enum
        }                                                    \
     } while( 0 )
 
+/** Evaluate two expressions and fail the test case if they have different
+ * values.
+ *
+ * \param expr1     An expression to evaluate.
+ * \param expr2     The expected value of \p expr1. This can be any
+ *                  expression, but it is typically a constant.
+ */
+#define TEST_EQUAL( expr1, expr2 )              \
+    TEST_ASSERT( ( expr1 ) == ( expr2 ) )
+
+/** Allocate memory dynamically and fail the test case if this fails.
+ *
+ * You must set \p pointer to \c NULL before calling this macro and
+ * put `mbedtls_free( pointer )` in the test's cleanup code.
+ *
+ * If \p length is zero, the resulting \p pointer will be \c NULL.
+ * This is usually what we want in tests since API functions are
+ * supposed to accept null pointers when a buffer size is zero.
+ *
+ * This macro expands to an instruction, not an expression.
+ * It may jump to the \c exit label.
+ *
+ * \param pointer   An lvalue where the address of the allocated buffer
+ *                  will be stored.
+ *                  This expression may be evaluated multiple times.
+ * \param length    Number of elements to allocate.
+ *                  This expression may be evaluated multiple times.
+ *
+ */
+#define ASSERT_ALLOC( pointer, length )                           \
+    do                                                            \
+    {                                                             \
+        TEST_ASSERT( ( pointer ) == NULL );                       \
+        if( ( length ) != 0 )                                     \
+        {                                                         \
+            ( pointer ) = mbedtls_calloc( sizeof( *( pointer ) ), \
+                                          ( length ) );           \
+            TEST_ASSERT( ( pointer ) != NULL );                   \
+        }                                                         \
+    }                                                             \
+    while( 0 )
+
+/** Allocate memory dynamically. If the allocation fails, skip the test case.
+ *
+ * This macro behaves like #ASSERT_ALLOC, except that if the allocation
+ * fails, it marks the test as skipped rather than failed.
+ */
+#define ASSERT_ALLOC_WEAK( pointer, length )                      \
+    do                                                            \
+    {                                                             \
+        TEST_ASSERT( ( pointer ) == NULL );                       \
+        if( ( length ) != 0 )                                     \
+        {                                                         \
+            ( pointer ) = mbedtls_calloc( sizeof( *( pointer ) ), \
+                                          ( length ) );           \
+            TEST_ASSUME( ( pointer ) != NULL );                   \
+        }                                                         \
+    }                                                             \
+    while( 0 )
+
+/** Compare two buffers and fail the test case if they differ.
+ *
+ * This macro expands to an instruction, not an expression.
+ * It may jump to the \c exit label.
+ *
+ * \param p1        Pointer to the start of the first buffer.
+ * \param size1     Size of the first buffer in bytes.
+ *                  This expression may be evaluated multiple times.
+ * \param p2        Pointer to the start of the second buffer.
+ * \param size2     Size of the second buffer in bytes.
+ *                  This expression may be evaluated multiple times.
+ */
+#define ASSERT_COMPARE( p1, size1, p2, size2 )                          \
+    do                                                                  \
+    {                                                                   \
+        TEST_ASSERT( ( size1 ) == ( size2 ) );                          \
+        if( ( size1 ) != 0 )                                            \
+            TEST_ASSERT( memcmp( ( p1 ), ( p2 ), ( size1 ) ) == 0 );    \
+    }                                                                   \
+    while( 0 )
+
+/**
+ * \brief   This macro tests the expression passed to it and skips the
+ *          running test if it doesn't evaluate to 'true'.
+ *
+ * \param   TEST    The test expression to be tested.
+ */
+#define TEST_ASSUME( TEST )                         \
+    do {                                            \
+        if( ! (TEST) )                              \
+        {                                           \
+            test_skip( #TEST, __LINE__, __FILE__ ); \
+            goto exit;                              \
+        }                                           \
+    } while( 0 )
+
 #if defined(MBEDTLS_CHECK_PARAMS) && !defined(MBEDTLS_PARAM_FAILED_ALT)
 /**
  * \brief   This macro tests the statement passed to it as a test step or
@@ -215,12 +311,96 @@ typedef enum
 #define TEST_VALID_PARAM( TEST )                                    \
     TEST_ASSERT( ( TEST, 1 ) );
 
-#define assert(a) if( !( a ) )                                      \
+#define TEST_HELPER_ASSERT(a) if( !( a ) )                          \
 {                                                                   \
-    mbedtls_fprintf( stderr, "Assertion Failed at %s:%d - %s\n",   \
+    mbedtls_fprintf( stderr, "Assertion Failed at %s:%d - %s\n",    \
                              __FILE__, __LINE__, #a );              \
-    mbedtls_exit( 1 );                                             \
+    mbedtls_exit( 1 );                                              \
 }
+
+#if defined(__GNUC__)
+/* Test if arg and &(arg)[0] have the same type. This is true if arg is
+ * an array but not if it's a pointer. */
+#define IS_ARRAY_NOT_POINTER( arg )                                     \
+    ( ! __builtin_types_compatible_p( __typeof__( arg ),                \
+                                      __typeof__( &( arg )[0] ) ) )
+#else
+/* On platforms where we don't know how to implement this check,
+ * omit it. Oh well, a non-portable check is better than nothing. */
+#define IS_ARRAY_NOT_POINTER( arg ) 1
+#endif
+
+/* A compile-time constant with the value 0. If `const_expr` is not a
+ * compile-time constant with a nonzero value, cause a compile-time error. */
+#define STATIC_ASSERT_EXPR( const_expr )                                \
+    ( 0 && sizeof( struct { int STATIC_ASSERT : 1 - 2 * ! ( const_expr ); } ) )
+/* Return the scalar value `value` (possibly promoted). This is a compile-time
+ * constant if `value` is. `condition` must be a compile-time constant.
+ * If `condition` is false, arrange to cause a compile-time error. */
+#define STATIC_ASSERT_THEN_RETURN( condition, value )   \
+    ( STATIC_ASSERT_EXPR( condition ) ? 0 : ( value ) )
+
+#define ARRAY_LENGTH_UNSAFE( array )            \
+    ( sizeof( array ) / sizeof( *( array ) ) )
+/** Return the number of elements of a static or stack array.
+ *
+ * \param array         A value of array (not pointer) type.
+ *
+ * \return The number of elements of the array.
+ */
+#define ARRAY_LENGTH( array )                                           \
+    ( STATIC_ASSERT_THEN_RETURN( IS_ARRAY_NOT_POINTER( array ),         \
+                                 ARRAY_LENGTH_UNSAFE( array ) ) )
+
+/** Return the smaller of two values.
+ *
+ * \param x         An integer-valued expression without side effects.
+ * \param y         An integer-valued expression without side effects.
+ *
+ * \return The smaller of \p x and \p y.
+ */
+#define MIN( x, y ) ( ( x ) < ( y ) ? ( x ) : ( y ) )
+
+/** Return the larger of two values.
+ *
+ * \param x         An integer-valued expression without side effects.
+ * \param y         An integer-valued expression without side effects.
+ *
+ * \return The larger of \p x and \p y.
+ */
+#define MAX( x, y ) ( ( x ) > ( y ) ? ( x ) : ( y ) )
+
+/** Allocate memory dynamically and fail the test case if this fails.
+ *
+ * You must set \p pointer to \c NULL before calling this macro and
+ * put `mbedtls_free( pointer )` in the test's cleanup code.
+ *
+ * If \p length is zero, the resulting \p pointer will be \c NULL.
+ * This is usually what we want in tests since API functions are
+ * supposed to accept null pointers when a buffer size is zero.
+ *
+ * This macro expands to an instruction, not an expression.
+ * It may jump to the \c exit label.
+ *
+ * \param pointer   An lvalue where the address of the allocated buffer
+ *                  will be stored.
+ *                  This expression may be evaluated multiple times.
+ * \param length    Number of elements to allocate.
+ *                  This expression may be evaluated multiple times.
+ *
+ */
+#define ASSERT_ALLOC( pointer, length )                           \
+    do                                                            \
+    {                                                             \
+        TEST_ASSERT( ( pointer ) == NULL );                       \
+        if( ( length ) != 0 )                                     \
+        {                                                         \
+            ( pointer ) = mbedtls_calloc( sizeof( *( pointer ) ), \
+                                          ( length ) );           \
+            TEST_ASSERT( ( pointer ) != NULL );                   \
+        }                                                         \
+    }                                                             \
+    while( 0 )
 
 /*
  * 32-bit integer manipulation macros (big endian)
@@ -249,15 +429,24 @@ typedef enum
 /*----------------------------------------------------------------------------*/
 /* Global variables */
 
-static struct
+typedef enum
+{
+    TEST_RESULT_SUCCESS = 0,
+    TEST_RESULT_FAILED,
+    TEST_RESULT_SKIPPED
+} test_result_t;
+
+typedef struct
 {
     paramfail_test_state_t paramfail_test_state;
-    int failed;
+    test_result_t result;
     const char *test;
     const char *filename;
     int line_no;
+    unsigned long step;
 }
-test_info;
+test_info_t;
+static test_info_t test_info;
 
 #if defined(MBEDTLS_PLATFORM_C)
 mbedtls_platform_context platform_ctx;
@@ -286,9 +475,30 @@ jmp_buf jmp_tmp;
 /*----------------------------------------------------------------------------*/
 /* Helper Functions */
 
-static void test_fail( const char *test, int line_no, const char* filename )
+/** Set the test step number for failure reports.
+ *
+ * Call this function to display "step NNN" in addition to the line number
+ * and file name if a test fails. Typically the "step number" is the index
+ * of a for loop but it can be whatever you want.
+ *
+ * \param step  The step number to report.
+ */
+void test_set_step( unsigned long step )
 {
-    test_info.failed = 1;
+    test_info.step = step;
+}
+
+void test_fail( const char *test, int line_no, const char* filename )
+{
+    test_info.result = TEST_RESULT_FAILED;
+    test_info.test = test;
+    test_info.line_no = line_no;
+    test_info.filename = filename;
+}
+
+void test_skip( const char *test, int line_no, const char* filename )
+{
+    test_info.result = TEST_RESULT_SKIPPED;
     test_info.test = test;
     test_info.line_no = line_no;
     test_info.filename = filename;
@@ -327,7 +537,7 @@ void mbedtls_param_failed( const char *failure_condition,
         /* Record the location of the failure, but not as a failure yet, in case
          * it was part of the test */
         test_fail( failure_condition, line, file );
-        test_info.failed = 0;
+        test_info.result = TEST_RESULT_SUCCESS;
 
         longjmp( param_fail_jmp, 1 );
     }
@@ -377,11 +587,11 @@ static void close_output( FILE* out_stream )
 }
 #endif /* __unix__ || __APPLE__ __MACH__ */
 
-static int unhexify( unsigned char *obuf, const char *ibuf )
+int unhexify( unsigned char *obuf, const char *ibuf )
 {
     unsigned char c, c2;
     int len = strlen( ibuf ) / 2;
-    assert( strlen( ibuf ) % 2 == 0 ); /* must be even number of bytes */
+    TEST_HELPER_ASSERT( strlen( ibuf ) % 2 == 0 ); /* must be even number of bytes */
 
     while( *ibuf != 0 )
     {
@@ -393,7 +603,7 @@ static int unhexify( unsigned char *obuf, const char *ibuf )
         else if( c >= 'A' && c <= 'F' )
             c -= 'A' - 10;
         else
-            assert( 0 );
+            TEST_HELPER_ASSERT( 0 );
 
         c2 = *ibuf++;
         if( c2 >= '0' && c2 <= '9' )
@@ -403,7 +613,7 @@ static int unhexify( unsigned char *obuf, const char *ibuf )
         else if( c2 >= 'A' && c2 <= 'F' )
             c2 -= 'A' - 10;
         else
-            assert( 0 );
+            TEST_HELPER_ASSERT( 0 );
 
         *obuf++ = ( c << 4 ) | c2;
     }
@@ -411,7 +621,7 @@ static int unhexify( unsigned char *obuf, const char *ibuf )
     return len;
 }
 
-static void hexify( unsigned char *obuf, const unsigned char *ibuf, int len )
+void hexify( unsigned char *obuf, const unsigned char *ibuf, int len )
 {
     unsigned char l, h;
 
@@ -448,7 +658,7 @@ static unsigned char *zero_alloc( size_t len )
     size_t actual_len = ( len != 0 ) ? len : 1;
 
     p = mbedtls_calloc( 1, actual_len );
-    assert( p != NULL );
+    TEST_HELPER_ASSERT( p != NULL );
 
     memset( p, 0x00, actual_len );
 
@@ -465,7 +675,7 @@ static unsigned char *zero_alloc( size_t len )
  *
  * For convenience, dies if allocation fails.
  */
-static unsigned char *unhexify_alloc( const char *ibuf, size_t *olen )
+unsigned char *unhexify_alloc( const char *ibuf, size_t *olen )
 {
     unsigned char *obuf;
 
@@ -475,7 +685,7 @@ static unsigned char *unhexify_alloc( const char *ibuf, size_t *olen )
         return( zero_alloc( *olen ) );
 
     obuf = mbedtls_calloc( 1, *olen );
-    assert( obuf != NULL );
+    TEST_HELPER_ASSERT( obuf != NULL );
 
     (void) unhexify( obuf, ibuf );
 
@@ -516,7 +726,7 @@ static int rnd_std_rand( void *rng_state, unsigned char *output, size_t len )
  *
  * rng_state shall be NULL.
  */
-static int rnd_zero_rand( void *rng_state, unsigned char *output, size_t len )
+int rnd_zero_rand( void *rng_state, unsigned char *output, size_t len )
 {
     if( rng_state != NULL )
         rng_state  = NULL;
@@ -543,7 +753,7 @@ typedef struct
  *
  * After the buffer is empty it will return rand();
  */
-static int rnd_buffer_rand( void *rng_state, unsigned char *output, size_t len )
+int rnd_buffer_rand( void *rng_state, unsigned char *output, size_t len )
 {
     rnd_buf_info *info = (rnd_buf_info *) rng_state;
     size_t use_len;
@@ -589,7 +799,7 @@ typedef struct
  *
  * rng_state shall be a pointer to a rnd_pseudo_info structure.
  */
-static int rnd_pseudo_rand( void *rng_state, unsigned char *output, size_t len )
+int rnd_pseudo_rand( void *rng_state, unsigned char *output, size_t len )
 {
     rnd_pseudo_info *info = (rnd_pseudo_info *) rng_state;
     uint32_t i, *k, sum, delta=0x9E3779B9;

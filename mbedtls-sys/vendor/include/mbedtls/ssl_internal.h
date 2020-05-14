@@ -25,41 +25,41 @@
 #define MBEDTLS_SSL_INTERNAL_H
 
 #if !defined(MBEDTLS_CONFIG_FILE)
-#include "config.h"
+#include "mbedtls/config.h"
 #else
 #include MBEDTLS_CONFIG_FILE
 #endif
 
-#include "ssl.h"
-#include "cipher.h"
+#include "mbedtls/ssl.h"
+#include "mbedtls/cipher.h"
 
 #if defined(MBEDTLS_USE_PSA_CRYPTO)
 #include "psa/crypto.h"
 #endif
 
 #if defined(MBEDTLS_MD5_C)
-#include "md5.h"
+#include "mbedtls/md5.h"
 #endif
 
 #if defined(MBEDTLS_SHA1_C)
-#include "sha1.h"
+#include "mbedtls/sha1.h"
 #endif
 
 #if defined(MBEDTLS_SHA256_C)
-#include "sha256.h"
+#include "mbedtls/sha256.h"
 #endif
 
 #if defined(MBEDTLS_SHA512_C)
-#include "sha512.h"
+#include "mbedtls/sha512.h"
 #endif
 
 #if defined(MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED)
-#include "ecjpake.h"
+#include "mbedtls/ecjpake.h"
 #endif
 
 #if defined(MBEDTLS_USE_PSA_CRYPTO)
 #include "psa/crypto.h"
-#include "psa_util.h"
+#include "mbedtls/psa_util.h"
 #endif /* MBEDTLS_USE_PSA_CRYPTO */
 
 #if ( defined(__ARMCC_VERSION) || defined(_MSC_VER) ) && \
@@ -113,7 +113,7 @@
     defined(MBEDTLS_SSL_CLI_C) && \
     defined(MBEDTLS_SSL_PROTO_TLS1_2) && \
     defined(MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED)
-#define MBEDTLS_SSL__ECP_RESTARTABLE
+#define MBEDTLS_SSL_ECP_RESTARTABLE_ENABLED
 #endif
 
 #define MBEDTLS_SSL_INITIAL_HANDSHAKE           0
@@ -238,7 +238,7 @@
    implicit sequence number. */
 #define MBEDTLS_SSL_HEADER_LEN 13
 
-#if defined(MBEDTLS_SSL_DTLS_CONNECTION_ID)
+#if !defined(MBEDTLS_SSL_DTLS_CONNECTION_ID)
 #define MBEDTLS_SSL_IN_BUFFER_LEN  \
     ( ( MBEDTLS_SSL_HEADER_LEN ) + ( MBEDTLS_SSL_IN_PAYLOAD_LEN ) )
 #else
@@ -247,13 +247,39 @@
       + ( MBEDTLS_SSL_CID_IN_LEN_MAX ) )
 #endif
 
-#if defined(MBEDTLS_SSL_DTLS_CONNECTION_ID)
+#if !defined(MBEDTLS_SSL_DTLS_CONNECTION_ID)
 #define MBEDTLS_SSL_OUT_BUFFER_LEN  \
     ( ( MBEDTLS_SSL_HEADER_LEN ) + ( MBEDTLS_SSL_OUT_PAYLOAD_LEN ) )
 #else
 #define MBEDTLS_SSL_OUT_BUFFER_LEN                               \
     ( ( MBEDTLS_SSL_HEADER_LEN ) + ( MBEDTLS_SSL_OUT_PAYLOAD_LEN )    \
       + ( MBEDTLS_SSL_CID_OUT_LEN_MAX ) )
+#endif
+
+#if defined(MBEDTLS_SSL_VARIABLE_BUFFER_LENGTH)
+static inline uint32_t mbedtls_ssl_get_output_buflen( const mbedtls_ssl_context *ctx )
+{
+#if defined (MBEDTLS_SSL_DTLS_CONNECTION_ID)
+    return (uint32_t) mbedtls_ssl_get_output_max_frag_len( ctx )
+               + MBEDTLS_SSL_HEADER_LEN + MBEDTLS_SSL_PAYLOAD_OVERHEAD
+               + MBEDTLS_SSL_CID_OUT_LEN_MAX;
+#else
+    return (uint32_t) mbedtls_ssl_get_output_max_frag_len( ctx )
+               + MBEDTLS_SSL_HEADER_LEN + MBEDTLS_SSL_PAYLOAD_OVERHEAD;
+#endif
+}
+
+static inline uint32_t mbedtls_ssl_get_input_buflen( const mbedtls_ssl_context *ctx )
+{
+#if defined (MBEDTLS_SSL_DTLS_CONNECTION_ID)
+    return (uint32_t) mbedtls_ssl_get_input_max_frag_len( ctx )
+               + MBEDTLS_SSL_HEADER_LEN + MBEDTLS_SSL_PAYLOAD_OVERHEAD
+               + MBEDTLS_SSL_CID_IN_LEN_MAX;
+#else
+    return (uint32_t) mbedtls_ssl_get_input_max_frag_len( ctx )
+               + MBEDTLS_SSL_HEADER_LEN + MBEDTLS_SSL_PAYLOAD_OVERHEAD;
+#endif
+}
 #endif
 
 #ifdef MBEDTLS_ZLIB_SUPPORT
@@ -278,7 +304,7 @@ extern "C" {
 #endif
 
 #if defined(MBEDTLS_SSL_PROTO_TLS1_2) && \
-    defined(MBEDTLS_KEY_EXCHANGE__WITH_CERT__ENABLED)
+    defined(MBEDTLS_KEY_EXCHANGE_WITH_CERT_ENABLED)
 /*
  * Abstraction for a grid of allowed signature-hash-algorithm pairs.
  */
@@ -293,7 +319,7 @@ struct mbedtls_ssl_sig_hash_set_t
     mbedtls_md_type_t ecdsa;
 };
 #endif /* MBEDTLS_SSL_PROTO_TLS1_2 &&
-          MBEDTLS_KEY_EXCHANGE__WITH_CERT__ENABLED */
+          MBEDTLS_KEY_EXCHANGE_WITH_CERT_ENABLED */
 
 typedef int  mbedtls_ssl_tls_prf_cb( const unsigned char *secret, size_t slen,
                                      const char *label,
@@ -309,7 +335,7 @@ struct mbedtls_ssl_handshake_params
      */
 
 #if defined(MBEDTLS_SSL_PROTO_TLS1_2) && \
-    defined(MBEDTLS_KEY_EXCHANGE__WITH_CERT__ENABLED)
+    defined(MBEDTLS_KEY_EXCHANGE_WITH_CERT_ENABLED)
     mbedtls_ssl_sig_hash_set_t hash_algs;             /*!<  Set of suitable sig-hash pairs */
 #endif
 #if defined(MBEDTLS_DHM_C)
@@ -319,7 +345,8 @@ struct mbedtls_ssl_handshake_params
     mbedtls_ecdh_context ecdh_ctx;              /*!<  ECDH key exchange       */
 
 #if defined(MBEDTLS_USE_PSA_CRYPTO)
-    psa_ecc_curve_t ecdh_psa_curve;
+    psa_key_type_t ecdh_psa_type;
+    uint16_t ecdh_bits;
     psa_key_handle_t ecdh_psa_privkey;
     unsigned char ecdh_psa_peerkey[MBEDTLS_PSA_MAX_EC_PUBKEY_LENGTH];
     size_t ecdh_psa_peerkey_len;
@@ -337,13 +364,13 @@ struct mbedtls_ssl_handshake_params
     defined(MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED)
     const mbedtls_ecp_curve_info **curves;      /*!<  Supported elliptic curves */
 #endif
-#if defined(MBEDTLS_KEY_EXCHANGE__SOME__PSK_ENABLED)
+#if defined(MBEDTLS_KEY_EXCHANGE_SOME_PSK_ENABLED)
 #if defined(MBEDTLS_USE_PSA_CRYPTO)
     psa_key_handle_t psk_opaque;        /*!< Opaque PSK from the callback   */
 #endif /* MBEDTLS_USE_PSA_CRYPTO */
     unsigned char *psk;                 /*!<  PSK from the callback         */
     size_t psk_len;                     /*!<  Length of PSK from callback   */
-#endif /* MBEDTLS_KEY_EXCHANGE__SOME__PSK_ENABLED */
+#endif /* MBEDTLS_KEY_EXCHANGE_SOME_PSK_ENABLED */
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
     mbedtls_ssl_key_cert *key_cert;     /*!< chosen key/cert pair (server)  */
 #if defined(MBEDTLS_SSL_SERVER_NAME_INDICATION)
@@ -353,7 +380,7 @@ struct mbedtls_ssl_handshake_params
     mbedtls_x509_crl *sni_ca_crl;       /*!< trusted CAs CRLs from SNI      */
 #endif /* MBEDTLS_SSL_SERVER_NAME_INDICATION */
 #endif /* MBEDTLS_X509_CRT_PARSE_C */
-#if defined(MBEDTLS_SSL__ECP_RESTARTABLE)
+#if defined(MBEDTLS_SSL_ECP_RESTARTABLE_ENABLED)
     int ecrs_enabled;                   /*!< Handshake supports EC restart? */
     mbedtls_x509_crt_restart_ctx ecrs_ctx;  /*!< restart context            */
     enum { /* this complements ssl->state with info on intra-state operations */
@@ -458,7 +485,7 @@ struct mbedtls_ssl_handshake_params
 #endif /* MBEDTLS_SSL_PROTO_TLS1_2 */
 
     void (*update_checksum)(mbedtls_ssl_context *, const unsigned char *, size_t);
-    void (*calc_verify)(mbedtls_ssl_context *, unsigned char *);
+    void (*calc_verify)(const mbedtls_ssl_context *, unsigned char *, size_t *);
     void (*calc_finished)(mbedtls_ssl_context *, unsigned char *, int);
     mbedtls_ssl_tls_prf_cb *tls_prf;
 
@@ -642,7 +669,28 @@ struct mbedtls_ssl_transform
     z_stream ctx_deflate;               /*!<  compression context     */
     z_stream ctx_inflate;               /*!<  decompression context   */
 #endif
+
+#if defined(MBEDTLS_SSL_CONTEXT_SERIALIZATION)
+    /* We need the Hello random bytes in order to re-derive keys from the
+     * Master Secret and other session info, see ssl_populate_transform() */
+    unsigned char randbytes[64]; /*!< ServerHello.random+ClientHello.random */
+#endif /* MBEDTLS_SSL_CONTEXT_SERIALIZATION */
 };
+
+/*
+ * Return 1 if the transform uses an AEAD cipher, 0 otherwise.
+ * Equivalently, return 0 if a separate MAC is used, 1 otherwise.
+ */
+static inline int mbedtls_ssl_transform_uses_aead(
+        const mbedtls_ssl_transform *transform )
+{
+#if defined(MBEDTLS_SSL_SOME_MODES_USE_MAC)
+    return( transform->maclen == 0 && transform->taglen != 0 );
+#else
+    (void) transform;
+    return( 1 );
+#endif
+}
 
 /*
  * Internal representation of record frames
@@ -672,18 +720,29 @@ struct mbedtls_ssl_transform
 
 typedef struct
 {
-    uint8_t ctr[8];         /* Record sequence number        */
-    uint8_t type;           /* Record type                   */
-    uint8_t ver[2];         /* SSL/TLS version               */
+    uint8_t ctr[8];         /* In TLS:  The implicit record sequence number.
+                             * In DTLS: The 2-byte epoch followed by
+                             *          the 6-byte sequence number.
+                             * This is stored as a raw big endian byte array
+                             * as opposed to a uint64_t because we rarely
+                             * need to perform arithmetic on this, but do
+                             * need it as a Byte array for the purpose of
+                             * MAC computations.                             */
+    uint8_t type;           /* The record content type.                      */
+    uint8_t ver[2];         /* SSL/TLS version as present on the wire.
+                             * Convert to internal presentation of versions
+                             * using mbedtls_ssl_read_version() and
+                             * mbedtls_ssl_write_version().
+                             * Keep wire-format for MAC computations.        */
 
-    unsigned char *buf;     /* Memory buffer enclosing the record content */
-    size_t buf_len;         /* Buffer length */
-    size_t data_offset;     /* Offset of record content */
-    size_t data_len;        /* Length of record content */
+    unsigned char *buf;     /* Memory buffer enclosing the record content    */
+    size_t buf_len;         /* Buffer length                                 */
+    size_t data_offset;     /* Offset of record content                      */
+    size_t data_len;        /* Length of record content                      */
 
 #if defined(MBEDTLS_SSL_DTLS_CONNECTION_ID)
-    uint8_t cid_len;        /* Length of the CID (0 if not present) */
-    unsigned char cid[ MBEDTLS_SSL_CID_LEN_MAX ]; /* The CID        */
+    uint8_t cid_len;        /* Length of the CID (0 if not present)          */
+    unsigned char cid[ MBEDTLS_SSL_CID_LEN_MAX ]; /* The CID                 */
 #endif /* MBEDTLS_SSL_DTLS_CONNECTION_ID */
 } mbedtls_record;
 
@@ -713,7 +772,7 @@ struct mbedtls_ssl_flight_item
 #endif /* MBEDTLS_SSL_PROTO_DTLS */
 
 #if defined(MBEDTLS_SSL_PROTO_TLS1_2) && \
-    defined(MBEDTLS_KEY_EXCHANGE__WITH_CERT__ENABLED)
+    defined(MBEDTLS_KEY_EXCHANGE_WITH_CERT_ENABLED)
 
 /* Find an entry in a signature-hash set matching a given hash algorithm. */
 mbedtls_md_type_t mbedtls_ssl_sig_hash_set_find( mbedtls_ssl_sig_hash_set_t *set,
@@ -733,7 +792,7 @@ static inline void mbedtls_ssl_sig_hash_set_init( mbedtls_ssl_sig_hash_set_t *se
 }
 
 #endif /* MBEDTLS_SSL_PROTO_TLS1_2) &&
-          MBEDTLS_KEY_EXCHANGE__WITH_CERT__ENABLED */
+          MBEDTLS_KEY_EXCHANGE_WITH_CERT_ENABLED */
 
 /**
  * \brief           Free referenced items in an SSL transform context and clear
@@ -860,7 +919,7 @@ int mbedtls_ssl_write_finished( mbedtls_ssl_context *ssl );
 void mbedtls_ssl_optimize_checksum( mbedtls_ssl_context *ssl,
                             const mbedtls_ssl_ciphersuite_t *ciphersuite_info );
 
-#if defined(MBEDTLS_KEY_EXCHANGE__SOME__PSK_ENABLED)
+#if defined(MBEDTLS_KEY_EXCHANGE_SOME_PSK_ENABLED)
 int mbedtls_ssl_psk_derive_premaster( mbedtls_ssl_context *ssl, mbedtls_key_exchange_type_t key_ex );
 #endif
 
@@ -878,7 +937,7 @@ int mbedtls_ssl_set_calc_verify_md( mbedtls_ssl_context *ssl, int md );
 int mbedtls_ssl_check_curve( const mbedtls_ssl_context *ssl, mbedtls_ecp_group_id grp_id );
 #endif
 
-#if defined(MBEDTLS_KEY_EXCHANGE__WITH_CERT__ENABLED)
+#if defined(MBEDTLS_KEY_EXCHANGE_WITH_CERT_ENABLED)
 int mbedtls_ssl_check_sig_hash( const mbedtls_ssl_context *ssl,
                                 mbedtls_md_type_t md );
 #endif
@@ -930,7 +989,20 @@ void mbedtls_ssl_read_version( int *major, int *minor, int transport,
 
 static inline size_t mbedtls_ssl_in_hdr_len( const mbedtls_ssl_context *ssl )
 {
-    return( (size_t) ( ssl->in_iv - ssl->in_hdr ) );
+#if !defined(MBEDTLS_SSL_PROTO_DTLS)
+    ((void) ssl);
+#endif
+
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+    if( ssl->conf->transport == MBEDTLS_SSL_TRANSPORT_DATAGRAM )
+    {
+        return( 13 );
+    }
+    else
+#endif /* MBEDTLS_SSL_PROTO_DTLS */
+    {
+        return( 5 );
+    }
 }
 
 static inline size_t mbedtls_ssl_out_hdr_len( const mbedtls_ssl_context *ssl )
@@ -958,7 +1030,7 @@ int mbedtls_ssl_flight_transmit( mbedtls_ssl_context *ssl );
 
 /* Visible for testing purposes only */
 #if defined(MBEDTLS_SSL_DTLS_ANTI_REPLAY)
-int mbedtls_ssl_dtls_replay_check( mbedtls_ssl_context *ssl );
+int mbedtls_ssl_dtls_replay_check( mbedtls_ssl_context const *ssl );
 void mbedtls_ssl_dtls_replay_update( mbedtls_ssl_context *ssl );
 #endif
 
@@ -1013,8 +1085,50 @@ int mbedtls_ssl_encrypt_buf( mbedtls_ssl_context *ssl,
                              mbedtls_record *rec,
                              int (*f_rng)(void *, unsigned char *, size_t),
                              void *p_rng );
-int mbedtls_ssl_decrypt_buf( mbedtls_ssl_context *ssl,
+int mbedtls_ssl_decrypt_buf( mbedtls_ssl_context const *ssl,
                              mbedtls_ssl_transform *transform,
                              mbedtls_record *rec );
+
+/* Length of the "epoch" field in the record header */
+static inline size_t mbedtls_ssl_ep_len( const mbedtls_ssl_context *ssl )
+{
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+    if( ssl->conf->transport == MBEDTLS_SSL_TRANSPORT_DATAGRAM )
+        return( 2 );
+#else
+    ((void) ssl);
+#endif
+    return( 0 );
+}
+
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+int mbedtls_ssl_resend_hello_request( mbedtls_ssl_context *ssl );
+#endif /* MBEDTLS_SSL_PROTO_DTLS */
+
+void mbedtls_ssl_set_timer( mbedtls_ssl_context *ssl, uint32_t millisecs );
+int mbedtls_ssl_check_timer( mbedtls_ssl_context *ssl );
+
+void mbedtls_ssl_reset_in_out_pointers( mbedtls_ssl_context *ssl );
+void mbedtls_ssl_update_out_pointers( mbedtls_ssl_context *ssl,
+                              mbedtls_ssl_transform *transform );
+void mbedtls_ssl_update_in_pointers( mbedtls_ssl_context *ssl );
+
+int mbedtls_ssl_session_reset_int( mbedtls_ssl_context *ssl, int partial );
+
+#if defined(MBEDTLS_SSL_DTLS_ANTI_REPLAY)
+void mbedtls_ssl_dtls_replay_reset( mbedtls_ssl_context *ssl );
+#endif
+
+void mbedtls_ssl_handshake_wrapup_free_hs_transform( mbedtls_ssl_context *ssl );
+
+#if defined(MBEDTLS_SSL_RENEGOTIATION)
+int mbedtls_ssl_start_renegotiation( mbedtls_ssl_context *ssl );
+#endif /* MBEDTLS_SSL_RENEGOTIATION */
+
+#if defined(MBEDTLS_SSL_PROTO_DTLS)
+size_t mbedtls_ssl_get_current_mtu( const mbedtls_ssl_context *ssl );
+void mbedtls_ssl_buffering_free( mbedtls_ssl_context *ssl );
+void mbedtls_ssl_flight_free( mbedtls_ssl_flight_item *flight );
+#endif /* MBEDTLS_SSL_PROTO_DTLS */
 
 #endif /* ssl_internal.h */

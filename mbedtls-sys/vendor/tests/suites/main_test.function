@@ -29,6 +29,15 @@
 #include "psa/crypto.h"
 #endif /* MBEDTLS_USE_PSA_CRYPTO */
 
+/* Test code may use deprecated identifiers only if the preprocessor symbol
+ * MBEDTLS_TEST_DEPRECATED is defined. When building tests, set
+ * MBEDTLS_TEST_DEPRECATED explicitly if MBEDTLS_DEPRECATED_WARNING is
+ * enabled but the corresponding warnings are not treated as errors.
+ */
+#if !defined(MBEDTLS_DEPRECATED_REMOVED) && !defined(MBEDTLS_DEPRECATED_WARNING)
+#define MBEDTLS_TEST_DEPRECATED
+#endif
+
 /*----------------------------------------------------------------------------*/
 /* Common helper code */
 
@@ -159,7 +168,7 @@ void execute_function_ptr(TestWrapper_t fp, void **params)
     else
     {
         /* Unexpected parameter validation error */
-        test_info.failed = 1;
+        test_info.result = TEST_RESULT_FAILED;
     }
 
     memset( param_fail_jmp, 0, sizeof(jmp_buf) );

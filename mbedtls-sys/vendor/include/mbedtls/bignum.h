@@ -25,7 +25,7 @@
 #define MBEDTLS_BIGNUM_H
 
 #if !defined(MBEDTLS_CONFIG_FILE)
-#include "config.h"
+#include "mbedtls/config.h"
 #else
 #include MBEDTLS_CONFIG_FILE
 #endif
@@ -129,7 +129,8 @@
         defined(__ppc64__) || defined(__powerpc64__)  || \
         defined(__ia64__)  || defined(__alpha__)      || \
         ( defined(__sparc__) && defined(__arch64__) ) || \
-        defined(__s390x__) || defined(__mips64) )
+        defined(__s390x__) || defined(__mips64)       || \
+        defined(__aarch64__) )
         #if !defined(MBEDTLS_HAVE_INT64)
             #define MBEDTLS_HAVE_INT64
         #endif /* MBEDTLS_HAVE_INT64 */
@@ -184,7 +185,7 @@ extern "C" {
  */
 typedef struct mbedtls_mpi
 {
-    int s;              /*!<  integer sign      */
+    int s;              /*!<  Sign: -1 if the mpi is negative, 1 otherwise */
     size_t n;           /*!<  total # of limbs  */
     mbedtls_mpi_uint *p;          /*!<  pointer to limbs  */
 }
@@ -592,6 +593,24 @@ int mbedtls_mpi_cmp_abs( const mbedtls_mpi *X, const mbedtls_mpi *Y );
  * \return         \c 0 if \p X is equal to \p Y.
  */
 int mbedtls_mpi_cmp_mpi( const mbedtls_mpi *X, const mbedtls_mpi *Y );
+
+/**
+ * \brief          Check if an MPI is less than the other in constant time.
+ *
+ * \param X        The left-hand MPI. This must point to an initialized MPI
+ *                 with the same allocated length as Y.
+ * \param Y        The right-hand MPI. This must point to an initialized MPI
+ *                 with the same allocated length as X.
+ * \param ret      The result of the comparison:
+ *                 \c 1 if \p X is less than \p Y.
+ *                 \c 0 if \p X is greater than or equal to \p Y.
+ *
+ * \return         0 on success.
+ * \return         MBEDTLS_ERR_MPI_BAD_INPUT_DATA if the allocated length of
+ *                 the two input MPIs is not the same.
+ */
+int mbedtls_mpi_lt_mpi_ct( const mbedtls_mpi *X, const mbedtls_mpi *Y,
+        unsigned *ret );
 
 /**
  * \brief          Compare an MPI with an integer.
