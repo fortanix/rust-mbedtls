@@ -116,7 +116,7 @@ For the complete mapping of features to config.h defines, see
 Instructions for updating to new MbedTLS source code releases in `mbedtls-sys/`:
 
 1. Wipe out `vendor/` and replace it with the contents of the distribution tarball.
-2. Cherry-pick any local changes from the previous version.
+2. Re-apply local changes from `vendor-patches/`
 3. Use the command in `build/headers.rs` to generate the list of headers,
    and update that file as appropriate.
 4. Check `build/config.rs` vs. `vendor/include/mbedtls/config.h`.

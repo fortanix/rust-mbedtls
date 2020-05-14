@@ -1,0 +1,22 @@
+diff --git a/mbedtls-sys/vendor/include/mbedtls/bn_mul.h b/mbedtls-sys/vendor/include/mbedtls/bn_mul.h
+index 163869a..01b4799 100644
+--- a/mbedtls-sys/vendor/include/mbedtls/bn_mul.h
++++ b/mbedtls-sys/vendor/include/mbedtls/bn_mul.h
+@@ -46,7 +46,7 @@
+ 
+ #include "mbedtls/bignum.h"
+ 
+-#if defined(MBEDTLS_HAVE_ASM)
++#if defined(MBEDTLS_HAVE_ASM) && !defined(MBEDTLS_MPI_FORCE_C_CODE)
+ 
+ #ifndef asm
+ #define asm __asm
+@@ -888,7 +888,7 @@
+ #endif /* SSE2 */
+ #endif /* MSVC */
+ 
+-#endif /* MBEDTLS_HAVE_ASM */
++#endif /* MBEDTLS_HAVE_ASM && !MBEDTLS_MPI_FORCE_C_CODE */
+ 
+ #if !defined(MULADDC_CORE)
+ #if defined(MBEDTLS_HAVE_UDBL)
