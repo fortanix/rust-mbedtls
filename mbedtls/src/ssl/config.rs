@@ -356,8 +356,8 @@ impl<'c> Config<'c> {
             assert!(identity_len>0);
             let cb = &mut *(closure as *mut F);
             let mut ctx = UnsafeFrom::from(ctx).expect("valid context");
-            let psk_identity = std::str::from_utf8_unchecked(
-                from_raw_parts(psk_identity, identity_len));
+            let psk_identity = &*(from_raw_parts(psk_identity, identity_len) 
+                                  as *const [u8] as *const str);
             match cb(&mut ctx, psk_identity) {
                 Ok(()) => 0,
                 Err(e) => e.to_int(),
