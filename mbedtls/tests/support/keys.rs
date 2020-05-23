@@ -279,3 +279,7 @@ C4j3yqL0Gbs+moaswS1UR8XSnKt8TBcXVozCAy12A4qKSjkP7VKPTLeTOZxw0UBe
 8CzQYNKoIGy4ayFVi+VKaNCHKvJm0diQkKw5Tz7L5quBBjt8JpmRtNbPsjXiq4Is
 y14Xc4kb05mM5M9u685eWefa
 -----END PRIVATE KEY-----\0";
+
+pub const PRESHARED_KEY: &'static [u8] = &[
+    234, 206, 151, 23, 219,  21,  71, 144,
+    107,  42,  23, 67, 249, 173, 182, 224 ];

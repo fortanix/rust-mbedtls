@@ -119,3 +119,8 @@ required-features = ["std"]
 name = "ssl_conf_verify"
 path = "tests/ssl_conf_verify.rs"
 required-features = ["std"]
+
+[[test]]
+name = "ssl_conf_psk"
+path = "tests/ssl_conf_psk.rs"
+required-features = ["std"]

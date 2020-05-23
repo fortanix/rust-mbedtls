@@ -198,6 +198,16 @@ impl<'ctx> HandshakeContext<'ctx> {
                 .map(|_| ())
         }
     }
+
+    /// psk cannot be empty
+    pub fn set_psk(&mut self, psk: &[u8]) -> Result<()> {
+        assert!(psk.len()>0);
+        unsafe {
+            ssl_set_hs_psk(self.inner, psk.as_ptr(), psk.len())
+                .into_result()
+                .map(|_| ())
+        }
+    }
 }
 
 impl<'ctx> ::core::ops::Deref for HandshakeContext<'ctx> {
@@ -308,7 +318,6 @@ impl<'a> Drop for Session<'a> {
 // ssl_renegotiate
 // ssl_send_alert_message
 // ssl_set_client_transport_id
-// ssl_set_hs_psk
 // ssl_set_timer_cb
 //
 // ssl_handshake_step
