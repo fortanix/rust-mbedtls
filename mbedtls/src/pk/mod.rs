@@ -469,6 +469,92 @@ impl Pk {
         Ok(q)
     }
 
+    pub fn rsa_private_exponent(&self) -> Result<Mpi> {
+        match self.pk_type() {
+            Type::Rsa => {}
+            _ => return Err(Error::PkTypeMismatch),
+        }
+
+        let mut d = Mpi::new(0)?;
+
+        unsafe {
+            rsa_export(
+                self.inner.pk_ctx as *const rsa_context,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+                d.handle_mut(),
+                ptr::null_mut(),
+            )
+            .into_result()?;
+        }
+
+        Ok(d)
+    }
+
+    pub fn rsa_crt_dp(&self) -> Result<Mpi> {
+        match self.pk_type() {
+            Type::Rsa => {}
+            _ => return Err(Error::PkTypeMismatch),
+        }
+
+        let mut dp = Mpi::new(0)?;
+
+        unsafe {
+            rsa_export_crt(
+                self.inner.pk_ctx as *const rsa_context,
+                dp.handle_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+            .into_result()?;
+        }
+
+        Ok(dp)
+    }
+
+    pub fn rsa_crt_dq(&self) -> Result<Mpi> {
+        match self.pk_type() {
+            Type::Rsa => {}
+            _ => return Err(Error::PkTypeMismatch),
+        }
+
+        let mut dq = Mpi::new(0)?;
+
+        unsafe {
+            rsa_export_crt(
+                self.inner.pk_ctx as *const rsa_context,
+                ptr::null_mut(),
+                dq.handle_mut(),
+                ptr::null_mut(),
+            )
+            .into_result()?;
+        }
+
+        Ok(dq)
+    }
+
+    pub fn rsa_crt_qp(&self) -> Result<Mpi> {
+        match self.pk_type() {
+            Type::Rsa => {}
+            _ => return Err(Error::PkTypeMismatch),
+        }
+
+        let mut qp = Mpi::new(0)?;
+
+        unsafe {
+            rsa_export_crt(
+                self.inner.pk_ctx as *const rsa_context,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                qp.handle_mut(),
+            )
+            .into_result()?;
+        }
+
+        Ok(qp)
+    }
+
     pub fn rsa_public_exponent(&self) -> Result<u32> {
         match self.pk_type() {
             Type::Rsa => {}
@@ -1275,6 +1361,29 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
                 .unwrap_err(),
             Error::RsaInvalidPadding
         );
+    }
+
+    #[test]
+    fn rsa_params() {
+        let pk = Pk::from_private_key(TEST_DER, None).unwrap();
+
+        let n = pk.rsa_public_modulus().unwrap();
+        let d = pk.rsa_private_exponent().unwrap();
+        let p = pk.rsa_private_prime1().unwrap();
+        let q = pk.rsa_private_prime2().unwrap();
+
+        let dp = pk.rsa_crt_dp().unwrap();
+        let dq = pk.rsa_crt_dq().unwrap();
+        let qp = pk.rsa_crt_qp().unwrap();
+
+        let one = Mpi::new(1).unwrap();
+
+        let p1 = (&p - &one).unwrap();
+        let q1 = (&q - &one).unwrap();
+        assert_eq!(&p * &q, Ok(n));
+        assert_eq!(&d % &p1, Ok(dp));
+        assert_eq!(&d % &q1, Ok(dq));
+        assert_eq!((&qp * &q).unwrap().modulo(&p), Ok(one));
     }
 
     #[test]
