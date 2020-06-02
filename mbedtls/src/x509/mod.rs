@@ -78,7 +78,7 @@ bitflags! {
 }
 
 /// A specific moment in time in UTC
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Time {
     year: u16,
     month: u8,
@@ -153,5 +153,46 @@ impl Time {
         .expect("error formatting time");
         assert!(writer.idx == 14);
         writer.buf
+    }
+
+    pub fn year(&self) -> u16 {
+        self.year
+    }
+
+    pub fn month(&self) -> u8 {
+        self.month
+    }
+
+    pub fn day(&self) -> u8 {
+        self.day
+    }
+
+    pub fn hour(&self) -> u8 {
+        self.hour
+    }
+
+    pub fn minute(&self) -> u8 {
+        self.minute
+    }
+
+    pub fn second(&self) -> u8 {
+        self.second
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    pub fn time() {
+        let independence_day = Time::new(1776, 7, 4, 10, 11, 12).unwrap();
+        let ve_day = Time::new(1945, 5, 8, 21, 20, 0).unwrap();
+
+        assert(ve_day > independence_day);
+        assert_eq(ve_day.year(), 1945);
+        assert_eq(ve_day.month(), 5);
+        assert_eq(ve_day.day(), 8);
+        assert_eq(ve_day.hour(), 21);
+        assert_eq(ve_day.minute(), 20);
+        assert_eq(ve_day.second(), 0);
     }
 }
