@@ -105,6 +105,7 @@ This is a list of the Cargo features available for mbedtls-sys. Features in
           memmove/memcpy/memcmp/memset, and rand/printf. For printf, you can
           optionally use the `custom_printf` feature.
 * **time** Enable time support.
+* *trusted_cert_callback* Enable trusted certificate callback support.
 * **zlib** Enable zlib support.
 
 For the complete mapping of features to config.h defines, see

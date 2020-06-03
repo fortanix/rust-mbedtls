@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.5.3"
+version = "0.5.4"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -33,9 +33,9 @@ rc2 = { version = "0.3", optional = true }
 rs-libc = "0.1.0"
 
 [dependencies.mbedtls-sys-auto]
-version = "2.18.4"
+version = "2.18.5"
 default-features = false
-features = ["custom_printf"]
+features = ["custom_printf", "trusted_cert_callback"]
 path = "../mbedtls-sys"
 
 [dev-dependencies]
@@ -43,6 +43,7 @@ libc = "0.2.71"
 rand = "0.4.6"
 serde_cbor = "0.11.1"
 hex = "0.4.2"
+matches = "0.1.8"
 
 [build-dependencies]
 cc = "1.0"
@@ -108,6 +109,11 @@ path = "tests/rsa.rs"
 [[test]]
 name = "save_restore"
 path = "tests/save_restore.rs"
+
+[[test]]
+name = "ssl_conf_ca_cb"
+path = "tests/ssl_conf_ca_cb.rs"
+required-features = ["std"]
 
 [[test]]
 name = "ssl_conf_verify"
