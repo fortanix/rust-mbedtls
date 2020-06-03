@@ -17,7 +17,7 @@ documentation = "https://docs.rs/mbedtls-sys-auto/"
 name = "mbedtls_sys"
 
 [dependencies]
-libc = { version = "=0.2.69", optional = true }
+libc = { version = "0.2.69", optional = true }
 libz-sys = { version = "1.0.25", optional = true }
 
 [build-dependencies]

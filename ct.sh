@@ -20,6 +20,8 @@ if [ $TRAVIS_RUST_VERSION = "stable" ] || [ $TRAVIS_RUST_VERSION = "beta" ] || [
     cargo test --features force_aesni_support
 
 elif [ $TRAVIS_RUST_VERSION = $CORE_IO_NIGHTLY ]; then
+    # fails with 'Unknown compiler version, upgrade core_io?' unless the nightly compiler version
+    # is among the ones supported by the core_io crate, see https://github.com/jethrogb/rust-core_io/issues/15
     cargo +$CORE_IO_NIGHTLY test --no-default-features --features core_io,rdrand,time,custom_time,custom_gmtime_r
     cargo +$CORE_IO_NIGHTLY test --no-default-features --features core_io,rdrand
 
