@@ -1446,4 +1446,44 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         assert!(crate::tests::TestTrait::<dyn Sync, MbedtlsBox<Certificate>>::new().impls_trait(), "MbedtlsBox<Certificate> should be Sync");
         assert!(crate::tests::TestTrait::<dyn Sync, MbedtlsList<Certificate>>::new().impls_trait(), "MbedtlsList<Certificate> should be Sync");
     }
+
+    #[test]
+    fn empty_crl_test() {
+        const C_CERT: &'static str = concat!(include_str!("../../tests/data/certificate.crt"), "\0");
+        const C_ROOT: &'static str = concat!(include_str!("../../tests/data/root.crt"), "\0");
+        const C_CRL: &'static [u8] = include_bytes!("../../tests/data/root.empty.crl");
+
+        let mut certs = MbedtlsList::new();
+        certs.push(Certificate::from_pem(&C_CERT.as_bytes()).unwrap());
+        let mut roots = MbedtlsList::new();
+        roots.push(Certificate::from_pem(&C_ROOT.as_bytes()).unwrap());
+
+        assert!(Certificate::verify(&certs, &roots, None, None).is_ok());
+
+        let mut crl = Crl::new();
+        crl.push_from_der(C_CRL).unwrap();
+        assert!(Certificate::verify(&certs, &roots, Some(&mut crl), None).is_ok());
+    }
+
+    #[test]
+    fn revoked_cert_crl_test() {
+        const C_CERT: &'static str = concat!(include_str!("../../tests/data/certificate.crt"), "\0");
+        const C_ROOT: &'static str = concat!(include_str!("../../tests/data/root.crt"), "\0");
+        const C_CRL: &'static [u8] = include_bytes!("../../tests/data/root.revoked.crl");
+
+        let mut certs = MbedtlsList::new();
+        certs.push(Certificate::from_pem(&C_CERT.as_bytes()).unwrap());
+        let mut roots = MbedtlsList::new();
+        roots.push(Certificate::from_pem(&C_ROOT.as_bytes()).unwrap());
+
+        let mut crl = Crl::new();
+        crl.push_from_der(C_CRL).unwrap();
+
+        let mut err = String::new();
+        assert_eq!(
+            Certificate::verify(&certs, &roots, Some(&mut crl), Some(&mut err)).unwrap_err(),
+            Error::X509CertVerifyFailed
+        );
+        assert_eq!(err, "The certificate has been revoked (is on a CRL)\n");
+    }
 }
