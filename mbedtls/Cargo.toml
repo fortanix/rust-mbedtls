@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.5.4"
+version = "0.5.5"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -28,6 +28,7 @@ byteorder = "1.0.0"
 yasna = { version = "0.2", optional = true }
 block-modes = { version = "0.3", optional = true }
 rc2 = { version = "0.3", optional = true }
+rand = "0.4.0"
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.1.0"

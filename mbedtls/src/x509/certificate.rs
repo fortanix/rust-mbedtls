@@ -25,6 +25,7 @@ use crate::error::{Error, IntoResult, Result};
 use crate::private::UnsafeFrom;
 use crate::rng::Random;
 use crate::hash::Type as MdType;
+use crate::x509::Crl;
 
 #[derive(Debug,Copy,Clone,Eq,PartialEq)]
 pub enum CertificateVersion {
@@ -271,6 +272,7 @@ impl LinkedCertificate {
     pub fn verify(
         &mut self,
         trust_ca: &mut Certificate,
+        ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
     ) -> Result<()> {
         let mut flags = 0;
@@ -278,7 +280,7 @@ impl LinkedCertificate {
             x509_crt_verify(
                 &mut self.inner,
                 &mut trust_ca.inner,
-                ptr::null_mut(),
+                ca_crl.map_or(ptr::null_mut(), |crl| crl.handle_mut()),
                 ptr::null(),
                 &mut flags,
                 None,
@@ -945,18 +947,18 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             chain.push_back(&mut c_int1);
 
             // incomplete chain
-            let err = LinkedCertificate::verify((&mut chain).into(), &mut c_root, None).unwrap_err();
+            let err = LinkedCertificate::verify((&mut chain).into(), &mut c_root, None, None).unwrap_err();
             assert_eq!(err, Error::X509CertVerifyFailed);
 
             // try again after fixing the chain
             chain.push_back(&mut c_int2);
-            LinkedCertificate::verify((&mut chain).into(), &mut c_root, None).unwrap();
+            LinkedCertificate::verify((&mut chain).into(), &mut c_root, None, None).unwrap();
         }
 
         #[cfg(feature = "std")]
         {
             let mut chain = vec![c_leaf, c_int1, c_int2];
-            LinkedCertificate::verify((&mut List::from_vec(&mut chain).unwrap()).into(), &mut c_root, None).unwrap();
+            LinkedCertificate::verify((&mut List::from_vec(&mut chain).unwrap()).into(), &mut c_root, None, None).unwrap();
         }
     }
 }
