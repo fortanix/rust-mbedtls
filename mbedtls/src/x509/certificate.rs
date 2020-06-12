@@ -21,7 +21,7 @@ use crate::hash::Type as MdType;
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
 use crate::rng::Random;
-use crate::x509::{self, Time, VerifyCallback};
+use crate::x509::{self, Crl, Time, VerifyCallback};
 
 extern "C" {
     pub(crate) fn forward_mbedtls_calloc(n: mbedtls_sys::types::size_t, size: mbedtls_sys::types::size_t) -> *mut mbedtls_sys::types::raw_types::c_void;
@@ -226,6 +226,7 @@ impl Certificate {
     fn verify_ex<F>(
         chain: &MbedtlsList<Certificate>,
         trust_ca: &MbedtlsList<Certificate>,
+        ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
         cb: Option<F>,
     ) -> Result<()>
@@ -243,7 +244,7 @@ impl Certificate {
             x509_crt_verify(
                 chain.inner_ffi_mut(),
                 trust_ca.inner_ffi_mut(),
-                ::core::ptr::null_mut(),
+                ca_crl.map_or(::core::ptr::null_mut(), |crl| crl.handle_mut()),
                 ::core::ptr::null(),
                 &mut flags,
                 f_vrfy,
@@ -269,21 +270,23 @@ impl Certificate {
     pub fn verify(
         chain: &MbedtlsList<Certificate>,
         trust_ca: &MbedtlsList<Certificate>,
+        ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
     ) -> Result<()> {
-        Self::verify_ex(chain, trust_ca, err_info, None::<&dyn VerifyCallback>)
+        Self::verify_ex(chain, trust_ca, ca_crl, err_info, None::<&dyn VerifyCallback>)
     }
 
     pub fn verify_with_callback<F>(
         chain: &MbedtlsList<Certificate>,
         trust_ca: &MbedtlsList<Certificate>,
+        ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
         cb: F,
     ) -> Result<()>
     where
         F: VerifyCallback + 'static,
     {
-        Self::verify_ex(chain, trust_ca, err_info, Some(cb))
+        Self::verify_ex(chain, trust_ca, ca_crl, err_info, Some(cb))
     }
 }
 
@@ -1014,7 +1017,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             chain.push(c_leaf.clone());
             chain.push(c_int1.clone());
 
-            let err = Certificate::verify(&chain, &mut c_root, None).unwrap_err();
+            let err = Certificate::verify(&chain, &mut c_root, None, None).unwrap_err();
             assert_eq!(err, Error::X509CertVerifyFailed);
 
             // try again after fixing the chain
@@ -1028,8 +1031,8 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
                 Ok(())
             };
 
-            Certificate::verify(&chain, &mut c_root, None).unwrap();
-            let res = Certificate::verify_with_callback(&chain, &mut c_root, Some(&mut err_str), verify_callback);
+            Certificate::verify(&chain, &mut c_root, None, None).unwrap();
+            let res = Certificate::verify_with_callback(&chain, &mut c_root, None, Some(&mut err_str), verify_callback);
 
             match res {
                 Ok(()) => (),
@@ -1043,7 +1046,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             chain.push(c_int1.clone());
             chain.push(c_int2.clone());
 
-            Certificate::verify(&chain, &mut c_root, None).unwrap();
+            Certificate::verify(&chain, &mut c_root, None, None).unwrap();
 
             let verify_callback = |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
                 verify_flags.remove(VerifyError::CERT_EXPIRED);
@@ -1051,7 +1054,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             };
 
             let mut err_str = String::new();
-            let res = Certificate::verify_with_callback(&chain, &mut c_root, Some(&mut err_str), verify_callback);
+            let res = Certificate::verify_with_callback(&chain, &mut c_root, None, Some(&mut err_str), verify_callback);
 
             match res {
                 Ok(()) => (),
