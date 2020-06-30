@@ -14,7 +14,7 @@ impl super::BuildConfig {
     pub fn cmake(&self) {
         let mut cmk = cmake::Config::new(&self.mbedtls_src);
         cmk.cflag(format!(
-            r#"-DMBEDTLS_CONFIG_FILE="<{}>""#,
+            r#"-DMBEDTLS_CONFIG_FILE="\"{}\"""#,
             self.config_h.to_str().expect("config.h UTF-8 error")
         ))
         .define("ENABLE_PROGRAMS", "OFF")

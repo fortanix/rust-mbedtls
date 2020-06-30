@@ -79,7 +79,7 @@ impl super::BuildConfig {
         let bindings = bindgen::Builder::default()
             .header(header.into_os_string().into_string().unwrap())
             .clang_arg(format!(
-                "-DMBEDTLS_CONFIG_FILE=<{}>",
+                "-DMBEDTLS_CONFIG_FILE=\"{}\"",
                 self.config_h.to_str().expect("config.h UTF-8 error")
             ))
             .clang_arg(format!(
