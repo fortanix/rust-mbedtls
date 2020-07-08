@@ -13,7 +13,7 @@ extern crate serde_cbor;
 
 use mbedtls::cipher;
 use mbedtls::cipher::raw::{CipherId, CipherMode, CipherPadding};
-use mbedtls::cipher::{Cipher, Decryption, Encryption, Fresh, Traditional};
+use mbedtls::cipher::{Cipher, Decryption, Encryption, Fresh, Authenticated, Traditional};
 use serde_cbor::{de, ser};
 
 const ZERO_16B: &'static [u8] = &[0u8; 16];
@@ -41,7 +41,7 @@ fn save_restore_aes_cbc_enc_nopad() {
     // use rustc_serialize::hex::ToHex;
     // println!("{:?}", saved.as_slice().to_hex());
 
-    let cipher_r = de::from_slice::<Cipher<Encryption, _, _>>(saved.as_slice()).unwrap();
+    let cipher_r = de::from_slice::<Cipher<Encryption, Traditional, _>>(saved.as_slice()).unwrap();
 
     let (len2, cipher_d2) = cipher_r.update(ZERO_16B, &mut ct[16..48]).unwrap();
     assert_eq!(len2, 16);
@@ -75,7 +75,7 @@ fn save_restore_aes_cbc_enc_pkcs7() {
     // use rustc_serialize::hex::ToHex;
     // println!("{:?}", saved.as_slice().to_hex());
 
-    let cipher_r = de::from_slice::<Cipher<Encryption, _, _>>(saved.as_slice()).unwrap();
+    let cipher_r = de::from_slice::<Cipher<Encryption, Traditional, _>>(saved.as_slice()).unwrap();
 
     let (len2, cipher_d2) = cipher_r.update(ZERO_16B, &mut ct[16..48]).unwrap();
     assert_eq!(len2, 16);
@@ -110,7 +110,7 @@ fn save_restore_aes_cbc_dec_nopad() {
     // use rustc_serialize::hex::ToHex;
     // println!("{:?}", saved.as_slice().to_hex());
 
-    let cipher_r = de::from_slice::<Cipher<Decryption, _, _>>(saved.as_slice()).unwrap();
+    let cipher_r = de::from_slice::<Cipher<Decryption, Traditional, _>>(saved.as_slice()).unwrap();
 
     let (len2, cipher_d2) = cipher_r.update(&ct[16..32], &mut pt[16..48]).unwrap();
     assert_eq!(len2, 16);
@@ -146,7 +146,7 @@ fn save_restore_aes_cbc_dec_pkcs7() {
     // use rustc_serialize::hex::ToHex;
     // println!("{:?}", saved.as_slice().to_hex());
 
-    let cipher_r = de::from_slice::<Cipher<Decryption, _, _>>(saved.as_slice()).unwrap();
+    let cipher_r = de::from_slice::<Cipher<Decryption, Traditional, _>>(saved.as_slice()).unwrap();
 
     let (len2, cipher_d2) = cipher_r.update(&ct[16..48], &mut pt[0..48]).unwrap();
     assert_eq!(len2, 32);
@@ -172,7 +172,83 @@ fn save_restore_wrong_type() {
     let saved = ser::to_vec(&cipher_d1).unwrap();
 
     // Try to restore the saved encrypt state as a decrypt
-    de::from_slice::<Cipher<Decryption, _, _>>(saved.as_slice())
+    de::from_slice::<Cipher<Decryption, Traditional, _>>(saved.as_slice())
         .err()
         .expect("shouldn't have been able to deserialize with wrong operation");
+}
+
+#[test]
+fn save_restore_aes_gcm_enc() {
+    let mut ct: [u8; 48] = [0; 48];
+    let expected_ct: [u8; 32] = [
+        0xa3, 0xb2, 0x2b, 0x84, 0x49, 0xaf, 0xaf, 0xbc, 0xd6, 0xc0, 0x9f, 0x2c, 0xfa, 0x9d, 0xe2,
+        0xbe, 0x93, 0x8f, 0x8b, 0xbf, 0x23, 0x58, 0x63, 0xd0, 0xce, 0x02, 0x84, 0x27, 0x22, 0xfd,
+        0x50, 0x34
+    ];
+
+    let mut tag: [u8; 8] = [0; 8];
+    let expected_tag: [u8; 8] = [0x2a, 0x71, 0x95, 0xb4, 0x4b, 0xf6, 0x3c, 0x2d];
+
+    let cipher =
+        cipher::Cipher::<Encryption, Authenticated, Fresh>::new(CipherId::Aes, CipherMode::GCM, 128)
+            .unwrap();
+
+    let cipher_k = cipher.set_key_iv(ZERO_16B, ZERO_16B).unwrap();
+
+    let cipher_a = cipher_k.set_ad(ZERO_16B).unwrap();
+
+    let (len1, cipher_d1) = cipher_a.update(ZERO_16B, &mut ct[0..32]).unwrap();
+    assert_eq!(len1, 16);
+
+    let saved = ser::to_vec(&cipher_d1).unwrap();
+
+    let cipher_r = de::from_slice::<Cipher<Encryption, Authenticated, _>>(saved.as_slice()).unwrap();
+
+    let (len2, cipher_d2) = cipher_r.update(ZERO_16B, &mut ct[16..48]).unwrap();
+    assert_eq!(len2, 16);
+
+    let (len3, cipher_f) = cipher_d2.finish(&mut ct[32..48]).unwrap();
+
+    cipher_f.write_tag(&mut tag).unwrap();
+
+    assert_eq!(len3, 0);
+    assert_eq!(&ct[0..32], &expected_ct[..]);
+    assert_eq!(tag, expected_tag);
+}
+
+#[test]
+fn save_restore_aes_gcm_dec() {
+    let mut pt: [u8; 48] = [0; 48];
+    let ct: [u8; 32] =  [
+        0xa3, 0xb2, 0x2b, 0x84, 0x49, 0xaf, 0xaf, 0xbc, 0xd6, 0xc0, 0x9f, 0x2c, 0xfa, 0x9d, 0xe2,
+        0xbe, 0x93, 0x8f, 0x8b, 0xbf, 0x23, 0x58, 0x63, 0xd0, 0xce, 0x02, 0x84, 0x27, 0x22, 0xfd,
+        0x50, 0x34
+    ];
+    let tag: [u8; 8] = [ 0x2a, 0x71, 0x95, 0xb4, 0x4b, 0xf6, 0x3c, 0x2d ];
+
+    let cipher =
+        cipher::Cipher::<Decryption, Authenticated, Fresh>::new(CipherId::Aes, CipherMode::GCM, 128)
+            .unwrap();
+
+    let cipher_k = cipher.set_key_iv(ZERO_16B, ZERO_16B).unwrap();
+
+    let cipher_a = cipher_k.set_ad(ZERO_16B).unwrap();
+
+    let (len1, cipher_d1) = cipher_a.update(&ct[0..16], &mut pt[0..32]).unwrap();
+    assert_eq!(len1, 16);
+
+    let saved = ser::to_vec(&cipher_d1).unwrap();
+
+    let cipher_r = de::from_slice::<Cipher<Decryption, Authenticated, _>>(saved.as_slice()).unwrap();
+
+    let (len2, cipher_d2) = cipher_r.update(&ct[16..32], &mut pt[16..48]).unwrap();
+    assert_eq!(len2, 16);
+
+    let (len3, cipher_f) = cipher_d2.finish(&mut pt[32..48]).unwrap();
+
+    cipher_f.check_tag(&tag).unwrap();
+
+    assert_eq!(len3, 0);
+    assert_eq!(&pt[0..16], ZERO_16B);
+    assert_eq!(&pt[16..32], ZERO_16B);
 }

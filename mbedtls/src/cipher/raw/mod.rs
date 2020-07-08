@@ -219,6 +219,10 @@ impl Cipher {
         unsafe { cipher_reset(&mut self.inner).into_result_discard() }
     }
 
+    pub fn update_ad(&mut self, ad: &[u8]) -> Result<()> {
+        unsafe { cipher_update_ad(&mut self.inner, ad.as_ptr(), ad.len()).into_result_discard() }
+    }
+
     pub fn update(&mut self, indata: &[u8], outdata: &mut [u8]) -> Result<usize> {
         // Check that minimum required space is available in outdata buffer
         let reqd_size = if unsafe { *self.inner.cipher_info }.mode == MODE_ECB {
@@ -276,6 +280,10 @@ impl Cipher {
     // Utility function to get IV size for the selected / setup cipher_info
     pub fn iv_size(&self) -> usize {
         unsafe { (*self.inner.cipher_info).iv_size as usize }
+    }
+
+    pub fn cipher_mode(&self) -> CipherMode {
+        unsafe { (*self.inner.cipher_info).mode.into() }
     }
 
     // Utility function to get mdoe for the selected / setup cipher_info
