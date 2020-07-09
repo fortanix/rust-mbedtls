@@ -38,6 +38,8 @@ pub use crate::ecp::EcGroup;
 // SHA-256("Fortanix")[:4]
 const CUSTOM_PK_TYPE: pk_type_t = 0x8b205408 as pk_type_t;
 
+const RAW_RSA_DECRYPT : i32 = 2147483647;
+
 define!(
     #[c_ty(pk_type_t)]
     #[derive(Copy, Clone, PartialEq, Debug)]
@@ -72,6 +74,7 @@ impl From<pk_type_t> for Type {
 
 pub enum RsaPadding {
     Pkcs1V15,
+    RawDecrypt,
     /// Use OAEP for encryption, or PSS for signing.
     Pkcs1V21 {
         /// The Mask Generating Function (MGF) to use.
@@ -292,6 +295,11 @@ impl Pk {
                 | (Type::RsassaPss, Options::Rsa { padding }) => {
                     let (padding, hash_id) = match padding {
                         RsaPadding::Pkcs1V15 => (RSA_PKCS_V15, 0),
+                        RsaPadding::RawDecrypt => {
+                            let ctx = self.inner.pk_ctx as *mut rsa_context;
+                            (*ctx).padding = RAW_RSA_DECRYPT; // denotes RawDecrypt padding being set
+                            return;
+                        }
                         RsaPadding::Pkcs1V21 { mgf } => (RSA_PKCS_V21, mgf.into()),
                     };
                     rsa_set_padding(self.inner.pk_ctx as *mut rsa_context, padding, hash_id as _);
@@ -498,7 +506,21 @@ impl Pk {
         plain: &mut [u8],
         rng: &mut F,
     ) -> Result<usize> {
+        let ctx = self.inner.pk_ctx as *mut rsa_context;
         let mut ret = ::core::mem::MaybeUninit::uninit();
+        if unsafe { (*ctx).padding  == RAW_RSA_DECRYPT } {
+            let ret = unsafe {
+                rsa_private(
+                    ctx,
+                    Some(F::call),
+                    rng.data_ptr(),
+                    cipher.as_ptr(),
+                    plain.as_mut_ptr()
+                ).into_result()?;
+                ret.assume_init()
+            };
+            return Ok(ret);
+        }
         let ret = unsafe {
             pk_decrypt(
                 &mut self.inner,
