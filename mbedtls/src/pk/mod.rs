@@ -492,7 +492,7 @@ impl Pk {
         Ok(d)
     }
 
-    pub fn rsa_crt_dp(&self) -> Result<Mpi> {
+    pub fn rsa_crt_dmp1(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
             _ => return Err(Error::PkTypeMismatch),
@@ -513,7 +513,7 @@ impl Pk {
         Ok(dp)
     }
 
-    pub fn rsa_crt_dq(&self) -> Result<Mpi> {
+    pub fn rsa_crt_dmq1(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
             _ => return Err(Error::PkTypeMismatch),
@@ -534,7 +534,7 @@ impl Pk {
         Ok(dq)
     }
 
-    pub fn rsa_crt_qp(&self) -> Result<Mpi> {
+    pub fn rsa_crt_iqmp(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
             _ => return Err(Error::PkTypeMismatch),
@@ -1372,9 +1372,9 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         let p = pk.rsa_private_prime1().unwrap();
         let q = pk.rsa_private_prime2().unwrap();
 
-        let dp = pk.rsa_crt_dp().unwrap();
-        let dq = pk.rsa_crt_dq().unwrap();
-        let qp = pk.rsa_crt_qp().unwrap();
+        let dp = pk.rsa_crt_dmp1().unwrap();
+        let dq = pk.rsa_crt_dmq1().unwrap();
+        let qp = pk.rsa_crt_iqmp().unwrap();
 
         let one = Mpi::new(1).unwrap();
 
