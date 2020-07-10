@@ -2,9 +2,22 @@
 
 # compat.sh
 #
-# This file is part of mbed TLS (https://tls.mbed.org)
-#
 # Copyright (c) 2012-2016, ARM Limited, All Rights Reserved
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# This file is part of Mbed TLS (https://tls.mbed.org)
 #
 # Purpose
 #
@@ -14,6 +27,10 @@
 # with and without client authentication.
 
 set -u
+
+# Limit the size of each log to 10 GiB, in case of failures with this script
+# where it may output seemingly unlimited length error logs.
+ulimit -f 20971520
 
 # initialise counters
 TESTS=0
@@ -212,14 +229,13 @@ filter_ciphersuites()
         G_CIPHERS=$( filter "$G_CIPHERS" )
     fi
 
-    # OpenSSL 1.0.1h doesn't support DTLS 1.2
-    if [ `minor_ver "$MODE"` -ge 3 ] && is_dtls "$MODE"; then
+    # OpenSSL <1.0.2 doesn't support DTLS 1.2. Check what OpenSSL
+    # supports from the s_server help. (The s_client help isn't
+    # accurate as of 1.0.2g: it supports DTLS 1.2 but doesn't list it.
+    # But the s_server help seems to be accurate.)
+    if ! $OPENSSL_CMD s_server -help 2>&1 | grep -q "^ *-$MODE "; then
+        M_CIPHERS=""
         O_CIPHERS=""
-        case "$PEER" in
-            [Oo]pen*)
-                M_CIPHERS=""
-                ;;
-        esac
     fi
 
     # For GnuTLS client -> mbed TLS server,

@@ -30,7 +30,7 @@
 #include <stddef.h>
 
 #if !defined(MBEDTLS_CONFIG_FILE)
-#include "config.h"
+#include "mbedtls/config.h"
 #else
 #include MBEDTLS_CONFIG_FILE
 #endif
@@ -103,6 +103,8 @@ typedef struct mbedtls_md_context_t
 /**
  * \brief           This function returns the list of digests supported by the
  *                  generic digest module.
+ *
+ * \note            The list starts with the strongest available hashes.
  *
  * \return          A statically allocated array of digests. Each element
  *                  in the returned list is an integer belonging to the
