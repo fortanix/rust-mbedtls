@@ -28,6 +28,7 @@ byteorder = "1.0.0"
 yasna = { version = "0.2", optional = true }
 block-modes = { version = "0.3", optional = true }
 rc2 = { version = "0.3", optional = true }
+rand = "0.4.0"
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.1.0"
@@ -40,7 +41,6 @@ path = "../mbedtls-sys"
 
 [dev-dependencies]
 libc = "0.2.0"
-rand = "0.4.0"
 serde_cbor = "0.6"
 hex = "0.3"
 matches = "0.1.8"
