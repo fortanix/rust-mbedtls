@@ -16,7 +16,6 @@ mod mod_bindgen;
 #[path = "cmake.rs"]
 mod mod_cmake;
 
-use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::Write;
@@ -40,10 +39,7 @@ struct BuildConfig {
 impl BuildConfig {
     fn create_config_h(&self) {
         let target = env::var("TARGET").unwrap();
-        let mut defines = config::DEFAULT_DEFINES
-            .iter()
-            .cloned()
-            .collect::<HashMap<_, _>>();
+        let mut defines = config::default_defines();
         for &(feat, def) in config::FEATURE_DEFINES {
             if (feat == "std") && (target == "x86_64-fortanix-unknown-sgx") {
                 continue;
@@ -64,6 +60,10 @@ impl BuildConfig {
                 }
                 if have_feature("custom_threading") {
                     writeln!(f, "typedef void* mbedtls_threading_mutex_t;")?;
+                }
+                if have_feature("custom_time") {
+                    writeln!(f, "#include <time.h>")?;
+                    writeln!(f, "time_t mbedtls_time(time_t *);")?;
                 }
                 f.write_all(config::SUFFIX.as_bytes())
             })
