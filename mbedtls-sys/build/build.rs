@@ -65,6 +65,10 @@ impl BuildConfig {
                 if have_feature("custom_threading") {
                     writeln!(f, "typedef void* mbedtls_threading_mutex_t;")?;
                 }
+                if have_feature("custom_time") {
+                    writeln!(f, "typedef int64_t time_t;")?;
+                    writeln!(f, "time_t mbedtls_time(time_t *);")?;
+                }
                 f.write_all(config::SUFFIX.as_bytes())
             })
             .expect("config.h I/O error");
