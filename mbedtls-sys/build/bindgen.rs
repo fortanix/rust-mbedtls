@@ -43,7 +43,7 @@ impl super::BuildConfig {
             .log(&logger)
             .clang_arg("-Dmbedtls_t_udbl=mbedtls_t_udbl;") // bindgen can't handle unused uint128
             .clang_arg(format!(
-                "-DMBEDTLS_CONFIG_FILE=<{}>",
+                "-DMBEDTLS_CONFIG_FILE=\"{}\"",
                 self.config_h.to_str().expect("config.h UTF-8 error")
             )).clang_arg(format!(
                 "-I{}",
