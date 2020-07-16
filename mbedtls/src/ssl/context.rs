@@ -157,6 +157,13 @@ impl<'config> Context<'config> {
         }
     }
 
+    pub fn verify_result(&self) -> StdResult<(), VerifyError> {
+        match unsafe { ssl_get_verify_result(&self.inner) } {
+            0 => Ok(()),
+            flags => Err(VerifyError::from_bits_truncate(flags)),
+        }
+    }
+
     pub fn config(&self) -> &'config Config {
         unsafe { UnsafeFrom::from(self.inner.conf).expect("not null") }
     }

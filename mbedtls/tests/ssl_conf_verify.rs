@@ -54,7 +54,12 @@ fn client(mut conn: TcpStream, test: Test) -> TlsResult<()> {
             .err()
             .expect("should have failed"),
     ) {
-        (Test::CallbackSetVerifyFlags, Error::X509CertVerifyFailed) => {}
+        (Test::CallbackSetVerifyFlags, Error::X509CertVerifyFailed) => {
+            assert_eq!(
+                ctx.verify_result().unwrap_err(),
+                VerifyError::CERT_OTHER | VerifyError::CERT_NOT_TRUSTED,
+            );
+        }
         (Test::CallbackError, Error::Asn1InvalidData) => {}
         (_, err) => assert!(false, "Unexpected error from ctx.establish(): {:?}", err),
     }
