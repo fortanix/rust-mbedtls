@@ -38,6 +38,8 @@ pub use crate::ecp::EcGroup;
 // SHA-256("Fortanix")[:4]
 const CUSTOM_PK_TYPE: pk_type_t = 0x8b205408 as pk_type_t;
 
+const RAW_RSA_DECRYPT : i32 = 1040451858;
+
 define!(
     #[c_ty(pk_type_t)]
     #[derive(Copy, Clone, PartialEq, Debug)]
@@ -77,6 +79,7 @@ pub enum RsaPadding {
         /// The Mask Generating Function (MGF) to use.
         mgf: MdType,
     },
+    None,
 }
 
 pub enum Options {
@@ -293,6 +296,11 @@ impl Pk {
                     let (padding, hash_id) = match padding {
                         RsaPadding::Pkcs1V15 => (RSA_PKCS_V15, 0),
                         RsaPadding::Pkcs1V21 { mgf } => (RSA_PKCS_V21, mgf.into()),
+                        RsaPadding::None => {
+                            let ctx = self.inner.pk_ctx as *mut rsa_context;
+                            (*ctx).padding = RAW_RSA_DECRYPT; // denotes RawDecrypt padding being set
+                            return;
+                        }
                     };
                     rsa_set_padding(self.inner.pk_ctx as *mut rsa_context, padding, hash_id as _);
                 }
@@ -499,6 +507,22 @@ impl Pk {
         rng: &mut F,
     ) -> Result<usize> {
         let mut ret = ::core::mem::MaybeUninit::uninit();
+        if self.pk_type() == Type::Rsa {
+            let ctx = self.inner.pk_ctx as *mut rsa_context;
+            if unsafe { (*ctx).padding  == RAW_RSA_DECRYPT } {
+                let ret = unsafe {
+                    rsa_private(
+                        ctx,
+                        Some(F::call),
+                        rng.data_ptr(),
+                        cipher.as_ptr(),
+                        plain.as_mut_ptr()
+                    ).into_result()?;
+                    ret.assume_init()
+                };
+                return Ok(ret);
+            }
+        }
         let ret = unsafe {
             pk_decrypt(
                 &mut self.inner,
@@ -1062,6 +1086,88 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             cipher2.len()
         );
         assert_ne!(&cipher1[..], &cipher2[..]);
+    }
+
+    #[test]
+    fn encrypt_raw_decrypt_with_pkcs1_v15() {
+        let mut pk = Pk::from_private_key(TEST_DER, None).unwrap();
+        let mut cipher = [0u8; 2048 / 8];
+        let mut rng = crate::test_support::rand::test_rng();
+        pk.set_options(Options::Rsa {
+            padding: RsaPadding::Pkcs1V15
+        });
+        assert_eq!(
+            pk.encrypt(b"test", &mut cipher, &mut rng)
+                .unwrap(),
+            cipher.len()
+        );
+        let mut decrypted_data1 = [0u8; 2048 / 8];
+        let length_without_padding = pk.decrypt(&cipher, &mut decrypted_data1, &mut rng).unwrap();
+        // set raw decryption padding mode to perform raw decryption
+        pk.set_options(Options::Rsa {
+            padding: RsaPadding::None
+        });
+        let mut decrypted_data2 = [0u8; 2048 / 8];
+        let length_with_padding = pk.decrypt(&cipher, &mut decrypted_data2, &mut rng).unwrap();
+        // compare lengths of the decrypted texts
+        assert_ne!(length_without_padding, length_with_padding);
+        assert_eq!(decrypted_data2.len(), cipher.len());
+    }
+
+    #[test]
+    fn rsa_encrypt_with_no_padding() {
+        let mut pk = Pk::from_private_key(TEST_DER, None).unwrap();
+        let mut cipher = [0u8; 2048 / 8];
+        // set raw decryption padding mode
+        pk.set_options(Options::Rsa {
+            padding: RsaPadding::None
+        });
+        assert_eq!(
+            pk.encrypt(b"test", &mut cipher, &mut crate::test_support::rand::test_rng())
+                .unwrap_err(),
+            Error::RsaInvalidPadding
+        );
+    }
+
+    #[test]
+    fn rsa_sign_with_none_padding() {
+        let mut pk =
+            Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
+        let data = b"SIGNATURE TEST SIGNATURE TEST SI";
+        let mut signature = vec![0u8; (pk.len() + 7) / 8];
+        // set raw decryption padding mode
+        pk.set_options(Options::Rsa {
+            padding: RsaPadding::None,
+        });
+        assert_eq!(
+            pk.sign(Type::Sha256, data, &mut signature, &mut crate::test_support::rand::test_rng())
+                .unwrap_err(),
+            Error::RsaInvalidPadding
+        );
+    }
+
+    #[test]
+    fn rsa_verify_with_none_padding() {
+        let mut pk =
+            Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
+        let data = b"SIGNATURE TEST SIGNATURE TEST SI";
+        let mut signature = vec![0u8; (pk.len() + 7) / 8];
+
+        let digest = Type::Sha256;
+        pk.set_options(Options::Rsa {
+            padding: RsaPadding::Pkcs1V21 { mgf: digest },
+        });
+        let len = pk.sign(digest, data, &mut signature, &mut crate::test_support::rand::test_rng())
+            .unwrap();
+        // set raw decryption padding mode
+        pk.set_options(Options::Rsa {
+            padding: RsaPadding::None,
+        });
+        assert_eq!(
+            pk.verify(digest, data, &signature[0..len])
+                .unwrap_err(),
+            Error::RsaInvalidPadding
+        );
     }
 
     #[test]

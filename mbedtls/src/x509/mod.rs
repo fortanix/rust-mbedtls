@@ -6,6 +6,9 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+#[cfg(not(feature = "std"))]
+use crate::alloc_prelude::*;
+
 pub mod certificate;
 mod crl;
 pub mod csr;
@@ -74,6 +77,45 @@ bitflags! {
         const CUSTOM_BIT_29      = 0x2000_0000;
         const CUSTOM_BIT_30      = 0x4000_0000;
         const CUSTOM_BIT_31      = 0x8000_0000;
+    }
+}
+
+impl VerifyError {
+    pub fn error_info(&self) -> Vec<&'static str> {
+        macro_rules! map {
+            ( $e:expr, $v:expr, $( $variant:ident -> $msg:expr , )* ) => {{
+                $(
+                    if $e.contains(VerifyError::$variant) {
+                        $v.push($msg);
+                    }
+                )*
+            }}
+        }
+        let mut v = Vec::new();
+        map!{
+            self, v,
+            CERT_BAD_KEY       -> "The certificate is signed with an unacceptable key (eg bad curve, RSA too short).",
+            CERT_BAD_MD        -> "The certificate is signed with an unacceptable hash.",
+            CERT_BAD_PK        -> "The certificate is signed with an unacceptable PK alg (eg RSA vs ECDSA).",
+            CERT_CN_MISMATCH   -> "The certificate Common Name (CN) does not match with the expected CN.",
+            CERT_EXPIRED       -> "The certificate validity has expired.",
+            CERT_EXT_KEY_USAGE -> "Usage does not match the extendedKeyUsage extension.",
+            CERT_FUTURE        -> "The certificate validity starts in the future.",
+            CERT_KEY_USAGE     -> "Usage does not match the keyUsage extension.",
+            CERT_MISSING       -> "Certificate was missing.",
+            CERT_NOT_TRUSTED   -> "The certificate is not correctly signed by the trusted CA.",
+            CERT_NS_CERT_TYPE  -> "Usage does not match the nsCertType extension.",
+            CERT_OTHER         -> "Other reason (can be used by verify callback).",
+            CERT_REVOKED       -> "The certificate has been revoked (is on a CRL).",
+            CERT_SKIP_VERIFY   -> "Certificate verification was skipped.",
+            CRL_BAD_KEY        -> "The CRL is signed with an unacceptable key (eg bad curve, RSA too short).",
+            CRL_BAD_MD         -> "The CRL is signed with an unacceptable hash.",
+            CRL_BAD_PK         -> "The CRL is signed with an unacceptable PK alg (eg RSA vs ECDSA).",
+            CRL_EXPIRED        -> "The CRL is expired.",
+            CRL_FUTURE         -> "The CRL is from the future.",
+            CRL_NOT_TRUSTED    -> "The CRL is not correctly signed by the trusted CA.",
+        }
+        v
     }
 }
 
