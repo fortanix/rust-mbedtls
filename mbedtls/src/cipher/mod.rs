@@ -17,6 +17,7 @@ pub trait Operation: Sized {
     fn is_encrypt() -> bool;
 }
 
+#[derive(Serialize, Deserialize)]
 pub enum Encryption {}
 impl Operation for Encryption {
     fn is_encrypt() -> bool {
@@ -24,6 +25,7 @@ impl Operation for Encryption {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub enum Decryption {}
 impl Operation for Decryption {
     fn is_encrypt() -> bool {
@@ -124,6 +126,10 @@ impl<O: Operation, T: Type, S: State> Cipher<O, T, S> {
             None
         }
     }
+
+    pub fn cipher_mode(&self) -> raw::CipherMode {
+        self.raw_cipher.cipher_mode()
+    }
 }
 
 impl<O: Operation, T: Type> Cipher<O, T, Fresh> {
@@ -207,6 +213,20 @@ impl<O: Operation> Cipher<O, Authenticated, Fresh> {
         iv: &[u8],
     ) -> Result<Cipher<O, Authenticated, AdditionalData>> {
         self.set_key_and_maybe_iv(key, Some(iv))?;
+
+        // Put together the structure to return
+        Ok(self.change_state())
+    }
+}
+
+impl<O: Operation> Cipher<O, Authenticated, AdditionalData> {
+    pub fn set_ad(
+        mut self,
+        ad: &[u8]
+    ) -> Result<Cipher<O, Authenticated, CipherData>> {
+
+        // For AEAD add AD
+        self.raw_cipher.update_ad(ad)?;
 
         // Put together the structure to return
         Ok(self.change_state())
@@ -303,6 +323,22 @@ impl<O: Operation, T: Type> Cipher<O, T, CipherData> {
 
         // Put together the structure to return
         Ok((len, self.change_state()))
+    }
+}
+
+impl<O: Operation> Cipher<O, Authenticated, Finished> {
+    pub fn write_tag(mut self, out_tag: &mut [u8]) -> Result<Cipher<O, Authenticated, Finished>> {
+        self.raw_cipher.write_tag(out_tag)?;
+
+        // Put together the structure to return
+        Ok(self.change_state())
+    }
+
+    pub fn check_tag(mut self, tag: &[u8]) -> Result<Cipher<O, Authenticated, Finished>> {
+        self.raw_cipher.check_tag(tag)?;
+
+        // Put together the structure to return
+        Ok(self.change_state())
     }
 }
 

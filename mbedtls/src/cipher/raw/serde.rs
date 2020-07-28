@@ -46,68 +46,23 @@ enum AlgorithmContext {
     Aes(Bytes<aes_context>),
     Des(Bytes<des_context>),
     Des3(Bytes<des3_context>),
+    Gcm {
+        context: Bytes<gcm_context>,
+        inner_cipher_ctx: Box<SavedRawCipher>
+    }
 }
 
-// Serialization support for cipher structs. We only support serialization for traditional (not
-// AEAD) ciphers, and only in the "data" state.
+// Serialization support for cipher structs. We only support serialization in the "data" state.
 
-impl<Op: Operation> Serialize for Cipher<Op, Traditional, CipherData> {
+impl<Op: Operation, T: Type> Serialize for Cipher<Op, T, CipherData> {
     fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         let saved_raw_cipher = unsafe {
-            let mut cipher_context = self.raw_cipher.inner;
-
-            let cipher_id = (*(*cipher_context.cipher_info).base).cipher;
-            let cipher_mode = (*cipher_context.cipher_info).mode;
-            let key_bit_len = (*cipher_context.cipher_info).key_bitlen;
-
-            // Null the cipher info now that we've extracted the important bits.
-            cipher_context.cipher_info = ::core::ptr::null();
-
-            // We only allow certain modes that we know have serialization-safe context
-            // structures. If adding GCM/CCM support, be aware that they don't use the same
-            // context types as the conventional modes.
-            let algorithm_ctx = match (cipher_id, cipher_mode) {
-                (CIPHER_ID_AES, MODE_CBC)
-                | (CIPHER_ID_AES, MODE_CTR)
-                | (CIPHER_ID_AES, MODE_CFB) => {
-                    let mut aes_context = *(cipher_context.cipher_ctx as *const aes_context);
-                    aes_context.rk = ::core::ptr::null_mut();
-                    AlgorithmContext::Aes(Bytes(aes_context))
-                }
-                (CIPHER_ID_DES, MODE_CBC)
-                | (CIPHER_ID_DES, MODE_CTR)
-                | (CIPHER_ID_DES, MODE_CFB) => {
-                    AlgorithmContext::Des(Bytes(*(cipher_context.cipher_ctx as *const des_context)))
-                }
-                (CIPHER_ID_3DES, MODE_CBC)
-                | (CIPHER_ID_3DES, MODE_CTR)
-                | (CIPHER_ID_3DES, MODE_CFB) => AlgorithmContext::Des3(Bytes(
-                    *(cipher_context.cipher_ctx as *const des3_context),
-                )),
-                _ => {
-                    return Err(ser::Error::custom(
-                        "unsupported algorithm for serialization",
-                    ));
-                }
-            };
-
-            // Null the algorithm context
-            cipher_context.cipher_ctx = ::core::ptr::null_mut();
-
-            // Null function pointers
-            cipher_context.add_padding = None;
-            cipher_context.get_padding = None;
-
-            SavedRawCipher {
-                cipher_id: cipher_id,
-                cipher_mode: cipher_mode,
-                key_bit_len: key_bit_len,
-                context: Bytes(cipher_context),
-                algorithm_ctx: algorithm_ctx,
-            }
+            let cipher_context = self.raw_cipher.inner;
+            serialize_raw_cipher(cipher_context)
+                .map_err(ser::Error::custom)?
         };
 
         match Op::is_encrypt() {
@@ -117,8 +72,73 @@ impl<Op: Operation> Serialize for Cipher<Op, Traditional, CipherData> {
     }
 }
 
-impl<'de, Op: Operation> Deserialize<'de> for Cipher<Op, Traditional, CipherData> {
-    fn deserialize<D>(d: D) -> Result<Cipher<Op, Traditional, CipherData>, D::Error>
+unsafe fn serialize_raw_cipher(mut cipher_context: cipher_context_t)
+    -> Result<SavedRawCipher, &'static str> {
+
+    let cipher_id = (*(*cipher_context.cipher_info).base).cipher;
+    let cipher_mode = (*cipher_context.cipher_info).mode;
+    let key_bit_len = (*cipher_context.cipher_info).key_bitlen;
+
+    // Null the cipher info now that we've extracted the important bits.
+    cipher_context.cipher_info = ::core::ptr::null();
+
+    // We only allow certain modes that we know have serialization-safe context
+    // structures. If adding GCM/CCM support, be aware that they don't use the same
+    // context types as the conventional modes.
+    let algorithm_ctx = match (cipher_id, cipher_mode) {
+        (CIPHER_ID_AES, MODE_CBC)
+        | (CIPHER_ID_AES, MODE_CTR)
+        | (CIPHER_ID_AES, MODE_CFB)
+        | (CIPHER_ID_AES, MODE_ECB) => {
+            let mut aes_context = *(cipher_context.cipher_ctx as *const aes_context);
+            aes_context.rk = ::core::ptr::null_mut();
+            AlgorithmContext::Aes(Bytes(aes_context))
+        }
+        (CIPHER_ID_DES, MODE_CBC)
+        | (CIPHER_ID_DES, MODE_CTR)
+        | (CIPHER_ID_DES, MODE_CFB) => {
+            AlgorithmContext::Des(Bytes(*(cipher_context.cipher_ctx as *const des_context)))
+        }
+        (CIPHER_ID_3DES, MODE_CBC)
+        | (CIPHER_ID_3DES, MODE_CTR)
+        | (CIPHER_ID_3DES, MODE_CFB) => AlgorithmContext::Des3(Bytes(
+            *(cipher_context.cipher_ctx as *const des3_context),
+        )),
+        (CIPHER_ID_AES, MODE_GCM) => {
+            let gcm_context = *(cipher_context.cipher_ctx as *const gcm_context);
+
+            let inner_ctx = gcm_context.cipher_ctx;
+
+            let inner_saved_cipher = serialize_raw_cipher(inner_ctx)?;
+
+            AlgorithmContext::Gcm {
+                context: Bytes(gcm_context),
+                inner_cipher_ctx: Box::new(inner_saved_cipher)
+            }
+        },
+        _ => {
+            return Err("unsupported algorithm for serialization");
+        }
+    };
+
+    // Null the algorithm context
+    cipher_context.cipher_ctx = ::core::ptr::null_mut();
+
+    // Null function pointers
+    cipher_context.add_padding = None;
+    cipher_context.get_padding = None;
+
+    Ok(SavedRawCipher {
+        cipher_id: cipher_id,
+        cipher_mode: cipher_mode,
+        key_bit_len: key_bit_len,
+        context: Bytes(cipher_context),
+        algorithm_ctx: algorithm_ctx,
+    })
+}
+
+impl<'de, Op: Operation, T: Type> Deserialize<'de> for Cipher<Op, T, CipherData> {
+    fn deserialize<D>(d: D) -> Result<Cipher<Op, T, CipherData>, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -137,76 +157,85 @@ impl<'de, Op: Operation> Deserialize<'de> for Cipher<Op, Traditional, CipherData
                     &"decryption",
                 ));
             }
-            SavedCipher::Encryption(raw, padding) | SavedCipher::Decryption(raw, padding) => {
+            SavedCipher::Encryption(raw, padding) | SavedCipher::Decryption(raw, padding)
+            => {
                 (raw, padding)
             }
         };
 
-        let mut raw_cipher = match raw::Cipher::setup(
-            raw.cipher_id.into(),
-            raw.cipher_mode.into(),
-            raw.key_bit_len,
-        ) {
-            Ok(raw) => raw,
-            Err(_) => {
-                return Err(de::Error::invalid_value(
-                    Unexpected::Other("bad cipher parameters"),
-                    &"valid parameters",
-                ));
-            }
-        };
-
-        if raw.cipher_mode == MODE_CBC {
-            raw_cipher
-                .set_padding(padding)
-                .map_err(|_| de::Error::invalid_value(
-                    Unexpected::Other("bad padding mode"),
-                    &"valid mode"
-                ))?;
-        }
-
         unsafe {
-            let cipher_context = &mut raw_cipher.inner;
-
-            match (raw.cipher_id, raw.algorithm_ctx) {
-                (CIPHER_ID_AES, AlgorithmContext::Aes(Bytes(aes_ctx))) => {
-                    let ret_aes_ctx = cipher_context.cipher_ctx as *mut aes_context;
-                    *ret_aes_ctx = aes_ctx;
-                    // aes_ctx.rk needs to be a pointer to aes_ctx.buf, which holds the round keys.
-                    // We don't adjust for the padding needed on VIA Padlock (see definition of
-                    // mbedtls_aes_context in the mbedTLS source).
-                    (*ret_aes_ctx).rk = &mut (*ret_aes_ctx).buf[0];
-                }
-                (CIPHER_ID_DES, AlgorithmContext::Des(Bytes(des_ctx))) => {
-                    *(cipher_context.cipher_ctx as *mut des_context) = des_ctx
-                }
-                (CIPHER_ID_3DES, AlgorithmContext::Des3(Bytes(des3_ctx))) => {
-                    *(cipher_context.cipher_ctx as *mut des3_context) = des3_ctx
-                }
-                _ => {
-                    return Err(de::Error::invalid_value(
-                        Unexpected::Other("bad algorithm"),
-                        &"valid algorithm",
-                    ));
-                }
-            };
-
-            cipher_context.key_bitlen = raw.context.0.key_bitlen;
-            cipher_context.operation = raw.context.0.operation;
-            cipher_context.unprocessed_data = raw.context.0.unprocessed_data;
-            cipher_context.unprocessed_len = raw.context.0.unprocessed_len;
-            cipher_context.iv = raw.context.0.iv;
-            cipher_context.iv_size = raw.context.0.iv_size;
+            let raw_cipher = deserialize_raw_cipher(raw, padding)
+                .map_err(|(e1, e2)| de::Error::invalid_value(Unexpected::Other(e1), &e2))?;
+            Ok(Cipher {
+                raw_cipher: raw_cipher,
+                padding: padding,
+                _op: PhantomData,
+                _type: PhantomData,
+                _state: PhantomData,
+            })
         }
-
-        Ok(Cipher {
-            raw_cipher: raw_cipher,
-            padding: padding,
-            _op: PhantomData,
-            _type: PhantomData,
-            _state: PhantomData,
-        })
     }
+}
+
+unsafe fn deserialize_raw_cipher(raw: SavedRawCipher, padding: raw::CipherPadding)
+    -> Result<raw::Cipher, (&'static str, &'static str)> {
+
+    let mut raw_cipher = match raw::Cipher::setup(
+        raw.cipher_id.into(),
+        raw.cipher_mode.into(),
+        raw.key_bit_len,
+    ) {
+        Ok(raw) => raw,
+        Err(_) => {
+            return Err(("bad cipher parameters", "valid parameters"));
+        }
+    };
+
+    if raw.cipher_mode == MODE_CBC {
+        raw_cipher
+            .set_padding(padding)
+            .map_err(|_| ("bad padding mode", "valid mode"))?;
+    }
+
+    let cipher_context = &mut raw_cipher.inner;
+
+    match (raw.cipher_id, raw.algorithm_ctx) {
+        (CIPHER_ID_AES, AlgorithmContext::Aes(Bytes(aes_ctx))) => {
+            let ret_aes_ctx = cipher_context.cipher_ctx as *mut aes_context;
+            *ret_aes_ctx = aes_ctx;
+            // aes_ctx.rk needs to be a pointer to aes_ctx.buf, which holds the round keys.
+            // We don't adjust for the padding needed on VIA Padlock (see definition of
+            // mbedtls_aes_context in the mbedTLS source).
+            (*ret_aes_ctx).rk = &mut (*ret_aes_ctx).buf[0];
+        }
+        (CIPHER_ID_DES, AlgorithmContext::Des(Bytes(des_ctx))) => {
+            *(cipher_context.cipher_ctx as *mut des_context) = des_ctx
+        }
+        (CIPHER_ID_3DES, AlgorithmContext::Des3(Bytes(des3_ctx))) => {
+            *(cipher_context.cipher_ctx as *mut des3_context) = des3_ctx
+        }
+        (CIPHER_ID_AES, AlgorithmContext::Gcm {
+            context: Bytes(mut gcm_ctx),
+            inner_cipher_ctx
+        }) => {
+            let inner_raw_cipher = deserialize_raw_cipher(*inner_cipher_ctx, raw::CipherPadding::None)?;
+            gcm_ctx.cipher_ctx = inner_raw_cipher.into_inner();
+
+            *(cipher_context.cipher_ctx as *mut gcm_context) = gcm_ctx;
+        }
+        _ => {
+            return Err(("bad algorithm", "valid algorithm"));
+        }
+    };
+
+    cipher_context.key_bitlen = raw.context.0.key_bitlen;
+    cipher_context.operation = raw.context.0.operation;
+    cipher_context.unprocessed_data = raw.context.0.unprocessed_data;
+    cipher_context.unprocessed_len = raw.context.0.unprocessed_len;
+    cipher_context.iv = raw.context.0.iv;
+    cipher_context.iv_size = raw.context.0.iv_size;
+
+    Ok(raw_cipher)
 }
 
 // Serialization support for raw cipher structs. Custom serialization as a sequence to save the
@@ -294,6 +323,7 @@ unsafe impl BytesSerde for cipher_context_t {}
 unsafe impl BytesSerde for aes_context {}
 unsafe impl BytesSerde for des_context {}
 unsafe impl BytesSerde for des3_context {}
+unsafe impl BytesSerde for gcm_context {}
 
 // If the C API changes, the serde implementation needs to be reviewed for correctness.
 
@@ -312,3 +342,5 @@ unsafe fn _check_des_context_size(ctx: des_context) -> [u8; 128] {
 unsafe fn _check_des3_context_size(ctx: des3_context) -> [u8; 384] {
     ::core::mem::transmute(ctx)
 }
+
+unsafe fn _check_gcm_context_size(ctx: gcm_context) -> [u8; 424] { ::core::mem::transmute(ctx) }
