@@ -25,7 +25,7 @@ use support::keys;
 fn result_main(addr: &str) -> TlsResult<()> {
     let mut entropy = entropy_new();
     let mut rng = CtrDrbg::new(&mut entropy, None)?;
-    let mut cert = Certificate::from_pem(keys::PEM_CERT)?;
+    let mut cert = Certificate::from_pem(keys::ROOT_CA_CERT)?;
     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
     config.set_rng(Some(&mut rng));
     config.set_ca_list(Some(&mut *cert), None);
