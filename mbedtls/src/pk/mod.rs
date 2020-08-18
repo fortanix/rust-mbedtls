@@ -506,11 +506,15 @@ impl Pk {
         plain: &mut [u8],
         rng: &mut F,
     ) -> Result<usize> {
-        let mut ret = ::core::mem::MaybeUninit::uninit();
         if self.pk_type() == Type::Rsa {
             let ctx = self.inner.pk_ctx as *mut rsa_context;
             if unsafe { (*ctx).padding  == RAW_RSA_DECRYPT } {
-                let ret = unsafe {
+                let olen = self.len() / 8;
+                if plain.len() < olen {
+                    return Err(Error::RsaOutputTooLarge);
+                }
+
+                unsafe {
                     rsa_private(
                         ctx,
                         Some(F::call),
@@ -518,11 +522,12 @@ impl Pk {
                         cipher.as_ptr(),
                         plain.as_mut_ptr()
                     ).into_result()?;
-                    ret.assume_init()
                 };
-                return Ok(ret);
+                return Ok(olen);
             }
         }
+
+        let mut ret = ::core::mem::MaybeUninit::uninit();
         let ret = unsafe {
             pk_decrypt(
                 &mut self.inner,
