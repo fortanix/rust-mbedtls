@@ -1107,13 +1107,14 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             cipher.len()
         );
         let mut decrypted_data1 = [0u8; 2048 / 8];
-        let length_without_padding = pk.decrypt(&cipher, &mut decrypted_data1, &mut rng).unwrap();
+        let length_with_padding = pk.decrypt(&cipher, &mut decrypted_data1, &mut rng).unwrap();
         // set raw decryption padding mode to perform raw decryption
         pk.set_options(Options::Rsa {
             padding: RsaPadding::None
         });
         let mut decrypted_data2 = [0u8; 2048 / 8];
-        let length_with_padding = pk.decrypt(&cipher, &mut decrypted_data2, &mut rng).unwrap();
+        let length_without_padding = pk.decrypt(&cipher, &mut decrypted_data2, &mut rng).unwrap();
+        assert_eq!(length_without_padding, decrypted_data2.len());
         // compare lengths of the decrypted texts
         assert_ne!(length_without_padding, length_with_padding);
         assert_eq!(decrypted_data2.len(), cipher.len());
