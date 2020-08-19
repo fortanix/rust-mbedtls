@@ -527,19 +527,18 @@ impl Pk {
             }
         }
 
-        let mut ret = ::core::mem::MaybeUninit::uninit();
-        let ret = unsafe {
+        let mut ret = 0usize;
+        unsafe {
             pk_decrypt(
                 &mut self.inner,
                 cipher.as_ptr(),
                 cipher.len(),
                 plain.as_mut_ptr(),
-                ret.as_mut_ptr(),
+                &mut ret,
                 plain.len(),
                 Some(F::call),
                 rng.data_ptr(),
             ).into_result()?;
-            ret.assume_init()
         };
         Ok(ret)
     }
@@ -550,19 +549,18 @@ impl Pk {
         cipher: &mut [u8],
         rng: &mut F,
     ) -> Result<usize> {
-        let mut ret = ::core::mem::MaybeUninit::uninit();
-        let ret = unsafe {
+        let mut ret = 0usize;
+        unsafe {
             pk_encrypt(
                 &mut self.inner,
                 plain.as_ptr(),
                 plain.len(),
                 cipher.as_mut_ptr(),
-                ret.as_mut_ptr(),
+                &mut ret,
                 cipher.len(),
                 Some(F::call),
                 rng.data_ptr(),
             ).into_result()?;
-            ret.assume_init()
         };
         Ok(ret)
     }
@@ -597,19 +595,18 @@ impl Pk {
             }
             _ => return Err(Error::PkSigLenMismatch),
         }
-        let mut ret = ::core::mem::MaybeUninit::uninit();
-        let ret = unsafe {
+        let mut ret = 0usize;
+        unsafe {
             pk_sign(
                 &mut self.inner,
                 md.into(),
                 hash.as_ptr(),
                 hash.len(),
                 sig.as_mut_ptr(),
-                ret.as_mut_ptr(),
+                &mut ret,
                 Some(F::call),
                 rng.data_ptr(),
             ).into_result()?;
-            ret.assume_init()
         };
         Ok(ret)
     }
@@ -634,19 +631,18 @@ impl Pk {
 
             let mut rng = Rfc6979Rng::new(md, &q, &x, hash, &random_seed)?;
 
-            let mut ret = ::core::mem::MaybeUninit::uninit();
-            let ret = unsafe {
+            let mut ret = 0usize;
+            unsafe {
                 pk_sign(
                     &mut self.inner,
                     md.into(),
                     hash.as_ptr(),
                     hash.len(),
                     sig.as_mut_ptr(),
-                    ret.as_mut_ptr(),
+                    &mut ret,
                     Some(Rfc6979Rng::call),
                     rng.data_ptr(),
                 ).into_result()?;
-                ret.assume_init()
             };
             Ok(ret)
         } else if self.pk_type() == Type::Rsa {
