@@ -621,8 +621,11 @@ impl Pk {
         use crate::rng::RngCallback;
 
         if self.pk_type() == Type::Ecdsa || self.pk_type() == Type::Eckey {
-            // RFC 6979 signature scheme
+            if sig.len() < ECDSA_MAX_LEN {
+                return Err(Error::PkSigLenMismatch);
+            }
 
+            // RFC 6979 signature scheme
             let q = EcGroup::new(self.curve()?)?.order()?;
             let x = self.ec_private()?;
 
