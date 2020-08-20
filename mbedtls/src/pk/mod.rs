@@ -1204,6 +1204,34 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
     }
 
     #[test]
+    fn rsa_encrypt_decrypt_with_label() {
+        let mut pk = Pk::from_private_key(TEST_DER, None).unwrap();
+        let mut cipher = [0u8; 2048 / 8];
+        // set raw decryption padding mode
+        pk.set_options(Options::Rsa {
+            padding: RsaPadding::Pkcs1V21 { mgf: MdType::Sha256 }
+        });
+
+        let plain = b"testing123";
+        let cipher_len = pk.encrypt_with_label(plain, &mut cipher,
+                                         &mut crate::test_support::rand::test_rng(),
+                                         b"MY_LABEL").unwrap();
+        assert_eq!(cipher_len, cipher.len());
+
+        let mut plain_decrypted = [0u8; 10];
+        let plain_len = pk.decrypt_with_label(&cipher, &mut plain_decrypted,
+                                              &mut crate::test_support::rand::test_rng(),
+                                              b"MY_LABEL").unwrap();
+        assert_eq!(plain_len, plain.len());
+        assert_eq!(&plain_decrypted, plain);
+
+        assert_eq!(pk.decrypt_with_label(&cipher, &mut plain_decrypted,
+                                              &mut crate::test_support::rand::test_rng(),
+                                              b"WRONG_LABEL").unwrap_err(),
+                   Error::RsaInvalidPadding);
+    }
+
+    #[test]
     fn rsa_sign_with_none_padding() {
         let mut pk =
             Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
