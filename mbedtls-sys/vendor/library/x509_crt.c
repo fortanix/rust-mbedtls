@@ -1,7 +1,7 @@
 /*
  *  X.509 certificate parsing and verification
  *
- *  Copyright (C) 2006-2015, ARM Limited, All Rights Reserved
+ *  Copyright The Mbed TLS Contributors
  *  SPDX-License-Identifier: Apache-2.0
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,8 +15,6 @@
  *  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
- *
- *  This file is part of mbed TLS (https://tls.mbed.org)
  */
 /*
  *  The ITU-T X.509 standard defines a certificate format for PKI.
@@ -31,15 +29,12 @@
  *  [SIRO] https://cabforum.org/wp-content/uploads/Chunghwatelecom201503cabforumV4.pdf
  */
 
-#if !defined(MBEDTLS_CONFIG_FILE)
-#include "mbedtls/config.h"
-#else
-#include MBEDTLS_CONFIG_FILE
-#endif
+#include "common.h"
 
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
 
 #include "mbedtls/x509_crt.h"
+#include "mbedtls/error.h"
 #include "mbedtls/oid.h"
 #include "mbedtls/platform_util.h"
 
@@ -390,7 +385,7 @@ static int x509_get_version( unsigned char **p,
                              const unsigned char *end,
                              int *ver )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t len;
 
     if( ( ret = mbedtls_asn1_get_tag( p, end, &len,
@@ -402,7 +397,7 @@ static int x509_get_version( unsigned char **p,
             return( 0 );
         }
 
-        return( ret );
+        return( MBEDTLS_ERR_X509_INVALID_FORMAT + ret );
     }
 
     end = *p + len;
@@ -427,7 +422,7 @@ static int x509_get_dates( unsigned char **p,
                            mbedtls_x509_time *from,
                            mbedtls_x509_time *to )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t len;
 
     if( ( ret = mbedtls_asn1_get_tag( p, end, &len,
@@ -456,7 +451,7 @@ static int x509_get_uid( unsigned char **p,
                          const unsigned char *end,
                          mbedtls_x509_buf *uid, int n )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
 
     if( *p == end )
         return( 0 );
@@ -469,7 +464,7 @@ static int x509_get_uid( unsigned char **p,
         if( ret == MBEDTLS_ERR_ASN1_UNEXPECTED_TAG )
             return( 0 );
 
-        return( ret );
+        return( MBEDTLS_ERR_X509_INVALID_FORMAT + ret );
     }
 
     uid->p = *p;
@@ -483,7 +478,7 @@ static int x509_get_basic_constraints( unsigned char **p,
                                        int *ca_istrue,
                                        int *max_pathlen )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t len;
 
     /*
@@ -523,6 +518,12 @@ static int x509_get_basic_constraints( unsigned char **p,
         return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
                 MBEDTLS_ERR_ASN1_LENGTH_MISMATCH );
 
+    /* Do not accept max_pathlen equal to INT_MAX to avoid a signed integer
+     * overflow, which is an undefined behavior. */
+    if( *max_pathlen == INT_MAX )
+        return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
+                MBEDTLS_ERR_ASN1_INVALID_LENGTH );
+
     (*max_pathlen)++;
 
     return( 0 );
@@ -532,7 +533,7 @@ static int x509_get_ns_cert_type( unsigned char **p,
                                        const unsigned char *end,
                                        unsigned char *ns_cert_type)
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     mbedtls_x509_bitstring bs = { 0, 0, NULL };
 
     if( ( ret = mbedtls_asn1_get_bitstring( p, end, &bs ) ) != 0 )
@@ -551,7 +552,7 @@ static int x509_get_key_usage( unsigned char **p,
                                const unsigned char *end,
                                unsigned int *key_usage)
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t i;
     mbedtls_x509_bitstring bs = { 0, 0, NULL };
 
@@ -581,7 +582,7 @@ static int x509_get_ext_key_usage( unsigned char **p,
                                const unsigned char *end,
                                mbedtls_x509_sequence *ext_key_usage)
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
 
     if( ( ret = mbedtls_asn1_get_sequence_of( p, end, ext_key_usage, MBEDTLS_ASN1_OID ) ) != 0 )
         return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret );
@@ -625,7 +626,7 @@ static int x509_get_subject_alt_name( unsigned char **p,
                                       const unsigned char *end,
                                       mbedtls_x509_sequence *subject_alt_name )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t len, tag_len;
     mbedtls_asn1_buf *buf;
     unsigned char tag;
@@ -645,10 +646,6 @@ static int x509_get_subject_alt_name( unsigned char **p,
         mbedtls_x509_subject_alternative_name dummy_san_buf;
         memset( &dummy_san_buf, 0, sizeof( dummy_san_buf ) );
 
-        if( ( end - *p ) < 1 )
-            return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
-                    MBEDTLS_ERR_ASN1_OUT_OF_DATA );
-
         tag = **p;
         (*p)++;
         if( ( ret = mbedtls_asn1_get_len( p, end, &tag_len ) ) != 0 )
@@ -662,7 +659,7 @@ static int x509_get_subject_alt_name( unsigned char **p,
         }
 
         /*
-         * Check that the SAN are structured correct.
+         * Check that the SAN is structured correctly.
          */
         ret = mbedtls_x509_parse_subject_alt_name( &(cur->buf), &dummy_san_buf );
         /*
@@ -885,20 +882,21 @@ static int x509_get_certificate_policies( unsigned char **p,
  */
 static int x509_get_crt_ext( unsigned char **p,
                              const unsigned char *end,
-                             mbedtls_x509_crt *crt )
+                             mbedtls_x509_crt *crt,
+                             mbedtls_x509_crt_ext_cb_t cb,
+                             void *p_ctx )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t len;
-    unsigned char *end_ext_data, *end_ext_octet;
+    unsigned char *end_ext_data, *start_ext_octet, *end_ext_octet;
+
+    if( *p == end )
+        return( 0 );
 
     if( ( ret = mbedtls_x509_get_ext( p, end, &crt->v3_ext, 3 ) ) != 0 )
-    {
-        if( ret == MBEDTLS_ERR_ASN1_UNEXPECTED_TAG )
-            return( 0 );
-
         return( ret );
-    }
 
+    end = crt->v3_ext.p + crt->v3_ext.len;
     while( *p < end )
     {
         /*
@@ -936,6 +934,7 @@ static int x509_get_crt_ext( unsigned char **p,
                 MBEDTLS_ASN1_OCTET_STRING ) ) != 0 )
             return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS + ret );
 
+        start_ext_octet = *p;
         end_ext_octet = *p + len;
 
         if( end_ext_octet != end_ext_data )
@@ -949,6 +948,16 @@ static int x509_get_crt_ext( unsigned char **p,
 
         if( ret != 0 )
         {
+            /* Give the callback (if any) a chance to handle the extension */
+            if( cb != NULL )
+            {
+                ret = cb( p_ctx, crt, &extn_oid, is_critical, *p, end_ext_octet );
+                if( ret != 0 && is_critical )
+                    return( ret );
+                *p = end_ext_octet;
+                continue;
+            }
+
             /* No parser found, skip extension */
             *p = end_ext_octet;
 
@@ -1011,6 +1020,13 @@ static int x509_get_crt_ext( unsigned char **p,
             if( ( ret = x509_get_certificate_policies( p, end_ext_octet,
                     &crt->certificate_policies ) ) != 0 )
             {
+                /* Give the callback (if any) a chance to handle the extension
+                 * if it contains unsupported policies */
+                if( ret == MBEDTLS_ERR_X509_FEATURE_UNAVAILABLE && cb != NULL &&
+                    cb( p_ctx, crt, &extn_oid, is_critical,
+                        start_ext_octet, end_ext_octet ) == 0 )
+                    break;
+
 #if !defined(MBEDTLS_X509_ALLOW_UNSUPPORTED_CRITICAL_EXTENSION)
                 if( is_critical )
                     return( ret );
@@ -1055,9 +1071,11 @@ static int x509_get_crt_ext( unsigned char **p,
 static int x509_crt_parse_der_core( mbedtls_x509_crt *crt,
                                     const unsigned char *buf,
                                     size_t buflen,
-                                    int make_copy )
+                                    int make_copy,
+                                    mbedtls_x509_crt_ext_cb_t cb,
+                                    void *p_ctx )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t len;
     unsigned char *p, *end, *crt_end;
     mbedtls_x509_buf sig_params1, sig_params2, sig_oid2;
@@ -1254,7 +1272,7 @@ static int x509_crt_parse_der_core( mbedtls_x509_crt *crt,
     if( crt->version == 3 )
 #endif
     {
-        ret = x509_get_crt_ext( &p, end, crt );
+        ret = x509_get_crt_ext( &p, end, crt, cb, p_ctx );
         if( ret != 0 )
         {
             mbedtls_x509_crt_free( crt );
@@ -1317,9 +1335,11 @@ static int x509_crt_parse_der_core( mbedtls_x509_crt *crt,
 static int mbedtls_x509_crt_parse_der_internal( mbedtls_x509_crt *chain,
                                                 const unsigned char *buf,
                                                 size_t buflen,
-                                                int make_copy )
+                                                int make_copy,
+                                                mbedtls_x509_crt_ext_cb_t cb,
+                                                void *p_ctx )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     mbedtls_x509_crt *crt = chain, *prev = NULL;
 
     /*
@@ -1349,7 +1369,8 @@ static int mbedtls_x509_crt_parse_der_internal( mbedtls_x509_crt *chain,
         crt = crt->next;
     }
 
-    if( ( ret = x509_crt_parse_der_core( crt, buf, buflen, make_copy ) ) != 0 )
+    ret = x509_crt_parse_der_core( crt, buf, buflen, make_copy, cb, p_ctx );
+    if( ret != 0 )
     {
         if( prev )
             prev->next = NULL;
@@ -1367,14 +1388,24 @@ int mbedtls_x509_crt_parse_der_nocopy( mbedtls_x509_crt *chain,
                                        const unsigned char *buf,
                                        size_t buflen )
 {
-    return( mbedtls_x509_crt_parse_der_internal( chain, buf, buflen, 0 ) );
+    return( mbedtls_x509_crt_parse_der_internal( chain, buf, buflen, 0, NULL, NULL ) );
+}
+
+int mbedtls_x509_crt_parse_der_with_ext_cb( mbedtls_x509_crt *chain,
+                                            const unsigned char *buf,
+                                            size_t buflen,
+                                            int make_copy,
+                                            mbedtls_x509_crt_ext_cb_t cb,
+                                            void *p_ctx )
+{
+    return( mbedtls_x509_crt_parse_der_internal( chain, buf, buflen, make_copy, cb, p_ctx ) );
 }
 
 int mbedtls_x509_crt_parse_der( mbedtls_x509_crt *chain,
                                 const unsigned char *buf,
                                 size_t buflen )
 {
-    return( mbedtls_x509_crt_parse_der_internal( chain, buf, buflen, 1 ) );
+    return( mbedtls_x509_crt_parse_der_internal( chain, buf, buflen, 1, NULL, NULL ) );
 }
 
 /*
@@ -1416,7 +1447,7 @@ int mbedtls_x509_crt_parse( mbedtls_x509_crt *chain,
 #if defined(MBEDTLS_PEM_PARSE_C)
     if( buf_format == MBEDTLS_X509_FORMAT_PEM )
     {
-        int ret;
+        int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
         mbedtls_pem_context pem;
 
         /* 1 rather than 0 since the terminating NULL byte is counted in */
@@ -1500,7 +1531,7 @@ int mbedtls_x509_crt_parse( mbedtls_x509_crt *chain,
  */
 int mbedtls_x509_crt_parse_file( mbedtls_x509_crt *chain, const char *path )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t n;
     unsigned char *buf;
 
@@ -1688,7 +1719,7 @@ static int x509_get_other_name( const mbedtls_x509_buf *subject_alt_name,
 
     if( p + len >= end )
     {
-        mbedtls_platform_zeroize( other_name, sizeof( other_name ) );
+        mbedtls_platform_zeroize( other_name, sizeof( *other_name ) );
         return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
                 MBEDTLS_ERR_ASN1_LENGTH_MISMATCH );
     }
@@ -1710,7 +1741,7 @@ static int x509_get_other_name( const mbedtls_x509_buf *subject_alt_name,
 
     if( p + len >= end )
     {
-        mbedtls_platform_zeroize( other_name, sizeof( other_name ) );
+        mbedtls_platform_zeroize( other_name, sizeof( *other_name ) );
         return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
                 MBEDTLS_ERR_ASN1_LENGTH_MISMATCH );
     }
@@ -1726,7 +1757,7 @@ static int x509_get_other_name( const mbedtls_x509_buf *subject_alt_name,
     if( p != end )
     {
         mbedtls_platform_zeroize( other_name,
-                                  sizeof( other_name ) );
+                                  sizeof( *other_name ) );
         return( MBEDTLS_ERR_X509_INVALID_EXTENSIONS +
                 MBEDTLS_ERR_ASN1_LENGTH_MISMATCH );
     }
@@ -1738,7 +1769,7 @@ static int x509_info_subject_alt_name( char **buf, size_t *size,
                                                     *subject_alt_name,
                                        const char *prefix )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t n = *size;
     char *p = *buf;
     const mbedtls_x509_sequence *cur = subject_alt_name;
@@ -1849,7 +1880,7 @@ static int x509_info_subject_alt_name( char **buf, size_t *size,
 int mbedtls_x509_parse_subject_alt_name( const mbedtls_x509_buf *san_buf,
                                          mbedtls_x509_subject_alternative_name *san )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     switch( san_buf->tag &
             ( MBEDTLS_ASN1_TAG_CLASS_MASK |
               MBEDTLS_ASN1_TAG_VALUE_MASK ) )
@@ -1910,7 +1941,7 @@ int mbedtls_x509_parse_subject_alt_name( const mbedtls_x509_buf *san_buf,
 static int x509_info_cert_type( char **buf, size_t *size,
                                 unsigned char ns_cert_type )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t n = *size;
     char *p = *buf;
     const char *sep = "";
@@ -1937,7 +1968,7 @@ static int x509_info_cert_type( char **buf, size_t *size,
 static int x509_info_key_usage( char **buf, size_t *size,
                                 unsigned int key_usage )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t n = *size;
     char *p = *buf;
     const char *sep = "";
@@ -1961,7 +1992,7 @@ static int x509_info_key_usage( char **buf, size_t *size,
 static int x509_info_ext_key_usage( char **buf, size_t *size,
                                     const mbedtls_x509_sequence *extended_key_usage )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     const char *desc;
     size_t n = *size;
     char *p = *buf;
@@ -1990,7 +2021,7 @@ static int x509_info_ext_key_usage( char **buf, size_t *size,
 static int x509_info_cert_policies( char **buf, size_t *size,
                                     const mbedtls_x509_sequence *certificate_policies )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     const char *desc;
     size_t n = *size;
     char *p = *buf;
@@ -2024,7 +2055,7 @@ static int x509_info_cert_policies( char **buf, size_t *size,
 int mbedtls_x509_crt_info( char *buf, size_t size, const char *prefix,
                    const mbedtls_x509_crt *crt )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t n;
     char *p;
     char key_size_str[BEFORE_COLON];
@@ -2196,7 +2227,7 @@ static const struct x509_crt_verify_string x509_crt_verify_strings[] = {
 int mbedtls_x509_crt_verify_info( char *buf, size_t size, const char *prefix,
                           uint32_t flags )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     const struct x509_crt_verify_string *cur;
     char *p = buf;
     size_t n = size;
@@ -2291,8 +2322,7 @@ int mbedtls_x509_crt_is_revoked( const mbedtls_x509_crt *crt, const mbedtls_x509
         if( crt->serial.len == cur->serial.len &&
             memcmp( crt->serial.p, cur->serial.p, crt->serial.len ) == 0 )
         {
-            if( mbedtls_x509_time_is_past( &cur->revocation_date ) )
-                return( 1 );
+            return( 1 );
         }
 
         cur = cur->next;
@@ -2536,9 +2566,9 @@ static int x509_crt_find_parent_in(
                         unsigned self_cnt,
                         mbedtls_x509_crt_restart_ctx *rs_ctx )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     mbedtls_x509_crt *parent, *fallback_parent;
-    int signature_is_good, fallback_signature_is_good;
+    int signature_is_good = 0, fallback_signature_is_good;
 
 #if defined(MBEDTLS_ECDSA_C) && defined(MBEDTLS_ECP_RESTARTABLE)
     /* did we have something in progress? */
@@ -2612,15 +2642,13 @@ check_signature:
             continue;
         }
 
+        *r_parent = parent;
+        *r_signature_is_good = signature_is_good;
+
         break;
     }
 
-    if( parent != NULL )
-    {
-        *r_parent = parent;
-        *r_signature_is_good = signature_is_good;
-    }
-    else
+    if( parent == NULL )
     {
         *r_parent = fallback_parent;
         *r_signature_is_good = fallback_signature_is_good;
@@ -2661,7 +2689,7 @@ static int x509_crt_find_parent(
                         unsigned self_cnt,
                         mbedtls_x509_crt_restart_ctx *rs_ctx )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     mbedtls_x509_crt *search_list;
 
     *parent_is_trusted = 1;
@@ -2794,7 +2822,7 @@ static int x509_crt_verify_chain(
 {
     /* Don't initialize any of those variables here, so that the compiler can
      * catch potential issues with jumping ahead when restarting */
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     uint32_t *flags;
     mbedtls_x509_crt_verify_chain_item *cur;
     mbedtls_x509_crt *child;
@@ -2977,6 +3005,25 @@ static int x509_crt_check_cn( const mbedtls_x509_buf *name,
 }
 
 /*
+ * Check for SAN match, see RFC 5280 Section 4.2.1.6
+ */
+static int x509_crt_check_san( const mbedtls_x509_buf *name,
+                               const char *cn, size_t cn_len )
+{
+    const unsigned char san_type = (unsigned char) name->tag &
+                                   MBEDTLS_ASN1_TAG_VALUE_MASK;
+
+    /* dNSName */
+    if( san_type == MBEDTLS_X509_SAN_DNS_NAME )
+        return( x509_crt_check_cn( name, cn, cn_len ) );
+
+    /* (We may handle other types here later.) */
+
+    /* Unrecognized type */
+    return( -1 );
+}
+
+/*
  * Verify the requested CN - only call this if cn is not NULL!
  */
 static void x509_crt_verify_name( const mbedtls_x509_crt *crt,
@@ -2991,7 +3038,7 @@ static void x509_crt_verify_name( const mbedtls_x509_crt *crt,
     {
         for( cur = &crt->subject_alt_names; cur != NULL; cur = cur->next )
         {
-            if( x509_crt_check_cn( &cur->buf, cn, cn_len ) == 0 )
+            if( x509_crt_check_san( &cur->buf, cn, cn_len ) == 0 )
                 break;
         }
 
@@ -3023,7 +3070,7 @@ static int x509_crt_merge_flags_with_cb(
            int (*f_vrfy)(void *, mbedtls_x509_crt *, int, uint32_t *),
            void *p_vrfy )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     unsigned i;
     uint32_t cur_flags;
     const mbedtls_x509_crt_verify_chain_item *cur;
@@ -3071,7 +3118,7 @@ static int x509_crt_verify_restartable_ca_cb( mbedtls_x509_crt *crt,
                      void *p_vrfy,
                      mbedtls_x509_crt_restart_ctx *rs_ctx )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     mbedtls_pk_type_t pk_type;
     mbedtls_x509_crt_verify_chain ver_chain;
     uint32_t ee_flags;
