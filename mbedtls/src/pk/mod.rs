@@ -506,11 +506,15 @@ impl Pk {
         plain: &mut [u8],
         rng: &mut F,
     ) -> Result<usize> {
-        let mut ret = ::core::mem::MaybeUninit::uninit();
         if self.pk_type() == Type::Rsa {
             let ctx = self.inner.pk_ctx as *mut rsa_context;
             if unsafe { (*ctx).padding  == RAW_RSA_DECRYPT } {
-                let ret = unsafe {
+                let olen = self.len() / 8;
+                if plain.len() < olen {
+                    return Err(Error::RsaOutputTooLarge);
+                }
+
+                unsafe {
                     rsa_private(
                         ctx,
                         Some(F::call),
@@ -518,24 +522,60 @@ impl Pk {
                         cipher.as_ptr(),
                         plain.as_mut_ptr()
                     ).into_result()?;
-                    ret.assume_init()
                 };
-                return Ok(ret);
+                return Ok(olen);
             }
         }
-        let ret = unsafe {
+
+        let mut ret = 0usize;
+        unsafe {
             pk_decrypt(
                 &mut self.inner,
                 cipher.as_ptr(),
                 cipher.len(),
                 plain.as_mut_ptr(),
-                ret.as_mut_ptr(),
+                &mut ret,
                 plain.len(),
                 Some(F::call),
                 rng.data_ptr(),
             ).into_result()?;
-            ret.assume_init()
         };
+        Ok(ret)
+    }
+
+    /// Decrypt using a custom label.
+    ///
+    /// This function may only be called on an RSA key with its padding set to RSA_PKCS_V21.
+    pub fn decrypt_with_label<F: Random>(
+        &mut self,
+        cipher: &[u8],
+        plain: &mut [u8],
+        rng: &mut F,
+        label: &[u8],
+    ) -> Result<usize> {
+        if self.pk_type() != Type::Rsa {
+            return Err(Error::PkTypeMismatch);
+        }
+        let ctx = self.inner.pk_ctx as *mut rsa_context;
+        if unsafe { (*ctx).padding != RSA_PKCS_V21 } {
+            return Err(Error::RsaInvalidPadding);
+        }
+
+        let mut ret = 0usize;
+        unsafe {
+            rsa_rsaes_oaep_decrypt(
+                ctx,
+                Some(F::call),
+                rng.data_ptr(),
+                RSA_PRIVATE,
+                label.as_ptr(),
+                label.len(),
+                &mut ret,
+                cipher.as_ptr(),
+                plain.as_mut_ptr(),
+                plain.len(),
+            ).into_result()?;
+        }
         Ok(ret)
     }
 
@@ -545,21 +585,58 @@ impl Pk {
         cipher: &mut [u8],
         rng: &mut F,
     ) -> Result<usize> {
-        let mut ret = ::core::mem::MaybeUninit::uninit();
-        let ret = unsafe {
+        let mut ret = 0usize;
+        unsafe {
             pk_encrypt(
                 &mut self.inner,
                 plain.as_ptr(),
                 plain.len(),
                 cipher.as_mut_ptr(),
-                ret.as_mut_ptr(),
+                &mut ret,
                 cipher.len(),
                 Some(F::call),
                 rng.data_ptr(),
             ).into_result()?;
-            ret.assume_init()
         };
         Ok(ret)
+    }
+
+    /// Encrypt using a custom label.
+    ///
+    /// This function may only be called on an RSA key with its padding set to RSA_PKCS_V21.
+    pub fn encrypt_with_label<F: Random>(
+        &mut self,
+        plain: &[u8],
+        cipher: &mut [u8],
+        rng: &mut F,
+        label: &[u8],
+    ) -> Result<usize> {
+        if self.pk_type() != Type::Rsa {
+            return Err(Error::PkTypeMismatch);
+        }
+        let ctx = self.inner.pk_ctx as *mut rsa_context;
+        if unsafe { (*ctx).padding != RSA_PKCS_V21 } {
+            return Err(Error::RsaInvalidPadding);
+        }
+        let olen = self.len() / 8;
+        if cipher.len() < olen {
+            return Err(Error::RsaOutputTooLarge);
+        }
+
+        unsafe {
+            rsa_rsaes_oaep_encrypt(
+                ctx,
+                Some(F::call),
+                rng.data_ptr(),
+                RSA_PUBLIC,
+                label.as_ptr(),
+                label.len(),
+                plain.len(),
+                plain.as_ptr(),
+                cipher.as_mut_ptr()
+            ).into_result()?;
+        }
+        Ok(olen)
     }
 
     /// Sign the hash `hash` of type `md`, placing the signature in `sig`. `rng` must be a
@@ -592,19 +669,18 @@ impl Pk {
             }
             _ => return Err(Error::PkSigLenMismatch),
         }
-        let mut ret = ::core::mem::MaybeUninit::uninit();
-        let ret = unsafe {
+        let mut ret = 0usize;
+        unsafe {
             pk_sign(
                 &mut self.inner,
                 md.into(),
                 hash.as_ptr(),
                 hash.len(),
                 sig.as_mut_ptr(),
-                ret.as_mut_ptr(),
+                &mut ret,
                 Some(F::call),
                 rng.data_ptr(),
             ).into_result()?;
-            ret.assume_init()
         };
         Ok(ret)
     }
@@ -619,8 +695,11 @@ impl Pk {
         use crate::rng::RngCallback;
 
         if self.pk_type() == Type::Ecdsa || self.pk_type() == Type::Eckey {
-            // RFC 6979 signature scheme
+            if sig.len() < ECDSA_MAX_LEN {
+                return Err(Error::PkSigLenMismatch);
+            }
 
+            // RFC 6979 signature scheme
             let q = EcGroup::new(self.curve()?)?.order()?;
             let x = self.ec_private()?;
 
@@ -629,19 +708,18 @@ impl Pk {
 
             let mut rng = Rfc6979Rng::new(md, &q, &x, hash, &random_seed)?;
 
-            let mut ret = ::core::mem::MaybeUninit::uninit();
-            let ret = unsafe {
+            let mut ret = 0usize;
+            unsafe {
                 pk_sign(
                     &mut self.inner,
                     md.into(),
                     hash.as_ptr(),
                     hash.len(),
                     sig.as_mut_ptr(),
-                    ret.as_mut_ptr(),
+                    &mut ret,
                     Some(Rfc6979Rng::call),
                     rng.data_ptr(),
                 ).into_result()?;
-                ret.assume_init()
             };
             Ok(ret)
         } else if self.pk_type() == Type::Rsa {
@@ -1102,13 +1180,14 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             cipher.len()
         );
         let mut decrypted_data1 = [0u8; 2048 / 8];
-        let length_without_padding = pk.decrypt(&cipher, &mut decrypted_data1, &mut rng).unwrap();
+        let length_with_padding = pk.decrypt(&cipher, &mut decrypted_data1, &mut rng).unwrap();
         // set raw decryption padding mode to perform raw decryption
         pk.set_options(Options::Rsa {
             padding: RsaPadding::None
         });
         let mut decrypted_data2 = [0u8; 2048 / 8];
-        let length_with_padding = pk.decrypt(&cipher, &mut decrypted_data2, &mut rng).unwrap();
+        let length_without_padding = pk.decrypt(&cipher, &mut decrypted_data2, &mut rng).unwrap();
+        assert_eq!(length_without_padding, decrypted_data2.len());
         // compare lengths of the decrypted texts
         assert_ne!(length_without_padding, length_with_padding);
         assert_eq!(decrypted_data2.len(), cipher.len());
@@ -1127,6 +1206,34 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
                 .unwrap_err(),
             Error::RsaInvalidPadding
         );
+    }
+
+    #[test]
+    fn rsa_encrypt_decrypt_with_label() {
+        let mut pk = Pk::from_private_key(TEST_DER, None).unwrap();
+        let mut cipher = [0u8; 2048 / 8];
+        // set raw decryption padding mode
+        pk.set_options(Options::Rsa {
+            padding: RsaPadding::Pkcs1V21 { mgf: MdType::Sha256 }
+        });
+
+        let plain = b"testing123";
+        let cipher_len = pk.encrypt_with_label(plain, &mut cipher,
+                                         &mut crate::test_support::rand::test_rng(),
+                                         b"MY_LABEL").unwrap();
+        assert_eq!(cipher_len, cipher.len());
+
+        let mut plain_decrypted = [0u8; 10];
+        let plain_len = pk.decrypt_with_label(&cipher, &mut plain_decrypted,
+                                              &mut crate::test_support::rand::test_rng(),
+                                              b"MY_LABEL").unwrap();
+        assert_eq!(plain_len, plain.len());
+        assert_eq!(&plain_decrypted, plain);
+
+        assert_eq!(pk.decrypt_with_label(&cipher, &mut plain_decrypted,
+                                              &mut crate::test_support::rand::test_rng(),
+                                              b"WRONG_LABEL").unwrap_err(),
+                   Error::RsaInvalidPadding);
     }
 
     #[test]
