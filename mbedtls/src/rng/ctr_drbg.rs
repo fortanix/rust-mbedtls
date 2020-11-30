@@ -6,126 +6,67 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+#[cfg(feature = "std")]
+use std::sync::Arc;
+
+pub use mbedtls_sys::CTR_DRBG_RESEED_INTERVAL as RESEED_INTERVAL;
+use mbedtls_sys::*;
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
-pub use mbedtls_sys::CTR_DRBG_RESEED_INTERVAL as RESEED_INTERVAL;
-use mbedtls_sys::{
-    ctr_drbg_random, ctr_drbg_reseed, ctr_drbg_seed, ctr_drbg_set_prediction_resistance,
-    ctr_drbg_update, CTR_DRBG_PR_OFF, CTR_DRBG_PR_ON,
-};
 
-use super::{EntropyCallback, RngCallback};
-use crate::error::{IntoResult, Result};
-
-// ==== BEGIN IMMOVABLE TYPE KLUDGE ====
-// `ctr_drbg_context` inlines an `aes_context`, which is immovable. See
-// https://github.com/ARMmbed/mbedtls/issues/2147. We work around this
-// by always boxing up the context, which requires this module to depend on
-// std/alloc.
-//
-// If `ctr_drbg_context` were moveable, this entire section could be replaced
-// by basically:
-// ```
-// define!(
-//     #[c_ty(ctr_drbg_context)]
-//     struct CtrDrbg<'entropy>;
-//     fn init() {
-//         ctr_drbg_init
-//     }
-//     fn drop() {
-//         ctr_drbg_free
-//     }
-// );
-// ```
-
-use self::private::CtrDrbgInner;
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
-use core::ops::{Deref, DerefMut};
+use crate::error::{IntoResult, Result};
+use crate::rng::{EntropyCallback, RngCallback, RngCallbackMut};
 
-mod private {
-    use core::marker::PhantomData;
-    use mbedtls_sys::{ctr_drbg_context, ctr_drbg_free, ctr_drbg_init};
+define!(
+    // `ctr_drbg_context` inlines an `aes_context`, which is immovable. See
+    // https://github.com/ARMmbed/mbedtls/issues/2147. We work around this
+    // by always boxing up the context, which requires this module to depend on
+    // std/alloc.
+    //
+    // If `ctr_drbg_context` were moveable we could use c_ty instead of c_box_ty.
+    //
+    #[c_box_ty(ctr_drbg_context)]
+    #[repr(C)]
+    struct CtrDrbg {
+        entropy: Arc<dyn EntropyCallback + 'static>,
+    };
+    const drop: fn(&mut Self) = ctr_drbg_free;
+    impl<'a> Into<ptr> {}
+);
 
-    pub struct CtrDrbgInner<'entropy> {
-        pub(super) inner: ctr_drbg_context,
-        r: PhantomData<&'entropy ()>,
-    }
-
-    impl<'entropy> CtrDrbgInner<'entropy> {
-        pub(super) fn init() -> Self {
-            let mut inner = ::core::mem::MaybeUninit::uninit();
-            let inner = unsafe {
-                ctr_drbg_init(inner.as_mut_ptr());
-                inner.assume_init()
-            };
-            CtrDrbgInner {
-                inner,
-                r: PhantomData,
-            }
-        }
-    }
-
-    impl<'entropy> Drop for CtrDrbgInner<'entropy> {
-        fn drop(&mut self) {
-            unsafe { ctr_drbg_free(&mut self.inner) };
-        }
-    }
-}
-
-pub struct CtrDrbg<'entropy> {
-    boxed: Box<CtrDrbgInner<'entropy>>,
-}
-
-impl<'entropy> CtrDrbg<'entropy> {
-    fn init() -> Self {
-        CtrDrbg {
-            boxed: Box::new(CtrDrbgInner::init()),
-        }
-    }
-}
-
-#[doc(hidden)]
-impl<'entropy> Deref for CtrDrbg<'entropy> {
-    type Target = CtrDrbgInner<'entropy>;
-    fn deref(&self) -> &Self::Target {
-        &self.boxed
-    }
-}
-
-#[doc(hidden)]
-impl<'entropy> DerefMut for CtrDrbg<'entropy> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.boxed
-    }
-}
-
-// ==== END IMMOVABLE TYPE KLUDGE ====
-
+//
+// Class has interior mutability via function called 'call'.
+// That function has an internal mutex to guarantee thread safety.
+//
+// The other potential conflict is a mutable reference changing class.
+// That is avoided by having any users of the callback hold an 'Arc' to this class.
+// Rust will then ensure that a mutable reference cannot be aquired if more then 1 Arc exists to the same class.
+//
 #[cfg(feature = "threading")]
-unsafe impl<'entropy> Sync for CtrDrbg<'entropy> {}
+unsafe impl Sync for CtrDrbg {}
 
-impl<'entropy> CtrDrbg<'entropy> {
-    pub fn new<F: EntropyCallback>(
-        source: &'entropy mut F,
-        additional_entropy: Option<&[u8]>,
-    ) -> Result<CtrDrbg<'entropy>> {
-        let mut ret = Self::init();
+#[allow(dead_code)]
+impl CtrDrbg {
+
+    pub fn new<T: EntropyCallback + 'static>(entropy: Arc<T>, additional_entropy: Option<&[u8]>) -> Result<Self> {
+        let mut inner = Box::new(ctr_drbg_context::default());
+
         unsafe {
+            ctr_drbg_init(&mut *inner);
             ctr_drbg_seed(
-                &mut ret.inner,
-                Some(F::call),
-                source.data_ptr(),
-                additional_entropy
-                    .map(<[_]>::as_ptr)
-                    .unwrap_or(::core::ptr::null()),
+                &mut *inner,
+                Some(T::call),
+                entropy.data_ptr(),
+                additional_entropy.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
                 additional_entropy.map(<[_]>::len).unwrap_or(0)
-            )
-            .into_result()?
-        };
-        Ok(ret)
-    }
+            ).into_result()?;
+        }
 
+        Ok(CtrDrbg { inner, entropy })
+    }
+    
     pub fn prediction_resistance(&self) -> bool {
         if self.inner.prediction_resistance == CTR_DRBG_PR_OFF {
             false
@@ -137,7 +78,7 @@ impl<'entropy> CtrDrbg<'entropy> {
     pub fn set_prediction_resistance(&mut self, pr: bool) {
         unsafe {
             ctr_drbg_set_prediction_resistance(
-                &mut self.inner,
+                &mut *self.inner,
                 if pr { CTR_DRBG_PR_ON } else { CTR_DRBG_PR_OFF },
             )
         }
@@ -151,7 +92,7 @@ impl<'entropy> CtrDrbg<'entropy> {
     pub fn reseed(&mut self, additional_entropy: Option<&[u8]>) -> Result<()> {
         unsafe {
             ctr_drbg_reseed(
-                &mut self.inner,
+                &mut *self.inner,
                 additional_entropy
                     .map(<[_]>::as_ptr)
                     .unwrap_or(::core::ptr::null()),
@@ -163,7 +104,7 @@ impl<'entropy> CtrDrbg<'entropy> {
     }
 
     pub fn update(&mut self, entropy: &[u8]) {
-        unsafe { ctr_drbg_update(&mut self.inner, entropy.as_ptr(), entropy.len()) };
+        unsafe { ctr_drbg_update(&mut *self.inner, entropy.as_ptr(), entropy.len()) };
     }
 
     // TODO:
@@ -174,13 +115,26 @@ impl<'entropy> CtrDrbg<'entropy> {
     //
 }
 
-impl<'entropy> RngCallback for CtrDrbg<'entropy> {
+impl RngCallbackMut for CtrDrbg {
     #[inline(always)]
-    unsafe extern "C" fn call(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
+    unsafe extern "C" fn call_mut(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int where Self: Sized {
+        // Mutex used in ctr_drbg_random at: ../../../mbedtls-sys/vendor/crypto/library/ctr_drbg.c:546
         ctr_drbg_random(user_data, data, len)
     }
 
-    fn data_ptr(&mut self) -> *mut c_void {
-        &mut self.inner as *mut _ as *mut _
+    fn data_ptr_mut(&mut self) -> *mut c_void {
+        self.handle_mut() as *const _ as *mut _
+    }
+}
+
+impl RngCallback for CtrDrbg {
+    #[inline(always)]
+    unsafe extern "C" fn call(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int where Self: Sized {
+        // Mutex used in ctr_drbg_random at: ../../../mbedtls-sys/vendor/crypto/library/ctr_drbg.c:546
+        ctr_drbg_random(user_data, data, len)
+    }
+    
+    fn data_ptr(&self) -> *mut c_void {
+        self.handle() as *const _ as *mut _
     }
 }

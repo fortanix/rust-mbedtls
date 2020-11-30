@@ -10,6 +10,11 @@
 //!
 //! Calling mbedTLS self-test functions before they're enabled using the
 //! `enable()` function here will result in a panic.
+//!
+//! Using this module in multithreaded or async environment will fail.
+//! Functions rely on global variables to track operations and anything non-self-test related will stomp over variables.
+//! To use correctly, make sure no other code uses mbedtls. Multiple self test operations done simultaneously may also return failures.
+//!
 #[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
 use mbedtls_sys::types::raw_types::{c_char, c_int};
 
@@ -44,20 +49,29 @@ pub unsafe extern "C" fn mbedtls_log(msg: *const c_char) {
     log_f.expect("Called self-test log without enabling self-test")(msg)
 }
 
-// unsafe since unsynchronized
+/// # Safety
+///
+/// The caller needs to ensure this function is not called while any other function in this module is called..
 #[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
 pub unsafe fn enable(rand: fn() -> c_int, log: unsafe fn(*const c_char)) {
     rand_f = Some(rand);
     log_f = Some(log);
 }
 
-// unsafe since unsynchronized
+/// # Safety
+///
+/// The caller needs to ensure this function is not called while any other function in this module is called..
 #[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
 pub unsafe fn disable() {
     rand_f = None;
     log_f = None;
 }
 
+/// # Safety
+/// 
+/// This function, if used in a multithreaded or async environment will fail.
+/// Function relies on global variables to track operations and anything non-self-test related will stomp over variables.
+/// To use correctly, make sure no other code uses mbedtls. Multiple self test operations done simultaneously may also return failures.
 pub use mbedtls_sys::{
     aes_self_test as aes, arc4_self_test as arc4, base64_self_test as base64,
     camellia_self_test as camellia, ccm_self_test as ccm, ctr_drbg_self_test as ctr_drbg,

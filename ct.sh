@@ -19,6 +19,7 @@ if [ $TRAVIS_RUST_VERSION = "stable" ] || [ $TRAVIS_RUST_VERSION = "beta" ] || [
     cargo test --features pkcs12
     cargo test --features pkcs12_rc2
     cargo test --features force_aesni_support
+    cargo test --features default,pthread
 
 elif [ $TRAVIS_RUST_VERSION = $CORE_IO_NIGHTLY ]; then
     cargo +$CORE_IO_NIGHTLY test --no-default-features --features core_io,rdrand,time,custom_time,custom_gmtime_r

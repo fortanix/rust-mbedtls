@@ -10,41 +10,45 @@
 extern crate mbedtls;
 
 use std::net::TcpStream;
+use std::sync::Arc;
 
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
-use mbedtls::ssl::config::{Endpoint, Preset, Transport, ForeignOwnedCertListBuilder};
+use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::{Config, Context};
-use mbedtls::x509::{Certificate, LinkedCertificate};
+use mbedtls::x509::{Certificate};
 use mbedtls::Result as TlsResult;
+use mbedtls::ssl::config::CaCallback;
 
 mod support;
 use support::entropy::entropy_new;
 
+use mbedtls::alloc::{List as MbedtlsList};
 
-fn client<F>(mut conn: TcpStream, mut ca_callback: F) -> TlsResult<()>
+fn client<F>(conn: TcpStream, ca_callback: F) -> TlsResult<()>
     where
-        F: FnMut(&LinkedCertificate, &mut ForeignOwnedCertListBuilder) -> TlsResult<()> {
-    let mut entropy = entropy_new();
-    let mut rng = CtrDrbg::new(&mut entropy, None)?;
+        F: CaCallback + Send + 'static,
+{
+    let entropy = entropy_new();
+    let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
-    config.set_rng(Some(&mut rng));
-    config.set_ca_callback(&mut ca_callback);
-    let mut ctx = Context::new(&config)?;
-    ctx.establish(&mut conn, None).map(|_| ())
+    config.set_rng(rng);
+    config.set_ca_callback(ca_callback);
+    let mut ctx = Context::new(Arc::new(config));
+    ctx.establish(conn, None).map(|_| ())
 }
 
-fn server(mut conn: TcpStream, cert: &[u8], key: &[u8]) -> TlsResult<()> {
-    let mut entropy = entropy_new();
-    let mut rng = CtrDrbg::new(&mut entropy, None)?;
-    let mut cert = Certificate::from_pem(cert)?;
-    let mut key = Pk::from_private_key(key, None)?;
+fn server(conn: TcpStream, cert: &[u8], key: &[u8]) -> TlsResult<()> {
+    let entropy = entropy_new();
+    let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
+    let cert = Arc::new(Certificate::from_pem_multiple(cert)?);
+    let key = Arc::new(Pk::from_private_key(key, None)?);
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
-    config.set_rng(Some(&mut rng));
-    config.push_cert(&mut *cert, &mut key)?;
-    let mut ctx = Context::new(&config)?;
+    config.set_rng(rng);
+    config.push_cert(cert, key)?;
+    let mut ctx = Context::new(Arc::new(config));
 
-    let _ = ctx.establish(&mut conn, None);
+    let _ = ctx.establish(conn, None);
     Ok(())
 }
 
@@ -54,13 +58,12 @@ mod test {
     use std::thread;
     use crate::support::net::create_tcp_pair;
     use crate::support::keys;
-    use mbedtls::x509::{LinkedCertificate, Certificate};
+    use mbedtls::x509::{Certificate};
     use mbedtls::Error;
 
     // This callback should accept any valid self-signed certificate
-    fn self_signed_ca_callback(child: &LinkedCertificate, cert_builder: &mut ForeignOwnedCertListBuilder) -> TlsResult<()> {
-        cert_builder.push_back(child);
-        Ok(())
+    fn self_signed_ca_callback(child: &MbedtlsList<Certificate>) -> TlsResult<MbedtlsList<Certificate>> {
+        Ok(child.clone())
     }
 
     #[test]
@@ -68,9 +71,8 @@ mod test {
         let (c, s) = create_tcp_pair().unwrap();
 
         let ca_callback =
-            |_: &LinkedCertificate, cert_builder: &mut ForeignOwnedCertListBuilder| -> TlsResult<()> {
-                cert_builder.push_back(&*Certificate::from_pem(keys::ROOT_CA_CERT).unwrap());
-                Ok(())
+            |_: &MbedtlsList<Certificate>| -> TlsResult<MbedtlsList<Certificate>> {
+                Ok(Certificate::from_pem_multiple(keys::ROOT_CA_CERT).unwrap())
             };
         let c = thread::spawn(move || super::client(c, ca_callback).unwrap());
         let s = thread::spawn(move || super::server(s, keys::PEM_CERT, keys::PEM_KEY).unwrap());
@@ -82,10 +84,13 @@ mod test {
     fn callback_no_ca() {
         let (c, s) = create_tcp_pair().unwrap();
         let ca_callback =
-            |_: &LinkedCertificate, _: &mut ForeignOwnedCertListBuilder| -> TlsResult<()> {
-                Ok(())
+            |_: &MbedtlsList<Certificate>| -> TlsResult<MbedtlsList<Certificate>> {
+                Ok(MbedtlsList::<Certificate>::new())
             };
-        let c = thread::spawn(move || assert!(matches!(super::client(c, ca_callback), Err(Error::X509CertVerifyFailed))));
+        let c = thread::spawn(move || {
+            let result = super::client(c, ca_callback);
+            assert_eq!(result, Err(Error::X509CertVerifyFailed));
+        });
         let s = thread::spawn(move || super::server(s, keys::PEM_CERT, keys::PEM_KEY).unwrap());
         c.join().unwrap();
         s.join().unwrap();
@@ -105,7 +110,10 @@ mod test {
         // We set up the server to supply a non-self-signed leaf certificate. It should be rejected
         // by the client, because the ca_callback should only accept self-signed certificates.
         let (c, s) = create_tcp_pair().unwrap();
-        let c = thread::spawn(move || assert!(matches!(super::client(c, self_signed_ca_callback), Err(Error::X509CertVerifyFailed))));
+        let c = thread::spawn(move || {
+            let result = super::client(c, self_signed_ca_callback);
+            assert_eq!(result, Err(Error::X509CertVerifyFailed));
+        });
         let s = thread::spawn(move || super::server(s, keys::PEM_CERT, keys::PEM_KEY).unwrap());
         c.join().unwrap();
         s.join().unwrap();
@@ -116,8 +124,10 @@ mod test {
         // We set up the server to supply a self-signed certificate with an invalid signature. It
         // should be rejected by the client.
         let (c, s) = create_tcp_pair().unwrap();
-        let c =
-            thread::spawn(move || assert!(matches!(super::client(c, self_signed_ca_callback), Err(Error::X509CertVerifyFailed))));
+        let c = thread::spawn(move || {
+            let result = super::client(c, self_signed_ca_callback);
+            assert_eq!(result, Err(Error::X509CertVerifyFailed));
+        });
         let s = thread::spawn(move || super::server(s, keys::PEM_SELF_SIGNED_CERT_INVALID_SIG, keys::PEM_SELF_SIGNED_KEY).unwrap());
         c.join().unwrap();
         s.join().unwrap();

@@ -6,42 +6,38 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+
+use core::any::Any;
+use core::result::Result as StdResult;
 #[cfg(not(feature = "std"))]
-use core_io::{self as io, Read, Write};
+use core_io::{Read, Write, Result as IoResult};
 #[cfg(feature = "std")]
-use std::io::{self, Read, Write};
+use std::io::{Read, Write, Result as IoResult};
+#[cfg(feature = "std")]
+use std::sync::Arc;
 
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 use mbedtls_sys::*;
 
-use crate::error::{Error, IntoResult, Result};
-use core::result::Result as StdResult;
+use crate::alloc::{List as MbedtlsList};
+#[cfg(not(feature = "std"))]
+use crate::alloc_prelude::*;
+use crate::error::{Error, Result, IntoResult};
+use crate::pk::Pk;
 use crate::private::UnsafeFrom;
-use crate::ssl::config::{AuthMode, Config, Version};
-use crate::x509::{Crl, LinkedCertificate, VerifyError};
+use crate::ssl::config::{Config, Version, AuthMode};
+use crate::x509::{Certificate, Crl, VerifyError};
 
-pub trait IoCallback {
-    unsafe extern "C" fn call_recv(
-        user_data: *mut c_void,
-        data: *mut c_uchar,
-        len: size_t,
-    ) -> c_int;
-    unsafe extern "C" fn call_send(
-        user_data: *mut c_void,
-        data: *const c_uchar,
-        len: size_t,
-    ) -> c_int;
 
+pub trait IoCallback : Any {
+    unsafe extern "C" fn call_recv(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int where Self: Sized;
+    unsafe extern "C" fn call_send(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int where Self: Sized;
     fn data_ptr(&mut self) -> *mut c_void;
 }
 
-impl<IO: Read + Write> IoCallback for IO {
-    unsafe extern "C" fn call_recv(
-        user_data: *mut c_void,
-        data: *mut c_uchar,
-        len: size_t,
-    ) -> c_int {
+impl<IO: Read + Write + 'static> IoCallback for IO {
+    unsafe extern "C" fn call_recv(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
         let len = if len > (c_int::max_value() as size_t) {
             c_int::max_value() as size_t
         } else {
@@ -53,11 +49,7 @@ impl<IO: Read + Write> IoCallback for IO {
         }
     }
 
-    unsafe extern "C" fn call_send(
-        user_data: *mut c_void,
-        data: *const c_uchar,
-        len: size_t,
-    ) -> c_int {
+    unsafe extern "C" fn call_send(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int {
         let len = if len > (c_int::max_value() as size_t) {
             c_int::max_value() as size_t
         } else {
@@ -74,59 +66,83 @@ impl<IO: Read + Write> IoCallback for IO {
     }
 }
 
+
 define!(
     #[c_ty(ssl_context)]
-    struct Context<'config>;
-    const init: fn() -> Self = ssl_init;
-    const drop: fn(&mut Self) = ssl_free;
+    #[repr(C)]
+    struct Context {
+        // config is used read-only for mutliple contexts and is immutable once configured.
+        config: Arc<Config>, 
+
+        // Must be held in heap and pointer to it as pointer is sent to MbedSSL and can't be re-allocated.
+        io: Option<Box<dyn Any>>,
+        
+        handshake_ca_cert: Option<Arc<MbedtlsList<Certificate>>>,
+        handshake_crl: Option<Arc<Crl>>,
+        
+        handshake_cert: Vec<Arc<MbedtlsList<Certificate>>>,
+        handshake_pk: Vec<Arc<Pk>>,
+    };
     impl<'a> Into<ptr> {}
+
+    // Only use this when you know the type you are casting is originally a rust allocated 'Context'.
     impl<'a> UnsafeFrom<ptr> {}
 );
 
-pub struct Session<'ctx> {
-    inner: &'ctx mut ssl_context,
-}
+impl Context {
+    pub fn new(config: Arc<Config>) -> Self {
+        let mut inner = ssl_context::default();
+        
+        unsafe {
+            ssl_init(&mut inner);
+            ssl_setup(&mut inner, (&*config).into());
+        };
 
-#[cfg(feature = "threading")]
-unsafe impl<'ctx> Send for Session<'ctx> {}
+        Context {
+            inner,
+            config: config.clone(),
+            io: None,
 
-pub struct HandshakeContext<'ctx> {
-    inner: &'ctx mut ssl_context,
-}
-
-impl<'config> Context<'config> {
-    pub fn new(config: &'config Config) -> Result<Context<'config>> {
-        let mut ret = Self::init();
-        unsafe { ssl_setup(&mut ret.inner, config.into()) }
-            .into_result()
-            .map(|_| ret)
+            handshake_ca_cert: None,
+            handshake_crl: None,
+            
+            handshake_cert: vec![],
+            handshake_pk: vec![],
+        }
     }
 
-    pub fn establish<'c, F: IoCallback>(
-        &'c mut self,
-        io: &'c mut F,
-        hostname: Option<&str>,
-    ) -> Result<Session<'c>> {
+    pub fn establish<T: IoCallback + Send + Sync + 'static>(&mut self, io: T, hostname: Option<&str>) -> Result<()> {
         unsafe {
-            ssl_session_reset(&mut self.inner).into_result()?;
+            let mut io = Box::new(io);
+            ssl_session_reset(self.into()).into_result()?;
             self.set_hostname(hostname)?;
 
+            let ptr = &mut *io as *mut _ as *mut c_void;
             ssl_set_bio(
-                &mut self.inner,
-                io.data_ptr(),
-                Some(F::call_send),
-                Some(F::call_recv),
+                self.into(),
+                ptr,
+                Some(T::call_send),
+                Some(T::call_recv),
                 None,
             );
-            match ssl_handshake(&mut self.inner).into_result() {
+
+            self.io = Some(io);
+
+            self.handshake_cert.clear();
+            self.handshake_pk.clear();
+            self.handshake_ca_cert = None;
+            self.handshake_crl = None;
+            
+            match ssl_handshake(self.into()).into_result() {
                 Err(e) => {
                     // safely end borrow of io
-                    ssl_set_bio(&mut self.inner, ::core::ptr::null_mut(), None, None, None);
+                    ssl_set_bio(self.into(), ::core::ptr::null_mut(), None, None, None);
+                    self.io = None;
                     Err(e)
+                },
+                Ok(_) => {
+                    Ok(())
                 }
-                Ok(_) => Ok(Session {
-                    inner: &mut self.inner,
-                }),
             }
         }
     }
@@ -141,14 +157,10 @@ impl<'config> Context<'config> {
 
     #[cfg(feature = "std")]
     fn set_hostname(&mut self, hostname: Option<&str>) -> Result<()> {
-        if self.inner.hostname != ::core::ptr::null_mut() {
-            // potential MEMORY LEAK! See https://github.com/ARMmbed/mbedtls/issues/836
-            self.inner.hostname = ::core::ptr::null_mut();
-        }
         if let Some(s) = hostname {
             let cstr = ::std::ffi::CString::new(s).map_err(|_| Error::SslBadInputData)?;
             unsafe {
-                ssl_set_hostname(&mut self.inner, cstr.as_ptr())
+                ssl_set_hostname(self.into(), cstr.as_ptr())
                     .into_result()
                     .map(|_| ())
             }
@@ -158,70 +170,31 @@ impl<'config> Context<'config> {
     }
 
     pub fn verify_result(&self) -> StdResult<(), VerifyError> {
-        match unsafe { ssl_get_verify_result(&self.inner) } {
+        match unsafe { ssl_get_verify_result(self.into()) } {
             0 => Ok(()),
             flags => Err(VerifyError::from_bits_truncate(flags)),
         }
     }
 
-    pub fn config(&self) -> &'config Config {
-        unsafe { UnsafeFrom::from(self.inner.conf).expect("not null") }
+    pub fn config(&self) -> &Arc<Config> {
+        &self.config
     }
-}
-
-impl<'ctx> HandshakeContext<'ctx> {
-    pub fn set_authmode(&mut self, am: AuthMode) {
-        unsafe { ssl_set_hs_authmode(self.inner, am.into()) }
-    }
-
-    pub fn set_ca_list<C: Into<&'ctx mut LinkedCertificate>>(
-        &mut self,
-        list: Option<C>,
-        crl: Option<&'ctx mut Crl>,
-    ) {
+    
+    pub fn close(&mut self) {
         unsafe {
-            ssl_set_hs_ca_chain(
-                self.inner,
-                list.map(Into::into)
-                    .map(Into::into)
-                    .unwrap_or(::core::ptr::null_mut()),
-                crl.map(Into::into).unwrap_or(::core::ptr::null_mut()),
-            )
+            ssl_close_notify(self.into());
+            ssl_set_bio(self.into(), ::core::ptr::null_mut(), None, None, None);
+            self.io = None;
         }
     }
 
-    /// If this is never called, will use the set of private keys and
-    /// certificates configured in the `Config` associated with this `Context`.
-    /// If this is called at least once, all those are ignored and the set
-    /// specified using this function is used.
-    pub fn push_cert<C: Into<&'ctx mut LinkedCertificate>>(
-        &mut self,
-        chain: C,
-        key: &'ctx mut crate::pk::Pk,
-    ) -> Result<()> {
-        unsafe {
-            ssl_set_hs_own_cert(self.inner, chain.into().into(), key.into())
-                .into_result()
-                .map(|_| ())
-        }
+    pub fn io(&self) -> Option<&dyn Any> {
+        self.io.as_ref().map(|v| &**v)
     }
-}
-
-impl<'ctx> ::core::ops::Deref for HandshakeContext<'ctx> {
-    type Target = Context<'ctx>;
-
-    fn deref(&self) -> &Context<'ctx> {
-        unsafe { UnsafeFrom::from(&*self.inner as *const _).expect("not null") }
+    pub fn io_mut(&mut self) -> Option<&mut dyn Any> {
+        self.io.as_mut().map(|v| &mut **v)
     }
-}
-
-impl<'ctx> UnsafeFrom<*mut ssl_context> for HandshakeContext<'ctx> {
-    unsafe fn from(ctx: *mut ssl_context) -> Option<HandshakeContext<'ctx>> {
-        ctx.as_mut().map(|ctx| HandshakeContext { inner: ctx })
-    }
-}
-
-impl<'a> Session<'a> {
+    
     /// Return the minor number of the negotiated TLS version
     pub fn minor_version(&self) -> i32 {
         self.inner.minor_ver
@@ -235,7 +208,7 @@ impl<'a> Session<'a> {
     /// Return the number of bytes currently available to read that
     /// are stored in the Session's internal read buffer
     pub fn bytes_available(&self) -> usize {
-        unsafe { ssl_get_bytes_avail(self.inner) }
+        unsafe { ssl_get_bytes_avail(self.into()) }
     }
 
     pub fn version(&self) -> Version {
@@ -251,32 +224,45 @@ impl<'a> Session<'a> {
         }
     }
 
+
+    // Session specific functions
+    
     /// Return the 16-bit ciphersuite identifier.
     /// All assigned ciphersuites are listed by the IANA in
     /// https://www.iana.org/assignments/tls-parameters/tls-parameters.txt
-    pub fn ciphersuite(&self) -> u16 {
-        if self.inner.session == ::core::ptr::null_mut() {
-            0
-        } else {
-            unsafe { self.inner.session.as_ref().unwrap().ciphersuite as u16 }
+    pub fn ciphersuite(&self) -> Result<u16> {
+        if self.inner.session.is_null() {
+            return Err(Error::SslBadInputData);
         }
+        
+        Ok(unsafe { self.inner.session.as_ref().unwrap().ciphersuite as u16 })
     }
 
-    pub fn peer_cert(&self) -> Option<crate::x509::certificate::Iter> {
-        unsafe { UnsafeFrom::from(ssl_get_peer_cert(self.inner)) }
-    }
+    pub fn peer_cert(&self) -> Result<Option<&MbedtlsList<Certificate>>> {
+        if self.inner.session.is_null() {
+            return Err(Error::SslBadInputData);
+        }
 
-    pub fn verify_result(&self) -> StdResult<(), VerifyError> {
-        match unsafe { ssl_get_verify_result(self.inner) } {
-            0 => Ok(()),
-            flags => Err(VerifyError::from_bits_truncate(flags)),
+        unsafe {
+            // We cannot call the peer cert function as we need a pointer to a pointer to create the MbedtlsList, we need something in the heap / cannot use any local variable for that.
+            let peer_cert : &MbedtlsList<Certificate> = UnsafeFrom::from(&((*self.inner.session).peer_cert) as *const *mut x509_crt as *const *const x509_crt).ok_or(Error::SslBadInputData)?;
+            Ok(Some(peer_cert))
         }
     }
 }
 
-impl<'a> Read for Session<'a> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match unsafe { ssl_read(self.inner, buf.as_mut_ptr(), buf.len()).into_result() } {
+impl Drop for Context {
+    fn drop(&mut self) {
+        unsafe {
+            self.close();
+            ssl_free(self.into());
+        }
+    }
+}
+
+impl Read for Context {
+    fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+        match unsafe { ssl_read(self.into(), buf.as_mut_ptr(), buf.len()).into_result() } {
             Err(Error::SslPeerCloseNotify) => Ok(0),
             Err(e) => Err(crate::private::error_to_io_error(e)),
             Ok(i) => Ok(i as usize),
@@ -284,28 +270,101 @@ impl<'a> Read for Session<'a> {
     }
 }
 
-impl<'a> Write for Session<'a> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        match unsafe { ssl_write(self.inner, buf.as_ptr(), buf.len()).into_result() } {
+impl Write for Context {
+    fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
+        match unsafe { ssl_write(self.into(), buf.as_ptr(), buf.len()).into_result() } {
             Err(Error::SslPeerCloseNotify) => Ok(0),
             Err(e) => Err(crate::private::error_to_io_error(e)),
             Ok(i) => Ok(i as usize),
         }
     }
 
-    fn flush(&mut self) -> io::Result<()> {
+    fn flush(&mut self) -> IoResult<()> {
         Ok(())
     }
 }
 
-impl<'a> Drop for Session<'a> {
-    fn drop(&mut self) {
-        unsafe {
-            ssl_close_notify(self.inner);
-            ssl_set_bio(self.inner, ::core::ptr::null_mut(), None, None, None);
+
+pub struct HandshakeContext<'ctx> {
+    pub context: &'ctx mut Context,
+}
+
+//
+// Class exists only during SNI callback that is configured from Config.
+// SNI Callback must provide input whos lifetime exceed the SNI closure to avoid memory corruptions.
+// That can be achieved easily by storing certificate chains/crls inside the closure for the lifetime of the closure.
+//
+// That is due to SNI being held by an Arc inside Config.
+// Config lives longer then Context. Context lives longer then Handshake.
+//
+// Alternatives are not possible due to:
+// - mbedtls not providing any callbacks on handshake finish.
+// - no reasonable way to obtain a storage within the sni callback tied to the handshake or to the rust Context. (without resorting to a unscalable map or pointer magic that mbedtls may invalidate)
+//
+impl<'ctx> HandshakeContext<'ctx> {
+
+    pub(crate) fn init(context: &'ctx mut Context) -> Self {
+        HandshakeContext { context }
+    }
+    
+    pub fn set_authmode(&mut self, am: AuthMode) -> Result<()> {
+        if self.context.inner.handshake as *const _ == ::core::ptr::null() {
+            return Err(Error::SslBadInputData);
         }
+        
+        unsafe { ssl_set_hs_authmode(self.context.into(), am as i32) }
+        Ok(())
+    }
+
+    pub fn set_ca_list(
+        &mut self,
+        chain: Arc<MbedtlsList<Certificate>>,
+        crl: Option<Arc<Crl>>,
+    ) -> Result<()> {
+        // mbedtls_ssl_set_hs_ca_chain does not check for NULL handshake.
+        if self.context.inner.handshake as *const _ == ::core::ptr::null() {
+            return Err(Error::SslBadInputData);
+        }
+
+        // This will override current handshake CA chain.
+        unsafe {
+            ssl_set_hs_ca_chain(
+                self.context.into(),
+                chain.inner_ffi_mut(),
+                crl.as_ref().map(|crl| crl.inner_ffi_mut()).unwrap_or(::core::ptr::null_mut()),
+            );
+        }
+
+        self.context.handshake_ca_cert = Some(chain);
+        self.context.handshake_crl = crl;
+        Ok(())
+    }
+
+    /// If this is never called, will use the set of private keys and
+    /// certificates configured in the `Config` associated with this `Context`.
+    /// If this is called at least once, all those are ignored and the set
+    /// specified using this function is used.
+    pub fn push_cert(
+        &mut self,
+        chain: Arc<MbedtlsList<Certificate>>,
+        key: Arc<Pk>,
+    ) -> Result<()> {
+        // mbedtls_ssl_set_hs_own_cert does not check for NULL handshake.
+        if self.context.inner.handshake as *const _ == ::core::ptr::null() {
+            return Err(Error::SslBadInputData);
+        }
+
+        // This will append provided certificate pointers in internal structures.
+        unsafe {
+            ssl_set_hs_own_cert(self.context.into(), chain.inner_ffi_mut(), key.inner_ffi_mut()).into_result()?;
+        }
+        self.context.handshake_cert.push(chain);
+        self.context.handshake_pk.push(key);
+
+        Ok(())
     }
 }
+
 
 // ssl_get_alpn_protocol
 // ssl_get_max_frag_len

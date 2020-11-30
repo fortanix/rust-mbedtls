@@ -6,44 +6,53 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+
+#[cfg(feature = "std")]
+use std::sync::Arc;
+
+pub use mbedtls_sys::HMAC_DRBG_RESEED_INTERVAL as RESEED_INTERVAL;
+use mbedtls_sys::*;
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
-pub use mbedtls_sys::HMAC_DRBG_RESEED_INTERVAL as RESEED_INTERVAL;
-use mbedtls_sys::{
-    hmac_drbg_random, hmac_drbg_reseed, hmac_drbg_seed, hmac_drbg_seed_buf,
-    hmac_drbg_set_prediction_resistance, hmac_drbg_update, HMAC_DRBG_PR_OFF, HMAC_DRBG_PR_ON,
-};
 
-use super::{EntropyCallback, RngCallback};
+#[cfg(not(feature = "std"))]
+use crate::alloc_prelude::*;
 use crate::error::{IntoResult, Result};
 use crate::hash::MdInfo;
+use crate::rng::{EntropyCallback, RngCallback, RngCallbackMut};
 
 define!(
     #[c_ty(hmac_drbg_context)]
-    struct HmacDrbg<'entropy>;
-    const init: fn() -> Self = hmac_drbg_init;
+    struct HmacDrbg {
+        entropy: Option<Arc<dyn EntropyCallback + 'static>>,
+    };
     const drop: fn(&mut Self) = hmac_drbg_free;
+    impl<'a> Into<ptr> {}
 );
 
 #[cfg(feature = "threading")]
-unsafe impl<'entropy> Sync for HmacDrbg<'entropy> {}
+unsafe impl Sync for HmacDrbg {}
 
-impl<'entropy> HmacDrbg<'entropy> {
-    pub fn new<F: EntropyCallback>(
+impl HmacDrbg {
+    pub fn new<T: EntropyCallback + 'static>(
         md_info: MdInfo,
-        source: &'entropy mut F,
+        entropy: Arc<T>,
         additional_entropy: Option<&[u8]>,
-    ) -> Result<HmacDrbg<'entropy>> {
-        let mut ret = Self::init();
+    ) -> Result<HmacDrbg> {
+
+        let mut ret = HmacDrbg {
+            inner: hmac_drbg_context::default(),
+            entropy: Some(entropy),
+        };
+        
         unsafe {
+            hmac_drbg_init(&mut ret.inner);
             hmac_drbg_seed(
                 &mut ret.inner,
                 md_info.into(),
-                Some(F::call),
-                source.data_ptr(),
-                additional_entropy
-                    .map(<[_]>::as_ptr)
-                    .unwrap_or(::core::ptr::null()),
+                Some(T::call),
+                ret.entropy.as_ref().unwrap().data_ptr(),
+                additional_entropy.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
                 additional_entropy.map(<[_]>::len).unwrap_or(0)
             )
             .into_result()?
@@ -51,9 +60,15 @@ impl<'entropy> HmacDrbg<'entropy> {
         Ok(ret)
     }
 
-    pub fn from_buf(md_info: MdInfo, entropy: &[u8]) -> Result<HmacDrbg<'entropy>> {
-        let mut ret = Self::init();
+    
+    pub fn from_buf(md_info: MdInfo, entropy: &[u8]) -> Result<HmacDrbg> {
+        let mut ret = HmacDrbg {
+            inner: hmac_drbg_context::default(),
+            entropy: None,
+        };
+
         unsafe {
+            hmac_drbg_init(&mut ret.inner);
             hmac_drbg_seed_buf(
                 &mut ret.inner,
                 md_info.into(),
@@ -117,13 +132,25 @@ impl<'entropy> HmacDrbg<'entropy> {
     //
 }
 
-impl<'entropy> RngCallback for HmacDrbg<'entropy> {
+impl RngCallbackMut for HmacDrbg {
     #[inline(always)]
-    unsafe extern "C" fn call(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
+    unsafe extern "C" fn call_mut(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
         hmac_drbg_random(user_data, data, len)
     }
 
-    fn data_ptr(&mut self) -> *mut c_void {
-        &mut self.inner as *mut _ as *mut _
+    fn data_ptr_mut(&mut self) -> *mut c_void {
+        self.handle_mut() as *const _ as *mut _
+    }
+}
+
+impl RngCallback for HmacDrbg {
+    #[inline(always)]
+    unsafe extern "C" fn call(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
+        // Mutex used in hmac_drbg_random: ../../../mbedtls-sys/vendor/crypto/library/hmac_drbg.c:363
+        hmac_drbg_random(user_data, data, len)
+    }
+
+    fn data_ptr(&self) -> *mut c_void {
+        self.handle() as *const _ as *mut _
     }
 }

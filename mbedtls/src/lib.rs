@@ -15,7 +15,7 @@ const ERROR: _MUST_USE_EITHER_STD_OR_CORE_IO_ = ();
 
 #[cfg(not(feature = "std"))]
 #[macro_use]
-extern crate alloc;
+extern crate alloc as rust_alloc;
 #[cfg(feature = "std")]
 extern crate core;
 #[cfg(not(feature = "std"))]
@@ -59,6 +59,7 @@ pub mod rng;
 pub mod self_test;
 pub mod ssl;
 pub mod x509;
+pub mod alloc;
 
 #[cfg(feature = "pkcs12")]
 pub mod pkcs12;
@@ -112,11 +113,13 @@ mod mbedtls {
 #[cfg(not(feature = "std"))]
 mod alloc_prelude {
     #![allow(unused)]
-    pub(crate) use alloc::borrow::ToOwned;
-    pub(crate) use alloc::boxed::Box;
-    pub(crate) use alloc::string::String;
-    pub(crate) use alloc::string::ToString;
-    pub(crate) use alloc::vec::Vec;
+    pub(crate) use rust_alloc::borrow::ToOwned;
+    pub(crate) use rust_alloc::boxed::Box;
+    pub(crate) use rust_alloc::sync::Arc;
+    pub(crate) use rust_alloc::string::String;
+    pub(crate) use rust_alloc::string::ToString;
+    pub(crate) use rust_alloc::vec::Vec;
+    pub(crate) use rust_alloc::borrow::Cow;
 }
 
 #[cfg(all(feature="time", any(feature="custom_gmtime_r", feature="custom_time")))]
@@ -163,3 +166,11 @@ pub unsafe extern "C" fn mbedtls_time(tp: *mut time_t) -> time_t {
     }
     timestamp
 }
+
+// Debug not available in SGX
+#[cfg(not(target_env = "sgx"))]
+pub unsafe fn set_global_debug_threshold(threshold: i32) {
+    mbedtls_sys::debug_set_threshold(threshold);
+}
+
+
