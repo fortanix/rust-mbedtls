@@ -5,7 +5,7 @@
  *
  * \author Adriaan de Jong <dejong@fox-it.com>
  *
- *  Copyright (C) 2006-2015, ARM Limited, All Rights Reserved
+ *  Copyright The Mbed TLS Contributors
  *  SPDX-License-Identifier: Apache-2.0
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -19,21 +19,16 @@
  *  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
- *
- *  This file is part of mbed TLS (https://tls.mbed.org)
  */
 
-#if !defined(MBEDTLS_CONFIG_FILE)
-#include "mbedtls/config.h"
-#else
-#include MBEDTLS_CONFIG_FILE
-#endif
+#include "common.h"
 
 #if defined(MBEDTLS_CIPHER_C)
 
 #include "mbedtls/cipher.h"
 #include "mbedtls/cipher_internal.h"
 #include "mbedtls/platform_util.h"
+#include "mbedtls/error.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -297,8 +292,7 @@ int mbedtls_cipher_setkey( mbedtls_cipher_context_t *ctx,
 
         psa_status_t status;
         psa_key_type_t key_type;
-        psa_key_usage_t key_usage;
-        psa_key_policy_t key_policy;
+        psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
 
         /* PSA Crypto API only accepts byte-aligned keys. */
         if( key_bitlen % 8 != 0 )
@@ -312,40 +306,33 @@ int mbedtls_cipher_setkey( mbedtls_cipher_context_t *ctx,
             ctx->cipher_info->type );
         if( key_type == 0 )
             return( MBEDTLS_ERR_CIPHER_FEATURE_UNAVAILABLE );
-
-        /* Allocate a key slot to use. */
-        status = psa_allocate_key( &cipher_psa->slot );
-        if( status != PSA_SUCCESS )
-            return( MBEDTLS_ERR_CIPHER_HW_ACCEL_FAILED );
-
-        /* Indicate that we own the key slot and need to
-         * destroy it in mbedtls_cipher_free(). */
-        cipher_psa->slot_state = MBEDTLS_CIPHER_PSA_KEY_OWNED;
-
-        /* From that point on, the responsibility for destroying the
-         * key slot is on mbedtls_cipher_free(). This includes the case
-         * where the policy setup or key import below fail, as
-         * mbedtls_cipher_free() needs to be called in any case. */
-
-        /* Setup policy for the new key slot. */
-        key_policy = psa_key_policy_init();
+        psa_set_key_type( &attributes, key_type );
 
         /* Mbed TLS' cipher layer doesn't enforce the mode of operation
          * (encrypt vs. decrypt): it is possible to setup a key for encryption
          * and use it for AEAD decryption. Until tests relying on this
          * are changed, allow any usage in PSA. */
-        /* key_usage = mbedtls_psa_translate_cipher_operation( operation ); */
-        key_usage = PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT;
-        psa_key_policy_set_usage( &key_policy, key_usage, cipher_psa->alg );
-        status = psa_set_key_policy( cipher_psa->slot, &key_policy );
-        if( status != PSA_SUCCESS )
-            return( MBEDTLS_ERR_CIPHER_HW_ACCEL_FAILED );
+        psa_set_key_usage_flags( &attributes,
+                                 /* mbedtls_psa_translate_cipher_operation( operation ); */
+                                 PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT );
+        psa_set_key_algorithm( &attributes, cipher_psa->alg );
 
-        /* Populate new key slot. */
-        status = psa_import_key( cipher_psa->slot,
-                                 key_type, key, key_bytelen );
-        if( status != PSA_SUCCESS )
-            return( MBEDTLS_ERR_CIPHER_HW_ACCEL_FAILED );
+        status = psa_import_key( &attributes, key, key_bytelen,
+                                 &cipher_psa->slot );
+        switch( status )
+        {
+            case PSA_SUCCESS:
+                break;
+            case PSA_ERROR_INSUFFICIENT_MEMORY:
+                return( MBEDTLS_ERR_CIPHER_ALLOC_FAILED );
+            case PSA_ERROR_NOT_SUPPORTED:
+                return( MBEDTLS_ERR_CIPHER_FEATURE_UNAVAILABLE );
+            default:
+                return( MBEDTLS_ERR_CIPHER_HW_ACCEL_FAILED );
+        }
+        /* Indicate that we own the key slot and need to
+         * destroy it in mbedtls_cipher_free(). */
+        cipher_psa->slot_state = MBEDTLS_CIPHER_PSA_KEY_OWNED;
 
         ctx->key_bitlen = key_bitlen;
         ctx->operation = operation;
@@ -512,7 +499,7 @@ int mbedtls_cipher_update_ad( mbedtls_cipher_context_t *ctx,
 int mbedtls_cipher_update( mbedtls_cipher_context_t *ctx, const unsigned char *input,
                    size_t ilen, unsigned char *output, size_t *olen )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t block_size;
 
     CIPHER_VALIDATE_RET( ctx != NULL );
@@ -534,6 +521,10 @@ int mbedtls_cipher_update( mbedtls_cipher_context_t *ctx, const unsigned char *i
 
     *olen = 0;
     block_size = mbedtls_cipher_get_block_size( ctx );
+    if ( 0 == block_size )
+    {
+        return( MBEDTLS_ERR_CIPHER_INVALID_CONTEXT );
+    }
 
     if( ctx->cipher_info->mode == MBEDTLS_MODE_ECB )
     {
@@ -568,11 +559,6 @@ int mbedtls_cipher_update( mbedtls_cipher_context_t *ctx, const unsigned char *i
                                            ilen, input, output ) );
     }
 #endif
-
-    if ( 0 == block_size )
-    {
-        return( MBEDTLS_ERR_CIPHER_INVALID_CONTEXT );
-    }
 
     if( input == output &&
        ( ctx->unprocessed_len != 0 || ilen % block_size ) )
@@ -632,11 +618,6 @@ int mbedtls_cipher_update( mbedtls_cipher_context_t *ctx, const unsigned char *i
          */
         if( 0 != ilen )
         {
-            if( 0 == block_size )
-            {
-                return( MBEDTLS_ERR_CIPHER_INVALID_CONTEXT );
-            }
-
             /* Encryption: only cache partial blocks
              * Decryption w/ padding: always keep at least one whole block
              * Decryption w/o padding: only cache partial blocks
@@ -1114,8 +1095,6 @@ int mbedtls_cipher_write_tag( mbedtls_cipher_context_t *ctx,
          * operations, we currently don't make it
          * accessible through the cipher layer. */
         return( MBEDTLS_ERR_CIPHER_FEATURE_UNAVAILABLE );
-
-        return( 0 );
     }
 #endif /* MBEDTLS_USE_PSA_CRYPTO */
 
@@ -1144,7 +1123,7 @@ int mbedtls_cipher_check_tag( mbedtls_cipher_context_t *ctx,
                       const unsigned char *tag, size_t tag_len )
 {
     unsigned char check_tag[16];
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
 
     CIPHER_VALIDATE_RET( ctx != NULL );
     CIPHER_VALIDATE_RET( tag_len == 0 || tag != NULL );
@@ -1221,7 +1200,7 @@ int mbedtls_cipher_crypt( mbedtls_cipher_context_t *ctx,
                   const unsigned char *input, size_t ilen,
                   unsigned char *output, size_t *olen )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t finish_olen;
 
     CIPHER_VALIDATE_RET( ctx != NULL );
@@ -1465,7 +1444,7 @@ int mbedtls_cipher_auth_decrypt( mbedtls_cipher_context_t *ctx,
 #if defined(MBEDTLS_GCM_C)
     if( MBEDTLS_MODE_GCM == ctx->cipher_info->mode )
     {
-        int ret;
+        int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
 
         *olen = ilen;
         ret = mbedtls_gcm_auth_decrypt( ctx->cipher_ctx, ilen,
@@ -1481,7 +1460,7 @@ int mbedtls_cipher_auth_decrypt( mbedtls_cipher_context_t *ctx,
 #if defined(MBEDTLS_CCM_C)
     if( MBEDTLS_MODE_CCM == ctx->cipher_info->mode )
     {
-        int ret;
+        int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
 
         *olen = ilen;
         ret = mbedtls_ccm_auth_decrypt( ctx->cipher_ctx, ilen,
@@ -1497,7 +1476,7 @@ int mbedtls_cipher_auth_decrypt( mbedtls_cipher_context_t *ctx,
 #if defined(MBEDTLS_CHACHAPOLY_C)
     if ( MBEDTLS_CIPHER_CHACHA20_POLY1305 == ctx->cipher_info->type )
     {
-        int ret;
+        int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
 
         /* ChachaPoly has fixed length nonce and MAC (tag) */
         if ( ( iv_len != ctx->cipher_info->iv_size ) ||

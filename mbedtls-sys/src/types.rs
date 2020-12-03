@@ -90,8 +90,14 @@ extern crate libc;
 mod libc_types {
     pub use super::libc::FILE;
 
+    #[cfg(all(feature = "time", not(feature = "custom_time")))]
+    pub use super::libc::time_t;
+
+    #[cfg(feature = "custom_time")]
+    pub type time_t = super::raw_types::c_longlong;
+
     #[cfg(feature = "time")]
-    pub use super::libc::{time_t, tm};
+    pub use super::libc::tm;
 
 }
 
@@ -99,8 +105,11 @@ mod libc_types {
 mod libc_types {
     pub enum FILE {}
 
-    #[cfg(feature = "time")]
+    #[cfg(all(feature = "time", not(feature = "custom_time")))]
     pub type time_t = i64;
+
+    #[cfg(feature = "custom_time")]
+    pub type time_t = super::raw_types::c_longlong;
 
     #[cfg(feature = "time")]
     #[repr(C)]

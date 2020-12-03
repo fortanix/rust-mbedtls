@@ -1,7 +1,7 @@
 /*
  *  RFC 1186/1320 compliant MD4 implementation
  *
- *  Copyright (C) 2006-2015, ARM Limited, All Rights Reserved
+ *  Copyright The Mbed TLS Contributors
  *  SPDX-License-Identifier: Apache-2.0
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,8 +15,6 @@
  *  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
- *
- *  This file is part of mbed TLS (https://tls.mbed.org)
  */
 /*
  *  The MD4 algorithm was designed by Ron Rivest in 1990.
@@ -25,16 +23,13 @@
  *  http://www.ietf.org/rfc/rfc1320.txt
  */
 
-#if !defined(MBEDTLS_CONFIG_FILE)
-#include "mbedtls/config.h"
-#else
-#include MBEDTLS_CONFIG_FILE
-#endif
+#include "common.h"
 
 #if defined(MBEDTLS_MD4_C)
 
 #include "mbedtls/md4.h"
 #include "mbedtls/platform_util.h"
+#include "mbedtls/error.h"
 
 #include <string.h>
 
@@ -253,7 +248,7 @@ int mbedtls_md4_update_ret( mbedtls_md4_context *ctx,
                             const unsigned char *input,
                             size_t ilen )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t fill;
     uint32_t left;
 
@@ -323,7 +318,7 @@ static const unsigned char md4_padding[64] =
 int mbedtls_md4_finish_ret( mbedtls_md4_context *ctx,
                             unsigned char output[16] )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     uint32_t last, padn;
     uint32_t high, low;
     unsigned char msglen[8];
@@ -371,7 +366,7 @@ int mbedtls_md4_ret( const unsigned char *input,
                      size_t ilen,
                      unsigned char output[16] )
 {
-    int ret;
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     mbedtls_md4_context ctx;
 
     mbedtls_md4_init( &ctx );
