@@ -410,6 +410,7 @@ pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
     ("time",                  ("MBEDTLS_HAVE_TIME_DATE",                    Defined)),
     ("time",                  ("MBEDTLS_TIMING_C",                          Defined)),
     ("custom_time",           ("MBEDTLS_PLATFORM_TIME_MACRO",               DefinedAs("mbedtls_time"))),
+    ("custom_time",           ("MBEDTLS_PLATFORM_TIME_TYPE_MACRO",          DefinedAs("long long"))),
     ("custom_gmtime_r",       ("MBEDTLS_PLATFORM_GMTIME_R_ALT",             Defined)),
     ("havege",                ("MBEDTLS_HAVEGE_C",                          Defined)),
     ("threading",             ("MBEDTLS_THREADING_C",                       Defined)),

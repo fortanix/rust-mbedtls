@@ -62,8 +62,7 @@ impl BuildConfig {
                     writeln!(f, "typedef void* mbedtls_threading_mutex_t;")?;
                 }
                 if have_feature("custom_time") {
-                    writeln!(f, "#include <time.h>")?;
-                    writeln!(f, "time_t mbedtls_time(time_t *);")?;
+                    writeln!(f, "long long mbedtls_time(long long*);")?;
                 }
                 f.write_all(config::SUFFIX.as_bytes())
             })
