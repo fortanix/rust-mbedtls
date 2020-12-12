@@ -22,6 +22,7 @@ This is a list of the Cargo features available for mbedtls. Features in
             enabled automatically.
 * *debug* Enable debug printing to stdout. You need to configure the debug
           threshold at runtime.
+* **dsa** Enable support for DSA signatures
 * *force_aesni_support* MbedTLS normally uses runtime detection of AES-NI
                         support. With this feature, always use AES-NI. This
                         will result in undefined instruction exceptions on

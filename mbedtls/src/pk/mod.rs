@@ -23,7 +23,7 @@ use byteorder::{BigEndian, ByteOrder};
 
 pub(crate) mod dhparam;
 mod ec;
-mod rfc6979;
+pub(crate) mod rfc6979;
 
 use self::rfc6979::Rfc6979Rng;
 use crate::bignum::Mpi;
