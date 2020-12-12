@@ -295,27 +295,44 @@ impl DsaPrivateKey {
 
     pub fn sign<F: Random>(&self, pre_hashed_message: &[u8], rng: &mut F) -> Result<Vec<u8>> {
         let k = sample_secret_value(&self.params.q, rng)?;
-        self.sign_with_explicit_nonce(pre_hashed_message, k)
+        self.sign_with_explicit_nonce(pre_hashed_message, k, rng)
     }
 
-    pub fn sign_deterministic(&self, md_type: MdType, pre_hashed_message: &[u8]) -> Result<Vec<u8>> {
+    pub fn sign_deterministic<F: Random>(&self, md_type: MdType, pre_hashed_message: &[u8], rng: &mut F) -> Result<Vec<u8>> {
         let md: MdInfo = match md_type.into() {
             Some(md) => md,
             None => panic!("no such digest"),
         };
         let rfc6979_nonce = generate_rfc6979_nonce(&md, &self.x, &self.params.q, pre_hashed_message)?;
         let k = Mpi::from_binary(&rfc6979_nonce)?;
-        self.sign_with_explicit_nonce(pre_hashed_message, k)
+        self.sign_with_explicit_nonce(pre_hashed_message, k, rng)
     }
 
     // Exposed for testing
-    pub(crate) fn sign_with_explicit_nonce(&self, pre_hashed_message: &[u8], k: Mpi) -> Result<Vec<u8>> {
+    pub(crate) fn sign_with_explicit_nonce<F: Random>(&self, pre_hashed_message: &[u8], k: Mpi, rng: &mut F) -> Result<Vec<u8>> {
         let q = &self.params.q;
+
         let m = reduce_mod_q(pre_hashed_message, q)?;
-        let g_k_p = self.params.g.mod_exp(&k, &self.params.p)?;
-        let r = g_k_p.modulo(q)?;
         let k_inv = k.modinv(q)?;
-        let xr_m = (&(&r * &self.x)? + &m)?;
+
+        // Mask k by using k+r*q for random r as the scalar
+        let k_mask = sample_secret_value(&self.params.q, rng)?;
+        let masked_k = (&k + &(&k_mask * q)?)?;
+
+        let g_k_p = self.params.g.mod_exp(&masked_k, &self.params.p)?;
+        let r = g_k_p.modulo(q)?;
+
+        // Blind the input message and compute x*r+m as (x*r*z + m*z)/z
+        // to avoid ROHNP-style attacks
+
+        let z_mask = sample_secret_value(&self.params.q, rng)?;
+        let z_inv = z_mask.modinv(q)?;
+
+        let zm = (&z_mask * &m)?;
+        let xrz = (&(&z_mask * &self.x)? * &r)?;
+
+        let xr_m = (&(&xrz + &zm)? * &z_inv)?.modulo(q)?;
+
         let s = (&xr_m * &k_inv)?.modulo(q)?;
 
         let zero = Mpi::new(0)?;
@@ -410,6 +427,7 @@ mod tests {
 
         let params = DsaParams::from_params(p, q, g).unwrap();
         let privkey = DsaPrivateKey::from_params(params, x).unwrap();
+        let pubkey = privkey.public_key().unwrap();
 
         let rfc6979_results = [
             ("sample", MdType::Sha1,   "3a1b2dbd7489d6ed7e608fd036c83af396e290dbd602408e8677daabd6e7445ad26fcba19fa3e3058ffc02ca1596cdbb6e0d20cb37b06054f7e36ded0cdbbccf"),
@@ -424,10 +442,20 @@ mod tests {
             ("test", MdType::Sha512,   "89ec4bb1400eccff8e7d9aa515cd1de7803f2daff09693ee7fd1353e90a68307c9f0bdabcc0d880bb137a994cc7f3980ce91cc10faf529fc46565b15cea854e1"),
         ];
 
+        let mdt = MdType::Sha512;
+        let mdinfo: MdInfo = match mdt.into() {
+            Some(m) => m,
+            None => panic!()
+        };
+
+        let bad_seed = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos();
+        let mut rng = HmacDrbg::from_buf(mdinfo, &bad_seed.to_be_bytes()).unwrap();
+
         for kat in rfc6979_results.iter() {
             let digest = hash_input(kat.0.as_bytes(), kat.1);
-            let sig = privkey.sign_deterministic(kat.1, &digest).unwrap();
-            assert_eq!(hex::encode(sig), kat.2);
+            let sig = privkey.sign_deterministic(kat.1, &digest, &mut rng).unwrap();
+            assert_eq!(hex::encode(&sig), kat.2);
+            assert!(pubkey.verify(&sig, &digest).unwrap());
         }
     }
 
@@ -456,6 +484,9 @@ mod tests {
                 None => panic!("no such digest"),
             };
 
+            let bad_seed = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos();
+            let mut rng = HmacDrbg::from_buf(mdinfo, &bad_seed.to_be_bytes()).unwrap();
+
             let params = DsaParams::from_params(p, q, g).unwrap();
 
             let privkey = DsaPrivateKey::from_params(params, x).unwrap();
@@ -465,17 +496,15 @@ mod tests {
 
             assert!(pubkey.verify(&encoded_sig, &hashed_message).unwrap());
 
-            assert_eq!(privkey.sign_with_explicit_nonce(&hashed_message, k).unwrap(), encoded_sig);
+            assert_eq!(privkey.sign_with_explicit_nonce(&hashed_message, k, &mut rng).unwrap(), encoded_sig);
 
             // Additional tests done per KAT input:
 
             // Generate a new RFC 6979 signature and verify it
-            let new_rfc6979_sig = privkey.sign_deterministic(mdt, &hashed_message).unwrap();
+            let new_rfc6979_sig = privkey.sign_deterministic(mdt, &hashed_message, &mut rng).unwrap();
             assert!(pubkey.verify(&new_rfc6979_sig, &hashed_message).unwrap());
 
             // Generate a new random(-ish) signature and verify it
-            let bad_seed = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos();
-            let mut rng = HmacDrbg::from_buf(mdinfo, &bad_seed.to_be_bytes()).unwrap();
             let new_random_sig = privkey.sign(&hashed_message, &mut rng).unwrap();
             assert!(pubkey.verify(&new_random_sig, &hashed_message).unwrap());
 
