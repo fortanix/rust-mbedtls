@@ -63,6 +63,9 @@ pub mod x509;
 #[cfg(feature = "pkcs12")]
 pub mod pkcs12;
 
+#[cfg(feature = "dsa")]
+pub mod dsa;
+
 // ==============
 //    Utility
 // ==============
