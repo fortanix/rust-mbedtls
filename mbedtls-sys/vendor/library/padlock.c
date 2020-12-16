@@ -37,7 +37,6 @@
 
 #if defined(MBEDTLS_HAVE_X86)
 
-#if !defined(MBEDTLS_CUSTOM_HAS_PADLOCK)
 /*
  * PadLock detection routine
  */
@@ -68,7 +67,6 @@ int mbedtls_padlock_has_support( int feature )
 
     return( flags & feature );
 }
-#endif
 
 /*
  * PadLock AES-ECB block en(de)cryption
