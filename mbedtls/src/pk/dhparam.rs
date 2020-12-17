@@ -22,7 +22,7 @@ impl Dhm {
     /// Takes both DER and PEM forms of FFDH parameters in `DHParams` format.
     ///
     /// When calling on PEM-encoded data, `params` must be NULL-terminated
-    pub(crate) fn from_params(params: &[u8]) -> Result<Dhm> {
+    pub fn from_params(params: &[u8]) -> Result<Dhm> {
         let mut ret = Self::init();
         unsafe { dhm_parse_dhm(&mut ret.inner, params.as_ptr(), params.len()) }.into_result()?;
         Ok(ret)

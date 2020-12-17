@@ -9,6 +9,7 @@
 use mbedtls_sys::types::raw_types::c_int;
 use mbedtls_sys::*;
 
+/// Always use into() to convert to i32, do not use 'as i32'. (until issue is fixed: https://github.com/fortanix/rust-mbedtls/issues/129)
 define!(
     #[non_exhaustive]
     #[c_ty(c_int)]

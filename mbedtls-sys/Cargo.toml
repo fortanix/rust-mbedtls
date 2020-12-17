@@ -12,6 +12,7 @@ This version generates the correct bindings at compile time using bindgen."""
 readme = "../README.md"
 repository = "https://github.com/fortanix/rust-mbedtls"
 documentation = "https://docs.rs/mbedtls-sys-auto/"
+links = "mbedtls"
 
 [lib]
 name = "mbedtls_sys"

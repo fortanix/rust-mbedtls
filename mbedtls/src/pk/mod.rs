@@ -35,6 +35,8 @@ pub use self::ec::{EcGroupId, ECDSA_MAX_LEN};
 #[doc(inline)]
 pub use crate::ecp::EcGroup;
 
+pub use dhparam::Dhm;
+
 // SHA-256("Fortanix")[:4]
 const CUSTOM_PK_TYPE: pk_type_t = 0x8b205408 as pk_type_t;
 
@@ -132,6 +134,7 @@ const CUSTOM_PK_INFO: pk_info_t = {
     }
 };
 
+// If this changes then certificate.rs unsafe code in public_key needs to also change.
 define!(
     #[c_ty(pk_context)]
     #[repr(C)]
@@ -141,6 +144,91 @@ define!(
     impl<'a> Into<ptr> {}
     impl<'a> UnsafeFrom<ptr> {}
 );
+
+// # Safety
+//
+// Thread safety analysis for Pk.
+//
+// A. Usage example of Pk.
+//
+// 1.1. Common use case is to to pass it as parameter to the SSL Config class.
+// 1.2. SSL Config class is then used by multiple Context classes (one for each connection)
+// 1.3. Context classes, handled by different threads will do calls towards Pk.
+//
+// Since this is a common use case for MbedTLS it should be thread safe if threading is enabled.
+//
+// B. Verifying thread safety.
+//
+// 1. Calls towards the specific Pk implementation are done via function pointers.
+// 
+// - Example call towards Pk:
+//    ../../../mbedtls-sys/vendor/library/ssl_srv.c:3707 - mbedtls_pk_decrypt( private_key, p, len, ...
+// - This calls a generic function pointer via:
+//    ../../../mbedtls-sys/vendor/crypto/library/pk.c:475 - return( ctx->pk_info->decrypt_func( ctx->pk_ctx, input, ilen,
+//
+// 2. Pk implementation types.
+//
+// - The function pointers are defined via function:
+//      ../../../mbedtls-sys/vendor/crypto/library/pk.c:115 - mbedtls_pk_info_from_type
+// - They are as follows: mbedtls_rsa_info / mbedtls_eckey_info / mbedtls_ecdsa_info
+// - These are defined in: 
+//       ../../../mbedtls-sys/vendor/crypto/library/pk_wrap.c:196
+//
+// C. Checking types one by one.
+//
+// 1. RSA: mbedtls_rsa_info at ../../../mbedtls-sys/vendor/crypto/library/pk_wrap.c:196
+// This uses internal locks in: ../../../mbedtls-sys/vendor/crypto/library/rsa.c:718
+//
+// 2. ECKEY: mbedtls_eckey_info at ../../../mbedtls-sys/vendor/crypto/library/pk_wrap.c:418
+// This does not use internal locks but avoids interior mutability.
+//
+// Function checks one by one:
+// - Only const access to context: eckey_check_pair, eckey_get_bitlen, eckey_can_do, eckey_check_pair
+//
+// - Const acccess / copies context to a stack based variable
+//   eckey_verify_wrap, eckey_sign_wrap: ../../../mbedtls-sys/vendor/crypto/library/pk_wrap.c:251
+//       creates a stack ecdsa variable and uses ctx to initialize it.
+//       ctx is passed as 'key', a const pointer to mbedtls_ecdsa_from_keypair( &ecdsa, ctx )
+//           ../../../mbedtls-sys/vendor/crypto/library/ecdsa.c:819
+//           int mbedtls_ecdsa_from_keypair( mbedtls_ecdsa_context *ctx, const mbedtls_ecp_keypair *key )
+//           key does not mutate.
+//
+// - Ignored due to not defined: eckey_verify_rs_wrap, eckey_sign_rs_wrap
+//   (Undefined - MBEDTLS_ECP_RESTARTABLE - ../../../mbedtls-sys/build/config.rs:173)
+//
+// - Only used when creating/freeing - which is safe by design - eckey_alloc_wrap / eckey_free_wrap
+//
+// 3. ECDSA: mbedtls_ecdsa_info at ../../../mbedtls-sys/vendor/crypto/library/pk_wrap.c:729
+// This does not use internal locks but avoids interior mutability.
+//
+// - Const access / copies context to stack based variables:
+//   ecdsa_verify_wrap: ../../../mbedtls-sys/vendor/crypto/library/pk_wrap.c:544
+//       This copies the public key on the stack - in buf[] and copies the group id and nbits.
+//       That is done via: mbedtls_pk_write_pubkey( &p, buf, &key ) where key.pk_ctx = ctx;
+//       And the key is a const parameter to mbedtls_pk_write_pubkey - ../../../mbedtls-sys/vendor/crypto/library/pkwrite.c:158
+//
+// - Const access with additional notes due to call stacks involved.
+//
+//   ecdsa_sign_wrap: ../../../mbedtls-sys/vendor/crypto/library/pk_wrap.c:657
+//       mbedtls_ecdsa_write_signature ../../../mbedtls-sys/vendor/crypto/library/ecdsa.c:688
+//           mbedtls_ecdsa_write_signature_restartable ../../../mbedtls-sys/vendor/crypto/library/ecdsa.c:640
+//               MBEDTLS_ECDSA_DETERMINISTIC is not defined.
+//               MBEDTLS_ECDSA_SIGN_ALT is not defined.
+//               Passes grp to: ecdsa_sign_restartable: ../../../mbedtls-sys/vendor/crypto/library/ecdsa.c:253
+//                    Const access to group - reads parameters, passed as const to mbedtls_ecp_gen_privkey,
+//                    mbedtls_ecp_mul_restartable: ../../../mbedtls-sys/vendor/crypto/library/ecp.c:2351
+//                        MBEDTLS_ECP_INTERNAL_ALT is not defined. (otherwise it might not be safe depending on ecp_init/ecp_free) ../../../mbedtls-sys/build/config.rs:131
+//                        Passes as const to: mbedtls_ecp_check_privkey / mbedtls_ecp_check_pubkey / mbedtls_ecp_get_type( grp
+//        
+// - Ignored due to not defined: ecdsa_verify_rs_wrap, ecdsa_sign_rs_wrap, ecdsa_rs_alloc, ecdsa_rs_free
+//   (Undefined - MBEDTLS_ECP_RESTARTABLE - ../../../mbedtls-sys/build/config.rs:173)
+//
+// - Only const access to context: eckey_check_pair
+//
+// - Only used when creating/freeing - which is safe by design: ecdsa_alloc_wrap, ecdsa_free_wrap
+//
+#[cfg(feature = "threading")]
+unsafe impl Sync for Pk {}
 
 impl Pk {
     /// Takes both DER and PEM forms of PKCS#1 or PKCS#8 encoded keys.
@@ -778,7 +866,7 @@ impl Pk {
         sig: &mut [u8],
         rng: &mut F,
     ) -> Result<usize> {
-        use crate::rng::RngCallback;
+        use crate::rng::RngCallbackMut;
 
         if self.pk_type() == Type::Ecdsa || self.pk_type() == Type::Eckey {
             if sig.len() < ECDSA_MAX_LEN {
@@ -803,8 +891,8 @@ impl Pk {
                     hash.len(),
                     sig.as_mut_ptr(),
                     &mut ret,
-                    Some(Rfc6979Rng::call),
-                    rng.data_ptr(),
+                    Some(Rfc6979Rng::call_mut),
+                    rng.data_ptr_mut(),
                 ).into_result()?;
             };
             Ok(ret)

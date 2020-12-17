@@ -12,6 +12,12 @@ use std::env;
 
 fn main() {
     let mut b = cc::Build::new();
+    b.include(env::var_os("DEP_MBEDTLS_INCLUDE").expect("Links was not properly set in mbedtls-sys package, missing DEP_MBEDTLS_INCLUDE"));
+    let config_file = format!("\"{}\"", env::var_os("DEP_MBEDTLS_CONFIG_H").expect("Links was not properly set in mbedtls-sys package, missing DEP_MBEDTLS_CONFIG_H").to_str().unwrap());
+    b.define("MBEDTLS_CONFIG_FILE",
+             Some(config_file.as_str()));
+    
+    b.file("src/mbedtls_malloc.c");
     b.file("src/rust_printf.c");
     if env::var_os("CARGO_FEATURE_STD").is_none()
         || ::std::env::var("TARGET")

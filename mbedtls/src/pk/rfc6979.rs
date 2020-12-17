@@ -12,7 +12,7 @@ use crate::alloc_prelude::*;
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 
-use crate::rng::{HmacDrbg, Random, RngCallback};
+use crate::rng::{HmacDrbg, Random, RngCallbackMut};
 
 use crate::error::Result;
 use crate::bignum::Mpi;
@@ -67,7 +67,7 @@ fn generate_rfc6979_nonce(md: &MdInfo, x: &Mpi, q: &Mpi, digest_bytes: &[u8]) ->
 pub(crate) struct Rfc6979Rng {
     pub k: Vec<u8>,
     pub k_read: usize,
-    pub rng: HmacDrbg<'static>,
+    pub rng: HmacDrbg,
 }
 
 /// An RNG which first outputs the k for RFC 6797 followed by random data
@@ -110,8 +110,8 @@ impl Rfc6979Rng {
     }
 }
 
-impl RngCallback for Rfc6979Rng {
-    unsafe extern "C" fn call(
+impl RngCallbackMut for Rfc6979Rng {
+    unsafe extern "C" fn call_mut(
         user_data: *mut c_void,
         data_ptr: *mut c_uchar,
         len: size_t,
@@ -126,7 +126,7 @@ impl RngCallback for Rfc6979Rng {
         }
     }
 
-    fn data_ptr(&mut self) -> *mut c_void {
+    fn data_ptr_mut(&mut self) -> *mut c_void {
         self as *const _ as *mut _
     }
 }

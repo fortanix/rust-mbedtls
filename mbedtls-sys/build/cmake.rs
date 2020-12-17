@@ -49,5 +49,8 @@ impl super::BuildConfig {
         println!("cargo:rustc-link-lib=mbedtls");
         println!("cargo:rustc-link-lib=mbedx509");
         println!("cargo:rustc-link-lib=mbedcrypto");
+
+        println!("cargo:include={}/{}", ::std::env::current_dir().unwrap().display(), self.mbedtls_src.join("include").display());
+        println!("cargo:config_h={}", self.config_h.to_str().expect("config.h UTF-8 error"));
     }
 }

@@ -17,48 +17,50 @@ use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::{Config, Context, Version};
-use mbedtls::x509::{Certificate, LinkedCertificate, VerifyError};
+use mbedtls::x509::{Certificate, VerifyError};
 use mbedtls::Error;
 use mbedtls::Result as TlsResult;
+use std::sync::Arc;
 
 mod support;
 use support::entropy::entropy_new;
 use support::keys;
 
 fn client(
-    mut conn: TcpStream,
+    conn: TcpStream,
     min_version: Version,
     max_version: Version,
     exp_version: Option<Version>) -> TlsResult<()> {
-    let mut entropy = entropy_new();
-    let mut rng = CtrDrbg::new(&mut entropy, None)?;
-    let mut cacert = Certificate::from_pem(keys::ROOT_CA_CERT)?;
+    let entropy = Arc::new(entropy_new());
+    let rng = Arc::new(CtrDrbg::new(entropy, None)?);
+    let cacert = Arc::new(Certificate::from_pem_multiple(keys::ROOT_CA_CERT)?);
     let expected_flags = VerifyError::empty();
     #[cfg(feature = "time")]
     let expected_flags = expected_flags | VerifyError::CERT_EXPIRED;
-    let mut verify_args = None;
     {
-        let verify_callback =
-            &mut |crt: &mut LinkedCertificate, depth, verify_flags: &mut VerifyError| {
-                verify_args = Some((crt.subject().unwrap(), depth, *verify_flags));
-                verify_flags.remove(VerifyError::CERT_EXPIRED); //we check the flags at the end,
-                //so removing this flag here prevents the connections from failing with VerifyError
-                Ok(())
+        let verify_callback = move |crt: &Certificate, depth: i32, verify_flags: &mut VerifyError| {
+
+            match (crt.subject().unwrap().as_str(), depth, &verify_flags) {
+                ("CN=RootCA", 1, _) => (),
+                (keys::EXPIRED_CERT_SUBJECT, 0, flags) => assert_eq!(**flags, expected_flags),
+                _ => assert!(false),
             };
+            
+            verify_flags.remove(VerifyError::CERT_EXPIRED); //we check the flags at the end,
+            //so removing this flag here prevents the connections from failing with VerifyError
+            Ok(())
+        };
         let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
-        config.set_rng(Some(&mut rng));
+        config.set_rng(rng);
         config.set_verify_callback(verify_callback);
-        config.set_ca_list(Some(&mut *cacert), None);
+        config.set_ca_list(cacert, None);
         config.set_min_version(min_version)?;
         config.set_max_version(max_version)?;
-        let mut ctx = Context::new(&config)?;
+        let mut ctx = Context::new(Arc::new(config));
 
-        let session = ctx.establish(&mut conn, None);
-
-        let mut session = match session {
-            Ok(s) => {
-                assert_eq!(s.version(), exp_version.unwrap());
-                s
+        match ctx.establish(conn, None) {
+            Ok(()) => {
+                assert_eq!(ctx.version(), exp_version.unwrap());
             }
             Err(e) => {
                 match e {
@@ -70,40 +72,35 @@ fn client(
             }
         };
 
-        let ciphersuite = session.ciphersuite();
-        session
-            .write_all(format!("Client2Server {:4x}", ciphersuite).as_bytes())
-            .unwrap();
+        let ciphersuite = ctx.ciphersuite().unwrap();
+        ctx.write_all(format!("Client2Server {:4x}", ciphersuite).as_bytes()).unwrap();
         let mut buf = [0u8; 13 + 4 + 1];
-        session.read_exact(&mut buf).unwrap();
+        ctx.read_exact(&mut buf).unwrap();
         assert_eq!(&buf, format!("Server2Client {:4x}", ciphersuite).as_bytes());
-    } // drop verify_callback, releasing borrow of verify_args
-    assert_eq!(verify_args, Some((keys::EXPIRED_CERT_SUBJECT.to_owned(), 0, expected_flags)));
+    }
     Ok(())
 }
 
 fn server(
-    mut conn: TcpStream,
+    conn: TcpStream,
     min_version: Version,
     max_version: Version,
     exp_version: Option<Version>,
 ) -> TlsResult<()> {
-    let mut entropy = entropy_new();
-    let mut rng = CtrDrbg::new(&mut entropy, None)?;
-    let mut cert = Certificate::from_pem(keys::EXPIRED_CERT)?;
-    let mut key = Pk::from_private_key(keys::EXPIRED_KEY, None)?;
+    let entropy = entropy_new();
+    let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
+    let cert = Arc::new(Certificate::from_pem_multiple(keys::EXPIRED_CERT)?);
+    let key = Arc::new(Pk::from_private_key(keys::EXPIRED_KEY, None)?);
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
-    config.set_rng(Some(&mut rng));
+    config.set_rng(rng);
     config.set_min_version(min_version)?;
     config.set_max_version(max_version)?;
-    config.push_cert(&mut *cert, &mut key)?;
-    let mut ctx = Context::new(&config)?;
+    config.push_cert(cert, key)?;
+    let mut ctx = Context::new(Arc::new(config));
 
-    let session = ctx.establish(&mut conn, None);
-    let mut session = match session {
-        Ok(s) => {
-            assert_eq!(s.version(), exp_version.unwrap());
-            s
+    match ctx.establish(conn, None) {
+        Ok(()) => {
+            assert_eq!(ctx.version(), exp_version.unwrap());
         }
         Err(e) => {
             match e {
@@ -116,12 +113,10 @@ fn server(
         }
     };
 
-    let ciphersuite = session.ciphersuite();
-    session
-        .write_all(format!("Server2Client {:4x}", ciphersuite).as_bytes())
-        .unwrap();
+    let ciphersuite = ctx.ciphersuite().unwrap();
+    ctx.write_all(format!("Server2Client {:4x}", ciphersuite).as_bytes()).unwrap();
     let mut buf = [0u8; 13 + 1 + 4];
-    session.read_exact(&mut buf).unwrap();
+    ctx.read_exact(&mut buf).unwrap();
 
     assert_eq!(&buf, format!("Client2Server {:4x}", ciphersuite).as_bytes());
     Ok(())

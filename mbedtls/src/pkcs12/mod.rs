@@ -39,6 +39,7 @@ use crate::cipher::{Cipher, Decryption, Fresh, Traditional};
 use crate::hash::{pbkdf_pkcs12, Md, MdInfo, Type as MdType};
 use crate::pk::Pk;
 use crate::x509::Certificate;
+use crate::alloc::{Box as MbedtlsBox};
 use crate::Error as MbedtlsError;
 
 // Constants for various object identifiers used in PKCS12:
@@ -836,7 +837,7 @@ impl Pfx {
     /// of "friendly names" which are associated with said certificate.
     /// Some or all of the certificates stored in a Pfx may be encrypted in which case
     /// decrypt must be called to access them.
-    pub fn certificates<'a>(&'a self) -> impl Iterator<Item=(Result<Certificate, crate::Error>, Vec<String>)> + 'a {
+    pub fn certificates<'a>(&'a self) -> impl Iterator<Item=(Result<MbedtlsBox<Certificate>, crate::Error>, Vec<String>)> + 'a {
         self.authsafe_decrypted_contents()
             .filter_map(|sb| if let Pkcs12BagSet::Cert(CertBag(Some(cert))) = &sb.bag_value {
                 Some((Certificate::from_der(cert), sb.friendly_name()))

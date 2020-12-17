@@ -18,7 +18,7 @@ pub mod profile;
 // write_csr
 
 #[doc(inline)]
-pub use self::certificate::{Certificate, LinkedCertificate};
+pub use self::certificate::Certificate;
 pub use self::crl::Crl;
 #[doc(inline)]
 pub use self::csr::Csr;
