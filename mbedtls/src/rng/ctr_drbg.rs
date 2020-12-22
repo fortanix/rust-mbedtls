@@ -44,7 +44,6 @@ define!(
 // That is avoided by having any users of the callback hold an 'Arc' to this class.
 // Rust will then ensure that a mutable reference cannot be aquired if more then 1 Arc exists to the same class.
 //
-#[cfg(feature = "threading")]
 unsafe impl Sync for CtrDrbg {}
 
 #[allow(dead_code)]

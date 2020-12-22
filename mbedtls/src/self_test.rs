@@ -6,72 +6,93 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-//! Helper functions to enable mbedTLS self tests in no_std.
+//! MbedTLS self tests.
 //!
-//! Calling mbedTLS self-test functions before they're enabled using the
+//! Calling MbedTLS self test functions before they're enabled using the
 //! `enable()` function here will result in a panic.
 //!
-//! Using this module in multithreaded or async environment will fail.
-//! Functions rely on global variables to track operations and anything non-self-test related will stomp over variables.
-//! To use correctly, make sure no other code uses mbedtls. Multiple self test operations done simultaneously may also return failures.
-//!
-#[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
+//! Using this module in multithreaded or async environment will fail. The self 
+//! test functions rely on global variables to track operations and anything 
+//! non-self-test related operations will clobber these variables, resulting in 
+//! self test failures. Make sure no other code uses MbedTLS while running the 
+//! self tests. Multiple self test operations done simultaneously may also 
+//! return failures.
+
 use mbedtls_sys::types::raw_types::{c_char, c_int};
 
-#[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
-#[allow(non_upper_case_globals)]
-static mut rand_f: Option<fn() -> c_int> = None;
-#[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
-#[allow(non_upper_case_globals)]
-static mut log_f: Option<unsafe fn(*const c_char)> = None;
+cfg_if::cfg_if! {
+    if #[cfg(feature = "std")] {
+        // needs to be pub for global visiblity
+        #[doc(hidden)]
+        #[no_mangle]
+        pub unsafe extern "C" fn mbedtls_log(msg: *const std::os::raw::c_char) {
+            print!("{}", std::ffi::CStr::from_ptr(msg).to_string_lossy());
+        }
+    } else {
+        #[allow(non_upper_case_globals)]
+        static mut log_f: Option<unsafe fn(*const c_char)> = None;
 
-// needs to be pub for global visiblity
-#[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe extern "C" fn rand() -> c_int {
-    rand_f.expect("Called self-test rand without enabling self-test")()
+        // needs to be pub for global visiblity
+        #[doc(hidden)]
+        #[no_mangle]
+        pub unsafe extern "C" fn mbedtls_log(msg: *const c_char) {
+            log_f.expect("Called self-test log without enabling self-test")(msg)
+        }
+    }
+}
+cfg_if::cfg_if! {
+    if #[cfg(any(not(feature = "std"), target_env = "sgx"))] {
+        #[allow(non_upper_case_globals)]
+        static mut rand_f: Option<fn() -> c_int> = None;
+
+        // needs to be pub for global visiblity
+        #[doc(hidden)]
+        #[no_mangle]
+        pub unsafe extern "C" fn rand() -> c_int {
+            rand_f.expect("Called self-test rand without enabling self-test")()
+        }
+    }
 }
 
-// needs to be pub for global visiblity
-#[cfg(all(feature = "std", not(target_os = "none")))]
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe extern "C" fn mbedtls_log(msg: *const std::os::raw::c_char) {
-    print!("{}", std::ffi::CStr::from_ptr(msg).to_string_lossy());
-}
-
-// needs to be pub for global visiblity
-#[cfg(any(target_os = "none", not(feature = "std")))]
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe extern "C" fn mbedtls_log(msg: *const c_char) {
-    log_f.expect("Called self-test log without enabling self-test")(msg)
+/// Set callback functions to enable the MbedTLS self tests.
+///
+/// `rand` only needs to be set on platforms that don't have a `rand()` 
+/// function in libc. `log` only needs to be set when using `no_std`, i.e. 
+/// the `std` feature of this create is not enabled. If neither function 
+/// needs to be set, you don't have to call `enable()`.
+///
+/// # Safety
+///
+/// The caller needs to ensure this function is not called while any other
+/// function in this module is called.
+#[allow(unused)]
+pub unsafe fn enable(rand: fn() -> c_int, log: Option<unsafe fn(*const c_char)>) {
+    #[cfg(any(not(feature = "std"), target_env = "sgx"))] {
+        rand_f = Some(rand);
+    }
+    #[cfg(not(feature = "std"))] {
+        log_f = log;
+    }
 }
 
 /// # Safety
 ///
-/// The caller needs to ensure this function is not called while any other function in this module is called..
-#[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
-pub unsafe fn enable(rand: fn() -> c_int, log: unsafe fn(*const c_char)) {
-    rand_f = Some(rand);
-    log_f = Some(log);
-}
-
-/// # Safety
-///
-/// The caller needs to ensure this function is not called while any other function in this module is called..
-#[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
+/// The caller needs to ensure this function is not called while any other
+/// function in this module is called.
 pub unsafe fn disable() {
-    rand_f = None;
-    log_f = None;
+    #[cfg(any(not(feature = "std"), target_env = "sgx"))] {
+        rand_f = None;
+    }
+    #[cfg(not(feature = "std"))] {
+        log_f = None;
+    }
 }
 
 /// # Safety
 /// 
-/// This function, if used in a multithreaded or async environment will fail.
-/// Function relies on global variables to track operations and anything non-self-test related will stomp over variables.
-/// To use correctly, make sure no other code uses mbedtls. Multiple self test operations done simultaneously may also return failures.
+/// The caller needs to ensure this function is not called while *any other*
+/// MbedTLS function is called. See the module documentation for more
+/// information.
 pub use mbedtls_sys::{
     aes_self_test as aes, arc4_self_test as arc4, base64_self_test as base64,
     camellia_self_test as camellia, ccm_self_test as ccm, ctr_drbg_self_test as ctr_drbg,

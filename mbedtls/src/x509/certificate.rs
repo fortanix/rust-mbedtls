@@ -464,10 +464,8 @@ impl<'a> Builder<'a> {
 // x509write_crt_set_subject_key_identifier
 //
 
-#[cfg(feature = "threading")]
 unsafe impl Send for MbedtlsBox<Certificate> {}
 
-#[cfg(feature = "threading")]
 unsafe impl Sync for MbedtlsBox<Certificate> {}
 
 impl MbedtlsBox<Certificate> {
@@ -528,10 +526,8 @@ impl<'a> UnsafeFrom<*mut *mut x509_crt> for &'a mut Option<MbedtlsBox<Certificat
     }
 }
 
-#[cfg(feature = "threading")]
 unsafe impl Send for MbedtlsList<Certificate> {}
 
-#[cfg(feature = "threading")]
 unsafe impl Sync for MbedtlsList<Certificate> {}
 
 impl MbedtlsList<Certificate> {

@@ -7,6 +7,8 @@
  * according to those terms. */
 
 #![allow(dead_code)]
+
+// needed to have common code for `mod support` in unit and integrations tests
 extern crate mbedtls;
 
 use std::net::TcpStream;

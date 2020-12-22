@@ -4,7 +4,6 @@ version = "2.24.0"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build/build.rs"
 license = "Apache-2.0/GPL-2.0+"
-#edition = "2018"
 description = """
 Rust bindings for MbedTLS.
 
@@ -18,12 +17,16 @@ links = "mbedtls"
 name = "mbedtls_sys"
 
 [dependencies]
-libc = { version = "0.2.0", optional = true }
+cfg-if = "1.0.0"
 libz-sys = { version = "1.0.0", optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = { version = "0.2.0" }
 
 [build-dependencies]
 bindgen = "0.19.0"
 cmake = "0.1.17"
+lazy_static = "1.4"
 
 [features]
 # If you use mbedtls-sys in a no_std configuration, you need to provide your
@@ -33,15 +36,12 @@ cmake = "0.1.17"
 # * strstr/strlen/strncpy/strncmp/strcmp/snprintf
 # * memmove/memcpy/memcmp/memset
 # * rand/printf (used only for self tests. optionally use custom_printf)
-default = ["std", "zlib", "time", "pthread", "aesni", "padlock", "legacy_protocols"]
-std = []
+default = ["std", "debug", "threading", "zlib", "time", "aesni", "padlock", "legacy_protocols"]
+std = ["debug"] # deprecated automatic enabling of debug, can be removed on major version bump
+debug = []
 custom_printf = []
-custom_time = ["custom_gmtime_r", "time"]
-custom_gmtime_r = ["time"]
 custom_has_support = []
 aes_alt = []
-custom_threading = ["threading"]
-pthread = ["libc","threading"]
 threading = []
 time = []
 havege = ["time"]
@@ -52,3 +52,8 @@ padlock = []
 legacy_protocols = []
 mpi_force_c_code = []
 trusted_cert_callback = []
+# deprecated features, these don't do anything anymore, can be removed on major version bump
+custom_threading = ["threading"]
+pthread = ["threading"]
+custom_time = ["time"]
+custom_gmtime_r = ["time"]

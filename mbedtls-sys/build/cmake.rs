@@ -8,7 +8,7 @@
 
 use cmake;
 
-use crate::have_feature;
+use crate::features::FEATURES;
 
 impl super::BuildConfig {
     pub fn cmake(&self) {
@@ -20,11 +20,7 @@ impl super::BuildConfig {
         .define("ENABLE_PROGRAMS", "OFF")
         .define("ENABLE_TESTING", "OFF")
         .build_target("lib");
-        if !have_feature("std")
-            || ::std::env::var("TARGET")
-                .map(|s| (s == "x86_64-unknown-none-gnu") || (s == "x86_64-fortanix-unknown-sgx"))
-                == Ok(true)
-        {
+        if FEATURES.have_platform_component("c_compiler", "freestanding") {
             cmk.cflag("-fno-builtin")
                 .cflag("-D_FORTIFY_SOURCE=0")
                 .cflag("-fno-stack-protector");

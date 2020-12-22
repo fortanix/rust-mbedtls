@@ -10,40 +10,22 @@
 #![allow(unused_doc_comments)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(all(not(feature = "std"), not(feature = "core_io")))]
-const ERROR: _MUST_USE_EITHER_STD_OR_CORE_IO_ = ();
+#[cfg(not(any(feature = "std", feature = "no_std_deps")))]
+compile_error!("Either the `std` or `no_std_deps` feature needs to be enabled");
 
 #[cfg(not(feature = "std"))]
 #[macro_use]
 extern crate alloc as rust_alloc;
-#[cfg(feature = "std")]
-extern crate core;
-#[cfg(not(feature = "std"))]
-extern crate core_io;
-
-#[cfg(feature = "std")]
-extern crate yasna;
-
 #[macro_use]
 extern crate bitflags;
-extern crate mbedtls_sys;
-
-extern crate byteorder;
-
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-
+// required explicitly to force inclusion at link time
 #[cfg(target_env = "sgx")]
 extern crate rs_libc;
 
 #[macro_use]
 mod wrapper_macros;
-
-#[cfg(feature="pkcs12_rc2")]
-extern crate rc2;
-#[cfg(feature="pkcs12_rc2")]
-extern crate block_modes;
 
 // ==============
 //      API
@@ -70,36 +52,37 @@ pub mod pkcs12;
 mod private;
 
 // needs to be pub for global visiblity
-#[cfg(any(feature = "spin_threading", feature = "rust_threading"))]
 #[doc(hidden)]
+#[cfg(sys_threading_component = "custom")]
 pub mod threading;
 
-// needs to be pub for global visiblity
-#[cfg(feature = "force_aesni_support")]
-#[doc(hidden)]
-#[no_mangle]
-pub extern "C" fn mbedtls_aesni_has_support(_what: u32) -> i32 {
-    return 1;
-}
+cfg_if::cfg_if! {
+    if #[cfg(any(feature = "force_aesni_support", target_env = "sgx"))] {
+        // needs to be pub for global visiblity
+        #[doc(hidden)]
+        #[no_mangle]
+        pub extern "C" fn mbedtls_aesni_has_support(_what: u32) -> i32 {
+            return 1;
+        }
 
-// needs to be pub for global visiblity
-#[cfg(feature = "force_aesni_support")]
-#[doc(hidden)]
-#[no_mangle]
-pub extern "C" fn mbedtls_internal_aes_encrypt(_ctx: *mut mbedtls_sys::types::raw_types::c_void,
-                                               _input: *const u8,
-                                               _output: *mut u8) -> i32 {
-    panic!("AES-NI support is forced but the T-tables code was invoked")
-}
+        // needs to be pub for global visiblity
+        #[doc(hidden)]
+        #[no_mangle]
+        pub extern "C" fn mbedtls_internal_aes_encrypt(_ctx: *mut mbedtls_sys::types::raw_types::c_void,
+                                                       _input: *const u8,
+                                                       _output: *mut u8) -> i32 {
+            panic!("AES-NI support is forced but the T-tables code was invoked")
+        }
 
-// needs to be pub for global visiblity
-#[cfg(feature = "force_aesni_support")]
-#[doc(hidden)]
-#[no_mangle]
-pub extern "C" fn mbedtls_internal_aes_decrypt(_ctx: *mut mbedtls_sys::types::raw_types::c_void,
-                                               _input: *const u8,
-                                               _output: *mut u8) -> i32 {
-    panic!("AES-NI support is forced but the T-tables code was invoked")
+        // needs to be pub for global visiblity
+        #[doc(hidden)]
+        #[no_mangle]
+        pub extern "C" fn mbedtls_internal_aes_decrypt(_ctx: *mut mbedtls_sys::types::raw_types::c_void,
+                                                       _input: *const u8,
+                                                       _output: *mut u8) -> i32 {
+            panic!("AES-NI support is forced but the T-tables code was invoked")
+        }
+    }
 }
 
 #[cfg(test)]
@@ -122,55 +105,56 @@ mod alloc_prelude {
     pub(crate) use rust_alloc::borrow::Cow;
 }
 
-#[cfg(all(feature="time", any(feature="custom_gmtime_r", feature="custom_time")))]
-use mbedtls_sys::types::{time_t, tm};
+cfg_if::cfg_if! {
+    if #[cfg(sys_time_component = "custom")] {
+        use mbedtls_sys::types::{time_t, tm};
 
-#[cfg(any(feature = "custom_gmtime_r", feature = "custom_time"))]
-extern crate chrono;
+        // needs to be pub for global visiblity
+        #[doc(hidden)]
+        #[no_mangle]
+        pub unsafe extern "C" fn mbedtls_platform_gmtime_r(tt: *const time_t, tp: *mut tm) -> *mut tm {
+            use chrono::prelude::*;
 
-#[cfg(feature="custom_gmtime_r")]
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe extern "C" fn mbedtls_platform_gmtime_r(tt: *const time_t, tp: *mut tm) -> *mut tm {
-    use chrono::prelude::*;
+            //0 means no TZ offset
+            let naive = if tp.is_null() {
+                return core::ptr::null_mut()
+            } else {
+                NaiveDateTime::from_timestamp(*tt, 0)
+            };
+            let utc = DateTime::<Utc>::from_utc(naive, Utc);
 
-    //0 means no TZ offset
-    let naive = if tp.is_null() {
-        return core::ptr::null_mut()
-    } else {
-        NaiveDateTime::from_timestamp(*tt, 0)
-    };
-    let utc = DateTime::<Utc>::from_utc(naive, Utc);
+            let tp = &mut *tp;
+            tp.tm_sec   = utc.second()   as i32;
+            tp.tm_min   = utc.minute()   as i32;
+            tp.tm_hour  = utc.hour()     as i32;
+            tp.tm_mday  = utc.day()      as i32;
+            tp.tm_mon   = utc.month0()   as i32;
+            tp.tm_year  = utc.year()     as i32 - 1900;
+            tp.tm_wday  = utc.weekday().num_days_from_monday() as i32;
+            tp.tm_yday  = utc.ordinal0() as i32;
+            tp.tm_isdst = 0;
 
-    let tp = &mut *tp;
-    tp.tm_sec   = utc.second()   as i32;
-    tp.tm_min   = utc.minute()   as i32;
-    tp.tm_hour  = utc.hour()     as i32;
-    tp.tm_mday  = utc.day()      as i32;
-    tp.tm_mon   = utc.month0()   as i32;
-    tp.tm_year  = utc.year()     as i32 - 1900;
-    tp.tm_wday  = utc.weekday().num_days_from_monday() as i32;
-    tp.tm_yday  = utc.ordinal0() as i32;
-    tp.tm_isdst = 0;
+            tp
+        }
 
-    tp
-}
-
-#[cfg(feature="custom_time")]
-#[doc(hidden)]
-#[no_mangle]
-pub unsafe extern "C" fn mbedtls_time(tp: *mut time_t) -> time_t {
-    let timestamp = chrono::Utc::now().timestamp() as time_t;
-    if !tp.is_null() {
-        *tp = timestamp;
+        // needs to be pub for global visiblity
+        #[doc(hidden)]
+        #[no_mangle]
+        pub unsafe extern "C" fn mbedtls_time(tp: *mut time_t) -> time_t {
+            let timestamp = chrono::Utc::now().timestamp() as time_t;
+            if !tp.is_null() {
+                *tp = timestamp;
+            }
+            timestamp
+        }
     }
-    timestamp
 }
 
-// Debug not available in SGX
-#[cfg(not(target_env = "sgx"))]
+/// # Safety
+///
+/// The caller must ensure no other MbedTLS code is running when calling this
+/// function.
+#[cfg(feature = "debug")]
 pub unsafe fn set_global_debug_threshold(threshold: i32) {
     mbedtls_sys::debug_set_threshold(threshold);
 }
-
-

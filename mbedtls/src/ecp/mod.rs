@@ -453,6 +453,8 @@ mod tests {
         assert!(secp256r1 == copy); //can't use assert_eq as EcGroup doesn't impl Debug
     }
 
+    // FIXME: very slow on SGX https://github.com/fortanix/rust-mbedtls/issues/134
+    #[cfg_attr(target_env = "sgx", ignore)]
     #[test]
     fn test_ec_compressed_points() {
         let groups = [

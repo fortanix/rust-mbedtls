@@ -6,8 +6,6 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-extern crate mbedtls;
-
 use mbedtls::hash::Type as MdType;
 use mbedtls::hash::{pbkdf2_hmac, pbkdf_pkcs12};
 

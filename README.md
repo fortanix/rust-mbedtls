@@ -18,23 +18,24 @@ This crate depends on the mbedtls-sys-auto crate, see below for build details.
 This is a list of the Cargo features available for mbedtls. Features in
 **bold** are enabled by default.
 
-* **aesni** Enable support for the AES-NI instructions.
-* *core_io* On no_std, you must enable this feature. It will supply the I/O
-            Read and Write traits.
+* **aesni** Enable support for the AES-NI instructions. On SGX, this feature is
+            enabled automatically.
+* *debug* Enable debug printing to stdout. You need to configure the debug
+          threshold at runtime.
 * *force_aesni_support* MbedTLS normally uses runtime detection of AES-NI
                         support. With this feature, always use AES-NI. This
                         will result in undefined instruction exceptions on
-                        unsupported processors.
-* **legacy_protocols** Enable support for SSLv3, TLSv1.0 and TLSv1.1
+                        unsupported processors. On SGX, this feature is
+                        enabled automatically.
+* *legacy_protocols* Enable support for SSLv3, TLSv1.0 and TLSv1.1
+* *no_std_deps* On no_std, you must enable this feature. It enables optional
+                dependencies needed on no_std. If the `std` feature is enabled,
+                this feature is ignored.
 * **padlock** Enable support for VIA padlock.
 * *pkcs12* Enable code to parse PKCS12 files using yasna
 * *pkcs12_rc2* Enable use of RC2 crate to decrypt RC2-encrypted PKCS12 files
-* *pthread* Enable mutex synchronization using pthreads.
-* *rdrand* Enable the RDRAND random number generator.
-* *rust_threading* Enable mutex synchronization using the `std::sync::Mutex`.
-                   spin_threading takes precedence over rust_threading.
-* *spin_threading* Enable mutex synchronization using the spin crate.
-* *sgx* Enables features recommended for x86\_64-fortanix-unknown-sgx target.
+* *rdrand* Enable the RDRAND random number generator. On SGX, this feature is
+           enabled automatically.
 * **std** If this feature is not enabled, this crate is a no_std crate. (An
           allocator is *required*) The necessary C functions to make MbedTLS
           work without libc will be provided.
@@ -76,35 +77,44 @@ The build script will perform the following steps:
 This is a list of the Cargo features available for mbedtls-sys. Features in
 **bold** are enabled by default.
 
-* **aesni** Enable support for the AES-NI instructions.
+* **aesni** Enable support for the AES-NI instructions. On SGX, this feature is
+            enabled automatically.
 * *aes_alt* Allow an alternative implementation of AES, replacing the
   T-tables code.
 * *custom_has_support* Override runtime feature detection. In a dependent
                        crate, you must define the functions
                        `mbedtls_aesni_has_support` and
                        `mbedtls_padlock_has_support` following the MbedTLS
-                       function signatures.
+                       function signatures. On SGX, this feature is enabled
+                       automatically.
 * *custom_printf* Provide a custom printf implementation. printf is only used
                   for the self tests. In a dependent crate, you must define the
                   `mbedtls_printf` function with the standard printf signature.
-* *custom_threading* Provide a custom threading implementation. In a dependent
-                     crate, you must define the functions `mbedtls_mutex_init`,
-                     `mbedtls_mutex_free`, `mbedtls_mutex_lock`, and
-                     `mbedtls_mutex_unlock` following the MbedTLS function
-                     signatures.
+* **debug** Enable debug callbacks.
 * *havege* Enable the Hardware Volatile Entropy Gathering and Expansion
            (HAVEGE) algorithm.
 * **legacy_protocols** Enable support for SSLv3, TLSv1.0 and TLSv1.1
 * **padlock** Enable support for VIA padlock.
 * *pkcs11* Enable PKCS#11 support. This requires pkcs11-helper to be installed.
-* **pthread** Enable threading support using pthreads.
 * **std** If this feature is not enabled, this crate is a no_std crate. In a
           no_std configuration without libc, you need to provide your own
-          versions of the following standard C functions: calloc/free, and
-          strstr/strlen/strncpy/strncmp/strcmp/snprintf, and
-          memmove/memcpy/memcmp/memset, and rand/printf. For printf, you can
-          optionally use the `custom_printf` feature.
-* **time** Enable time support.
+          versions of the following standard C functions: `calloc()`/`free()`,
+          and `strstr()`/`strlen()`/`strncpy()`/`strncmp()`/`strcmp()`/
+          `snprintf()`, and `memmove()`/`memcpy()`/`memcmp()`/`memset()`, and
+          `rand()`/`printf()`. For `printf()`, you can optionally use the
+          `custom_printf` feature. `rand()` is only needed for the selftests.
+          On UNIX platforms, this also enables networking, filesystems and OS
+          entropy.
+* **threading** Enable threading support. On `cfg(unix)` platforms, this uses
+                pthreads. On other platforms, you need to provide a custom
+                threading implementation. In a dependent crate, you must define
+                the functions `mbedtls_mutex_init()`, `mbedtls_mutex_free()`,
+                `mbedtls_mutex_lock()`, and `mbedtls_mutex_unlock()` following
+                the  MbedTLS function signatures.
+* **time** Enable time support. On `cfg(unix)` platforms, this uses `libc`. On
+           other platforms, you need to provide your own implementations of
+           `mbedtls_platform_gmtime_r(const long long*, struct tm*)` and
+           `mbedtls_time(long long*)`.
 * *trusted_cert_callback* Enable trusted certificate callback support.
 * **zlib** Enable zlib support.
 

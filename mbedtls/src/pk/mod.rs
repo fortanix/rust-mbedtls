@@ -227,7 +227,6 @@ define!(
 //
 // - Only used when creating/freeing - which is safe by design: ecdsa_alloc_wrap, ecdsa_free_wrap
 //
-#[cfg(feature = "threading")]
 unsafe impl Sync for Pk {}
 
 impl Pk {

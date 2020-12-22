@@ -19,11 +19,6 @@ use crate::alloc_prelude::*;
 
 use core::result::Result as StdResult;
 
-#[cfg(feature = "pkcs12_rc2")]
-extern crate block_modes;
-#[cfg(feature = "pkcs12_rc2")]
-extern crate rc2;
-
 use core::fmt;
 
 #[cfg(feature = "std")]

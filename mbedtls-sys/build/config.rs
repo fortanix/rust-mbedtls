@@ -409,20 +409,11 @@ pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
     ("time",                  ("MBEDTLS_HAVE_TIME",                         Defined)),
     ("time",                  ("MBEDTLS_HAVE_TIME_DATE",                    Defined)),
     ("time",                  ("MBEDTLS_TIMING_C",                          Defined)),
-    ("custom_time",           ("MBEDTLS_PLATFORM_TIME_MACRO",               DefinedAs("mbedtls_time"))),
-    ("custom_time",           ("MBEDTLS_PLATFORM_TIME_TYPE_MACRO",          DefinedAs("long long"))),
-    ("custom_gmtime_r",       ("MBEDTLS_PLATFORM_GMTIME_R_ALT",             Defined)),
     ("havege",                ("MBEDTLS_HAVEGE_C",                          Defined)),
     ("threading",             ("MBEDTLS_THREADING_C",                       Defined)),
-    ("pthread",               ("MBEDTLS_THREADING_PTHREAD",                 Defined)),
-    ("custom_threading",      ("MBEDTLS_THREADING_IMPL",                    Defined)),
     ("pkcs11",                ("MBEDTLS_PKCS11_C",                          Defined)),
     ("zlib",                  ("MBEDTLS_ZLIB_SUPPORT",                      Defined)),
-    ("std",                   ("MBEDTLS_NET_C",                             Defined)),
-    ("std",                   ("MBEDTLS_FS_IO",                             Defined)),
-    ("std",                   ("MBEDTLS_NO_PLATFORM_ENTROPY",               Undefined)),
-    ("std",                   ("MBEDTLS_DEBUG_C",                           Defined)),
-    ("std",                   ("MBEDTLS_ENTROPY_C",                         Defined)),
+    ("debug",                 ("MBEDTLS_DEBUG_C",                           Defined)),
     ("custom_printf",         ("MBEDTLS_PLATFORM_C",                        Defined)),
     ("custom_printf",         ("MBEDTLS_PLATFORM_PRINTF_MACRO",             DefinedAs("mbedtls_printf"))),
     ("aesni",                 ("MBEDTLS_AESNI_C",                           Defined)),
@@ -437,6 +428,19 @@ pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
     ("aes_alt",               ("MBEDTLS_AES_DECRYPT_ALT",                   Defined)),
     ("mpi_force_c_code",      ("MBEDTLS_MPI_FORCE_C_CODE",                  Defined)),
     ("trusted_cert_callback", ("MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK", Defined)),
+];
+
+#[cfg_attr(rustfmt, rustfmt_skip)]
+pub const PLATFORM_DEFINES: &'static [(&'static str, &'static str, CDefine)] = &[
+    ("time",      "custom",   ("MBEDTLS_PLATFORM_TIME_MACRO",               DefinedAs("mbedtls_time"))),
+    ("time",      "custom",   ("MBEDTLS_PLATFORM_TIME_TYPE_MACRO",          DefinedAs("long long"))),
+    ("time",      "custom",   ("MBEDTLS_PLATFORM_GMTIME_R_ALT",             Defined)),
+    ("threading", "pthread",  ("MBEDTLS_THREADING_PTHREAD",                 Defined)),
+    ("threading", "custom",   ("MBEDTLS_THREADING_IMPL",                    Defined)),
+    ("std",       "net",      ("MBEDTLS_NET_C",                             Defined)),
+    ("std",       "fs",       ("MBEDTLS_FS_IO",                             Defined)),
+    ("std",       "entropy",  ("MBEDTLS_NO_PLATFORM_ENTROPY",               Undefined)),
+    ("std",       "entropy",  ("MBEDTLS_ENTROPY_C",                         Defined)),
 ];
 
 pub const SUFFIX: &'static str = r#"

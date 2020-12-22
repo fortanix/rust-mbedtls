@@ -174,9 +174,6 @@ mod tests {
     use mbedtls::ssl::TicketContext;
     
     #[cfg(not(target_env = "sgx"))]
-    use mbedtls::set_global_debug_threshold;
-    
-    #[cfg(not(target_env = "sgx"))]
     use mbedtls::rng::{OsEntropy, CtrDrbg};
 
     #[cfg(target_env = "sgx")]
@@ -283,9 +280,6 @@ mod tests {
         };
         config.set_dbg_callback(dbg_callback);
 
-        #[cfg(not(target_env = "sgx"))]
-        unsafe { set_global_debug_threshold(1); }
-        
         config.set_ca_list(Arc::new(Certificate::from_pem_multiple(ROOT_CA_CERT).unwrap()), None);
         
         let ssl = MbedSSLClient::new(Arc::new(config), false);
@@ -357,9 +351,6 @@ mod tests {
         let dbg_callback = |level: i32, file: Cow<'_, str>, line: i32, message: Cow<'_, str>| {
             println!("{} {}:{} {}", level, file, line, message);
         };
-
-        // Enable as needed for debug
-        //set_global_debug_threshold(4);
 
         let rng = rng_new();
         

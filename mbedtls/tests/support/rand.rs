@@ -6,14 +6,10 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-extern crate core;
-extern crate mbedtls_sys;
-extern crate rand;
+use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
+use mbedtls_sys::types::size_t;
 
-use self::mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
-use self::mbedtls_sys::types::size_t;
-
-use self::rand::{Rng, XorShiftRng};
+use rand::{Rng, XorShiftRng};
 
 /// Not cryptographically secure!!! Use for testing only!!!
 pub struct TestRandom(XorShiftRng);
@@ -22,7 +18,7 @@ impl crate::mbedtls::rng::RngCallbackMut for TestRandom {
     unsafe extern "C" fn call_mut(p_rng: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
         (*(p_rng as *mut TestRandom))
             .0
-            .fill_bytes(self::core::slice::from_raw_parts_mut(data, len));
+            .fill_bytes(core::slice::from_raw_parts_mut(data, len));
         0
     }
 
@@ -35,7 +31,7 @@ impl crate::mbedtls::rng::RngCallback for TestRandom {
     unsafe extern "C" fn call(p_rng: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
         (*(p_rng as *mut TestRandom))
             .0
-            .fill_bytes(self::core::slice::from_raw_parts_mut(data, len));
+            .fill_bytes(core::slice::from_raw_parts_mut(data, len));
         0
     }
 

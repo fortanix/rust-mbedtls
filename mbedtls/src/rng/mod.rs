@@ -8,19 +8,19 @@
 
 pub mod ctr_drbg;
 pub mod hmac_drbg;
-#[cfg(all(feature = "std", not(target_env = "sgx")))]
+#[cfg(sys_std_component = "entropy")]
 pub mod os_entropy;
-#[cfg(feature = "rdrand")]
+#[cfg(any(feature = "rdrand", target_env = "sgx"))]
 mod rdrand;
 
 #[doc(inline)]
 pub use self::ctr_drbg::CtrDrbg;
 #[doc(inline)]
 pub use self::hmac_drbg::HmacDrbg;
-#[cfg(all(feature = "std", not(target_env = "sgx")))]
+#[cfg(sys_std_component = "entropy")]
 #[doc(inline)]
 pub use self::os_entropy::OsEntropy;
-#[cfg(feature = "rdrand")]
+#[cfg(any(feature = "rdrand", target_env = "sgx"))]
 pub use self::rdrand::{Entropy as Rdseed, Nrbg as Rdrand};
 
 use crate::error::{Result, IntoResult};
