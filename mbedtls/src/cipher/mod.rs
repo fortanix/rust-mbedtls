@@ -277,12 +277,12 @@ impl Cipher<Encryption, Authenticated, AdditionalData> {
         mut self,
         ad: &[u8],
         plain_text: &[u8],
-        cipher_text: &mut [u8],
-        tag: &mut [u8],
+        cipher_and_tag: &mut [u8],
+        tag_len: usize,
     ) -> Result<(usize, Cipher<Encryption, Authenticated, Finished>)> {
         Ok((
             self.raw_cipher
-                .encrypt_auth(ad, plain_text, cipher_text, tag)?,
+                .encrypt_auth(ad, plain_text, cipher_and_tag, tag_len)?,
             self.change_state(),
         ))
     }
@@ -292,13 +292,13 @@ impl Cipher<Decryption, Authenticated, AdditionalData> {
     pub fn decrypt_auth(
         mut self,
         ad: &[u8],
-        cipher_text: &[u8],
+        cipher_text_and_tag: &[u8],
         plain_text: &mut [u8],
-        tag: &[u8],
+        tag_len: usize,
     ) -> Result<(usize, Cipher<Decryption, Authenticated, Finished>)> {
         Ok((
             self.raw_cipher
-                .decrypt_auth(ad, cipher_text, plain_text, tag)?,
+                .decrypt_auth(ad, cipher_text_and_tag, plain_text, tag_len)?,
             self.change_state(),
         ))
     }
@@ -375,9 +375,8 @@ fn ccm() {
     let p = [0x20, 0x21, 0x22, 0x23];
     let mut p_out = [0u8; 4];
     let c = [0x71, 0x62, 0x01, 0x5b];
-    let mut c_out = [0u8; 4];
+    let mut c_out = [0u8; 8];
     let t = [0x4d, 0xac, 0x25, 0x5d];
-    let mut t_out = [0u8; 4];
 
     let cipher = Cipher::<_, Authenticated, _>::new(
         raw::CipherId::Aes,
@@ -387,10 +386,10 @@ fn ccm() {
     .unwrap();
     let cipher = cipher.set_key_iv(&k, &iv).unwrap();
     cipher
-        .encrypt_auth(&ad, &p, &mut c_out, &mut t_out)
+        .encrypt_auth(&ad, &p, &mut c_out, 4)
         .unwrap();
-    assert_eq!(c, c_out);
-    assert_eq!(t, t_out);
+    assert_eq!(c, c_out[0..4]);
+    assert_eq!(t, c_out[4..8]);
     let cipher = Cipher::<_, Authenticated, _>::new(
         raw::CipherId::Aes,
         raw::CipherMode::CCM,
@@ -398,7 +397,7 @@ fn ccm() {
     )
     .unwrap();
     let cipher = cipher.set_key_iv(&k, &iv).unwrap();
-    cipher.decrypt_auth(&ad, &c, &mut p_out, &t).unwrap();
+    cipher.decrypt_auth(&ad, &c_out, &mut p_out, 4).unwrap();
     assert_eq!(p, p_out);
 }
 
@@ -414,11 +413,11 @@ fn aes_kw() {
 
 	let cipher = Cipher::<_, Authenticated, _>::new(raw::CipherId::Aes, raw::CipherMode::KW, (k.len() * 8) as _).unwrap();
 	let cipher = cipher.set_key_iv(&k, &[]).unwrap();
-	cipher.encrypt_auth(&[], &p, &mut c_out, &mut[]).unwrap();
+	cipher.encrypt_auth(&[], &p, &mut c_out, 0).unwrap();
 	assert_eq!(c, c_out);
 	let cipher = Cipher::<_, Authenticated, _>::new(raw::CipherId::Aes, raw::CipherMode::KW, (k.len() * 8) as _).unwrap();
 	let cipher = cipher.set_key_iv(&k, &[]).unwrap();
-	cipher.decrypt_auth(&[], &c, &mut p_out, &[]).unwrap();
+	cipher.decrypt_auth(&[], &c, &mut p_out, 0).unwrap();
 	assert_eq!(p, p_out);
 }
 
@@ -434,10 +433,10 @@ fn aes_kwp() {
 
 	let cipher = Cipher::<_, Authenticated, _>::new(raw::CipherId::Aes, raw::CipherMode::KWP, (k.len() * 8) as _).unwrap();
 	let cipher = cipher.set_key_iv(&k, &[]).unwrap();
-	cipher.encrypt_auth(&[], &p, &mut c_out, &mut[]).unwrap();
+	cipher.encrypt_auth(&[], &p, &mut c_out, 0).unwrap();
 	assert_eq!(c, c_out);
 	let cipher = Cipher::<_, Authenticated, _>::new(raw::CipherId::Aes, raw::CipherMode::KWP, (k.len() * 8) as _).unwrap();
 	let cipher = cipher.set_key_iv(&k, &[]).unwrap();
-	let out_len = cipher.decrypt_auth(&[], &c, &mut p_out, &[]).unwrap().0;
+	let out_len = cipher.decrypt_auth(&[], &c, &mut p_out, 0).unwrap().0;
 	assert_eq!(p, &p_out[..out_len]);
 }
