@@ -9,6 +9,6 @@
 #![allow(dead_code)]
 pub mod entropy;
 pub mod keys;
-#[cfg(all(feature = "std", not(target_env = "sgx")))]
+#[cfg(sys_std_component = "net")]
 pub mod net;
 pub mod rand;

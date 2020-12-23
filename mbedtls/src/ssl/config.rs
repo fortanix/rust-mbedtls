@@ -135,7 +135,6 @@ define!(
     impl<'a> Into<ptr> {}
 );
 
-#[cfg(feature = "threading")]
 unsafe impl Sync for Config {}
 
 impl Config {

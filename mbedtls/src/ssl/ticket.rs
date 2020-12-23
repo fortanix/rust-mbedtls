@@ -19,29 +19,7 @@ use crate::cipher::raw::CipherType;
 use crate::error::{IntoResult, Result};
 use crate::rng::RngCallback;
 
-
-#[cfg(not(feature = "threading"))]
-pub trait TicketCallback {
-    unsafe extern "C" fn call_write(
-        p_ticket: *mut c_void,
-        session: *const ssl_session,
-        start: *mut c_uchar,
-        end: *const c_uchar,
-        tlen: *mut size_t,
-        lifetime: *mut u32,
-    ) -> c_int where Self: Sized;
-    unsafe extern "C" fn call_parse(
-        p_ticket: *mut c_void,
-        session: *mut ssl_session,
-        buf: *mut c_uchar,
-        len: size_t,
-    ) -> c_int where Self: Sized;
-
-    fn data_ptr(&self) -> *mut c_void;
-}
-
-#[cfg(feature = "threading")]
-pub trait TicketCallback : Sync {
+pub trait TicketCallback: Sync {
     unsafe extern "C" fn call_write(
         p_ticket: *mut c_void,
         session: *const ssl_session,
@@ -73,7 +51,6 @@ define!(
     impl<'a> Into<ptr> {}
 );
 
-#[cfg(feature = "threading")]
 unsafe impl Sync for TicketContext {}
 
 impl TicketContext {

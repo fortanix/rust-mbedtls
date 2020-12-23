@@ -21,14 +21,12 @@ rust:
    - beta
    - nightly
    - nightly-2019-07-01
-   - nightly-2019-10-28
 env:
   global:
     - RUST_BACKTRACE=1
     # Pinned to this particular nightly version because of core_io. This can be
     # re-pinned whenever core_io is updated to the latest nightly.
     - CORE_IO_NIGHTLY=nightly-2019-07-01
-    - SGX_NIGHTLY=nightly-2019-10-28
     - LLVM_CONFIG_PATH=llvm-config-3.8
 script:
   - ./ct.sh

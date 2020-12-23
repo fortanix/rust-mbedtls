@@ -16,33 +16,13 @@ macro_rules! callback {
     //{ ($($arg:ident: $ty:ty),*) -> $ret:ty } => {
     //};
     { $n:ident, $m:ident($($arg:ident: $ty:ty),*) -> $ret:ty } => {
-        #[cfg(not(feature="threading"))]
-        pub trait $n {
+        pub trait $n: Send + Sync {
             unsafe extern "C" fn call_mut(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized;
 
             fn data_ptr_mut(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
         }
 
-        #[cfg(feature="threading")]
-        pub trait $n : Sync {
-            unsafe extern "C" fn call_mut(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized;
-
-            fn data_ptr_mut(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
-        }
-
-        #[cfg(not(feature="threading"))]
-        impl<F> $n for F where F: FnMut($($ty),*) -> $ret {
-            unsafe extern "C" fn call_mut(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized {
-                (&mut*(user_data as *mut F))($($arg),*)
-            }
-
-            fn data_ptr_mut(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void {
-                self as *mut F as *mut _
-            }
-        }
-
-        #[cfg(feature="threading")]
-        impl<F> $n for F where F: Sync + FnMut($($ty),*) -> $ret {
+        impl<F> $n for F where F: FnMut($($ty),*) -> $ret + Send + Sync {
             unsafe extern "C" fn call_mut(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized {
                 (&mut*(user_data as *mut F))($($arg),*)
             }
@@ -52,33 +32,13 @@ macro_rules! callback {
             }
         }
 
-        #[cfg(not(feature="threading"))]
-        pub trait $m {
+        pub trait $m: Send + Sync {
             unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized;
             
             fn data_ptr(&self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
         }
 
-        #[cfg(feature="threading")]
-        pub trait $m :  Sync {
-            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized;
-            
-            fn data_ptr(&self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
-        }
-
-        #[cfg(not(feature="threading"))]
-        impl<F> $m for F where F: Fn($($ty),*) -> $ret {
-            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized {
-                (&mut*(user_data as *mut F))($($arg),*)
-            }
-            
-            fn data_ptr(&self) -> *mut ::mbedtls_sys::types::raw_types::c_void {
-                self as *const F as *mut F as *mut _
-            }
-        }
-
-        #[cfg(feature="threading")]
-        impl<F> $m for F where F: Sync + Fn($($ty),*) -> $ret {
+        impl<F> $m for F where F: Fn($($ty),*) -> $ret + Send + Sync {
             unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized {
                 (&mut*(user_data as *mut F))($($arg),*)
             }
@@ -89,15 +49,9 @@ macro_rules! callback {
         }
     };
     ($t:ident: $($bound:tt)*) => {
-        #[cfg(not(feature = "threading"))]
-        pub trait $t: $($bound)* {}
-        #[cfg(feature = "threading")]
-        pub trait $t: $($bound)* + Sync {}
+        pub trait $t: $($bound)* + Send + Sync {}
 
-        #[cfg(not(feature = "threading"))]
-        impl<F: $($bound)*> $t for F {}
-        #[cfg(feature = "threading")]
-        impl<F: $($bound)* + Sync> $t for F {}
+        impl<F: $($bound)* + Send + Sync> $t for F {}
     };
 }
 
@@ -186,7 +140,6 @@ macro_rules! define_struct {
         );
 
         as_item!(
-        #[cfg(feature="threading")]
         unsafe impl<$($l)*> Send for $name<$($l)*> {}
         );
     };
@@ -216,7 +169,6 @@ macro_rules! define_struct {
         );
 
         as_item!(
-        #[cfg(feature="threading")]
         unsafe impl<$($l)*> Send for $name<$($l)*> {}
         );
     };
@@ -411,22 +363,21 @@ mod tests {
     callback!(RustTest: Fn() -> ());
     callback!(NativeTestMut,NativeTest() -> ());
 
-    impl<T: Sync> Testable<dyn Sync> for T {}
+    impl<T: Send + Sync> Testable<dyn Send + Sync> for T {}
     impl<T: RustTest> Testable<dyn RustTest> for T {}
     impl<T: NativeTest> Testable<dyn NativeTest> for T {}
     impl<T: NativeTestMut> Testable<dyn NativeTestMut> for T {}
 
     #[test]
-    #[cfg(feature = "threading")]
-    fn callback_sync_with_threading() {
+    fn callback_sync() {
         fn test_closure<T: RustTest>() {
-            assert!(TestTrait::<dyn Sync, T>::new().impls_trait(), "RustTest should be Sync");
+            assert!(TestTrait::<dyn Send + Sync, T>::new().impls_trait(), "RustTest should be Send + Sync");
         }
         fn test_native_closure<T: NativeTest>() {
-            assert!(TestTrait::<dyn Sync, T>::new().impls_trait(), "NativeTest should be Sync");
+            assert!(TestTrait::<dyn Send + Sync, T>::new().impls_trait(), "NativeTest should be Send + Sync");
         }
         fn test_native_mut_closure<T: NativeTestMut>() {
-            assert!(TestTrait::<dyn Sync, T>::new().impls_trait(), "NativeTestMut should be Sync");
+            assert!(TestTrait::<dyn Send + Sync, T>::new().impls_trait(), "NativeTestMut should be Send + Sync");
         }
 
         test_closure::<fn()->()>();
@@ -434,35 +385,10 @@ mod tests {
         test_native_mut_closure::<fn()->()>();
 
         assert!(!TestTrait::<dyn RustTest, &dyn Fn()->()>::new().impls_trait(), "non-Sync closure shouldn't be RustTest");
-        assert!(TestTrait::<dyn RustTest, &(dyn Fn()->() + Sync)>::new().impls_trait(), "Sync closure should be RustTest");
+        assert!(TestTrait::<dyn RustTest, &(dyn Fn()->() + Send + Sync)>::new().impls_trait(), "Sync closure should be RustTest");
         assert!(!TestTrait::<dyn NativeTest, &dyn Fn()->()>::new().impls_trait(), "non-Sync closure shouldn't be NativeTest");
-        assert!(TestTrait::<dyn NativeTest, &(dyn Fn()->() + Sync)>::new().impls_trait(), "Sync closure should be NativeTest");
+        assert!(TestTrait::<dyn NativeTest, &(dyn Fn()->() + Send + Sync)>::new().impls_trait(), "Sync closure should be NativeTest");
         assert!(!TestTrait::<dyn NativeTestMut, &dyn Fn()->()>::new().impls_trait(), "non-Sync closure shouldn't be NativeTestMut");
-        assert!(TestTrait::<dyn NativeTestMut, &(dyn Fn()->() + Sync)>::new().impls_trait(), "Sync closure should be NativeTestMut");
-    }
-
-    #[test]
-    #[cfg(not(feature = "threading"))]
-    fn callback_sync_without_threading() {
-        fn test_closure<T: RustTest>() {
-            assert!(!TestTrait::<dyn Sync, T>::new().impls_trait(), "RustTest shouldn't be Sync");
-        }
-        fn test_native_closure<T: NativeTest>() {
-            assert!(!TestTrait::<dyn Sync, T>::new().impls_trait(), "NativeTest shouldn't be Sync");
-        }
-        fn test_native_mut_closure<T: NativeTestMut>() {
-            assert!(!TestTrait::<dyn Sync, T>::new().impls_trait(), "NativeTestMut shouldn't be Sync");
-        }
-
-        test_closure::<fn()->()>();
-        test_native_closure::<fn()->()>();
-        test_native_mut_closure::<fn()->()>();
-
-        assert!(TestTrait::<dyn RustTest, &dyn Fn()->()>::new().impls_trait(), "non-Sync closure should be RustTest");
-        assert!(TestTrait::<dyn RustTest, &(dyn Fn()->() + Sync)>::new().impls_trait(), "Sync closure should be RustTest");
-        assert!(TestTrait::<dyn NativeTest, &dyn Fn()->()>::new().impls_trait(), "non-Sync closure should be NativeTest");
-        assert!(TestTrait::<dyn NativeTest, &(dyn Fn()->() + Sync)>::new().impls_trait(), "Sync closure should be NativeTest");
-        assert!(TestTrait::<dyn NativeTestMut, &dyn Fn()->()>::new().impls_trait(), "non-Sync closure should be NativeTestMut");
-        assert!(TestTrait::<dyn NativeTestMut, &(dyn Fn()->() + Sync)>::new().impls_trait(), "Sync closure should be NativeTestMut");
+        assert!(TestTrait::<dyn NativeTestMut, &(dyn Fn()->() + Send + Sync)>::new().impls_trait(), "Sync closure should be NativeTestMut");
     }
 }

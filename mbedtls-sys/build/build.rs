@@ -8,8 +8,11 @@
 
 extern crate bindgen;
 extern crate cmake;
+#[macro_use]
+extern crate lazy_static;
 
 mod config;
+mod features;
 mod headers;
 #[path = "bindgen.rs"]
 mod mod_bindgen;
@@ -20,15 +23,7 @@ use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-
-pub fn have_feature(feature: &'static str) -> bool {
-    env::var_os(
-        format!("CARGO_FEATURE_{}", feature)
-            .to_uppercase()
-            .replace("-", "_"),
-    )
-    .is_some()
-}
+use features::FEATURES;
 
 struct BuildConfig {
     out_dir: PathBuf,
@@ -38,13 +33,14 @@ struct BuildConfig {
 
 impl BuildConfig {
     fn create_config_h(&self) {
-        let target = env::var("TARGET").unwrap();
         let mut defines = config::default_defines();
         for &(feat, def) in config::FEATURE_DEFINES {
-            if (feat == "std") && (target == "x86_64-fortanix-unknown-sgx") {
-                continue;
+            if FEATURES.have_feature(feat) {
+                defines.insert(def.0, def.1);
             }
-            if have_feature(feat) {
+        }
+        for &(feat, comp, def) in config::PLATFORM_DEFINES {
+            if FEATURES.have_platform_component(feat, comp) {
                 defines.insert(def.0, def.1);
             }
         }
@@ -55,13 +51,13 @@ impl BuildConfig {
                 for (name, def) in defines {
                     f.write_all(def.define(name).as_bytes())?;
                 }
-                if have_feature("custom_printf") {
+                if FEATURES.have_feature("custom_printf") {
                     writeln!(f, "int mbedtls_printf(const char *format, ...);")?;
                 }
-                if have_feature("custom_threading") {
+                if FEATURES.have_platform_component("threading", "custom") {
                     writeln!(f, "typedef void* mbedtls_threading_mutex_t;")?;
                 }
-                if have_feature("custom_time") {
+                if FEATURES.have_platform_component("time", "custom") {
                     writeln!(f, "long long mbedtls_time(long long*);")?;
                 }
                 f.write_all(config::SUFFIX.as_bytes())

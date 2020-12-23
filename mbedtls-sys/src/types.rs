@@ -28,48 +28,40 @@ pub use std::os::raw as raw_types;
 #[cfg(not(feature = "std"))]
 pub mod raw_types {
     // From libstd/os/raw.rs
-    #[cfg(any(
-        target_os = "android",
-        target_os = "emscripten",
-        all(
-            target_os = "linux",
-            any(
-                target_arch = "aarch64",
-                target_arch = "arm",
-                target_arch = "powerpc",
-                target_arch = "powerpc64"
+    cfg_if! {
+        if #[cfg(any(
+            target_os = "android",
+            target_os = "emscripten",
+            all(
+                target_os = "linux",
+                any(
+                    target_arch = "aarch64",
+                    target_arch = "arm",
+                    target_arch = "powerpc",
+                    target_arch = "powerpc64"
+                )
             )
-        )
-    ))]
-    pub type c_char = u8;
-    #[cfg(not(any(
-        target_os = "android",
-        target_os = "emscripten",
-        all(
-            target_os = "linux",
-            any(
-                target_arch = "aarch64",
-                target_arch = "arm",
-                target_arch = "powerpc",
-                target_arch = "powerpc64"
-            )
-        )
-    )))]
-    pub type c_char = i8;
+        ))] {
+            pub type c_char = u8;
+        } else {
+            pub type c_char = i8;
+        }
+    }
     pub type c_schar = i8;
     pub type c_uchar = u8;
     pub type c_short = i16;
     pub type c_ushort = u16;
     pub type c_int = i32;
     pub type c_uint = u32;
-    #[cfg(any(target_pointer_width = "32", windows))]
-    pub type c_long = i32;
-    #[cfg(any(target_pointer_width = "32", windows))]
-    pub type c_ulong = u32;
-    #[cfg(all(target_pointer_width = "64", not(windows)))]
-    pub type c_long = i64;
-    #[cfg(all(target_pointer_width = "64", not(windows)))]
-    pub type c_ulong = u64;
+    cfg_if! {
+        if #[cfg(any(target_pointer_width = "32", windows))] {
+            pub type c_long = i32;
+            pub type c_ulong = u32;
+        } else {
+            pub type c_long = i64;
+            pub type c_ulong = u64;
+        }
+    }
     pub type c_longlong = i64;
     pub type c_ulonglong = u64;
     pub type c_float = f32;
@@ -84,52 +76,33 @@ pub mod raw_types {
     }
 }
 
-#[cfg(feature = "libc")]
+#[cfg(unix)]
 extern crate libc;
-#[cfg(feature = "libc")]
-mod libc_types {
-    pub use super::libc::FILE;
 
-    #[cfg(all(feature = "time", not(feature = "custom_time")))]
-    pub use super::libc::time_t;
+#[cfg(std_component = "fs")]
+pub use self::libc::FILE;
 
-    #[cfg(feature = "custom_time")]
-    pub type time_t = super::raw_types::c_longlong;
-
-    #[cfg(feature = "time")]
-    pub use super::libc::tm;
-
-}
-
-#[cfg(not(feature = "libc"))]
-mod libc_types {
-    pub enum FILE {}
-
-    #[cfg(all(feature = "time", not(feature = "custom_time")))]
-    pub type time_t = i64;
-
-    #[cfg(feature = "custom_time")]
-    pub type time_t = super::raw_types::c_longlong;
-
-    #[cfg(feature = "time")]
-    #[repr(C)]
-    pub struct tm {
-        pub tm_sec:   i32,            /* Seconds.        [0-60] (1 leap second) */
-        pub tm_min:   i32,            /* Minutes.        [0-59] */
-        pub tm_hour:  i32,            /* Hours.          [0-23] */
-        pub tm_mday:  i32,            /* Day.            [1-31] */
-        pub tm_mon:   i32,            /* Month.          [0-11] */
-        pub tm_year:  i32,            /* Year          - 1900.  */
-        pub tm_wday:  i32,            /* Day of week.    [0-6]  */
-        pub tm_yday:  i32,            /* Days in year.   [0-365]*/
-        pub tm_isdst: i32,
+cfg_if! {
+    if #[cfg(time_component = "custom")] {
+        pub type time_t = raw_types::c_longlong;
+        #[repr(C)]
+        pub struct tm {
+            pub tm_sec:   i32,            /* Seconds.        [0-60] (1 leap second) */
+            pub tm_min:   i32,            /* Minutes.        [0-59] */
+            pub tm_hour:  i32,            /* Hours.          [0-23] */
+            pub tm_mday:  i32,            /* Day.            [1-31] */
+            pub tm_mon:   i32,            /* Month.          [0-11] */
+            pub tm_year:  i32,            /* Year          - 1900.  */
+            pub tm_wday:  i32,            /* Day of week.    [0-6]  */
+            pub tm_yday:  i32,            /* Days in year.   [0-365]*/
+            pub tm_isdst: i32,
+        }
+    } else if #[cfg(time_component = "libc")] {
+        pub use self::libc::{tm, time_t};
     }
-
 }
 
-pub use self::libc_types::*;
-
-#[cfg(feature = "pthread")]
+#[cfg(threading_component = "pthread")]
 pub use self::libc::pthread_mutex_t;
 
 #[cfg(feature = "zlib")]

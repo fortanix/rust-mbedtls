@@ -8,6 +8,7 @@
 
 #![cfg(not(target_env = "sgx"))]
 
+// needed to have common code for `mod support` in unit and integrations tests
 extern crate mbedtls;
 
 use std::io::{Read, Write};

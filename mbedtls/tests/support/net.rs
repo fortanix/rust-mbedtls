@@ -6,8 +6,6 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-extern crate libc;
-
 use std::io::{Error as IoError, Result as IoResult};
 use std::net::TcpStream;
 use std::os::unix::io::FromRawFd;

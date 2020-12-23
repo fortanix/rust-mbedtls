@@ -6,6 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+// needed to have common code for `mod support` in unit and integrations tests
 extern crate mbedtls;
 
 use mbedtls::hash::Type::Sha256;
