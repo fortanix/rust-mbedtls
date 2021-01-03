@@ -138,13 +138,16 @@ impl DsaPublicKey {
     }
 
     pub fn verify(&self, signature: &[u8], pre_hashed_message: &[u8]) -> Result<()> {
-        if signature.len() % 2 == 1 {
-            return Err(Error::X509InvalidSignature);
-        }
+        let (r,s) = yasna::parse_der(signature, |r| {
+            r.read_sequence(|rdr| {
+                let r = rdr.next().read_biguint()?;
+                let s = rdr.next().read_biguint()?;
+                Ok((r,s))
+            })
+        }).map_err(|_| Error::X509InvalidSignature)?;
 
-        let half = signature.len() / 2;
-        let r = Mpi::from_binary(&signature[..half])?;
-        let s = Mpi::from_binary(&signature[half..])?;
+        let r = Mpi::from_binary(&r.to_bytes_be()).expect("Success");
+        let s = Mpi::from_binary(&s.to_bytes_be()).expect("Success");
 
         self.verify_signature(&r, &s, pre_hashed_message)
     }
@@ -203,14 +206,16 @@ fn sample_secret_value<F: Random>(upper_bound: &Mpi, rng: &mut F) -> Result<Mpi>
     Ok(c)
 }
 
-fn encode_dsa_signature(q_bits: usize, r: &Mpi, s: &Mpi) -> Result<Vec<u8>> {
-    let q_bytes = (q_bits + 7) / 8;
-    let r = r.to_binary_padded(q_bytes)?;
-    let s = s.to_binary_padded(q_bytes)?;
-    let mut sig = Vec::with_capacity(r.len() + s.len());
-    sig.extend_from_slice(&r);
-    sig.extend_from_slice(&s);
-    Ok(sig)
+fn encode_dsa_signature(r: &Mpi, s: &Mpi) -> Result<Vec<u8>> {
+    let r = BigUint::from_bytes_be(&r.to_binary()?);
+    let s = BigUint::from_bytes_be(&s.to_binary()?);
+
+    Ok(yasna::construct_der(|w| {
+        w.write_sequence(|w| {
+            w.next().write_biguint(&r);
+            w.next().write_biguint(&s);
+        })
+    }))
 }
 
 impl DsaPrivateKey {
@@ -339,7 +344,7 @@ impl DsaPrivateKey {
         if r == zero || s == zero {
             return Err(Error::MpiBadInputData);
         }
-        encode_dsa_signature(q.bit_length()?, &r, &s)
+        encode_dsa_signature(&r, &s)
     }
 }
 
@@ -437,12 +442,12 @@ mod tests {
 
         let pubkey = DsaPublicKey::from_components(params, y).unwrap();
 
-        let zero_sig = encode_dsa_signature(q_bits, &Mpi::new(0).unwrap(), &Mpi::new(0).unwrap()).unwrap();
+        let zero_sig = encode_dsa_signature(&Mpi::new(0).unwrap(), &Mpi::new(0).unwrap()).unwrap();
         let junk_message = vec![42; q_bits*8];
 
         assert!(pubkey.verify(&zero_sig, &junk_message).is_err());
 
-        let q_sig = encode_dsa_signature(q_bits, &q, &q).unwrap();
+        let q_sig = encode_dsa_signature(&q, &q).unwrap();
         assert!(pubkey.verify(&q_sig, &junk_message).is_err());
     }
 
@@ -487,7 +492,16 @@ mod tests {
         for kat in rfc6979_results.iter() {
             let digest = hash_input(kat.0.as_bytes(), kat.1);
             let sig = privkey.sign_deterministic(kat.1, &digest, &mut rng).unwrap();
-            assert_eq!(hex::encode(&sig), kat.2);
+
+            // We keep the KAT in the RFC 6979 format for clarity, here we must re-encode to DER for comparison
+
+            let kat_sig = hex::decode(kat.2).unwrap();
+            let half = kat_sig.len() / 2;
+            let r = Mpi::from_binary(&kat_sig[..half]).unwrap();
+            let s = Mpi::from_binary(&kat_sig[half..]).unwrap();
+            let der_sig = encode_dsa_signature(&r, &s).unwrap();
+
+            assert_eq!(hex::encode(&sig), hex::encode(der_sig));
             assert!(pubkey.verify(&sig, &digest).is_ok());
         }
     }
@@ -505,7 +519,7 @@ mod tests {
             let k = hex_to_bn(inputs.get("K").unwrap());
             let r = hex_to_bn(inputs.get("R").unwrap());
             let s = hex_to_bn(inputs.get("S").unwrap());
-            let encoded_sig = encode_dsa_signature(q.bit_length().unwrap(), &r, &s).unwrap();
+            let encoded_sig = encode_dsa_signature(&r, &s).unwrap();
 
             let msg = hex::decode(inputs.get("Msg").unwrap()).unwrap();
             let hash = inputs.get("Hash").unwrap();
