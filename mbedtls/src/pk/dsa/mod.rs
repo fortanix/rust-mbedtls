@@ -137,33 +137,37 @@ impl DsaPublicKey {
         Ok(der)
     }
 
-    pub fn verify(&self, signature: &[u8], pre_hashed_message: &[u8]) -> Result<bool> {
+    pub fn verify(&self, signature: &[u8], pre_hashed_message: &[u8]) -> Result<()> {
         if signature.len() % 2 == 1 {
-            return Ok(false);
+            return Err(Error::X509InvalidSignature);
         }
-
-        let p = &self.params.p;
-        let q = &self.params.q;
 
         let half = signature.len() / 2;
         let r = Mpi::from_binary(&signature[..half])?;
         let s = Mpi::from_binary(&signature[half..])?;
 
+        self.verify_signature(&r, &s, pre_hashed_message)
+    }
+
+    fn verify_signature(&self, r: &Mpi, s: &Mpi, pre_hashed_message: &[u8]) -> Result<()> {
         let zero = Mpi::new(0)?;
 
-        if r <= zero || s <= zero {
-            return Ok(false);
+        if r <= &zero || s <= &zero {
+            return Err(Error::X509InvalidSignature);
         }
 
-        if &r >= q || &s >= q {
-            return Ok(false);
+        let p = &self.params.p;
+        let q = &self.params.q;
+
+        if r >= q || s >= q {
+            return Err(Error::X509InvalidSignature);
         }
 
         let m = reduce_mod_q(pre_hashed_message, q)?;
 
         let s_inv = s.modinv(q)?;
 
-        let sr = (&s_inv * &r)?.modulo(q)?;
+        let sr = (&s_inv * r)?.modulo(q)?;
         let sm = (&s_inv * &m)?.modulo(q)?;
 
         // Compute (g^sm * y^sr) mod p
@@ -172,7 +176,11 @@ impl DsaPublicKey {
         let ysr = self.y.mod_exp(&sr, p)?;
         let gsm_ysr = (&gsm * &ysr)?.modulo(p)?;
 
-        Ok(gsm_ysr.modulo(q)? == r)
+        if &gsm_ysr.modulo(q)? != r {
+            return Err(Error::X509InvalidSignature);
+        }
+
+        Ok(())
     }
 }
 
@@ -432,10 +440,10 @@ mod tests {
         let zero_sig = encode_dsa_signature(q_bits, &Mpi::new(0).unwrap(), &Mpi::new(0).unwrap()).unwrap();
         let junk_message = vec![42; q_bits*8];
 
-        assert!(!pubkey.verify(&zero_sig, &junk_message).unwrap());
+        assert!(pubkey.verify(&zero_sig, &junk_message).is_err());
 
         let q_sig = encode_dsa_signature(q_bits, &q, &q).unwrap();
-        assert!(!pubkey.verify(&q_sig, &junk_message).unwrap());
+        assert!(pubkey.verify(&q_sig, &junk_message).is_err());
     }
 
     #[test]
@@ -480,7 +488,7 @@ mod tests {
             let digest = hash_input(kat.0.as_bytes(), kat.1);
             let sig = privkey.sign_deterministic(kat.1, &digest, &mut rng).unwrap();
             assert_eq!(hex::encode(&sig), kat.2);
-            assert!(pubkey.verify(&sig, &digest).unwrap());
+            assert!(pubkey.verify(&sig, &digest).is_ok());
         }
     }
 
@@ -519,7 +527,7 @@ mod tests {
             let pubkey = privkey.public_key().unwrap();
             assert_eq!(pubkey.y, y);
 
-            assert!(pubkey.verify(&encoded_sig, &hashed_message).unwrap());
+            assert!(pubkey.verify(&encoded_sig, &hashed_message).is_ok());
 
             assert_eq!(privkey.sign_with_explicit_nonce(&hashed_message, k, &mut rng).unwrap(), encoded_sig);
 
@@ -527,21 +535,21 @@ mod tests {
 
             // Generate a new RFC 6979 signature and verify it
             let new_rfc6979_sig = privkey.sign_deterministic(mdt, &hashed_message, &mut rng).unwrap();
-            assert!(pubkey.verify(&new_rfc6979_sig, &hashed_message).unwrap());
+            assert!(pubkey.verify(&new_rfc6979_sig, &hashed_message).is_ok());
 
             // Generate a new random(-ish) signature and verify it
             let new_random_sig = privkey.sign(&hashed_message, &mut rng).unwrap();
-            assert!(pubkey.verify(&new_random_sig, &hashed_message).unwrap());
+            assert!(pubkey.verify(&new_random_sig, &hashed_message).is_ok());
 
             // Verify invalid signature is rejected
             let mut bad_sig = encoded_sig.clone();
             bad_sig[5] ^= 1;
-            assert!(!pubkey.verify(&bad_sig, &hashed_message).unwrap());
+            assert!(pubkey.verify(&bad_sig, &hashed_message).is_err());
 
             // Verify if we toggle an input bit, signature is rejected
             let mut bad_input = hashed_message.clone();
             bad_input[5] ^= 1;
-            assert!(!pubkey.verify(&encoded_sig, &bad_input).unwrap());
+            assert!(pubkey.verify(&encoded_sig, &bad_input).is_err());
         }
 
         let dsa_kats = include_str!("../../../tests/data/dsa.kat");
