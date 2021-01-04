@@ -313,7 +313,6 @@ impl DsaPrivateKey {
         self.sign_with_explicit_nonce(pre_hashed_message, k, rng)
     }
 
-    // Exposed for testing
     fn sign_with_explicit_nonce<F: Random>(&self, pre_hashed_message: &[u8], k: Mpi, rng: &mut F) -> Result<Vec<u8>> {
         let q = &self.params.q;
 
