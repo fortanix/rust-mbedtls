@@ -51,7 +51,7 @@ cc = "1.0"
 
 [features]
 # Features are documented in the README
-default = ["std", "aesni", "time", "padlock", "legacy_protocols", "use_libc", "dsa"]
+default = ["std", "aesni", "time", "padlock", "legacy_protocols", "use_libc"]
 std = ["mbedtls-sys-auto/std", "serde/std", "yasna"]
 threading = []
 pthread = ["threading","std","mbedtls-sys-auto/pthread"]
