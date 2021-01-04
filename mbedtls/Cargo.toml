@@ -54,7 +54,7 @@ cc = "1.0"
 
 [features]
 # Features are documented in the README
-default = ["std", "aesni", "time", "padlock", "dsa"]
+default = ["std", "aesni", "time", "padlock"]
 std = ["mbedtls-sys-auto/std", "serde/std", "yasna"]
 debug = ["mbedtls-sys-auto/debug"]
 no_std_deps = ["core_io", "spin"]

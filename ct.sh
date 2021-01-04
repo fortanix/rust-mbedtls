@@ -17,6 +17,7 @@ if [ $TRAVIS_RUST_VERSION = "stable" ] || [ $TRAVIS_RUST_VERSION = "beta" ] || [
     cargo test --features pkcs12
     cargo test --features pkcs12_rc2
     cargo test --features force_aesni_support
+    cargo test --features dsa
 
     rustup target add --toolchain $TRAVIS_RUST_VERSION x86_64-fortanix-unknown-sgx
     cargo +$TRAVIS_RUST_VERSION test --no-run --target=x86_64-fortanix-unknown-sgx
