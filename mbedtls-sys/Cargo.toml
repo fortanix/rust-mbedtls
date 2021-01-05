@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls-sys-auto"
-version = "2.24.0"
+version = "2.25.0"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build/build.rs"
 license = "Apache-2.0/GPL-2.0+"
