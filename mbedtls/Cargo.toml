@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.6.1"
+version = "0.6.2"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -25,7 +25,9 @@ spin = { version = "0.4.0", default-features = false, optional = true }
 serde = { version = "1.0.7", default-features = false }
 serde_derive = "1.0.7"
 byteorder = "1.0.0"
-yasna = { version = "0.2", optional = true }
+yasna = { version = "0.2", optional = true, features = ["num-bigint", "bit-vec"] }
+num-bigint = { version = "0.2", optional = true }
+bit-vec = { version = "0.5", optional = true }
 block-modes = { version = "0.3", optional = true }
 rc2 = { version = "0.3", optional = true }
 
@@ -68,6 +70,7 @@ zlib = ["mbedtls-sys-auto/zlib"]
 time = ["mbedtls-sys-auto/time"]
 padlock = ["mbedtls-sys-auto/padlock"]
 legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
+dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "block-modes"]
 

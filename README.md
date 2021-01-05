@@ -18,9 +18,13 @@ This crate depends on the mbedtls-sys-auto crate, see below for build details.
 This is a list of the Cargo features available for mbedtls. Features in
 **bold** are enabled by default.
 
-* **aesni** Enable support for the AES-NI instructions.
+* **aesni** Enable support for the AES-NI instructions. On SGX, this feature is
+            enabled automatically.
 * *core_io* On no_std, you must enable this feature. It will supply the I/O
             Read and Write traits.
+* *debug* Enable debug printing to stdout. You need to configure the debug
+          threshold at runtime.
+* dsa Enable support for DSA signatures
 * *force_aesni_support* MbedTLS normally uses runtime detection of AES-NI
                         support. With this feature, always use AES-NI. This
                         will result in undefined instruction exceptions on
