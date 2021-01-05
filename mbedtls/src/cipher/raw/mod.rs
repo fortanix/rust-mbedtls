@@ -317,18 +317,20 @@ impl Cipher {
         &mut self,
         ad: &[u8],
         plain: &[u8],
-        cipher: &mut [u8],
-        tag: &mut [u8],
+        cipher_and_tag: &mut [u8],
+        tag_len: usize,
     ) -> Result<usize> {
-        if plain.len() > cipher.len() {
+        if cipher_and_tag.len()
+            .checked_sub(tag_len)
+            .map_or(true, |cipher_len| cipher_len < plain.len()) {
             return Err(Error::CipherBadInputData);
         }
 
         let iv = self.inner.iv;
         let iv_len = self.inner.iv_size;
-        let mut cipher_len = cipher.len();
+        let mut cipher_len = cipher_and_tag.len();
         unsafe {
-            cipher_auth_encrypt(
+            cipher_auth_encrypt_ext(
                 &mut self.inner,
                 iv.as_ptr(),
                 iv_len,
@@ -336,10 +338,10 @@ impl Cipher {
                 ad.len(),
                 plain.as_ptr(),
                 plain.len(),
-                cipher.as_mut_ptr(),
+                cipher_and_tag.as_mut_ptr(),
+                cipher_len,
                 &mut cipher_len,
-                tag.as_mut_ptr(),
-                tag.len(),
+                tag_len,
             )
             .into_result()?
         };
@@ -350,12 +352,15 @@ impl Cipher {
     pub fn decrypt_auth(
         &mut self,
         ad: &[u8],
-        cipher: &[u8],
+        cipher_and_tag: &[u8],
         plain: &mut [u8],
-        tag: &[u8],
+        tag_len: usize,
     ) -> Result<usize> {
         // For AES KW and KWP cipher text length can be greater than plain text length
-        if self.is_authenticated() && cipher.len() > plain.len() {
+        if self.is_authenticated() &&
+            cipher_and_tag.len()
+                .checked_sub(tag_len)
+                .map_or(true, |cipher_len| plain.len() < cipher_len) {
             return Err(Error::CipherBadInputData);
         }
 
@@ -363,18 +368,18 @@ impl Cipher {
         let iv_len = self.inner.iv_size;
         let mut plain_len = plain.len();
         unsafe {
-            cipher_auth_decrypt(
+            cipher_auth_decrypt_ext(
                 &mut self.inner,
                 iv.as_ptr(),
                 iv_len,
                 ad.as_ptr(),
                 ad.len(),
-                cipher.as_ptr(),
-                cipher.len(),
+                cipher_and_tag.as_ptr(),
+                cipher_and_tag.len(),
                 plain.as_mut_ptr(),
+                plain_len,
                 &mut plain_len,
-                tag.as_ptr(),
-                tag.len(),
+                tag_len,
             )
             .into_result()?
         };

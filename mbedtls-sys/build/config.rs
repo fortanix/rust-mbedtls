@@ -196,12 +196,13 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_NO_PLATFORM_ENTROPY",                       Defined),
     ("MBEDTLS_ENTROPY_FORCE_SHA256",                      Undefined),
     ("MBEDTLS_ENTROPY_NV_SEED",                           Undefined),
-    ("MBEDTLS_PSA_CRYPTO_KEY_FILE_ID_ENCODES_OWNER",      Undefined),
+    ("MBEDTLS_PSA_CRYPTO_KEY_ID_ENCODES_OWNER",           Undefined),
     ("MBEDTLS_MEMORY_DEBUG",                              Undefined),
     ("MBEDTLS_MEMORY_BACKTRACE",                          Undefined),
     ("MBEDTLS_PK_RSA_ALT_SUPPORT",                        Defined),
     ("MBEDTLS_PKCS1_V15",                                 Defined),
     ("MBEDTLS_PKCS1_V21",                                 Defined),
+    ("MBEDTLS_PSA_CRYPTO_DRIVERS",                        Undefined),
     ("MBEDTLS_PSA_CRYPTO_SPM",                            Undefined),
     ("MBEDTLS_PSA_INJECT_ENTROPY",                        Undefined),
     ("MBEDTLS_RSA_NO_CRT",                                Undefined),
@@ -234,6 +235,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_SSL_ALPN",                                  Defined),
     ("MBEDTLS_SSL_DTLS_ANTI_REPLAY",                      Defined),
     ("MBEDTLS_SSL_DTLS_HELLO_VERIFY",                     Defined),
+    ("MBEDTLS_SSL_DTLS_SRTP",                             Undefined),
     ("MBEDTLS_SSL_DTLS_CLIENT_PORT_REUSE",                Defined),
     ("MBEDTLS_SSL_DTLS_BADMAC_LIMIT",                     Defined),
     ("MBEDTLS_SSL_SESSION_TICKETS",                       Defined),
@@ -242,10 +244,13 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_SSL_TRUNCATED_HMAC",                        Defined),
     ("MBEDTLS_SSL_TRUNCATED_HMAC_COMPAT",                 Undefined),
     ("MBEDTLS_SSL_VARIABLE_BUFFER_LENGTH",                Undefined),
+    ("MBEDTLS_TEST_CONSTANT_FLOW_MEMSAN",                 Undefined),
+    ("MBEDTLS_TEST_CONSTANT_FLOW_VALGRIND",               Undefined),
     ("MBEDTLS_TEST_HOOKS",                                Undefined),
     ("MBEDTLS_THREADING_ALT",                             Undefined),
     ("MBEDTLS_THREADING_PTHREAD",                         Undefined),
     ("MBEDTLS_USE_PSA_CRYPTO",                            Undefined),
+    ("MBEDTLS_PSA_CRYPTO_CONFIG",                         Undefined),
     ("MBEDTLS_VERSION_FEATURES",                          Defined),
     ("MBEDTLS_X509_ALLOW_EXTENSIONS_NON_V3",              Undefined),
     ("MBEDTLS_X509_ALLOW_UNSUPPORTED_CRITICAL_EXTENSION", Undefined),
@@ -382,7 +387,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_SSL_DEFAULT_TICKET_LIFETIME",               Undefined), // default: 86400
     ("MBEDTLS_PSK_MAX_LEN",                               Undefined), // default: 32
     ("MBEDTLS_SSL_COOKIE_TIMEOUT",                        Undefined), // default: 60
-    ("MBEDTLS_SSL_CIPHERSUITES",                          Undefined), // no default
+    ("MBEDTLS_SSL_CIPHERSUITES",                          Undefined), // default: no default
     ("MBEDTLS_X509_MAX_INTERMEDIATE_CA",                  Undefined), // default: 8
     ("MBEDTLS_X509_MAX_FILE_PATH_LEN",                    Undefined), // default: 512
     ("MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_CERTIFICATES",    Undefined),
