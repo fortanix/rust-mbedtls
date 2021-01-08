@@ -235,7 +235,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "mbedtls"
-version = "0.6.2"
+version = "0.6.3"
 dependencies = [
  "bit-vec 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
