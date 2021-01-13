@@ -37,6 +37,9 @@ impl DsaParams {
         Ok(Self { p, q, g })
     }
 
+    fn key_size(&self) -> Result<(usize, usize)> {
+        Ok((self.p.bit_length()?, self.q.bit_length()?))
+    }
 }
 
 fn reduce_mod_q(m: &[u8], q: &Mpi) -> Result<Mpi> {
@@ -184,6 +187,14 @@ impl DsaPublicKey {
         }
 
         Ok(())
+    }
+
+    pub fn key_size(&self) -> Result<(usize, usize)> {
+        return self.params.key_size()
+    }
+
+    pub fn parameters(&self) -> &DsaParams {
+        &self.params
     }
 }
 
@@ -344,6 +355,14 @@ impl DsaPrivateKey {
             return Err(Error::MpiBadInputData);
         }
         encode_dsa_signature(&r, &s)
+    }
+
+    pub fn key_size(&self) -> Result<(usize, usize)> {
+        return self.params.key_size()
+    }
+
+    pub fn parameters(&self) -> &DsaParams {
+        &self.params
     }
 }
 
@@ -607,5 +626,21 @@ mod tests {
                 test_kat(&params);
             }
         }
+    }
+
+    #[test]
+    fn key_size() {
+        let params = hardcoded_2048_256().unwrap();
+
+        let mdinfo: MdInfo = match MdType::Sha256.into() {
+            Some(mdinfo) => mdinfo,
+            None => panic!("no such digest"),
+        };
+        let mut rng = HmacDrbg::from_buf(mdinfo, &[0u8; 32]).unwrap();
+
+        let privkey = DsaPrivateKey::generate(params, &mut rng).unwrap();
+
+        assert_eq!(privkey.key_size().unwrap(), (2048, 256));
+        assert_eq!(privkey.public_key().unwrap().key_size().unwrap(), (2048, 256));
     }
 }
