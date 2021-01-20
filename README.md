@@ -28,6 +28,7 @@ This is a list of the Cargo features available for mbedtls. Features in
                         will result in undefined instruction exceptions on
                         unsupported processors. On SGX, this feature is
                         enabled automatically.
+* *mpi_force_c_code* Enables the `mpi_force_c_code` feature in mbedtls-sys
 * *legacy_protocols* Enable support for SSLv3, TLSv1.0 and TLSv1.1
 * *no_std_deps* On no_std, you must enable this feature. It enables optional
                 dependencies needed on no_std. If the `std` feature is enabled,
@@ -95,6 +96,13 @@ This is a list of the Cargo features available for mbedtls-sys. Features in
 * *havege* Enable the Hardware Volatile Entropy Gathering and Expansion
            (HAVEGE) algorithm.
 * **legacy_protocols** Enable support for SSLv3, TLSv1.0 and TLSv1.1
+* *mpi_force_c_code* MbedTLS uses assembly code for MPI functions, when available.
+                     In some situations we may prefer C code instead. This is in
+                     particular the case on x86 platforms where compile-time mitigation
+                     for speculative execution is required (e.g., LVI). Letting the
+                     compiler insert the required lfences during C-code compilation may
+                     result in faster code than letting the compiler apply mitigations
+                     on assembly code.
 * **padlock** Enable support for VIA padlock.
 * *pkcs11* Enable PKCS#11 support. This requires pkcs11-helper to be installed.
 * **std** If this feature is not enabled, this crate is a no_std crate. In a
