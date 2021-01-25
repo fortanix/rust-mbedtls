@@ -15,6 +15,7 @@ if [ $TRAVIS_RUST_VERSION = "stable" ] || [ $TRAVIS_RUST_VERSION = "beta" ] || [
     cargo test --target x86_64-unknown-linux-gnu
     cargo test --features spin_threading
     cargo test --features rust_threading
+    cargo test --features custom_time,custom_gmtime_r
     cargo test --features zlib
     cargo test --features pkcs12
     cargo test --features pkcs12_rc2
