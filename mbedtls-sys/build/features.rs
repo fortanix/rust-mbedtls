@@ -28,13 +28,17 @@ impl Features {
         }
         self.automatic_features.insert("c_compiler");
 
+        // deprecated, needed for backcompat
+        let have_custom_threading = self.have_feature("custom_threading");
+        let have_custom_gmtime_r = self.have_feature("custom_gmtime_r");
+
         if !self.have_feature("std") ||
             env_have_target_cfg("env", "sgx") ||
             env_have_target_cfg("os", "none") {
             self.with_feature("c_compiler").unwrap().insert("freestanding");
         }
         if let Some(components) = self.with_feature("threading") {
-            if env_have_target_cfg("family", "unix") {
+            if !have_custom_threading && env_have_target_cfg("family", "unix") {
                 components.insert("pthread");
             } else {
                 components.insert("custom");
@@ -48,7 +52,7 @@ impl Features {
             }
         }
         if let Some(components) = self.with_feature("time") {
-            if env_have_target_cfg("family", "unix") {
+            if !have_custom_gmtime_r && env_have_target_cfg("family", "unix") {
                 components.insert("libc");
             } else {
                 components.insert("custom");

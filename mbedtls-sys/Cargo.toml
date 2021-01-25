@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls-sys-auto"
-version = "2.25.1"
+version = "2.25.2"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build/build.rs"
 license = "Apache-2.0/GPL-2.0+"
@@ -55,8 +55,9 @@ padlock = []
 legacy_protocols = []
 mpi_force_c_code = []
 trusted_cert_callback = []
-# deprecated features, these don't do anything anymore, can be removed on major version bump
+# deprecated, needed for backcompat, can be removed on major version bump
 custom_threading = ["threading"]
-pthread = ["threading"]
 custom_time = ["time"]
 custom_gmtime_r = ["time"]
+# deprecated features, these don't do anything anymore, can be removed on major version bump
+pthread = ["threading"]
