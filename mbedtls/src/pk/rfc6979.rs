@@ -18,7 +18,7 @@ use crate::error::Result;
 use crate::bignum::Mpi;
 use crate::hash::{MdInfo, Type};
 
-fn generate_rfc6979_nonce(md: &MdInfo, x: &Mpi, q: &Mpi, digest_bytes: &[u8]) -> Result<Vec<u8>> {
+pub(crate) fn generate_rfc6979_nonce(md: &MdInfo, x: &Mpi, q: &Mpi, digest_bytes: &[u8]) -> Result<Vec<u8>> {
     let q_bits = q.bit_length()?;
     let q_bytes = q.byte_length()?;
 

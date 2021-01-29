@@ -29,6 +29,9 @@ use self::rfc6979::Rfc6979Rng;
 use crate::bignum::Mpi;
 use crate::ecp::EcPoint;
 
+#[cfg(feature = "dsa")]
+pub mod dsa;
+
 #[doc(inline)]
 pub use self::ec::{EcGroupId, ECDSA_MAX_LEN};
 
