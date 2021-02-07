@@ -80,6 +80,129 @@ fn save_restore_aes_cbc_enc_pkcs7() {
     assert_eq!(&ct[..], &expected_ct[..]);
 }
 
+
+
+#[test]
+fn test_openssl_decrypt() {
+    use mbedtls::hash::Type as MdType;
+    use mbedtls::hash::{pbkdf2_hmac};
+
+    // All variables below are generated via script
+/* 
+#!/bin/bash
+
+key=`openssl rand -base64 32` # > key.bin
+salt=`xxd -u -l 8 -p /dev/urandom`
+iv=`xxd -u -l 16 -p /dev/urandom`
+iter=10000
+openssl enc -debug -pbkdf2 -iter 10000 -aes-256-cbc -md sha256 -S $salt -in ./test.txt -out ./test.txt.enc -pass pass:$key -iv $iv
+
+echo "let ct = [ $(cat test.txt.enc | xxd -u -p | sed -E 's/.{2}/0x&, /g') ];"
+echo "let key = b\"$key\";"
+echo "let iter = 10000; "
+echo "let iv = [ $(echo $iv | sed -E 's/.{2}/0x&, /g') ];"
+*/
+    let ct = [ 0x53, 0x61, 0x6C, 0x74, 0x65, 0x64, 0x5F, 0x5F, 0xBB, 0xFF, 0x2B, 0xB1, 0x63, 0xC5, 0xA4, 0x27, 0x4A, 0xD2, 0x5C, 0x1E, 0xE0, 0x63, 0x41, 0x11, 0x4A, 0xF1, 0x9F, 0xC1, 0xB3, 0xF3, 
+               0x5D, 0x4E, 0x69, 0x7F, 0x95, 0x4F, 0x00, 0x1C, 0x6E, 0x4A, 0xB4, 0x36, 0xE3, 0x36, 0xCD, 0x12, 0xD0, 0xBF,  ];
+    let key = b"lawfmDi57d2RDPPgF54Y08chnOJh2eSEWu2y+RKLAqk=";
+    let iter = 10000; 
+    let iv = [ 0x5F, 0x63, 0xA5, 0x6D, 0x0A, 0x93, 0xE1, 0xF1, 0xDA, 0x30, 0x2F, 0x71, 0x91, 0x84, 0xFC, 0x6A,  ];
+    
+    // End of generated parameters
+    
+    // OpenSSL has a salted format where first 8 bytes are "Salted__", next 8 bytes are the salt. So check for that and extract the salt.
+    if b"Salted__" != &ct[0..8] {
+        panic!("File is not an openssl encrypted file using salt");
+    }
+    let salt = &ct[8..16];
+    
+    // We now derive our key via pbkdf2
+    let mut derived_key = [0; 32];
+    pbkdf2_hmac(MdType::Sha256, &key[..], &salt, iter, &mut derived_key).unwrap();
+
+    // Initialize a cypher
+    let mut cipher = cipher::Cipher::<Decryption, Traditional, Fresh>::new(CipherId::Aes, CipherMode::CBC, 256).unwrap();
+
+    // OpenSSL says it uses Pkcs5 by default which is equivalent to Pkcs7
+    cipher.set_padding(CipherPadding::Pkcs7).unwrap();
+    let cipher_k = cipher.set_key_iv(&derived_key, &iv).unwrap();
+
+    let mut decrypted = Vec::new();
+
+    // Allocate the length + 1 block size more to have enough space for decrypted content
+    decrypted.resize(ct.len() + cipher_k.block_size(), 0);
+
+    // Decrypt starting from byte 16 - where openSSL stores its data
+    let size = cipher_k.decrypt(&ct[16..], &mut decrypted).unwrap().0;
+    decrypted.resize(size, 0);
+
+    let decrypted_string = String::from_utf8(decrypted).unwrap();
+
+    // Double check our string matches what we encrypted
+    assert_eq!("this is super secret\n", decrypted_string);
+}
+
+#[test]
+fn test_openssl_encrypt() {
+    use mbedtls::hash::Type as MdType;
+    use mbedtls::hash::{pbkdf2_hmac};
+
+    // All variables below are generated via script
+/* 
+#!/bin/bash
+
+key=`openssl rand -base64 32` # > key.bin
+salt=`xxd -u -l 8 -p /dev/urandom`
+iv=`xxd -u -l 16 -p /dev/urandom`
+iter=10000
+openssl enc -debug -pbkdf2 -iter 10000 -aes-256-cbc -md sha256 -S $salt -in ./test.txt -out ./test.txt.enc -pass pass:$key -iv $iv
+
+echo "let ct = [ $(cat test.txt.enc | xxd -u -p | sed -E 's/.{2}/0x&, /g') ];"
+echo "let key = b\"$key\";"
+echo "let iter = 10000; "
+echo "let iv = [ $(echo $iv | sed -E 's/.{2}/0x&, /g') ];"
+     */
+    let ct = b"this is super secret\n";
+    
+    let key = b"lawfmDi57d2RDPPgF54Y08chnOJh2eSEWu2y+RKLAqk=";
+    let iter = 10000; 
+    let iv = [ 0x5F, 0x63, 0xA5, 0x6D, 0x0A, 0x93, 0xE1, 0xF1, 0xDA, 0x30, 0x2F, 0x71, 0x91, 0x84, 0xFC, 0x6A,  ];
+    
+    // End of generated parameters
+    
+    // OpenSSL has a salted format where first 8 bytes are "Salted__", next 8 bytes are the salt. So check for that and extract the salt.
+    let salt = [ 0xBB, 0xFF, 0x2B, 0xB1, 0x63, 0xC5, 0xA4, 0x27 ];
+    
+    // We now derive our key via pbkdf2
+    let mut derived_key = [0; 32];
+    pbkdf2_hmac(MdType::Sha256, &key[..], &salt, iter, &mut derived_key).unwrap();
+
+    // Initialize a cypher
+    let mut cipher = cipher::Cipher::<Encryption, Traditional, Fresh>::new(CipherId::Aes, CipherMode::CBC, 256).unwrap();
+
+    // OpenSSL says it uses Pkcs5 by default which is equivalent to Pkcs7
+    cipher.set_padding(CipherPadding::Pkcs7).unwrap();
+    let cipher_k = cipher.set_key_iv(&derived_key, &iv).unwrap();
+
+    let mut encrypted = Vec::new();
+
+    // Allocate the length + 1 block size more to have enough space for decrypted content
+    encrypted.resize(ct.len() + cipher_k.block_size() + 16, 0);
+
+    // Decrypt starting from byte 16 - where openSSL stores its data
+    let size = cipher_k.encrypt(&ct[..], &mut encrypted[16..]).unwrap().0;
+    encrypted.resize(size+16, 0);
+    encrypted[0..8].copy_from_slice(b"Salted__");
+    encrypted[8..16].copy_from_slice(&salt);
+
+    // Double check our string matches what we encrypted
+    let expected = [ 0x53, 0x61, 0x6C, 0x74, 0x65, 0x64, 0x5F, 0x5F, 0xBB, 0xFF, 0x2B, 0xB1, 0x63, 0xC5, 0xA4, 0x27, 0x4A, 0xD2, 0x5C, 0x1E, 0xE0, 0x63, 0x41, 0x11, 0x4A, 0xF1, 0x9F, 0xC1, 0xB3, 0xF3, 
+                     0x5D, 0x4E, 0x69, 0x7F, 0x95, 0x4F, 0x00, 0x1C, 0x6E, 0x4A, 0xB4, 0x36, 0xE3, 0x36, 0xCD, 0x12, 0xD0, 0xBF,  ];
+
+    assert_eq!(expected, encrypted.as_slice());
+}
+
+
 #[test]
 fn save_restore_aes_cbc_dec_nopad() {
     let mut pt: [u8; 48] = [0; 48];
