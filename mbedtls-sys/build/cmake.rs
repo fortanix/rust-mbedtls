@@ -8,8 +8,6 @@
 
 use cmake;
 
-use crate::features::FEATURES;
-
 impl super::BuildConfig {
     pub fn cmake(&self) {
         let mut cmk = cmake::Config::new(&self.mbedtls_src);
@@ -20,12 +18,16 @@ impl super::BuildConfig {
         .define("ENABLE_PROGRAMS", "OFF")
         .define("ENABLE_TESTING", "OFF")
         .build_target("lib");
-        if FEATURES.have_platform_component("c_compiler", "freestanding") {
-            cmk.cflag("-fno-builtin")
-                .cflag("-D_FORTIFY_SOURCE=0")
-                .cflag("-fno-stack-protector");
+        for cflag in &self.cflags {
+            cmk.cflag(cflag);
         }
+        let cc = cc::Build::new().get_compiler();
+        if cc.is_like_clang() && cc.args().iter().any(|arg| arg == "-mllvm") {
+            cmk.define("CMAKE_C_COMPILER_FORCED", "TRUE");
+        }
+
         let mut dst = cmk.build();
+
         dst.push("build");
         dst.push("library");
         println!(
@@ -33,8 +35,7 @@ impl super::BuildConfig {
             dst.to_str().expect("link-search UTF-8 error")
         );
 
-        let mut dst = cmk.build();
-        dst.push("build");
+        assert!(dst.pop());
         dst.push("crypto");
         dst.push("library");
         println!(
@@ -46,7 +47,7 @@ impl super::BuildConfig {
         println!("cargo:rustc-link-lib=mbedx509");
         println!("cargo:rustc-link-lib=mbedcrypto");
 
-        println!("cargo:include={}/{}", ::std::env::current_dir().unwrap().display(), self.mbedtls_src.join("include").display());
+        println!("cargo:include={}", ::std::env::current_dir().unwrap().join(&self.mbedtls_include).to_str().expect("include/ UTF-8 error"));
         println!("cargo:config_h={}", self.config_h.to_str().expect("config.h UTF-8 error"));
     }
 }

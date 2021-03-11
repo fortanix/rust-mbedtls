@@ -413,7 +413,6 @@ pub fn default_defines() -> HashMap<&'static str, Macro> {
 pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
     ("time",                  ("MBEDTLS_HAVE_TIME",                         Defined)),
     ("time",                  ("MBEDTLS_HAVE_TIME_DATE",                    Defined)),
-    ("time",                  ("MBEDTLS_TIMING_C",                          Defined)),
     ("havege",                ("MBEDTLS_HAVEGE_C",                          Defined)),
     ("threading",             ("MBEDTLS_THREADING_C",                       Defined)),
     ("pkcs11",                ("MBEDTLS_PKCS11_C",                          Defined)),
@@ -437,6 +436,7 @@ pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 pub const PLATFORM_DEFINES: &'static [(&'static str, &'static str, CDefine)] = &[
+    ("time",      "libc",     ("MBEDTLS_TIMING_C",                          Defined)),
     ("time",      "custom",   ("MBEDTLS_PLATFORM_TIME_MACRO",               DefinedAs("mbedtls_time"))),
     ("time",      "custom",   ("MBEDTLS_PLATFORM_TIME_TYPE_MACRO",          DefinedAs("long long"))),
     ("time",      "custom",   ("MBEDTLS_PLATFORM_GMTIME_R_ALT",             Defined)),

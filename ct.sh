@@ -9,6 +9,9 @@ if [ -z $TRAVIS_RUST_VERSION ]; then
     exit 1
 fi
 
+export CFLAGS_x86_64_fortanix_unknown_sgx="-isystem/usr/include/x86_64-linux-gnu -mlvi-hardening -mllvm -x86-experimental-lvi-inline-asm-hardening"
+export CC_x86_64_fortanix_unknown_sgx=clang-11
+
 if [ $TRAVIS_RUST_VERSION = "stable" ] || [ $TRAVIS_RUST_VERSION = "beta" ] || [ $TRAVIS_RUST_VERSION = "nightly" ]; then
     rustup default $TRAVIS_RUST_VERSION
     # make sure that explicitly providing the default target works

@@ -11,22 +11,26 @@ os: linux
 dist: xenial
 addons:
   apt:
+    sources:
+    - sourceline: "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-11 main"
+      key_url: "https://apt.llvm.org/llvm-snapshot.gpg.key"
     packages:
-    - llvm-3.8-dev
-    - libclang-3.8-dev
-    - clang-3.8
+    - llvm-3.9-dev
+    - libclang-3.9-dev
+    - clang-3.9
+    - clang-11
     - cmake
 rust:
    - stable
    - beta
    - nightly
-   - nightly-2019-07-01
+   - nightly-2021-03-25
 env:
   global:
     - RUST_BACKTRACE=1
     # Pinned to this particular nightly version because of core_io. This can be
     # re-pinned whenever core_io is updated to the latest nightly.
-    - CORE_IO_NIGHTLY=nightly-2019-07-01
-    - LLVM_CONFIG_PATH=llvm-config-3.8
+    - CORE_IO_NIGHTLY=nightly-2021-03-25
+    - LLVM_CONFIG_PATH=llvm-config-3.9
 script:
   - ./ct.sh
