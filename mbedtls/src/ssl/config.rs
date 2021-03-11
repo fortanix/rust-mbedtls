@@ -6,6 +6,8 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+use core::marker::PhantomData;
+use core::ptr;
 use core::slice::from_raw_parts;
 
 use mbedtls_sys::types::raw_types::{c_char, c_int, c_uchar, c_uint, c_void};
@@ -84,6 +86,32 @@ define!(
 );
 
 callback!(DbgCallback:Sync(level: c_int, file: *const c_char, line: c_int, message: *const c_char) -> ());
+
+pub struct NullTerminatedStrList<'s> {
+    c: Box<[*const u8]>,
+    r: PhantomData<&'s ()>,
+}
+
+unsafe impl<'s> Send for NullTerminatedStrList<'s> {}
+unsafe impl<'s> Sync for NullTerminatedStrList<'s> {}
+
+impl<'s> NullTerminatedStrList<'s> {
+    pub fn new(list: &[&'s str]) -> Self {
+        let mut c = Vec::with_capacity(list.len() + 1);
+        for s in list {
+            c.push(s.as_ptr());
+        }
+        c.push(ptr::null());
+        NullTerminatedStrList {
+            c: c.into_boxed_slice(),
+            r: PhantomData,
+        }
+    }
+
+    pub fn as_ptr(&self) -> *const *const u8 {
+        self.c.as_ptr()
+    }
+}
 
 define!(
     #[c_ty(ssl_config)]
@@ -327,6 +355,17 @@ impl<'c> Config<'c> {
                 Some(ca_callback::<F>),
                 cb as *mut F as _,
             )
+        }
+    }
+
+    /// Set the supported Application Layer Protocols.
+    ///
+    /// Each protocol name in the list must also be terminated with a null character (`\0`).
+    pub fn set_alpn_protocols(&mut self, protocols: &'c NullTerminatedStrList<'c>) -> Result<()> {
+        unsafe {
+            ssl_conf_alpn_protocols(&mut self.inner, protocols.as_ptr() as *mut _)
+                .into_result()
+                .map(|_| ())
         }
     }
 }

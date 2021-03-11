@@ -12,6 +12,9 @@ use std::io::{Error as IoError, Result as IoResult};
 use std::net::TcpStream;
 use std::os::unix::io::FromRawFd;
 
+#[cfg(feature = "tokio")]
+use tokio::net;
+
 pub fn create_tcp_pair() -> IoResult<(TcpStream, TcpStream)> {
     let mut fds: [libc::c_int; 2] = [0; 2];
     unsafe {
@@ -27,4 +30,15 @@ pub fn create_tcp_pair() -> IoResult<(TcpStream, TcpStream)> {
             Err(IoError::last_os_error())
         }
     }
+}
+
+#[cfg(feature = "tokio")]
+pub fn create_tcp_pair_async() -> IoResult<(net::TcpStream, net::TcpStream)> {
+    let (c, s) = create_tcp_pair()?;
+    c.set_nonblocking(true)?;
+    s.set_nonblocking(true)?;
+    Ok((
+        net::TcpStream::from_std(c)?,
+        net::TcpStream::from_std(s)?,
+    ))
 }

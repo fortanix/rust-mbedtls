@@ -49,6 +49,7 @@ impl<IO: Read + Write> IoCallback for IO {
         };
         match (&mut *(user_data as *mut IO)).read(::core::slice::from_raw_parts_mut(data, len)) {
             Ok(i) => i as c_int,
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => ::mbedtls_sys::ERR_SSL_WANT_READ,
             Err(_) => ::mbedtls_sys::ERR_NET_RECV_FAILED,
         }
     }
@@ -65,6 +66,7 @@ impl<IO: Read + Write> IoCallback for IO {
         };
         match (&mut *(user_data as *mut IO)).write(::core::slice::from_raw_parts(data, len)) {
             Ok(i) => i as c_int,
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => ::mbedtls_sys::ERR_SSL_WANT_WRITE,
             Err(_) => ::mbedtls_sys::ERR_NET_SEND_FAILED,
         }
     }
@@ -87,8 +89,34 @@ pub struct Session<'ctx> {
     inner: &'ctx mut ssl_context,
 }
 
+pub struct MidHandshake<'ctx> {
+    inner: Option<&'ctx mut ssl_context>,
+}
+
+pub enum HandshakeError<'ctx> {
+    Failed(Error),
+    // Indicates that the TLS handshake requires I/O but the underlying stream
+    // is not ready. In this case, wait for the I/O stream to become ready and
+    // then resume TLS handshake by calling MidHandshake::handshake().
+    // This is useful for non-blocking I/O.
+    WouldBlock(MidHandshake<'ctx>, Error),
+}
+
+impl<'a> HandshakeError<'a> {
+    pub fn into_error(self) -> Error {
+        match self {
+            HandshakeError::Failed(e) => e,
+            HandshakeError::WouldBlock(_, e) => e,
+        }
+    }
+}
+
 #[cfg(feature = "threading")]
 unsafe impl<'ctx> Send for Session<'ctx> {}
+
+#[cfg(feature = "threading")]
+unsafe impl<'ctx> Send for MidHandshake<'ctx> {}
+
 
 pub struct HandshakeContext<'ctx> {
     inner: &'ctx mut ssl_context,
@@ -107,9 +135,21 @@ impl<'config> Context<'config> {
         io: &'c mut F,
         hostname: Option<&str>,
     ) -> Result<Session<'c>> {
+        match self.establish_internal(io, hostname) {
+            Ok(session) => Ok(session),
+            Err(HandshakeError::Failed(e)) => Err(e),
+            Err(HandshakeError::WouldBlock(_, e)) => Err(e),
+        }
+    }
+
+    pub(super) fn establish_internal<'c, F: IoCallback>(
+        &'c mut self,
+        io: &'c mut F,
+        hostname: Option<&str>,
+    ) -> StdResult<Session<'c>, HandshakeError<'c>> {
         unsafe {
-            ssl_session_reset(&mut self.inner).into_result()?;
-            self.set_hostname(hostname)?;
+            ssl_session_reset(&mut self.inner).into_result().map_err(|e| HandshakeError::Failed(e))?;
+            self.set_hostname(hostname).map_err(|e| HandshakeError::Failed(e))?;
 
             ssl_set_bio(
                 &mut self.inner,
@@ -118,16 +158,7 @@ impl<'config> Context<'config> {
                 Some(F::call_recv),
                 None,
             );
-            match ssl_handshake(&mut self.inner).into_result() {
-                Err(e) => {
-                    // safely end borrow of io
-                    ssl_set_bio(&mut self.inner, ::core::ptr::null_mut(), None, None, None);
-                    Err(e)
-                }
-                Ok(_) => Ok(Session {
-                    inner: &mut self.inner,
-                }),
-            }
+            MidHandshake { inner: Some(&mut self.inner) }.handshake()
         }
     }
 
@@ -221,6 +252,22 @@ impl<'ctx> UnsafeFrom<*mut ssl_context> for HandshakeContext<'ctx> {
     }
 }
 
+impl<'a> MidHandshake<'a> {
+    pub fn handshake(mut self) -> StdResult<Session<'a>, HandshakeError<'a>> {
+        let inner_ptr = (*self.inner.as_mut().unwrap()) as *mut _;
+        unsafe {
+            match ssl_handshake(inner_ptr).into_result() {
+                Err(Error::SslWantRead) => Err(HandshakeError::WouldBlock(self, Error::SslWantRead)),
+                Err(Error::SslWantWrite) => Err(HandshakeError::WouldBlock(self, Error::SslWantWrite)),
+                Err(e) => Err(HandshakeError::Failed(e)), // Borrow of io will end when self is dropped.
+                Ok(_) => Ok(Session {
+                    inner: self.inner.take().unwrap(),
+                }),
+            }
+        }
+    }
+}
+
 impl<'a> Session<'a> {
     /// Return the minor number of the negotiated TLS version
     pub fn minor_version(&self) -> i32 {
@@ -272,12 +319,26 @@ impl<'a> Session<'a> {
             flags => Err(VerifyError::from_bits_truncate(flags)),
         }
     }
+
+    #[cfg(feature = "std")]
+    pub fn get_alpn_protocol(&self) -> Result<Option<&'a str>> {
+        unsafe {
+            let ptr = ssl_get_alpn_protocol(self.inner);
+            if ptr.is_null() {
+                Ok(None)
+            } else {
+                let s = std::ffi::CStr::from_ptr(ptr).to_str()?;
+                Ok(Some(s))
+            }
+        }
+    }
 }
 
 impl<'a> Read for Session<'a> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         match unsafe { ssl_read(self.inner, buf.as_mut_ptr(), buf.len()).into_result() } {
             Err(Error::SslPeerCloseNotify) => Ok(0),
+            Err(Error::SslWantRead) => Err(io::ErrorKind::WouldBlock.into()),
             Err(e) => Err(crate::private::error_to_io_error(e)),
             Ok(i) => Ok(i as usize),
         }
@@ -288,6 +349,7 @@ impl<'a> Write for Session<'a> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match unsafe { ssl_write(self.inner, buf.as_ptr(), buf.len()).into_result() } {
             Err(Error::SslPeerCloseNotify) => Ok(0),
+            Err(Error::SslWantWrite) => Err(io::ErrorKind::WouldBlock.into()),
             Err(e) => Err(crate::private::error_to_io_error(e)),
             Ok(i) => Ok(i as usize),
         }
@@ -304,6 +366,37 @@ impl<'a> Drop for Session<'a> {
             ssl_close_notify(self.inner);
             ssl_set_bio(self.inner, ::core::ptr::null_mut(), None, None, None);
         }
+    }
+}
+
+impl<'a> Drop for MidHandshake<'a> {
+    fn drop(&mut self) {
+        unsafe {
+            if let Some(inner) = self.inner.take() {
+                ssl_set_bio(inner, ::core::ptr::null_mut(), None, None, None);
+            }
+        }
+    }
+}
+
+#[cfg(all(feature = "std", feature = "tokio"))]
+impl<'a> Session<'a> {
+    // This is unsafe because if it returns something other than Ok or
+    // WouldBlock, then it's the caller's responsibility to ensure the session
+    // is not used afterwards.
+    pub(super) unsafe fn close_notify(&mut self) -> io::Result<()> {
+        match ssl_close_notify(self.inner).into_result() {
+            Err(Error::SslWantRead) |
+            Err(Error::SslWantWrite) => Err(io::ErrorKind::WouldBlock.into()),
+            Err(e) => Err(crate::private::error_to_io_error(e)),
+            Ok(0) => Ok(()),
+            Ok(v) => Err(io::Error::new(io::ErrorKind::Other, format!("unexpected result from ssl_close_notify: {}", v))),
+        }
+    }
+
+    // This is unsafe because the caller must ensure session is not used afterwards.
+    pub(super) unsafe fn release_io(&mut self) {
+        ssl_set_bio(self.inner, ::core::ptr::null_mut(), None, None, None);
     }
 }
 
