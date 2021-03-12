@@ -34,7 +34,7 @@ fn client(
     exp_version: Option<Version>) -> TlsResult<()> {
     let entropy = Arc::new(entropy_new());
     let rng = Arc::new(CtrDrbg::new(entropy, None)?);
-    let cacert = Arc::new(Certificate::from_pem_multiple(keys::ROOT_CA_CERT)?);
+    let cacert = Arc::new(Certificate::from_pem_multiple(keys::ROOT_CA_CERT.as_bytes())?);
     let expected_flags = VerifyError::empty();
     #[cfg(feature = "time")]
     let expected_flags = expected_flags | VerifyError::CERT_EXPIRED;
@@ -90,8 +90,8 @@ fn server(
 ) -> TlsResult<()> {
     let entropy = entropy_new();
     let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
-    let cert = Arc::new(Certificate::from_pem_multiple(keys::EXPIRED_CERT)?);
-    let key = Arc::new(Pk::from_private_key(keys::EXPIRED_KEY, None)?);
+    let cert = Arc::new(Certificate::from_pem_multiple(keys::EXPIRED_CERT.as_bytes())?);
+    let key = Arc::new(Pk::from_private_key(keys::EXPIRED_KEY.as_bytes(), None)?);
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(rng);
     config.set_min_version(min_version)?;

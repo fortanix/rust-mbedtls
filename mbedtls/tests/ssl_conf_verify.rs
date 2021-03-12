@@ -35,7 +35,7 @@ enum Test {
 fn client(conn: TcpStream, test: Test) -> TlsResult<()> {
     let entropy = entropy_new();
     let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
-    let cert = Arc::new(Certificate::from_pem_multiple(keys::PEM_CERT)?);
+    let cert = Arc::new(Certificate::from_pem_multiple(keys::PEM_CERT.as_bytes())?);
 
     let verify_test = test.clone();
     let verify_callback = move |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
@@ -76,8 +76,8 @@ fn client(conn: TcpStream, test: Test) -> TlsResult<()> {
 fn server(conn: TcpStream) -> TlsResult<()> {
     let entropy = entropy_new();
     let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
-    let cert = Arc::new(Certificate::from_pem_multiple(keys::PEM_CERT)?);
-    let key = Arc::new(Pk::from_private_key(keys::PEM_KEY, None)?);
+    let cert = Arc::new(Certificate::from_pem_multiple(keys::PEM_CERT.as_bytes())?);
+    let key = Arc::new(Pk::from_private_key(keys::PEM_KEY.as_bytes(), None)?);
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(rng);
     config.push_cert(cert, key)?;
