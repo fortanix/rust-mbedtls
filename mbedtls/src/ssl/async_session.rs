@@ -130,9 +130,81 @@ impl Drop for SessionWrapper<'_> {
     }
 }
 
+// mbedtls_ssl_write() has some weird semantics w.r.t non-blocking I/O:
+//
+// > When this function returns MBEDTLS_ERR_SSL_WANT_WRITE/READ, it must be
+// > called later **with the same arguments**, until it returns a value greater
+// > than or equal to 0. When the function returns MBEDTLS_ERR_SSL_WANT_WRITE
+// > there may be some partial data in the output buffer, however this is not
+// > yet sent.
+//
+// WriteTracker is used to ensure we pass the same data in that scenario.
+//
+// Reference:
+// https://tls.mbed.org/api/ssl_8h.html#a5bbda87d484de82df730758b475f32e5
+struct WriteTracker {
+    pending: Option<Box<DigestAndLen>>,
+}
+
+struct DigestAndLen {
+    digest: [u8; 20], // SHA-1
+    len: usize,
+}
+
+impl WriteTracker {
+    fn new() -> Self {
+        WriteTracker {
+            pending: None,
+        }
+    }
+
+    fn digest(buf: &[u8]) -> [u8; 20] {
+        use crate::hash::{Md, Type};
+        let mut out = [0u8; 20];
+        let res = Md::hash(Type::Sha1, buf, &mut out[..]);
+        assert_eq!(res, Ok(out.len()));
+        out
+    }
+
+    fn adjust_buf<'a>(&self, buf: &'a [u8]) -> io::Result<&'a [u8]> {
+        match self.pending.as_ref() {
+            None => Ok(buf),
+            Some(pending) => {
+                if pending.len <= buf.len() {
+                    let buf = &buf[..pending.len];
+                    if Self::digest(buf) == pending.digest {
+                        return Ok(buf);
+                    }
+                }
+                Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "mbedtls expects the same data if the previous call to poll_write() returned Poll::Pending"
+                ))
+            },
+        }
+    }
+
+    fn post_write(&mut self, buf: &[u8], res: &Poll<io::Result<usize>>) {
+        match res {
+            &Poll::Pending => {
+                if self.pending.is_none() {
+                    self.pending = Some(Box::new(DigestAndLen {
+                        digest: Self::digest(buf),
+                        len: buf.len(),
+                    }));
+                }
+            },
+            _ => {
+                self.pending = None;
+            }
+        }
+    }
+}
+
 pub struct AsyncSession<'ctx> {
     session: Option<SessionWrapper<'ctx>>,
     ecx: ErasedContext,
+    write_tracker: WriteTracker,
 }
 
 unsafe impl<'c> Send for AsyncSession<'c> {}
@@ -232,7 +304,13 @@ impl AsyncWrite for AsyncSession<'_> {
         cx: &mut TaskContext<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        self.with_context(cx, |s| s.write(buf))
+        let buf = match self.write_tracker.adjust_buf(buf) {
+            Ok(buf) => buf,
+            Err(e) => return Poll::Ready(Err(e)),
+        };
+        let res = self.with_context(cx, |s| s.write(buf));
+        self.write_tracker.post_write(buf, &res);
+        res
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<io::Result<()>> {
@@ -269,6 +347,7 @@ impl<'ctx, S: AsyncRead + AsyncWrite + Unpin> Future for StartHandshake<'_, 'ctx
             Ok(session) => Ok(HandshakeState::Ready(AsyncSession {
                 session: Some(session.into()),
                 ecx,
+                write_tracker: WriteTracker::new(),
             })),
             Err(HandshakeError::WouldBlock(mid, _err)) => Ok(HandshakeState::InProgress(
                 MidHandshakeFuture(Some(MidHandshakeFutureInner { mid, ecx })),
@@ -299,6 +378,7 @@ impl<'c> Future for MidHandshakeFuture<'c> {
                 Ok(AsyncSession {
                     session: Some(session.into()),
                     ecx: inner.ecx,
+                    write_tracker: WriteTracker::new(),
                 }).into()
             }
             Err(HandshakeError::WouldBlock(mid, _err)) => {
