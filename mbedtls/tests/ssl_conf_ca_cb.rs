@@ -74,10 +74,10 @@ mod test {
 
         let ca_callback =
             |_: &MbedtlsList<Certificate>| -> TlsResult<MbedtlsList<Certificate>> {
-                Ok(Certificate::from_pem_multiple(keys::ROOT_CA_CERT).unwrap())
+                Ok(Certificate::from_pem_multiple(keys::ROOT_CA_CERT.as_bytes()).unwrap())
             };
         let c = thread::spawn(move || super::client(c, ca_callback).unwrap());
-        let s = thread::spawn(move || super::server(s, keys::PEM_CERT, keys::PEM_KEY).unwrap());
+        let s = thread::spawn(move || super::server(s, keys::PEM_CERT.as_bytes(), keys::PEM_KEY.as_bytes()).unwrap());
         c.join().unwrap();
         s.join().unwrap();
     }
@@ -93,7 +93,7 @@ mod test {
             let result = super::client(c, ca_callback);
             assert_eq!(result, Err(Error::X509CertVerifyFailed));
         });
-        let s = thread::spawn(move || super::server(s, keys::PEM_CERT, keys::PEM_KEY).unwrap());
+        let s = thread::spawn(move || super::server(s, keys::PEM_CERT.as_bytes(), keys::PEM_KEY.as_bytes()).unwrap());
         c.join().unwrap();
         s.join().unwrap();
     }
@@ -116,7 +116,7 @@ mod test {
             let result = super::client(c, self_signed_ca_callback);
             assert_eq!(result, Err(Error::X509CertVerifyFailed));
         });
-        let s = thread::spawn(move || super::server(s, keys::PEM_CERT, keys::PEM_KEY).unwrap());
+        let s = thread::spawn(move || super::server(s, keys::PEM_CERT.as_bytes(), keys::PEM_KEY.as_bytes()).unwrap());
         c.join().unwrap();
         s.join().unwrap();
     }
