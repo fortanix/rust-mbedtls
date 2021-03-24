@@ -9,10 +9,12 @@
 use cmake;
 
 use crate::features::FEATURES;
+use std::env;
 
 impl super::BuildConfig {
     pub fn cmake(&self) {
         let mut cmk = cmake::Config::new(&self.mbedtls_src);
+        cmk.very_verbose(true);
         cmk.cflag(format!(
             r#"-DMBEDTLS_CONFIG_FILE="\"{}\"""#,
             self.config_h.to_str().expect("config.h UTF-8 error")
@@ -20,6 +22,9 @@ impl super::BuildConfig {
         .define("ENABLE_PROGRAMS", "OFF")
         .define("ENABLE_TESTING", "OFF")
         .build_target("lib");
+        if env::var("CC").is_ok() {
+            cmk.define("CMAKE_C_COMPILER_FORCED", "TRUE");
+        }
         if FEATURES.have_platform_component("c_compiler", "freestanding") {
             cmk.cflag("-fno-builtin")
                 .cflag("-D_FORTIFY_SOURCE=0")
