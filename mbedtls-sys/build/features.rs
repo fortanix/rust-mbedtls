@@ -1,3 +1,4 @@
+use crate::utils;
 use std::collections::{HashMap, HashSet};
 use std::env;
 
@@ -21,7 +22,7 @@ lazy_static! {
 
 impl Features {
     fn init(&mut self) {
-        if env_have_target_cfg("env", "sgx") {
+        if utils::env_have_target_cfg("env", "sgx") {
             self.automatic_features.insert("custom_has_support");
             self.automatic_features.insert("aes_alt");
             self.automatic_features.insert("aesni");
@@ -33,26 +34,26 @@ impl Features {
         let have_custom_gmtime_r = self.have_feature("custom_gmtime_r");
 
         if !self.have_feature("std") ||
-            env_have_target_cfg("env", "sgx") ||
-            env_have_target_cfg("os", "none") {
+            utils::env_have_target_cfg("env", "sgx") ||
+            utils::env_have_target_cfg("os", "none") {
             self.with_feature("c_compiler").unwrap().insert("freestanding");
         }
         if let Some(components) = self.with_feature("threading") {
-            if !have_custom_threading && env_have_target_cfg("family", "unix") {
+            if !have_custom_threading && utils::env_have_target_cfg("family", "unix") {
                 components.insert("pthread");
             } else {
                 components.insert("custom");
             }
         }
         if let Some(components) = self.with_feature("std") {
-            if env_have_target_cfg("family", "unix") {
+            if utils::env_have_target_cfg("family", "unix") {
                 components.insert("net");
                 components.insert("fs");
                 components.insert("entropy");
             }
         }
         if let Some(components) = self.with_feature("time") {
-            if !have_custom_gmtime_r && env_have_target_cfg("family", "unix") {
+            if !have_custom_gmtime_r && utils::env_have_target_cfg("family", "unix") {
                 components.insert("libc");
             } else {
                 components.insert("custom");
@@ -84,16 +85,6 @@ impl Features {
     }
 
     pub fn have_feature(&self, feature: &'static str) -> bool {
-        self.automatic_features.contains(feature) || env_have_feature(feature)
+        self.automatic_features.contains(feature) || utils::env_have_feature(feature)
     }
-}
-
-fn env_have_target_cfg(var: &'static str, value: &'static str) -> bool {
-    let env = format!("CARGO_CFG_TARGET_{}", var).to_uppercase().replace("-", "_");
-    env::var_os(env).map_or(false, |s| s == value)
-}
-
-fn env_have_feature(feature: &'static str) -> bool {
-    let env = format!("CARGO_FEATURE_{}", feature).to_uppercase().replace("-", "_");
-    env::var_os(env).is_some()
 }

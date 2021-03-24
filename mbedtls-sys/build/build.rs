@@ -11,6 +11,7 @@ extern crate cmake;
 #[macro_use]
 extern crate lazy_static;
 
+mod utils;
 mod config;
 mod features;
 mod headers;

@@ -8,6 +8,7 @@
 
 use cmake;
 
+use crate::utils;
 use crate::features::FEATURES;
 use std::env;
 
@@ -29,6 +30,10 @@ impl super::BuildConfig {
             cmk.cflag("-fno-builtin")
                 .cflag("-D_FORTIFY_SOURCE=0")
                 .cflag("-fno-stack-protector");
+        }
+        if utils::env_have_target_cfg("env", "sgx") {
+            // Compile for sgx target is similar as for unix
+            cmk.cflag("-Dunix");
         }
         let mut dst = cmk.build();
         dst.push("build");
