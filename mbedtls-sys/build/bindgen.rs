@@ -8,78 +8,132 @@
 
 use bindgen;
 
-use std::fs::File;
-use std::io::{stderr, Write};
+use std::fmt::Write as _;
+use std::fs::{self, File};
+use std::io::Write;
 
 use crate::headers;
 
 #[derive(Debug)]
-struct StderrLogger;
+struct MbedtlsParseCallbacks;
 
-impl bindgen::Logger for StderrLogger {
-    fn error(&self, msg: &str) {
-        let _ = writeln!(stderr(), "Bindgen ERROR: {}", msg);
+impl bindgen::callbacks::ParseCallbacks for MbedtlsParseCallbacks {
+    fn item_name(&self, original_item_name: &str) -> Option<String> {
+        Some(original_item_name.trim_start_matches("mbedtls_").trim_start_matches("MBEDTLS_").to_owned())
     }
-    fn warn(&self, msg: &str) {
-        let _ = writeln!(stderr(), "Bindgen WARNING: {}", msg);
+
+    fn enum_variant_name(
+        &self,
+        _enum_name: Option<&str>,
+        original_variant_name: &str,
+        _variant_value: bindgen::callbacks::EnumVariantValue
+    ) -> Option<String> {
+        self.item_name(original_variant_name)
     }
+
+    fn int_macro(&self, _name: &str, value: i64) -> Option<bindgen::callbacks::IntKind> {
+        if value < (i32::MIN as i64) || value > (i32::MAX as i64) {
+            Some(bindgen::callbacks::IntKind::LongLong)
+        } else {
+            Some(bindgen::callbacks::IntKind::Int)
+        }
+    }
+
+    fn blocklisted_type_implements_trait(&self, _name: &str, derive_trait: bindgen::callbacks::DeriveTrait) -> Option<bindgen::callbacks::ImplementsTrait> {
+        if derive_trait == bindgen::callbacks::DeriveTrait::Default {
+            Some(bindgen::callbacks::ImplementsTrait::Manually)
+        } else {
+            Some(bindgen::callbacks::ImplementsTrait::Yes)
+        }
+    }
+}
+
+/// Add bindgen 0.19-style union accessor methods. These are deprecated
+/// and can be deleted with the next major version bump.
+fn generate_deprecated_union_accessors(bindings: &str) -> String {
+    #[derive(Default)]
+    struct UnionImplBuilder {
+        impls: String
+    }
+
+    impl<'ast> syn::visit::Visit<'ast> for UnionImplBuilder {
+        fn visit_item_union(&mut self, i: &'ast syn::ItemUnion) {
+            let union_name = &i.ident;
+            let field_name = i.fields.named.iter().map(|field| field.ident.as_ref().unwrap());
+            let field_type = i.fields.named.iter().map(|field| &field.ty);
+            write!(self.impls, "{}", quote::quote! {
+                impl #union_name {
+                    #(
+                        #[deprecated]
+                        pub unsafe fn #field_name(&mut self) -> *mut #field_type {
+                            &mut self.#field_name
+                        }
+                    )*
+                }
+            }).unwrap();
+        }
+    }
+
+    let mut impl_builder = UnionImplBuilder::default();
+    syn::visit::visit_file(&mut impl_builder, &syn::parse_file(&bindings).unwrap());
+
+    impl_builder.impls
 }
 
 impl super::BuildConfig {
     pub fn bindgen(&self) {
-        let header = self.out_dir.join("bindgen-input.h");
-        File::create(&header)
-            .and_then(|mut f| {
-                Ok(for h in headers::enabled_ordered() {
-                    writeln!(f, "#include <mbedtls/{}>", h)?;
-                })
-            }).expect("bindgen-input.h I/O error");
+        let mut input = String::new();
+        for h in headers::enabled_ordered() {
+            let _ = writeln!(input, "#include <mbedtls/{}>", h);
+        }
 
-        let include = self.mbedtls_src.join("include");
+        let mut cc = cc::Build::new();
+        cc.include(&self.mbedtls_include)
+        .flag(&format!(
+            "-DMBEDTLS_CONFIG_FILE=\"{}\"",
+            self.config_h.to_str().expect("config.h UTF-8 error")
+        ));
 
-        let logger = StderrLogger;
-        let mut bindgen = bindgen::Builder::new(header.into_os_string().into_string().unwrap());
-        let bindings = bindgen
-            .log(&logger)
-            .clang_arg("-Dmbedtls_t_udbl=mbedtls_t_udbl;") // bindgen can't handle unused uint128
-            .clang_arg(format!(
-                "-DMBEDTLS_CONFIG_FILE=\"{}\"",
-                self.config_h.to_str().expect("config.h UTF-8 error")
-            )).clang_arg(format!(
-                "-I{}",
-                include.to_str().expect("include/ UTF-8 error")
-            )).match_pat(include.to_str().expect("include/ UTF-8 error"))
-            .match_pat(self.config_h.to_str().expect("config.h UTF-8 error"))
-            .use_core(true)
+        for cflag in &self.cflags {
+            cc.flag(cflag);
+        }
+
+        let bindings = bindgen::builder()
+            .clang_args(cc.get_compiler().args().iter().map(|arg| arg.to_str().unwrap()))
+            .header_contents("bindgen-input.h", &input)
+            .allowlist_function("^(?i)mbedtls_.*")
+            .allowlist_type("^(?i)mbedtls_.*")
+            .allowlist_var("^(?i)mbedtls_.*")
+            .allowlist_recursively(false)
+            .blocklist_type("^mbedtls_time_t$")
+            .use_core()
+            .ctypes_prefix("::types::raw_types")
+            .parse_callbacks(Box::new(MbedtlsParseCallbacks))
+            .default_enum_style(bindgen::EnumVariation::Consts)
+            .generate_comments(false)
+            .derive_copy(true)
             .derive_debug(false) // buggy :(
-            .ctypes_prefix(vec!["types".to_owned(), "raw_types".to_owned()])
-            .remove_prefix("mbedtls_")
-            .rust_enums(false)
-            .convert_macros(true)
-            .macro_int_types(
-                vec![
-                    "sint",
-                    "sint",
-                    "sint",
-                    "slonglong",
-                    "sint",
-                    "sint",
-                    "sint",
-                    "slonglong",
-                ].into_iter(),
-            ).generate()
-            .expect("bindgen error");
+            .derive_default(true)
+            .prepend_enum_name(false)
+            .translate_enum_integer_types(true)
+            .rustfmt_bindings(false)
+            .raw_line("#![allow(dead_code, non_snake_case, non_camel_case_types, non_upper_case_globals, invalid_value)]")
+            .generate()
+            .expect("bindgen error")
+            .to_string();
+
+        let union_impls = generate_deprecated_union_accessors(&bindings);
 
         let bindings_rs = self.out_dir.join("bindings.rs");
         File::create(&bindings_rs)
             .and_then(|mut f| {
-                bindings.write(Box::new(&mut f))?;
-                f.write_all(b"use crate::types::*;\n") // for FILE, time_t, etc.
+                f.write_all(bindings.as_bytes())?;
+                f.write_all(union_impls.as_bytes())?;
+                f.write_all(b"use crate::types::*;\n")?; // for FILE, time_t, etc.
+                Ok(())
             }).expect("bindings.rs I/O error");
 
         let mod_bindings = self.out_dir.join("mod-bindings.rs");
-        File::create(&mod_bindings)
-            .and_then(|mut f| f.write_all(b"mod bindings;\n"))
-            .expect("mod-bindings.rs I/O error");
+        fs::write(mod_bindings, b"mod bindings;\n").expect("mod-bindings.rs I/O error");
     }
 }
