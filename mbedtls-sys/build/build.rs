@@ -103,6 +103,24 @@ impl BuildConfig {
             cflags.push("-fno-stack-protector".into());
         }
 
+        // Determine the sysroot for this compiler so that bindgen
+        // uses the correct headers
+        let compiler = cc::Build::new().get_compiler();
+        match compiler.is_like_gnu() {
+            true => {
+                let output = compiler.to_command().args(&["--print-sysroot"]).output().unwrap();
+                let output = std::str::from_utf8(&output.stdout).unwrap();
+                let res = output
+                    .strip_suffix("\r\n")
+                    .or(output.strip_suffix("\n"))
+                    .unwrap_or(&output);
+                let mut val = "--sysroot=".to_string();
+                val.push_str(&res);
+                cflags.push(val)
+            },
+            false => {}
+        };
+
         BuildConfig {
             config_h,
             out_dir,
