@@ -9,6 +9,12 @@ if [ -z $TRAVIS_RUST_VERSION ]; then
     exit 1
 fi
 
+if [ "$TARGET" == "aarch64-unknown-linux-musl" ]; then
+  cd /tmp && wget https://musl.cc/aarch64-linux-musl-cross.tgz;
+  tar -xzf aarch64-linux-musl-cross.tgz;
+  cd $TRAVIS_BUILD_DIR;
+fi
+
 export CFLAGS_x86_64_fortanix_unknown_sgx="-isystem/usr/include/x86_64-linux-gnu -mlvi-hardening -mllvm -x86-experimental-lvi-inline-asm-hardening"
 export CC_x86_64_fortanix_unknown_sgx=clang-11
 export CC_aarch64_unknown_linux_musl=/tmp/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc
@@ -32,12 +38,12 @@ if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" 
         cargo test --features dsa --target $TARGET
 
         # If zlib is installed, test the zlib feature
-        if [[ -v "${ZLIB_INSTALLED}" ]]; then
+        if [ -n $ZLIB_INSTALLED ]; then
             cargo test --features zlib --target $TARGET
         fi
 
         # If AES-NI is supported, test the feature
-        if [[ -v "${AES_NI_SUPPORT}" ]]; then
+        if [ -n $AES_NI_SUPPORT ]; then
             cargo test --features force_aesni_support --target $TARGET
         fi
     else
