@@ -98,6 +98,24 @@ impl super::BuildConfig {
             cc.flag(cflag);
         }
 
+        // Determine the sysroot for this compiler so that bindgen
+        // uses the correct headers
+        let compiler = cc.get_compiler();
+        if compiler.is_like_gnu() {
+            let output = compiler.to_command().args(&["--print-sysroot"]).output();
+            match output {
+                Ok(sysroot) => {
+                    let path = std::str::from_utf8(&sysroot.stdout).expect("Malformed sysroot");
+                    let trimmed_path = path
+                        .strip_suffix("\r\n")
+                        .or(path.strip_suffix("\n"))
+                        .unwrap_or(&path);
+                    cc.flag(&format!("--sysroot={}", trimmed_path));
+                }
+                _ => {} // skip toolchains without a configured sysroot
+            };
+        }
+
         let bindings = bindgen::builder()
             .clang_args(cc.get_compiler().args().iter().map(|arg| arg.to_str().unwrap()))
             .header_contents("bindgen-input.h", &input)

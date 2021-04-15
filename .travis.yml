@@ -20,17 +20,26 @@ addons:
     - clang-3.9
     - clang-11
     - cmake
+    - qemu-user
 rust:
    - stable
-   - beta
-   - nightly
-   - nightly-2021-03-25
 env:
+  jobs:
+    # Matrix build of 3 targets against Rust stable
+    - TARGET=x86_64-unknown-linux-gnu ZLIB_INSTALLED=true AES_NI_SUPPORT=true
+    - TARGET=aarch64-unknown-linux-musl
+    - TARGET=x86_64-fortanix-unknown-sgx
   global:
     - RUST_BACKTRACE=1
     # Pinned to this particular nightly version because of core_io. This can be
     # re-pinned whenever core_io is updated to the latest nightly.
     - CORE_IO_NIGHTLY=nightly-2021-03-25
     - LLVM_CONFIG_PATH=llvm-config-3.9
+jobs:
+  include:
+    # Test additional Rust toolchains on x86_64
+    - rust: beta
+    - rust: nightly
+    - rust: nightly-2021-03-25
 script:
   - ./ct.sh

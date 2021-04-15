@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -ex
 cd "$(dirname "$0")"
 
@@ -9,26 +9,50 @@ if [ -z $TRAVIS_RUST_VERSION ]; then
     exit 1
 fi
 
+if [ "$TARGET" == "aarch64-unknown-linux-musl" ]; then
+  pushd /tmp && wget https://musl.cc/aarch64-linux-musl-cross.tgz;
+  tar -xzf aarch64-linux-musl-cross.tgz;
+  popd;
+fi
+
 export CFLAGS_x86_64_fortanix_unknown_sgx="-isystem/usr/include/x86_64-linux-gnu -mlvi-hardening -mllvm -x86-experimental-lvi-inline-asm-hardening"
 export CC_x86_64_fortanix_unknown_sgx=clang-11
+export CC_aarch64_unknown_linux_musl=/tmp/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc
+export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/tmp/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc
+export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER=qemu-aarch64
 
-if [ $TRAVIS_RUST_VERSION = "stable" ] || [ $TRAVIS_RUST_VERSION = "beta" ] || [ $TRAVIS_RUST_VERSION = "nightly" ]; then
+# Temporary workaround for MbedTLS 2.26.0 https://github.com/ARMmbed/mbedtls/pull/4237
+export CFLAGS_aarch64_unknown_linux_musl="-Wformat-truncation"
+
+if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" ] || [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
+    # Install the rust toolchain
     rustup default $TRAVIS_RUST_VERSION
-    # make sure that explicitly providing the default target works
-    cargo test --target x86_64-unknown-linux-gnu
-    cargo test --features zlib
-    cargo test --features pkcs12
-    cargo test --features pkcs12_rc2
-    cargo test --features force_aesni_support
-    cargo test --features dsa
+    rustup target add --toolchain $TRAVIS_RUST_VERSION $TARGET
 
-    rustup target add --toolchain $TRAVIS_RUST_VERSION x86_64-fortanix-unknown-sgx
-    cargo +$TRAVIS_RUST_VERSION test --no-run --target=x86_64-fortanix-unknown-sgx
+    # The SGX target cannot be run under test like a ELF binary
+    if [ "$TARGET" != "x86_64-fortanix-unknown-sgx" ]; then 
+        # make sure that explicitly providing the default target works
+        cargo test --target $TARGET
+        cargo test --features pkcs12 --target $TARGET
+        cargo test --features pkcs12_rc2 --target $TARGET
+        cargo test --features dsa --target $TARGET
+
+        # If zlib is installed, test the zlib feature
+        if [ -n "$ZLIB_INSTALLED" ]; then
+            cargo test --features zlib --target $TARGET
+        fi
+
+        # If AES-NI is supported, test the feature
+        if [ -n "$AES_NI_SUPPORT" ]; then
+            cargo test --features force_aesni_support --target $TARGET
+        fi
+    else
+        cargo +$TRAVIS_RUST_VERSION test --no-run --target=$TARGET
+    fi
 
 elif [ $TRAVIS_RUST_VERSION = $CORE_IO_NIGHTLY ]; then
     cargo +$CORE_IO_NIGHTLY test --no-default-features --features no_std_deps,rdrand,time
     cargo +$CORE_IO_NIGHTLY test --no-default-features --features no_std_deps,rdrand
-
 else
     echo "Unknown version $TRAVIS_RUST_VERSION"
     exit 1
