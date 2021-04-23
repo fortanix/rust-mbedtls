@@ -13,6 +13,7 @@ if [ $TRAVIS_RUST_VERSION = "stable" ] || [ $TRAVIS_RUST_VERSION = "beta" ] || [
     rustup default $TRAVIS_RUST_VERSION
     # make sure that explicitly providing the default target works
     cargo test --target x86_64-unknown-linux-gnu
+    cargo test --release
     cargo test --features spin_threading
     cargo test --features rust_threading
     cargo test --features custom_time,custom_gmtime_r

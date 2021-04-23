@@ -147,6 +147,7 @@ struct WriteTracker {
 }
 
 struct DigestAndLen {
+    #[cfg(debug_assertions)]
     digest: [u8; 20], // SHA-1
     len: usize,
 }
@@ -158,6 +159,7 @@ impl WriteTracker {
         }
     }
 
+    #[cfg(debug_assertions)]
     fn digest(buf: &[u8]) -> [u8; 20] {
         use crate::hash::{Md, Type};
         let mut out = [0u8; 20];
@@ -172,9 +174,15 @@ impl WriteTracker {
             Some(pending) => {
                 if pending.len <= buf.len() {
                     let buf = &buf[..pending.len];
+
+                    // We only do this check in debug mode since it's an expensive check.
+                    #[cfg(debug_assertions)]
                     if Self::digest(buf) == pending.digest {
                         return Ok(buf);
                     }
+
+                    #[cfg(not(debug_assertions))]
+                    return Ok(buf);
                 }
                 Err(io::Error::new(
                     io::ErrorKind::Other,
@@ -189,6 +197,7 @@ impl WriteTracker {
             &Poll::Pending => {
                 if self.pending.is_none() {
                     self.pending = Some(Box::new(DigestAndLen {
+                        #[cfg(debug_assertions)]
                         digest: Self::digest(buf),
                         len: buf.len(),
                     }));
