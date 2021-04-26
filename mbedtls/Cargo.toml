@@ -32,7 +32,7 @@ rc2 = { version = "0.3", optional = true }
 cfg-if = "1.0.0"
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
-rs-libc = "0.1.0"
+rs-libc = "0.2.2"
 chrono = "0.4"
 
 [dependencies.mbedtls-sys-auto]
