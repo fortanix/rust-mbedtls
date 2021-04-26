@@ -21,9 +21,6 @@ export CC_aarch64_unknown_linux_musl=/tmp/aarch64-linux-musl-cross/bin/aarch64-l
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/tmp/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER=qemu-aarch64
 
-# Temporary workaround for MbedTLS 2.26.0 https://github.com/ARMmbed/mbedtls/pull/4237
-export CFLAGS_aarch64_unknown_linux_musl="-Wformat-truncation"
-
 if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" ] || [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
     # Install the rust toolchain
     rustup default $TRAVIS_RUST_VERSION
@@ -32,7 +29,7 @@ if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" 
     # The SGX target cannot be run under test like a ELF binary
     if [ "$TARGET" != "x86_64-fortanix-unknown-sgx" ]; then 
         # make sure that explicitly providing the default target works
-        cargo test --target $TARGET
+        cargo test --target $TARGET --release
         cargo test --features pkcs12 --target $TARGET
         cargo test --features pkcs12_rc2 --target $TARGET
         cargo test --features dsa --target $TARGET
