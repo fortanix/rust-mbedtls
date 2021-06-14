@@ -6,18 +6,27 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-extern crate cc;
-
+use std::collections::{HashMap, HashSet};
 use std::env;
 
 fn main() {
+    let env_components = env::var("DEP_MBEDTLS_PLATFORM_COMPONENTS").unwrap();
+    let mut sys_platform_components = HashMap::<_, HashSet<_>>::new();
+    for mut kv in env_components.split(",").map(|component| component.splitn(2, "=")) {
+        let k = kv.next().unwrap();
+        let v = kv.next().unwrap();
+        sys_platform_components.entry(k).or_insert_with(Default::default).insert(v);
+        println!(r#"cargo:rustc-cfg=sys_{}="{}""#, k, v);
+    }
+
     let mut b = cc::Build::new();
+    b.include(env::var_os("DEP_MBEDTLS_INCLUDE").unwrap());
+    let config_file = format!(r#""{}""#, env::var("DEP_MBEDTLS_CONFIG_H").unwrap());
+    b.define("MBEDTLS_CONFIG_FILE",
+             Some(config_file.as_str()));
+    
     b.file("src/rust_printf.c");
-    if env::var_os("CARGO_FEATURE_STD").is_none()
-        || ::std::env::var("TARGET")
-	    .map(|s| (s == "x86_64-unknown-none-gnu") || (s == "x86_64-fortanix-unknown-sgx"))
-	    == Ok(true)
-    {
+    if sys_platform_components.get("c_compiler").map_or(false, |comps| comps.contains("freestanding")) {
         b.flag("-U_FORTIFY_SOURCE")
             .define("_FORTIFY_SOURCE", Some("0"))
             .flag("-ffreestanding");

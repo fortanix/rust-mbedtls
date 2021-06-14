@@ -16,32 +16,12 @@ macro_rules! callback {
     //{ ($($arg:ident: $ty:ty),*) -> $ret:ty } => {
     //};
     { $n:ident$( : $sync:ident )*($($arg:ident: $ty:ty),*) -> $ret:ty } => {
-        #[cfg(not(feature="threading"))]
-        pub trait $n {
-            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret;
-
-            fn data_ptr(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
-        }
-
-        #[cfg(feature="threading")]
         pub trait $n $( : $sync )* {
             unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret;
 
             fn data_ptr(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
         }
 
-        #[cfg(not(feature="threading"))]
-        impl<F> $n for F where F: FnMut($($ty),*) -> $ret {
-            unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret {
-                (&mut*(user_data as *mut F))($($arg),*)
-            }
-
-            fn data_ptr(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void {
-                self as *mut F as *mut _
-            }
-        }
-
-        #[cfg(feature="threading")]
         impl<F> $n for F where F: Sync + FnMut($($ty),*) -> $ret {
             unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret {
                 (&mut*(user_data as *mut F))($($arg),*)
@@ -132,7 +112,6 @@ macro_rules! define_struct {
         );
 
         as_item!(
-        #[cfg(feature="threading")]
         unsafe impl<$($l)*> Send for $name<$($l)*> {}
         );
     };

@@ -25,7 +25,6 @@ define!(
     const drop: fn(&mut Self) = hmac_drbg_free;
 );
 
-#[cfg(feature = "threading")]
 unsafe impl<'entropy> Sync for HmacDrbg<'entropy> {}
 
 impl<'entropy> HmacDrbg<'entropy> {

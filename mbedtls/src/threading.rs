@@ -9,13 +9,13 @@
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 
-#[cfg(feature = "spin_threading")]
-extern crate spin;
-#[cfg(feature = "spin_threading")]
-use self::spin::{Mutex, MutexGuard};
-
-#[cfg(all(feature = "rust_threading", not(feature = "spin_threading")))]
-use std::sync::{Mutex, MutexGuard};
+cfg_if::cfg_if! {
+    if #[cfg(feature = "std")] {
+        use std::sync::{Mutex, MutexGuard};
+    } else {
+        use spin::{Mutex, MutexGuard};
+    }
+}
 
 use core::ptr;
 
@@ -70,13 +70,12 @@ impl StaticMutex {
         if let Some(m) = mutex.as_mut().and_then(|p| p.as_mut()) {
             let guard = m.mutex.lock();
 
-            #[cfg(feature = "spin_threading")]
-            {
-                m.guard = Some(guard);
-            }
-            #[cfg(all(feature = "rust_threading", not(feature = "spin_threading")))]
-            {
-                m.guard = Some(guard.unwrap())
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "std")] {
+                    m.guard = Some(guard.unwrap());
+                } else {
+                    m.guard = Some(guard);
+                }
             }
 
             0

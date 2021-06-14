@@ -122,7 +122,6 @@ define!(
     impl<'q> UnsafeFrom<ptr> {}
 );
 
-#[cfg(feature = "threading")]
 unsafe impl<'c> Sync for Config<'c> {}
 
 impl<'c> Config<'c> {

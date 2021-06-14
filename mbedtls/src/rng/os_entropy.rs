@@ -21,7 +21,6 @@ define!(
     const drop: fn(&mut Self) = entropy_free;
 );
 
-#[cfg(feature = "threading")]
 unsafe impl<'source> Sync for OsEntropy<'source> {}
 
 impl<'source> OsEntropy<'source> {

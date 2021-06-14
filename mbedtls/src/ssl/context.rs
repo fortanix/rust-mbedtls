@@ -111,10 +111,7 @@ impl<'a> HandshakeError<'a> {
     }
 }
 
-#[cfg(feature = "threading")]
 unsafe impl<'ctx> Send for Session<'ctx> {}
-
-#[cfg(feature = "threading")]
 unsafe impl<'ctx> Send for MidHandshake<'ctx> {}
 
 

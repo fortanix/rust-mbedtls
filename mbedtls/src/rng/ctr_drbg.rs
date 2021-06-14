@@ -101,11 +101,7 @@ impl<'entropy> DerefMut for CtrDrbg<'entropy> {
 }
 
 // ==== END IMMOVABLE TYPE KLUDGE ====
-
-#[cfg(feature = "threading")]
 unsafe impl<'entropy> Send for CtrDrbg<'entropy> {}
-
-#[cfg(feature = "threading")]
 unsafe impl<'entropy> Sync for CtrDrbg<'entropy> {}
 
 impl<'entropy> CtrDrbg<'entropy> {
