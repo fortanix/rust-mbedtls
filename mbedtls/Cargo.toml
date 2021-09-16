@@ -40,7 +40,6 @@ chrono = "0.4"
 version = "2.26.0"
 default-features = false
 features = ["custom_printf", "trusted_cert_callback", "threading"]
-path = "../mbedtls-sys"
 
 [dev-dependencies]
 libc = "0.2.0"

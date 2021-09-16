@@ -1,5 +1,5 @@
 [workspace]
-members = ["mbedtls", "mbedtls-sys"]
+members = ["mbedtls"]
 
 [patch.crates-io]
 mio = { git = "https://github.com/mzohreva/mio", branch = "mz/sgx-port-0.7.6" }
