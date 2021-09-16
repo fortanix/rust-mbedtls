@@ -17,10 +17,21 @@ use {
 #[cfg(not(feature = "std"))]
 use core_io::{Read, Write, Result as IoResult};
 
+#[cfg(all(feature = "std", feature = "async"))]
+use {
+    std::io::{Error as IoError, ErrorKind as IoErrorKind},
+    std::marker::Unpin,
+    std::pin::Pin,
+    std::task::{Context as TaskContext, Poll},
+};
+
 
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 use mbedtls_sys::*;
+
+#[cfg(all(feature = "std", feature = "async"))]
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
@@ -29,6 +40,8 @@ use crate::error::{Error, Result, IntoResult};
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
 use crate::ssl::config::{Config, Version, AuthMode};
+#[cfg(all(feature = "std", feature = "async"))]
+use crate::ssl::async_utils::IoAdapter;
 use crate::x509::{Certificate, Crl, VerifyError};
 
 pub trait IoCallback {
@@ -229,6 +242,10 @@ impl<'a, T> Into<*mut ssl_context> for &'a mut Context<T> {
         self.handle_mut()
     }
 }
+
+#[cfg(all(feature = "std", feature = "async"))]
+pub type AsyncContext<T> = Context<IoAdapter<T>>;
+
 
 impl<T> Context<T> {
     pub fn new(config: Arc<Config>) -> Self {
@@ -598,6 +615,231 @@ impl HandshakeContext {
     }
 }
 
+
+#[cfg(all(feature = "std", feature = "async"))]
+pub trait IoAsyncCallback {
+    unsafe extern "C" fn call_recv_async(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int where Self: Sized;
+    unsafe extern "C" fn call_send_async(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int where Self: Sized;
+}
+
+#[cfg(all(feature = "std", feature = "async"))]
+impl<IO: AsyncRead + AsyncWrite + Unpin + 'static> IoAsyncCallback for IoAdapter<IO> {
+    unsafe extern "C" fn call_recv_async(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
+        let len = if len > (c_int::max_value() as size_t) {
+            c_int::max_value() as size_t
+        } else {
+            len
+        };
+
+        let adapter = &mut *(user_data as *mut IoAdapter<IO>);
+
+        if let Some(cx) = adapter.ecx.get() {
+            let mut buf = ReadBuf::new(::core::slice::from_raw_parts_mut(data, len));
+            let stream = Pin::new(&mut adapter.inner);
+
+            match stream.poll_read(cx, &mut buf) {
+                Poll::Ready(Ok(())) => buf.filled().len() as c_int,
+                Poll::Ready(Err(_)) => ::mbedtls_sys::ERR_NET_RECV_FAILED,
+                Poll::Pending => ::mbedtls_sys::ERR_SSL_WANT_READ,
+            }
+        } else {
+            ::mbedtls_sys::ERR_NET_RECV_FAILED
+        }
+    }
+
+    unsafe extern "C" fn call_send_async(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int {
+        let len = if len > (c_int::max_value() as size_t) {
+            c_int::max_value() as size_t
+        } else {
+            len
+        };
+
+        let adapter = &mut *(user_data as *mut IoAdapter<IO>);
+
+        if let Some(cx) = adapter.ecx.get() {
+            let stream = Pin::new(&mut adapter.inner);
+
+            match stream.poll_write(cx, ::core::slice::from_raw_parts(data, len)) {
+                Poll::Ready(Ok(i)) => i as c_int,
+                Poll::Ready(Err(_)) => ::mbedtls_sys::ERR_NET_RECV_FAILED,
+                Poll::Pending => ::mbedtls_sys::ERR_SSL_WANT_WRITE,
+            }
+        } else {
+            ::mbedtls_sys::ERR_NET_RECV_FAILED
+        }
+    }
+}
+
+#[cfg(all(feature = "std", feature = "async"))]
+struct HandshakeFuture<'a, T>(&'a mut Context::<IoAdapter<T>>);
+
+#[cfg(all(feature = "std", feature = "async"))]
+impl<T> std::future::Future for HandshakeFuture<'_, T> {
+    type Output = Result<()>;
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut TaskContext) -> std::task::Poll<Self::Output> {
+        self.0.io_mut().ok_or(Error::NetInvalidContext)?
+                       .ecx.set(ctx);
+
+        let result = match self.0.handshake() {
+            Err(Error::SslWantRead) |
+            Err(Error::SslWantWrite) => {
+                Poll::Pending
+            },
+            Err(e) => Poll::Ready(Err(e)),
+            Ok(()) => Poll::Ready(Ok(()))
+        };
+
+        self.0.io_mut().map(|v| v.ecx.clear());
+
+        result
+    }
+}
+
+#[cfg(all(feature = "std", feature = "async"))]
+impl<T: AsyncRead + AsyncWrite + Unpin + 'static> AsyncContext<T> {
+    pub async fn accept_async(config: Arc<Config>, io: T, hostname: Option<&str>) -> IoResult<AsyncContext<T>> {
+        let mut context = Self::new(config);
+        context.establish_async(io, hostname).await.map_err(|e| crate::private::error_to_io_error(e))?;
+        Ok(context)
+    }
+
+    pub async fn establish_async(&mut self, io: T, hostname: Option<&str>) -> Result<()> {
+        unsafe {
+            let mut io = Box::new(IoAdapter::new(io));
+
+            ssl_session_reset(self.into()).into_result()?;
+            self.set_hostname(hostname)?;
+
+            let ptr = &mut *io as *mut _ as *mut c_void;
+            ssl_set_bio(
+                self.into(),
+                ptr,
+                Some(IoAdapter::<T>::call_send_async),
+                Some(IoAdapter::<T>::call_recv_async),
+                None,
+            );
+
+            self.io = Some(io);
+            self.inner.reset_handshake();
+        }
+
+        HandshakeFuture(self).await
+    }
+}
+
+#[cfg(all(feature = "std", feature = "async"))]
+impl<T: AsyncRead> AsyncRead for Context<IoAdapter<T>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut TaskContext<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<IoResult<()>> {
+
+        if self.handle().session.is_null() {
+            return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
+        }
+
+        self.io_mut().ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?
+                     .ecx.set(cx);
+
+        let result = match unsafe { ssl_read((&mut *self).into(), buf.initialize_unfilled().as_mut_ptr(), buf.initialize_unfilled().len()).into_result() } {
+            Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(())),
+            Err(Error::SslWantRead) => Poll::Pending,
+            Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
+            Ok(i) => {
+                buf.advance(i as usize);
+                Poll::Ready(Ok(()))
+            }
+        };
+
+        self.io_mut().ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?
+                     .ecx.clear();
+
+        result
+    }
+}
+
+#[cfg(all(feature = "std", feature = "async"))]
+impl<T: AsyncWrite + Unpin> AsyncWrite for Context<IoAdapter<T>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut TaskContext<'_>,
+        buf: &[u8],
+    ) -> Poll<IoResult<usize>> {
+
+        if self.handle().session.is_null() {
+            return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
+        }
+
+        let buf = {
+            let io = self.io_mut().ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?;
+            io.ecx.set(cx);
+            io.write_tracker.adjust_buf(buf)
+        }?;
+
+
+        self.io_mut().ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?
+                     .ecx.set(cx);
+
+        let result = match unsafe { ssl_write((&mut *self).into(), buf.as_ptr(), buf.len()).into_result() } {
+            Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
+            Err(Error::SslWantWrite) => Poll::Pending,
+            Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
+            Ok(i) => Poll::Ready(Ok(i as usize))
+        };
+
+        let io = self.io_mut().ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?;
+
+        io.ecx.clear();
+        io.write_tracker.post_write(buf, &result);
+
+        cx.waker().clone().wake();
+
+        result
+    }
+
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
+        // We can only flush the actual IO here.
+        // To flush mbedtls we need writes with the same buffer until complete.
+        let io = &mut self.io_mut().ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?
+                                   .inner;
+        let stream = Pin::new(io);
+        stream.poll_flush(cx)
+    }
+
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
+        if self.handle().session.is_null() {
+            return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
+        }
+
+        self.io_mut().ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?
+                     .ecx.set(cx);
+
+        let result = match unsafe { ssl_close_notify((&mut *self).into()).into_result() } {
+            Err(Error::SslWantRead) |
+            Err(Error::SslWantWrite) => Poll::Pending,
+            Err(e) => {
+                unsafe { ssl_set_bio((&mut *self).into(), ::core::ptr::null_mut(), None, None, None); }
+                self.io = None;
+                Poll::Ready(Err(crate::private::error_to_io_error(e)))
+            }
+            Ok(0) => {
+                unsafe { ssl_set_bio((&mut *self).into(), ::core::ptr::null_mut(), None, None, None); }
+                self.io = None;
+                Poll::Ready(Ok(()))
+            }
+            Ok(v) => {
+                unsafe { ssl_set_bio((&mut *self).into(), ::core::ptr::null_mut(), None, None, None); }
+                self.io = None;
+                Poll::Ready(Err(IoError::new(IoErrorKind::Other, format!("unexpected result from ssl_close_notify: {}", v))))
+            }
+        };
+
+        self.io_mut().map(|v| v.ecx.clear());
+        result
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[cfg(feature = "std")]
@@ -664,6 +906,7 @@ mod tests {
     }
 
 }
+
 
 // ssl_get_alpn_protocol
 // ssl_get_max_frag_len
