@@ -10,6 +10,7 @@ pub mod ciphersuites;
 pub mod config;
 pub mod context;
 pub mod ticket;
+pub mod async_utils;
 
 #[doc(inline)]
 pub use self::ciphersuites::CipherSuite;
@@ -19,3 +20,6 @@ pub use self::config::{Config, Version, UseSessionTickets};
 pub use self::context::Context;
 #[doc(inline)]
 pub use self::ticket::TicketContext;
+#[cfg(all(feature = "std", feature = "async"))]
+#[doc(inline)]
+pub use self::context::{AsyncContext};
