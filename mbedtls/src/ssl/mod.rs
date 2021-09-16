@@ -11,6 +11,7 @@ pub mod config;
 pub mod context;
 pub mod cookie;
 pub mod ticket;
+pub mod async_utils;
 
 #[doc(inline)]
 pub use self::ciphersuites::CipherSuite;
@@ -22,3 +23,6 @@ pub use self::context::Context;
 pub use self::cookie::CookieContext;
 #[doc(inline)]
 pub use self::ticket::TicketContext;
+#[cfg(all(feature = "std", feature = "async"))]
+#[doc(inline)]
+pub use self::context::{AsyncContext};
