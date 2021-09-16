@@ -61,6 +61,10 @@ macro_rules! define {
         define_struct!(define $(#[$m])* struct $name $(lifetime $l)* inner $inner members $($($(#[$mm])* $member: $member_type,)*)*);
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
     };
+    { #[c_custom_ty($inner:ident)] $(#[$m:meta])* struct $name:ident$(<$l:tt>)* $({ $($(#[$mm:meta])* $member:ident: $member_type:ty,)* })?; $($defs:tt)* } => {
+        define_struct!(define_custom $(#[$m])* struct $name $(lifetime $l)* inner $inner members $($($(#[$mm])* $member: $member_type,)*)*);
+        define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
+    };
     // Do not use UnsafeFrom with 'c_box_ty'. That is currently not supported as its not needed anywhere, support may be added in the future if needed anywhere.
     { #[c_box_ty($inner:ident)] $(#[$m:meta])* struct $name:ident$(<$l:tt>)* $({ $($(#[$mm:meta])* $member:ident: $member_type:ty,)* })?; $($defs:tt)* } => {
         define_struct!(define_box $(#[$m])* struct $name $(lifetime $l)* inner $inner members $($($(#[$mm])* $member: $member_type,)*)*);
@@ -109,6 +113,32 @@ macro_rules! define_enum {
 }
 
 macro_rules! define_struct {
+    { define_custom $(#[$m:meta])* struct $name:ident $(lifetime $l:tt)* inner $inner:ident members $($(#[$mm:meta])* $member:ident: $member_type:ty,)* } => {
+        as_item!(
+        #[allow(dead_code)]
+        $(#[$m])*
+        pub struct $name<$($l)*> {
+            $($(#[$mm])* $member: $member_type,)*
+        }
+        );
+
+        as_item!(
+        #[allow(dead_code)]
+        impl<$($l)*> $name<$($l)*> {
+            pub(crate) fn handle(&self) -> &::mbedtls_sys::$inner {
+                self.inner.handle()
+            }
+
+            pub(crate) fn handle_mut(&mut self) -> &mut ::mbedtls_sys::$inner {
+                self.inner.handle_mut()
+            }
+        }
+        );
+
+        as_item!(
+        unsafe impl<$($l)*> Send for $name<$($l)*> {}
+        );
+    };
     { define $(#[$m:meta])* struct $name:ident $(lifetime $l:tt)* inner $inner:ident members $($(#[$mm:meta])* $member:ident: $member_type:ty,)* } => {
         as_item!(
         #[allow(dead_code)]

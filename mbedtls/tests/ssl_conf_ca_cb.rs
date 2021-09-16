@@ -25,8 +25,6 @@ use mbedtls::ssl::config::CaCallback;
 mod support;
 use support::entropy::entropy_new;
 
-use mbedtls::alloc::{List as MbedtlsList};
-
 fn client<F>(conn: TcpStream, ca_callback: F) -> TlsResult<()>
     where
         F: CaCallback + Send + 'static,
