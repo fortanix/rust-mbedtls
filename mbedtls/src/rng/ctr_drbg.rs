@@ -17,7 +17,12 @@ use mbedtls_sys::types::size_t;
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 use crate::error::{IntoResult, Result};
-use crate::rng::{EntropyCallback, RngCallback, RngCallbackMut};
+use crate::rng::{EntropyCallback, EntropyCallbackMut, RngCallback, RngCallbackMut};
+
+enum EntropyHolder {
+    Shared(Arc<dyn EntropyCallback + 'static>),
+    Unique(Box<dyn EntropyCallbackMut + 'static>),
+}
 
 define!(
     // `ctr_drbg_context` inlines an `aes_context`, which is immovable. See
@@ -30,7 +35,7 @@ define!(
     #[c_box_ty(ctr_drbg_context)]
     #[repr(C)]
     struct CtrDrbg {
-        entropy: Arc<dyn EntropyCallback + 'static>,
+        entropy: EntropyHolder,
     };
     const drop: fn(&mut Self) = ctr_drbg_free;
     impl<'a> Into<ptr> {}
@@ -63,8 +68,28 @@ impl CtrDrbg {
             ).into_result()?;
         }
 
-        Ok(CtrDrbg { inner, entropy })
+        Ok(CtrDrbg { inner, entropy: EntropyHolder::Shared(entropy) })
     }
+
+    pub fn new_mut<T: EntropyCallbackMut + 'static>(entropy: T, additional_entropy: Option<&[u8]>) -> Result<Self> {
+        let mut inner = Box::new(ctr_drbg_context::default());
+
+        // We take sole ownership of entropy, all access is guarded via mutexes.
+        let mut entropy = Box::new(entropy);
+        unsafe {
+            ctr_drbg_init(&mut *inner);
+            ctr_drbg_seed(
+                &mut *inner,
+                Some(T::call_mut),
+                entropy.data_ptr_mut(),
+                additional_entropy.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
+                additional_entropy.map(<[_]>::len).unwrap_or(0)
+            ).into_result()?;
+        }
+
+        Ok(CtrDrbg { inner, entropy: EntropyHolder::Unique(entropy) })
+    }
+
     
     pub fn prediction_resistance(&self) -> bool {
         if self.inner.prediction_resistance == CTR_DRBG_PR_OFF {

@@ -36,7 +36,7 @@ rs-libc = "0.2.0"
 chrono = "0.4"
 
 [dependencies.mbedtls-sys-auto]
-version = "2.25.0"
+version = "2.26.0"
 default-features = false
 features = ["custom_printf", "trusted_cert_callback", "threading"]
 path = "../mbedtls-sys"
@@ -56,7 +56,6 @@ cc = "1.0"
 # Features are documented in the README
 default = ["std", "aesni", "time", "padlock"]
 std = ["mbedtls-sys-auto/std", "serde/std", "yasna"]
-debug = ["mbedtls-sys-auto/debug"]
 no_std_deps = ["core_io", "spin"]
 force_aesni_support = ["mbedtls-sys-auto/custom_has_support", "mbedtls-sys-auto/aes_alt", "aesni"]
 mpi_force_c_code = ["mbedtls-sys-auto/mpi_force_c_code"]
@@ -68,6 +67,7 @@ padlock = ["mbedtls-sys-auto/padlock"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "block-modes"]
+migration_mode=[]
 
 [[example]]
 name = "client"

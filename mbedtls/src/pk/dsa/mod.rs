@@ -217,9 +217,13 @@ fn sample_secret_value<F: Random>(upper_bound: &Mpi, rng: &mut F) -> Result<Mpi>
     Ok(c)
 }
 
-fn encode_dsa_signature(r: &Mpi, s: &Mpi) -> Result<Vec<u8>> {
-    let r = BigUint::from_bytes_be(&r.to_binary()?);
-    let s = BigUint::from_bytes_be(&s.to_binary()?);
+pub fn encode_dsa_signature(r: &Mpi, s: &Mpi) -> Result<Vec<u8>> {
+    serialize_signature(&r.to_binary()?, &s.to_binary()?)
+}
+
+pub fn serialize_signature(r: &[u8], s: &[u8]) -> Result<Vec<u8>> {
+    let r = BigUint::from_bytes_be(r);
+    let s = BigUint::from_bytes_be(s);
 
     Ok(yasna::construct_der(|w| {
         w.write_sequence(|w| {
@@ -227,6 +231,18 @@ fn encode_dsa_signature(r: &Mpi, s: &Mpi) -> Result<Vec<u8>> {
             w.next().write_biguint(&s);
         })
     }))
+}
+
+pub fn deserialize_signature(signature: &Vec<u8>) -> Result<(Vec<u8>, Vec<u8>)> {
+    let (r,s) = yasna::parse_der(signature, |r| {
+        r.read_sequence(|rdr| {
+            let r = rdr.next().read_biguint()?;
+            let s = rdr.next().read_biguint()?;
+            Ok((r,s))
+        })
+    }).map_err(|_| Error::X509InvalidSignature)?;
+
+    Ok((r.to_bytes_be(), s.to_bytes_be()))
 }
 
 impl DsaPrivateKey {

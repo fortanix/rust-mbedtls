@@ -31,7 +31,7 @@ use crate::ssl::ticket::TicketCallback;
 use crate::x509::Certificate;
 use crate::x509::Crl;
 use crate::x509::Profile;
-use crate::x509::VerifyError;
+use crate::x509::certificate::{VerifyCallback, verify_callback};
 
 #[allow(non_camel_case_types)]
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Copy, Clone)]
@@ -98,11 +98,53 @@ define!(
     }
 );
 
-callback!(VerifyCallback: Fn(&Certificate, i32, &mut VerifyError) -> Result<()>);
 #[cfg(feature = "std")]
 callback!(DbgCallback: Fn(i32, Cow<'_, str>, i32, Cow<'_, str>) -> ());
 callback!(SniCallback: Fn(&mut HandshakeContext, &[u8]) -> Result<()>);
 callback!(CaCallback: Fn(&MbedtlsList<Certificate>) -> Result<MbedtlsList<Certificate>>);
+
+
+#[repr(transparent)]
+pub struct NullTerminatedStrList {
+    c: Box<[*mut i8]>,
+}
+
+unsafe impl Send for NullTerminatedStrList {}
+unsafe impl Sync for NullTerminatedStrList {}
+
+impl NullTerminatedStrList {
+    pub fn new(list: &[&str]) -> Result<Self> {
+        let mut c = Vec::with_capacity(list.len() + 1);
+
+        for s in list {
+            let cstr = ::std::ffi::CString::new(*s).map_err(|_| Error::SslBadInputData)?;
+            c.push(cstr.into_raw());
+        }
+
+        c.push(core::ptr::null_mut());
+
+        Ok(NullTerminatedStrList {
+            c: c.into_boxed_slice(),
+        })
+    }
+
+    pub fn as_ptr(&self) -> *const *const u8 {
+        self.c.as_ptr() as *const _
+    }
+}
+
+impl Drop for NullTerminatedStrList {
+    fn drop(&mut self) {
+        for i in self.c.iter() {
+            unsafe {
+                if !(*i).is_null() {
+                    ::std::ffi::CString::from_raw(*i);
+                }
+            }
+        }
+    }
+}
+
 
 define!(
     #[c_ty(ssl_config)]
@@ -120,9 +162,7 @@ define!(
         
         ciphersuites: Vec<Arc<Vec<c_int>>>,
         curves: Option<Arc<Vec<ecp_group_id>>>,
-        
-        #[allow(dead_code)]
-        dhm: Option<Arc<Dhm>>,
+        protocols: Option<Arc<NullTerminatedStrList>>,
         
         verify_callback: Option<Arc<dyn VerifyCallback + 'static>>,
         #[cfg(feature = "std")]
@@ -158,7 +198,7 @@ impl Config {
             rng: None,
             ciphersuites: vec![],
             curves: None,
-            dhm: None,
+            protocols: None,
             verify_callback: None,
             #[cfg(feature = "std")]
             dbg_callback: None,
@@ -188,6 +228,20 @@ impl Config {
         self.ciphersuites.push(list);
     }
 
+    /// Set the supported Application Layer Protocols.
+    ///
+    /// Each protocol name in the list must also be terminated with a null character (`\0`).
+    pub fn set_alpn_protocols(&mut self, protocols: Arc<NullTerminatedStrList>) -> Result<()> {
+        unsafe {
+            ssl_conf_alpn_protocols(&mut self.inner, protocols.as_ptr() as *mut _)
+                .into_result()
+                .map(|_| ())?;
+        }
+
+        self.protocols = Some(protocols);
+        Ok(())
+    }
+    
     pub fn set_ciphersuites_for_version(&mut self, list: Arc<Vec<c_int>>, major: c_int, minor: c_int) {
         Self::check_c_list(&list);
         unsafe { ssl_conf_ciphersuites_for_version(self.into(), list.as_ptr(), major, minor) }
@@ -236,13 +290,13 @@ impl Config {
     /// Takes both DER and PEM forms of FFDH parameters in `DHParams` format.
     ///
     /// When calling on PEM-encoded data, `params` must be NULL-terminated
-    pub fn set_dh_params(&mut self, dhm: Arc<Dhm>) -> Result<()> {
+    pub fn set_dh_params(&mut self, dhm: &Dhm) -> Result<()> {
         unsafe {
+            // This copies the dhm parameters and does not store any pointer to it
             ssl_conf_dh_param_ctx(self.into(), dhm.inner_ffi_mut())
                 .into_result()
                 .map(|_| ())?;
         }
-        self.dhm = Some(dhm);
         Ok(())
     }
 
@@ -320,12 +374,10 @@ impl Config {
             // - We can pointer cast to it to allow storing additional objects.
             //
             let cb = &mut *(closure as *mut F);
-            let context = UnsafeFrom::from(ctx).unwrap();
-            
-            let mut ctx = HandshakeContext::init(context);
+            let ctx = UnsafeFrom::from(ctx).unwrap();
             
             let name = from_raw_parts(name, name_len);
-            match cb(&mut ctx, name) {
+            match cb(ctx, name) {
                 Ok(()) => 0,
                 Err(_) => -1,
             }
@@ -343,38 +395,6 @@ impl Config {
     where
         F: VerifyCallback + 'static,
     {
-        unsafe extern "C" fn verify_callback<F>(
-            closure: *mut c_void,
-            crt: *mut x509_crt,
-            depth: c_int,
-            flags: *mut u32,
-        ) -> c_int
-        where
-            F: VerifyCallback + 'static,
-        {
-            if crt.is_null() || closure.is_null() || flags.is_null() {
-                return ::mbedtls_sys::ERR_X509_BAD_INPUT_DATA;
-            }
-            
-            let cb = &mut *(closure as *mut F);
-            let crt: &mut Certificate = UnsafeFrom::from(crt).expect("valid certificate");
-            
-            let mut verify_error = match VerifyError::from_bits(*flags) {
-                Some(ve) => ve,
-                // This can only happen if mbedtls is setting flags in VerifyError that are
-                // missing from our definition.
-                None => return ::mbedtls_sys::ERR_X509_BAD_INPUT_DATA,
-            };
-            
-            let res = cb(crt, depth, &mut verify_error);
-            *flags = verify_error.bits();
-            match res {
-                Ok(()) => 0,
-                Err(e) => e.to_int(),
-            }
-        }
-
-        
         self.verify_callback = Some(Arc::new(cb));
         unsafe { ssl_conf_verify(self.into(), Some(verify_callback::<F>), &**self.verify_callback.as_mut().unwrap() as *const _ as *mut c_void) }
     }

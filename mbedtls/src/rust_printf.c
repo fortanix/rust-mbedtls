@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-extern void mbedtls_log(const char* msg);
+extern void mbedtls8_log(const char* msg);
 
 extern int mbedtls_printf(const char *fmt, ...) {
     va_list ap;
@@ -31,7 +31,7 @@ extern int mbedtls_printf(const char *fmt, ...) {
     if (n<0)
        return -1;
 
-    mbedtls_log(p);
+    mbedtls8_log(p);
 
     return n;
 }
