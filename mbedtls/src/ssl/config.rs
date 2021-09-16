@@ -118,8 +118,8 @@ impl NullTerminatedStrList {
         for item in list {
             ret.c.push(::std::ffi::CString::new(*item).map_err(|_| Error::SslBadInputData)?.into_raw());
         }
-        
-        ret.c.push(core::ptr::null_mut()); 
+
+        ret.c.push(core::ptr::null_mut());
         Ok(ret)
     }
 
@@ -149,16 +149,16 @@ define!(
         // This allows caller to share structure on multiple configs if needed.
         own_cert: Vec<Arc<MbedtlsList<Certificate>>>,
         own_pk: Vec<Arc<Pk>>,
-    
+
         ca_cert: Option<Arc<MbedtlsList<Certificate>>>,
         crl: Option<Arc<Crl>>,
-        
+
         rng: Option<Arc<dyn RngCallback + 'static>>,
-        
+
         ciphersuites: Vec<Arc<Vec<c_int>>>,
         curves: Option<Arc<Vec<ecp_group_id>>>,
         protocols: Option<Arc<NullTerminatedStrList>>,
-        
+
         verify_callback: Option<Arc<dyn VerifyCallback + 'static>>,
         #[cfg(feature = "std")]
         dbg_callback: Option<Arc<dyn DbgCallback + 'static>>,
@@ -236,7 +236,7 @@ impl Config {
         self.protocols = Some(protocols);
         Ok(())
     }
-    
+
     pub fn set_ciphersuites_for_version(&mut self, list: Arc<Vec<c_int>>, major: c_int, minor: c_int) {
         Self::check_c_list(&list);
         unsafe { ssl_conf_ciphersuites_for_version(self.into(), list.as_ptr(), major, minor) }
@@ -253,7 +253,7 @@ impl Config {
         unsafe { ssl_conf_rng(self.into(), Some(T::call), rng.data_ptr()) };
         self.rng = Some(rng);
     }
-    
+
     pub fn set_min_version(&mut self, version: Version) -> Result<()> {
         let minor = match version {
             Version::Ssl3 => 0,
@@ -297,11 +297,11 @@ impl Config {
 
     pub fn set_ca_list(&mut self, ca_cert: Arc<MbedtlsList<Certificate>>, crl: Option<Arc<Crl>>) {
         // This will override internal pointers to what we provide.
-        
+
         unsafe { ssl_conf_ca_chain(self.into(), ca_cert.inner_ffi_mut(), crl.as_ref().map(|crl| crl.inner_ffi_mut()).unwrap_or(::core::ptr::null_mut())); }
 
         self.ca_cert = Some(ca_cert);
-        self.crl = crl;        
+        self.crl = crl;
     }
 
     pub fn push_cert(&mut self, own_cert: Arc<MbedtlsList<Certificate>>, own_pk: Arc<Pk>) -> Result<()> {
@@ -315,7 +315,7 @@ impl Config {
                  .map(|_| ())
         }
     }
-    
+
     /// Server only: configure callback to use for generating/interpreting session tickets.
     pub fn set_session_tickets_callback<T: TicketCallback + 'static>(&mut self, cb: Arc<T>) {
         unsafe {
@@ -341,7 +341,7 @@ impl Config {
         /// Client only: minimal FFDH group size
         set_ffdh_min_bitlen(bitlen: c_uint) = ssl_conf_dhm_min_bitlen
     );
-    
+
     pub fn set_sni_callback<F>(&mut self, cb: F)
     where
         F: SniCallback + 'static,
@@ -370,7 +370,7 @@ impl Config {
             //
             let cb = &mut *(closure as *mut F);
             let ctx = UnsafeFrom::from(ctx).unwrap();
-            
+
             let name = from_raw_parts(name, name_len);
             match cb(ctx, name) {
                 Ok(()) => 0,
@@ -378,7 +378,7 @@ impl Config {
             }
         }
 
-        
+
         self.sni_callback = Some(Arc::new(cb));
         unsafe { ssl_conf_sni(self.into(), Some(sni_callback::<F>), &**self.sni_callback.as_mut().unwrap() as *const _ as *mut c_void) }
     }
@@ -448,12 +448,12 @@ impl Config {
                 false => std::ffi::CStr::from_ptr(file).to_string_lossy(),
                 true => Cow::from(""),
             };
-            
+
             let message = match message.is_null() {
                 false => std::ffi::CStr::from_ptr(message).to_string_lossy(),
                 true => Cow::from(""),
             };
-            
+
             cb(level, file, line, message);
         }
 

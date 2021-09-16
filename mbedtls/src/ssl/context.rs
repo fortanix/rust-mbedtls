@@ -189,7 +189,7 @@ define!(
     struct HandshakeContext {
         handshake_ca_cert: Option<Arc<MbedtlsList<Certificate>>>,
         handshake_crl: Option<Arc<Crl>>,
-        
+
         handshake_cert: Vec<Arc<MbedtlsList<Certificate>>>,
         handshake_pk: Vec<Arc<Pk>>,
     };
@@ -203,10 +203,10 @@ define!(
 pub struct Context<T> {
     // Base structure used in SNI callback where we cannot determine the io type.
     inner: HandshakeContext,
-    
+
     // config is used read-only for multiple contexts and is immutable once configured.
-    config: Arc<Config>, 
-    
+    config: Arc<Config>,
+
     // Must be held in heap and pointer to it as pointer is sent to MbedSSL and can't be re-allocated.
     io: Option<Box<T>>,
 
@@ -233,7 +233,7 @@ impl<'a, T> Into<*mut ssl_context> for &'a mut Context<T> {
 impl<T> Context<T> {
     pub fn new(config: Arc<Config>) -> Self {
         let mut inner = ssl_context::default();
-        
+
         unsafe {
             ssl_init(&mut inner);
             ssl_setup(&mut inner, (&*config).into());
@@ -244,7 +244,7 @@ impl<T> Context<T> {
                 inner,
                 handshake_ca_cert: None,
                 handshake_crl: None,
-                
+
                 handshake_cert: vec![],
                 handshake_pk: vec![],
             },
@@ -264,7 +264,7 @@ impl<T> Context<T> {
     }
 }
 
-impl<T: IoCallback> Context<T> {
+impl<T: IoCallback + Send + Sync + 'static> Context<T> {
     pub fn establish(&mut self, io: T, hostname: Option<&str>) -> Result<()> {
         unsafe {
             let mut io = Box::new(io);
@@ -371,7 +371,7 @@ impl<T> Context<T> {
     pub fn config(&self) -> &Arc<Config> {
         &self.config
     }
-    
+
     pub fn close(&mut self) {
         unsafe {
             ssl_close_notify(self.into());
@@ -379,15 +379,15 @@ impl<T> Context<T> {
             self.io = None;
         }
     }
-    
+
     pub fn io(&self) -> Option<&T> {
         self.io.as_ref().map(|v| &**v)
     }
-    
+
     pub fn io_mut(&mut self) -> Option<&mut T> {
         self.io.as_mut().map(|v| &mut **v)
     }
-    
+
     /// Return the minor number of the negotiated TLS version
     pub fn minor_version(&self) -> i32 {
         self.handle().minor_ver
@@ -419,7 +419,7 @@ impl<T> Context<T> {
 
 
     // Session specific functions
-    
+
     /// Return the 16-bit ciphersuite identifier.
     /// All assigned ciphersuites are listed by the IANA in
     /// <https://www.iana.org/assignments/tls-parameters/tls-parameters.txt>
@@ -427,7 +427,7 @@ impl<T> Context<T> {
         if self.handle().session.is_null() {
             return Err(Error::SslBadInputData);
         }
-        
+
         Ok(unsafe { self.handle().session.as_ref().unwrap().ciphersuite as u16 })
     }
 
@@ -533,18 +533,18 @@ impl<T: IoCallback> Write for Context<T> {
 // - no reasonable way to obtain a storage within the sni callback tied to the handshake or to the rust Context. (without resorting to a unscalable map or pointer magic that mbedtls may invalidate)
 //
 impl HandshakeContext {
-    fn reset_handshake(&mut self) {
+    pub fn reset_handshake(&mut self) {
         self.handshake_cert.clear();
         self.handshake_pk.clear();
         self.handshake_ca_cert = None;
         self.handshake_crl = None;
     }
-    
+
     pub fn set_authmode(&mut self, am: AuthMode) -> Result<()> {
         if self.inner.handshake as *const _ == ::core::ptr::null() {
             return Err(Error::SslBadInputData);
         }
-        
+
         unsafe { ssl_set_hs_authmode(self.into(), am as i32) }
         Ok(())
     }
@@ -608,7 +608,7 @@ mod tests {
 
     use crate::ssl::context::{HandshakeContext, Context};
     use crate::tests::TestTrait;
-    
+
     #[test]
     fn handshakecontext_sync() {
         assert!(!TestTrait::<dyn Sync, HandshakeContext>::new().impls_trait(), "HandshakeContext must be !Sync");
@@ -623,7 +623,7 @@ mod tests {
             unimplemented!()
         }
     }
-    
+
     impl Write for NonSendStream {
         fn write(&mut self, _: &[u8]) -> IoResult<usize> {
             unimplemented!()
@@ -643,7 +643,7 @@ mod tests {
             unimplemented!()
         }
     }
-    
+
     impl Write for SendStream {
         fn write(&mut self, _: &[u8]) -> IoResult<usize> {
             unimplemented!()

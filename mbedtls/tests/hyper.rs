@@ -25,6 +25,9 @@ impl<T> TlsStream<T> {
     }
 }
 
+unsafe impl<T> Send for TlsStream<T> {}
+unsafe impl<T> Sync for TlsStream<T> {}
+
 impl<T: io::Read + io::Write> io::Read for TlsStream<T>
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -51,7 +54,7 @@ impl<T> NetworkStream for TlsStream<T>
             .ok_or(IoError::new(IoErrorKind::NotFound, "No peer available"))?
             .peer_addr()
     }
-    
+
     fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.context.lock().unwrap().io_mut()
             .ok_or(IoError::new(IoErrorKind::NotFound, "No peer available"))?
@@ -85,7 +88,7 @@ impl<T> SslServer<T> for MbedSSLServer
 {
     /// The protected stream.
     type Stream = TlsStream<T>;
-    
+
     /// Wrap a server stream with SSL.
     fn wrap_server(&self, stream: T) -> Result<Self::Stream, hyper::Error> {
         let mut ctx = Context::new(self.rc_config.clone());
@@ -113,7 +116,7 @@ impl MbedSSLClient {
             override_sni: None,
         }
     }
-    
+
     #[allow(dead_code)]
     pub fn new_with_sni(rc_config: Arc<Config>, verify_hostname: bool, override_sni: Option<String>) -> Self {
         MbedSSLClient {
@@ -136,7 +139,7 @@ impl<T> SslClient<T> for MbedSSLClient
             true => Some(self.override_sni.as_ref().map(|v| v.as_str()).unwrap_or(host)),
             false => None,
         };
-        
+
         match context.establish(stream, verify_hostname) {
             Ok(()) => Ok(TlsStream::new(Arc::new(Mutex::new(context)))),
             Err(e) => Err(hyper::Error::Ssl(Box::new(e))),
@@ -167,7 +170,7 @@ mod tests {
     use mbedtls::ssl::CipherSuite::*;
     use std::io::Write;
     use mbedtls::ssl::TicketContext;
-    
+
     #[cfg(not(target_env = "sgx"))]
     use mbedtls::rng::{OsEntropy, CtrDrbg};
 
@@ -185,7 +188,7 @@ mod tests {
     pub fn rng_new() -> Arc<Rdrand> {
         Arc::new(Rdrand)
     }
-    
+
     #[test]
     fn test_simple_request() {
         let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
@@ -211,7 +214,7 @@ mod tests {
         config.set_rng(rng_new());
         config.set_authmode(AuthMode::None);
         config.set_min_version(Version::Tls1_2).unwrap();
-        
+
         // Immutable from this point on
         let ssl = MbedSSLClient::new(Arc::new(config), false);
 
@@ -235,7 +238,7 @@ mod tests {
         config.set_authmode(AuthMode::None);
         config.set_rng(rng_new());
         config.set_min_version(Version::Tls1_2).unwrap();
-        
+
         let ssl = MbedSSLClient::new(Arc::new(config), false);
         let client = Arc::new(hyper::Client::with_connector(Pool::with_connector(Default::default(), HttpsConnector::new(ssl.clone()))));
 
@@ -245,7 +248,7 @@ mod tests {
             let response = clone1.get("https://google.com").send().unwrap();
             assert_eq!(response.status, hyper::status::StatusCode::Ok);
         });
-        
+
         let t2 = std::thread::spawn(move || {
             clone2.post("https://google.com").body("foo=bar").send().unwrap();
         });
@@ -276,7 +279,7 @@ mod tests {
         config.set_dbg_callback(dbg_callback);
 
         config.set_ca_list(Arc::new(Certificate::from_pem_multiple(ROOT_CA_CERT).unwrap()), None);
-        
+
         let ssl = MbedSSLClient::new(Arc::new(config), false);
         let connector = HttpsConnector::new(ssl.clone());
         let client = Arc::new(hyper::Client::with_connector(Pool::with_connector(Default::default(), connector)));
@@ -287,7 +290,7 @@ mod tests {
         };
     }
 
-    
+
     #[test]
     fn test_hyper_server() {
         std::env::set_var("RUST_BACKTRACE", "full");
@@ -301,7 +304,7 @@ mod tests {
         let cert = Arc::new(Certificate::from_pem_multiple(PEM_CERT).unwrap());
         let key = Arc::new(Pk::from_private_key(PEM_KEY, None).unwrap());
         config.push_cert(cert, key).unwrap();
-        
+
         let ssl = MbedSSLServer { rc_config: Arc::new(config) };
 
         // Random port is intentional
@@ -315,14 +318,14 @@ mod tests {
         }, 3).unwrap();
 
         std::thread::sleep(core::time::Duration::from_millis(10));
-        
+
         let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
 
         config.set_authmode(AuthMode::Required);
         config.set_rng(rng_new());
         config.set_min_version(Version::Tls1_2).unwrap();
         config.set_ca_list(Arc::new(Certificate::from_pem_multiple(ROOT_CA_CERT).unwrap()), None);
-        
+
         let ssl = MbedSSLClient::new(Arc::new(config), false);
         let client = Arc::new(hyper::Client::with_connector(Pool::with_connector(Default::default(), HttpsConnector::new(ssl.clone()))));
 
@@ -348,7 +351,7 @@ mod tests {
         };
 
         let rng = rng_new();
-        
+
         let (local_addr, server) = {
             let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
 
@@ -362,7 +365,7 @@ mod tests {
             let cipher_suites : Vec<i32> = vec![RsaWithAes128GcmSha256.into(), DheRsaWithAes128GcmSha256.into(), PskWithAes128GcmSha256.into(), DhePskWithAes128GcmSha256.into(), RsaPskWithAes128GcmSha256.into(), 0];
 
             config.set_ciphersuites(Arc::new(cipher_suites));
-            
+
             let sni_callback = move |ctx: &mut HandshakeContext, name: &[u8]| -> Result<(), mbedtls::Error> {
                 let name = std::str::from_utf8(name).unwrap();
                 if name == "mbedtls.example" {
@@ -374,7 +377,7 @@ mod tests {
                 }
             };
 
-            config.set_sni_callback(sni_callback);                                    
+            config.set_sni_callback(sni_callback);
 
             let tctx = TicketContext::new(rng.clone(), mbedtls::cipher::raw::CipherType::Aes128Gcm, 300).unwrap();
             config.set_session_tickets_callback(Arc::new(tctx));
@@ -392,7 +395,7 @@ mod tests {
         }, 3).unwrap();
 
         std::thread::sleep(core::time::Duration::from_millis(10));
-        
+
         let client = {
             let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
 
@@ -402,14 +405,14 @@ mod tests {
             config.set_ca_list(Arc::new(Certificate::from_pem_multiple(ROOT_CA_CERT).unwrap()), None);
 
             config.set_dbg_callback(dbg_callback.clone());
-            
+
             config.set_session_tickets(UseSessionTickets::Enabled);
             config.set_renegotiation(Renegotiation::Enabled);
-            
+
             let ssl = MbedSSLClient::new_with_sni(Arc::new(config), true, Some("mbedtls.example".to_string()));
             Arc::new(hyper::Client::with_connector(Pool::with_connector(Default::default(), HttpsConnector::new(ssl))))
         };
-        
+
         {
             let response = client.post(&format!("https://{}/path", local_addr)).body("foo=bar").send().unwrap();
             println!("Response: {}", response.status);
