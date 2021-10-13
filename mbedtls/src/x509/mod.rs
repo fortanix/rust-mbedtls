@@ -28,7 +28,6 @@ pub use self::profile::Profile;
 use mbedtls_sys::*;
 use mbedtls_sys::types::raw_types::c_uint;
 bitflags! {
-    #[doc(inline)]
     pub struct KeyUsage: c_uint {
         const DIGITAL_SIGNATURE  = X509_KU_DIGITAL_SIGNATURE as c_uint;
         const NON_REPUDIATION    = X509_KU_NON_REPUDIATION as c_uint;
@@ -43,7 +42,6 @@ bitflags! {
 }
 
 bitflags! {
-    #[doc(inline)]
     pub struct VerifyError: u32 {
         const CERT_BAD_KEY       = X509_BADCERT_BAD_KEY as u32;
         const CERT_BAD_MD        = X509_BADCERT_BAD_MD as u32;
