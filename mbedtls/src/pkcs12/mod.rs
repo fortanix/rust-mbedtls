@@ -352,6 +352,7 @@ impl BERDecodable for EncryptedData {
 
 // EncryptedContentInfo from PKCS7 see RFC 2315 section 10.1
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct EncryptedContentInfo {
     content_type: ObjectIdentifier,
     encryption_algo: AlgorithmIdentifier,
@@ -454,6 +455,7 @@ enum Pkcs12BagSet {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct SafeBag {
     bag_id: ObjectIdentifier,
     bag_value: Pkcs12BagSet,
