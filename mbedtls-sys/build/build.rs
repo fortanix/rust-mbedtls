@@ -99,6 +99,7 @@ impl BuildConfig {
         let mut cflags = vec![];
         if FEATURES.have_platform_component("c_compiler", "freestanding") {
             cflags.push("-fno-builtin".into());
+            cflags.push("-U_FORTIFY_SOURCE".into());
             cflags.push("-D_FORTIFY_SOURCE=0".into());
             cflags.push("-fno-stack-protector".into());
         }
