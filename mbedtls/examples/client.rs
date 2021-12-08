@@ -33,7 +33,9 @@ fn result_main(addr: &str) -> TlsResult<()> {
     config.set_ca_list(cert, None);
     let mut ctx = Context::new(Arc::new(config));
 
+    println!("connecting..");
     let conn = TcpStream::connect(addr).unwrap();
+    println!("establishing SSL connection...");
     ctx.establish(conn, None)?;
 
     let mut line = String::new();

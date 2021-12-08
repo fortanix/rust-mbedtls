@@ -320,6 +320,7 @@ impl Config {
             // - We can pointer cast to it to allow storing additional objects.
             //
             let cb = &mut *(closure as *mut F);
+            // TODO is this cast still safe?
             let context = UnsafeFrom::from(ctx).unwrap();
             
             let mut ctx = HandshakeContext::init(context);

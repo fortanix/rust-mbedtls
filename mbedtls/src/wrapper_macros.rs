@@ -57,9 +57,14 @@ macro_rules! callback {
 
 macro_rules! define {
     // When using members, careful with UnsafeFrom, the data casted back must have been allocated on rust side.
-    { #[c_ty($inner:ident)] $(#[$m:meta])* struct $name:ident$(<$l:tt>)* $({ $($(#[$mm:meta])* $member:ident: $member_type:ty,)* })?; $($defs:tt)* } => {
+    { #[c_ty($inner:ident)] $(#[$m:meta])* struct $name:ident$(<$l:lifetime>)* $({ $($(#[$mm:meta])* $member:ident: $member_type:ty,)* })?; $($defs:tt)* } => {
         define_struct!(define $(#[$m])* struct $name $(lifetime $l)* inner $inner members $($($(#[$mm])* $member: $member_type,)*)*);
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
+    };
+    // case for generic type
+    { #[c_ty($inner:ident)] $(#[$m:meta])* struct $name:ident$(<$g:tt>)* $({ $($(#[$mm:meta])* $member:ident: $member_type:ty,)* })?; $($defs:tt)* } => {
+        define_struct!(define $(#[$m])* struct $name $(generic $g)* inner $inner members $($($(#[$mm])* $member: $member_type,)*)*);
+        define_struct!(<< $name $(generic $g)* inner $inner >> $($defs)*);
     };
     // Do not use UnsafeFrom with 'c_box_ty'. That is currently not supported as its not needed anywhere, support may be added in the future if needed anywhere.
     { #[c_box_ty($inner:ident)] $(#[$m:meta])* struct $name:ident$(<$l:tt>)* $({ $($(#[$mm:meta])* $member:ident: $member_type:ty,)* })?; $($defs:tt)* } => {
@@ -109,7 +114,7 @@ macro_rules! define_enum {
 }
 
 macro_rules! define_struct {
-    { define $(#[$m:meta])* struct $name:ident $(lifetime $l:tt)* inner $inner:ident members $($(#[$mm:meta])* $member:ident: $member_type:ty,)* } => {
+    { define $(#[$m:meta])* struct $name:ident $(lifetime $l:lifetime)* inner $inner:ident members $($(#[$mm:meta])* $member:ident: $member_type:ty,)* } => {
         as_item!(
         #[allow(dead_code)]
         $(#[$m])*
@@ -144,6 +149,40 @@ macro_rules! define_struct {
         );
     };
 
+    { define $(#[$m:meta])* struct $name:ident $(generic $g:tt)* inner $inner:ident members $($(#[$mm:meta])* $member:ident: $member_type:ty,)* } => {
+        as_item!(
+        #[allow(dead_code)]
+        $(#[$m])*
+        pub struct $name<$($g)*> {
+            inner: ::mbedtls_sys::$inner,
+            $($(#[$mm])* $member: $member_type,)*
+        }
+        );
+
+        as_item!(
+        #[allow(dead_code)]
+        impl<$($g)*> $name<$($g)*> {
+            pub(crate) fn into_inner(self) -> ::mbedtls_sys::$inner {
+                let inner = self.inner;
+                ::core::mem::forget(self);
+                inner
+            }
+
+            pub(crate) fn handle(&self) -> &::mbedtls_sys::$inner {
+                &self.inner
+            }
+
+            pub(crate) fn handle_mut(&mut self) -> &mut ::mbedtls_sys::$inner {
+                &mut self.inner
+            }
+        }
+        );
+
+        as_item!(
+        unsafe impl<$($g)*> Send for $name<$($g)*> {}
+        );
+    };
+
     { define_box $(#[$m:meta])* struct $name:ident $(lifetime $l:tt)* inner $inner:ident members $($(#[$mm:meta])* $member:ident: $member_type:ty,)* } => {
         as_item!(
         #[allow(dead_code)]
@@ -173,13 +212,21 @@ macro_rules! define_struct {
         );
     };
     
-    { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> const init: fn() -> Self = $ctor:ident $({ $($member:ident: $member_init:expr,)* })?; $($defs:tt)* } => {
+    { << $name:ident $(lifetime $l:lifetime)* inner $inner:ident >> const init: fn() -> Self = $ctor:ident $({ $($member:ident: $member_init:expr,)* })?; $($defs:tt)* } => {
         define_struct!(init $name () init $ctor $(lifetime $l)* members $($($member: $member_init,)*)* );
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
     };
-    { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> pub const new: fn() -> Self = $ctor:ident $({ $($member:ident: $member_init:expr,)* })?; $($defs:tt)* } => {
+    { << $name:ident $(generic $g:tt)* inner $inner:ident >> const init: fn() -> Self = $ctor:ident $({ $($member:ident: $member_init:expr,)* })?; $($defs:tt)* } => {
+        define_struct!(init $name () init $ctor $(generic $g)* members $($($member: $member_init,)*)* );
+        define_struct!(<< $name $(generic $g)* inner $inner >> $($defs)*);
+    };
+    { << $name:ident $(lifetime $l:lifetime)* inner $inner:ident >> pub const new: fn() -> Self = $ctor:ident $({ $($member:ident: $member_init:expr,)* })?; $($defs:tt)* } => {
         define_struct!(init $name (pub) new $ctor $(lifetime $l)* members $($($member: $member_init,)*)* );
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
+    };
+    { << $name:ident $(generic $g:tt)* inner $inner:ident >> pub const new: fn() -> Self = $ctor:ident $({ $($member:ident: $member_init:expr,)* })?; $($defs:tt)* } => {
+        define_struct!(init $name (pub) new $ctor $(generic $g)* members $($($member: $member_init,)*)* );
+        define_struct!(<< $name $(generic $g)* inner $inner >> $($defs)*);
     };
     { init $name:ident ($($vis:tt)*) $new:ident $ctor:ident $(lifetime $l:tt)* members $($member:ident: $member_init:expr,)*  } => {
         as_item!(
@@ -215,9 +262,13 @@ macro_rules! define_struct {
         );
     };
 
-    { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> impl<$l2:tt> Into<ptr> {} $($defs:tt)* } => {
+    { << $name:ident $(lifetime $l:lifetime)* inner $inner:ident >> impl<$l2:tt> Into<ptr> {} $($defs:tt)* } => {
         define_struct!(into $name inner $inner $(lifetime $l)* lifetime2 $l2 );
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
+    };
+    { << $name:ident $(generic $g:tt)* inner $inner:ident >> impl<$l2:tt> Into<ptr> {} $($defs:tt)* } => {
+        define_struct!(into $name inner $inner $(generic $g)* lifetime2 $l2 );
+        define_struct!(<< $name $(generic $g)* inner $inner >> $($defs)*);
     };
     { into $name:ident inner $inner:ident $(lifetime $l:tt)* lifetime2 $l2:tt } => {
         as_item!(
@@ -246,12 +297,43 @@ macro_rules! define_struct {
         }
         );
     };
+    { into $name:ident inner $inner:ident $(generic $g:tt)* lifetime2 $l2:tt } => {
+        as_item!(
+        impl<$l2,$($g),*> Into<*const $inner> for &$l2 $name<$($g)*> {
+            fn into(self) -> *const $inner {
+                self.handle()
+            }
+        }
+        );
 
-    { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> impl<$l2:tt> UnsafeFrom<ptr> {} $($defs:tt)* } => {
+        as_item!(
+        impl<$l2,$($g),*> Into<*mut $inner> for &$l2 mut $name<$($g)*> {
+            fn into(self) -> *mut $inner {
+                self.handle_mut()
+            }
+        }
+        );
+        as_item!(
+        impl<$($g),*> $name<$($g)*> {
+            /// Needed for compatibility with mbedtls - where we could pass
+            /// `*const` but function signature requires `*mut`
+            #[allow(dead_code)]
+            pub(crate) unsafe fn inner_ffi_mut(&self) -> *mut $inner {
+                self.handle() as *const _ as *mut $inner
+            }
+        }
+        );
+    };
+
+    { << $name:ident $(lifetime $l:lifetime)* inner $inner:ident >> impl<$l2:tt> UnsafeFrom<ptr> {} $($defs:tt)* } => {
         define_struct!(unsafe_from $name inner $inner $(lifetime $l)* lifetime2 $l2 );
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
     };
-    { unsafe_from $name:ident inner $inner:ident $(lifetime $l:tt)* lifetime2 $l2:tt } => {
+    { << $name:ident $(generic $g:tt)* inner $inner:ident >> impl<$l2:tt> UnsafeFrom<ptr> {} $($defs:tt)* } => {
+        define_struct!(unsafe_from $name inner $inner $(generic $g)* lifetime2 $l2 );
+        define_struct!(<< $name $(generic $g)* inner $inner >> $($defs)*);
+    };
+    { unsafe_from $name:ident inner $inner:ident $(lifetime $l:lifetime)* lifetime2 $l2:tt } => {
         as_item!(
         impl<$l2,$($l),*> crate::private::UnsafeFrom<*const $inner> for &$l2 $name<$($l)*> {
             unsafe fn from(ptr: *const $inner) -> Option<Self> {
@@ -268,9 +350,28 @@ macro_rules! define_struct {
         }
         );
     };
+    { unsafe_from $name:ident inner $inner:ident $(generic $g:tt)* lifetime2 $l2:tt } => {
+        as_item!(
+        impl<$l2,$($g),*> crate::private::UnsafeFrom<*const $inner> for &$l2 $name<$($g)*> {
+            unsafe fn from(ptr: *const $inner) -> Option<Self> {
+                (ptr as *const $name<$($g),*>).as_ref()
+            }
+        }
+        );
 
-    { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> } => {};
-    { lifetime $l:tt } => {};
+        as_item!(
+        impl<$l2,$($g),*> crate::private::UnsafeFrom<*mut $inner> for &$l2 mut $name<$($g)*> {
+            unsafe fn from(ptr: *mut $inner) -> Option<Self> {
+                (ptr as *mut $name<$($g),*>).as_mut()
+            }
+        }
+        );
+    };
+
+    { << $name:ident $(lifetime $l:lifetime)* inner $inner:ident >> } => {};
+    { << $name:ident $(generic $g:tt)* inner $inner:ident >> } => {};
+    { lifetime $l:lifetime } => {};
+    { generic $g:tt } => {};
 }
 
 macro_rules! setter {

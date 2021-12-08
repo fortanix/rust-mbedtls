@@ -3330,6 +3330,7 @@ static void ssl_calc_finished_tls_sha384(
      * However, to avoid stringop-overflow warning in gcc, we have to cast
      * mbedtls_sha512_finish_ret().
      */
+    // this still emits the warning on clang...
     finish_sha384_t finish = (finish_sha384_t)mbedtls_sha512_finish_ret;
     finish( &sha512, padbuf );
 

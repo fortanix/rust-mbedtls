@@ -70,12 +70,12 @@ impl<IO: Read + Write + 'static> IoCallback for IO {
 define!(
     #[c_ty(ssl_context)]
     #[repr(C)]
-    struct Context {
+    struct Context<S> {
         // config is used read-only for mutliple contexts and is immutable once configured.
         config: Arc<Config>, 
 
         // Must be held in heap and pointer to it as pointer is sent to MbedSSL and can't be re-allocated.
-        io: Option<Box<dyn Any>>,
+        io: Option<Box<S>>,
         
         handshake_ca_cert: Option<Arc<MbedtlsList<Certificate>>>,
         handshake_crl: Option<Arc<Crl>>,
@@ -89,29 +89,8 @@ define!(
     impl<'a> UnsafeFrom<ptr> {}
 );
 
-impl Context {
-    pub fn new(config: Arc<Config>) -> Self {
-        let mut inner = ssl_context::default();
-        
-        unsafe {
-            ssl_init(&mut inner);
-            ssl_setup(&mut inner, (&*config).into());
-        };
-
-        Context {
-            inner,
-            config: config.clone(),
-            io: None,
-
-            handshake_ca_cert: None,
-            handshake_crl: None,
-            
-            handshake_cert: vec![],
-            handshake_pk: vec![],
-        }
-    }
-
-    pub fn establish<T: IoCallback + Send + Sync + 'static>(&mut self, io: T, hostname: Option<&str>) -> Result<()> {
+impl<S: IoCallback> Context<S> {
+    pub fn establish(&mut self, io: S, hostname: Option<&str>) -> Result<()> {
         unsafe {
             let mut io = Box::new(io);
             ssl_session_reset(self.into()).into_result()?;
@@ -121,8 +100,8 @@ impl Context {
             ssl_set_bio(
                 self.into(),
                 ptr,
-                Some(T::call_send),
-                Some(T::call_recv),
+                Some(S::call_send),
+                Some(S::call_recv),
                 None,
             );
 
@@ -144,6 +123,29 @@ impl Context {
                     Ok(())
                 }
             }
+        }
+    }
+}
+
+impl<S> Context<S> {
+    pub fn new(config: Arc<Config>) -> Self {
+        let mut inner = ssl_context::default();
+        
+        unsafe {
+            ssl_init(&mut inner);
+            ssl_setup(&mut inner, (&*config).into());
+        };
+
+        Context {
+            inner,
+            config: config.clone(),
+            io: None,
+
+            handshake_ca_cert: None,
+            handshake_crl: None,
+            
+            handshake_cert: vec![],
+            handshake_pk: vec![],
         }
     }
 
@@ -188,11 +190,11 @@ impl Context {
         }
     }
 
-    pub fn io(&self) -> Option<&dyn Any> {
-        self.io.as_ref().map(|v| &**v)
+    pub fn io(&self) -> Option<&Box<S>> {
+        self.io.as_ref()
     }
-    pub fn io_mut(&mut self) -> Option<&mut dyn Any> {
-        self.io.as_mut().map(|v| &mut **v)
+    pub fn io_mut(&mut self) -> Option<&mut Box<S>> {
+        self.io.as_mut()
     }
     
     /// Return the minor number of the negotiated TLS version
@@ -251,7 +253,7 @@ impl Context {
     }
 }
 
-impl Drop for Context {
+impl<S> Drop for Context<S> {
     fn drop(&mut self) {
         unsafe {
             self.close();
@@ -260,7 +262,7 @@ impl Drop for Context {
     }
 }
 
-impl Read for Context {
+impl<S> Read for Context<S> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match unsafe { ssl_read(self.into(), buf.as_mut_ptr(), buf.len()).into_result() } {
             Err(Error::SslPeerCloseNotify) => Ok(0),
@@ -270,7 +272,7 @@ impl Read for Context {
     }
 }
 
-impl Write for Context {
+impl<S> Write for Context<S> {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
         match unsafe { ssl_write(self.into(), buf.as_ptr(), buf.len()).into_result() } {
             Err(Error::SslPeerCloseNotify) => Ok(0),
@@ -286,7 +288,7 @@ impl Write for Context {
 
 
 pub struct HandshakeContext<'ctx> {
-    pub context: &'ctx mut Context,
+    pub context: &'ctx mut Context<Box<dyn Any>>,
 }
 
 //
@@ -303,7 +305,7 @@ pub struct HandshakeContext<'ctx> {
 //
 impl<'ctx> HandshakeContext<'ctx> {
 
-    pub(crate) fn init(context: &'ctx mut Context) -> Self {
+    pub(crate) fn init(context: &'ctx mut Context<Box<dyn Any>>) -> Self {
         HandshakeContext { context }
     }
     
