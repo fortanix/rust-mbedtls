@@ -179,7 +179,9 @@ macro_rules! define_struct {
         );
 
         as_item!(
-        unsafe impl<$($g)*> Send for $name<$($g)*> {}
+        unsafe impl<$($g)*> Send for $name<$($g)*> 
+        where $($g: Send)*
+        {}
         );
     };
 
