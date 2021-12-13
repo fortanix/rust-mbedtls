@@ -44,7 +44,7 @@ dependencies = [
 [[package]]
 name = "async-usercalls"
 version = "0.1.0"
-source = "git+https://github.com/fortanix/rust-sgx.git?branch=mz/async-usercalls#4cf2a8e12912bfd5e0ce8ef7fcf8f607110dfda2"
+source = "git+https://github.com/fortanix/rust-sgx.git?branch=mz/async-usercalls#cf85cb6b03744ac76f4d594817e5d7e5cf095a6b"
 dependencies = [
  "crossbeam-channel",
  "fnv",
@@ -166,12 +166,6 @@ name = "bytes"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e4cec68f03f32e44924783795810fa50a7035d8c8ebe78580ad7e6c703fba38"
-
-[[package]]
-name = "bytes"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0dcbc35f504eb6fc275a6d20e4ebcda18cf50d40ba6fabff8c711fa16cb3b16"
 
 [[package]]
 name = "bytes"
@@ -305,7 +299,7 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 [[package]]
 name = "fortanix-sgx-abi"
 version = "0.4.0"
-source = "git+https://github.com/fortanix/rust-sgx.git?branch=mz/async-usercalls#4cf2a8e12912bfd5e0ce8ef7fcf8f607110dfda2"
+source = "git+https://github.com/fortanix/rust-sgx.git?branch=mz/async-usercalls#cf85cb6b03744ac76f4d594817e5d7e5cf095a6b"
 
 [[package]]
 name = "fuchsia-cprng"
@@ -568,7 +562,7 @@ dependencies = [
 [[package]]
 name = "ipc-queue"
 version = "0.1.0"
-source = "git+https://github.com/fortanix/rust-sgx.git?branch=mz/async-usercalls#4cf2a8e12912bfd5e0ce8ef7fcf8f607110dfda2"
+source = "git+https://github.com/fortanix/rust-sgx.git?branch=mz/async-usercalls#cf85cb6b03744ac76f4d594817e5d7e5cf095a6b"
 dependencies = [
  "fortanix-sgx-abi",
 ]
@@ -684,7 +678,7 @@ dependencies = [
  "serde_derive",
  "spin",
  "tokio 0.2.25",
- "tokio 0.3.4",
+ "tokio 1.14.0",
  "tracing",
  "yasna",
 ]
@@ -692,6 +686,8 @@ dependencies = [
 [[package]]
 name = "mbedtls-sys-auto"
 version = "2.26.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7da15d923e6a393dd8bfab2111cee366a995723fbaa8a0c3ff6bfe324e39291a"
 dependencies = [
  "bindgen",
  "cc",
@@ -1175,25 +1171,24 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "0.3.4"
-source = "git+https://github.com/mzohreva/tokio?branch=mz/sgx-port-0.3.4#8af31a7b14986b34d6d544f48c2423e7b9792c7f"
+version = "1.14.0"
+source = "git+https://github.com/fortanix/tokio?branch=raoul/tokio-1.14.0-sgx#9a42c021aac8cf0b4696ad48a9385ce6f7e299e1"
 dependencies = [
  "autocfg 1.0.1",
- "bytes 0.6.0",
- "lazy_static",
+ "bytes 1.1.0",
  "libc",
  "memchr",
  "mio",
  "num_cpus",
  "pin-project-lite 0.2.7",
- "slab",
  "tokio-macros",
+ "winapi",
 ]
 
 [[package]]
 name = "tokio-macros"
-version = "0.3.1"
-source = "git+https://github.com/mzohreva/tokio?branch=mz/sgx-port-0.3.4#8af31a7b14986b34d6d544f48c2423e7b9792c7f"
+version = "1.5.1"
+source = "git+https://github.com/fortanix/tokio?branch=raoul/tokio-1.14.0-sgx#9a42c021aac8cf0b4696ad48a9385ce6f7e299e1"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.9",

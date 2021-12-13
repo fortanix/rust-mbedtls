@@ -3,5 +3,5 @@ members = ["mbedtls"]
 
 [patch.crates-io]
 mio = { git = "https://github.com/mzohreva/mio", branch = "mz/sgx-port-0.7.6" }
-tokio = { git = "https://github.com/mzohreva/tokio", branch = "mz/sgx-port-0.3.4" }
+tokio = { git = "https://github.com/fortanix/tokio", branch = "raoul/tokio-1.14.0-sgx" }
 

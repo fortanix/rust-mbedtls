@@ -138,7 +138,7 @@ impl Drop for NullTerminatedStrList {
         for i in self.c.iter() {
             unsafe {
                 if !(*i).is_null() {
-                    ::std::ffi::CString::from_raw(*i);
+                    drop(std::ffi::CString::from_raw(*i));
                 }
             }
         }
