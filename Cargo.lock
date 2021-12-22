@@ -678,7 +678,7 @@ dependencies = [
  "serde_derive",
  "spin",
  "tokio 0.2.25",
- "tokio 1.14.0",
+ "tokio 1.15.0",
  "tracing",
  "yasna",
 ]
@@ -1171,10 +1171,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.14.0"
-source = "git+https://github.com/fortanix/tokio?branch=raoul/tokio-1.14.0-sgx#9a42c021aac8cf0b4696ad48a9385ce6f7e299e1"
+version = "1.15.0"
+source = "git+https://github.com/fortanix/tokio?branch=raoul/tokio-1.15.0-sgx#ef08640c8ee7d46e5fc2b5812b44411571e82cc6"
 dependencies = [
- "autocfg 1.0.1",
  "bytes 1.1.0",
  "libc",
  "memchr",
@@ -1187,8 +1186,8 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "1.5.1"
-source = "git+https://github.com/fortanix/tokio?branch=raoul/tokio-1.14.0-sgx#9a42c021aac8cf0b4696ad48a9385ce6f7e299e1"
+version = "1.7.0"
+source = "git+https://github.com/fortanix/tokio?branch=raoul/tokio-1.15.0-sgx#ef08640c8ee7d46e5fc2b5812b44411571e82cc6"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.9",

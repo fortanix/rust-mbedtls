@@ -30,7 +30,7 @@ bit-vec = { version = "0.5", optional = true }
 block-modes = { version = "0.3", optional = true }
 rc2 = { version = "0.3", optional = true }
 cfg-if = "1.0.0"
-tokio = { version = "1.14.0", optional = true }
+tokio = { version = "1.15.0", optional = true }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.1.0"
