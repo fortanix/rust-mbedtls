@@ -770,6 +770,14 @@ int query_config( const char *config )
     }
 #endif /* MBEDTLS_CAMELLIA_SMALL_MEMORY */
 
+#if defined(MBEDTLS_CHECK_RETURN_WARNING)
+    if( strcmp( "MBEDTLS_CHECK_RETURN_WARNING", config ) == 0 )
+    {
+        MACRO_EXPANSION_TO_STR( MBEDTLS_CHECK_RETURN_WARNING );
+        return( 0 );
+    }
+#endif /* MBEDTLS_CHECK_RETURN_WARNING */
+
 #if defined(MBEDTLS_CIPHER_MODE_CBC)
     if( strcmp( "MBEDTLS_CIPHER_MODE_CBC", config ) == 0 )
     {
@@ -1225,6 +1233,14 @@ int query_config( const char *config )
         return( 0 );
     }
 #endif /* MBEDTLS_PKCS1_V21 */
+
+#if defined(MBEDTLS_PSA_CRYPTO_BUILTIN_KEYS)
+    if( strcmp( "MBEDTLS_PSA_CRYPTO_BUILTIN_KEYS", config ) == 0 )
+    {
+        MACRO_EXPANSION_TO_STR( MBEDTLS_PSA_CRYPTO_BUILTIN_KEYS );
+        return( 0 );
+    }
+#endif /* MBEDTLS_PSA_CRYPTO_BUILTIN_KEYS */
 
 #if defined(MBEDTLS_PSA_CRYPTO_CLIENT)
     if( strcmp( "MBEDTLS_PSA_CRYPTO_CLIENT", config ) == 0 )
@@ -2634,6 +2650,22 @@ int query_config( const char *config )
     }
 #endif /* MBEDTLS_PLATFORM_NV_SEED_WRITE_MACRO */
 
+#if defined(MBEDTLS_CHECK_RETURN)
+    if( strcmp( "MBEDTLS_CHECK_RETURN", config ) == 0 )
+    {
+        MACRO_EXPANSION_TO_STR( MBEDTLS_CHECK_RETURN );
+        return( 0 );
+    }
+#endif /* MBEDTLS_CHECK_RETURN */
+
+#if defined(MBEDTLS_IGNORE_RETURN)
+    if( strcmp( "MBEDTLS_IGNORE_RETURN", config ) == 0 )
+    {
+        MACRO_EXPANSION_TO_STR( MBEDTLS_IGNORE_RETURN );
+        return( 0 );
+    }
+#endif /* MBEDTLS_IGNORE_RETURN */
+
 #if defined(MBEDTLS_PSA_HMAC_DRBG_MD_TYPE)
     if( strcmp( "MBEDTLS_PSA_HMAC_DRBG_MD_TYPE", config ) == 0 )
     {
@@ -2754,6 +2786,14 @@ int query_config( const char *config )
     }
 #endif /* MBEDTLS_SSL_COOKIE_TIMEOUT */
 
+#if defined(MBEDTLS_TLS_EXT_CID)
+    if( strcmp( "MBEDTLS_TLS_EXT_CID", config ) == 0 )
+    {
+        MACRO_EXPANSION_TO_STR( MBEDTLS_TLS_EXT_CID );
+        return( 0 );
+    }
+#endif /* MBEDTLS_TLS_EXT_CID */
+
 #if defined(MBEDTLS_X509_MAX_INTERMEDIATE_CA)
     if( strcmp( "MBEDTLS_X509_MAX_INTERMEDIATE_CA", config ) == 0 )
     {
@@ -2769,14 +2809,6 @@ int query_config( const char *config )
         return( 0 );
     }
 #endif /* MBEDTLS_X509_MAX_FILE_PATH_LEN */
-
-#if defined(MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_CERTIFICATES)
-    if( strcmp( "MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_CERTIFICATES", config ) == 0 )
-    {
-        MACRO_EXPANSION_TO_STR( MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_CERTIFICATES );
-        return( 0 );
-    }
-#endif /* MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_CERTIFICATES */
 
 #if defined(MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_KEY_EXCHANGE)
     if( strcmp( "MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_KEY_EXCHANGE", config ) == 0 )

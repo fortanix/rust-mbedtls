@@ -22,6 +22,7 @@
 
 #include <test/helpers.h>
 #include <test/macros.h>
+#include <psa_crypto_slot_management.h>
 #include <test/psa_crypto_helpers.h>
 
 #if defined(MBEDTLS_PSA_CRYPTO_C)
@@ -113,5 +114,18 @@ psa_status_t mbedtls_test_record_status( psa_status_t status,
     return( status );
 }
 #endif /* defined(RECORD_PSA_STATUS_COVERAGE_LOG) */
+
+psa_key_usage_t mbedtls_test_update_key_usage_flags( psa_key_usage_t usage_flags )
+{
+    psa_key_usage_t updated_usage = usage_flags;
+
+    if( usage_flags & PSA_KEY_USAGE_SIGN_HASH )
+        updated_usage |= PSA_KEY_USAGE_SIGN_MESSAGE;
+
+    if( usage_flags & PSA_KEY_USAGE_VERIFY_HASH )
+        updated_usage |= PSA_KEY_USAGE_VERIFY_MESSAGE;
+
+    return( updated_usage );
+}
 
 #endif /* MBEDTLS_PSA_CRYPTO_C */
