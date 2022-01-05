@@ -146,6 +146,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_AES_ROM_TABLES",                            Undefined),
     ("MBEDTLS_AES_FEWER_TABLES",                          Undefined),
     ("MBEDTLS_CAMELLIA_SMALL_MEMORY",                     Undefined),
+    ("MBEDTLS_CHECK_RETURN_WARNING",                      Undefined),
     ("MBEDTLS_CIPHER_MODE_CBC",                           Defined),
     ("MBEDTLS_CIPHER_MODE_CFB",                           Defined),
     ("MBEDTLS_CIPHER_MODE_CTR",                           Defined),
@@ -203,6 +204,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_PK_RSA_ALT_SUPPORT",                        Defined),
     ("MBEDTLS_PKCS1_V15",                                 Defined),
     ("MBEDTLS_PKCS1_V21",                                 Defined),
+    ("MBEDTLS_PSA_CRYPTO_BUILTIN_KEYS",                   Undefined),
     ("MBEDTLS_PSA_CRYPTO_CLIENT",                         Undefined),
     ("MBEDTLS_PSA_CRYPTO_DRIVERS",                        Undefined),
     ("MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG",                   Undefined),
@@ -349,7 +351,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_HMAC_DRBG_MAX_REQUEST",                     Undefined), // default: 1024
     ("MBEDTLS_HMAC_DRBG_MAX_SEED_INPUT",                  Undefined), // default: 384
     ("MBEDTLS_ECP_MAX_BITS",                              Undefined), // default: 521
-    ("MBEDTLS_ECP_WINDOW_SIZE",                           Undefined), // default: 6
+    ("MBEDTLS_ECP_WINDOW_SIZE",                           Undefined), // default: 4
     ("MBEDTLS_ECP_FIXED_POINT_OPTIM",                     Undefined), // default: 1
     ("MBEDTLS_ENTROPY_MAX_SOURCES",                       Undefined), // default: 20
     ("MBEDTLS_ENTROPY_MAX_GATHER",                        Undefined), // default: 128
@@ -377,6 +379,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_PLATFORM_VSNPRINTF_MACRO",                  Undefined), // default: vsnprintf
     ("MBEDTLS_PLATFORM_NV_SEED_READ_MACRO",               Undefined), // default: mbedtls_platform_std_nv_seed_read
     ("MBEDTLS_PLATFORM_NV_SEED_WRITE_MACRO",              Undefined), // default: mbedtls_platform_std_nv_seed_write
+    ("MBEDTLS_CHECK_RETURN",                              Undefined), // default: __attribute__((__warn_unused_result__))
     ("MBEDTLS_PSA_HMAC_DRBG_MD_TYPE",                     Undefined), // default: see config.h
     ("MBEDTLS_PSA_KEY_SLOT_COUNT",                        Undefined), // default: 32
     ("MBEDTLS_SSL_CACHE_DEFAULT_TIMEOUT",                 Undefined), // default: 86400
@@ -392,10 +395,10 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_SSL_DEFAULT_TICKET_LIFETIME",               Undefined), // default: 86400
     ("MBEDTLS_PSK_MAX_LEN",                               Undefined), // default: 32
     ("MBEDTLS_SSL_COOKIE_TIMEOUT",                        Undefined), // default: 60
+    ("MBEDTLS_TLS_EXT_CID",                               Undefined), // default: 254
     ("MBEDTLS_SSL_CIPHERSUITES",                          Undefined), // default: no default
     ("MBEDTLS_X509_MAX_INTERMEDIATE_CA",                  Undefined), // default: 8
     ("MBEDTLS_X509_MAX_FILE_PATH_LEN",                    Undefined), // default: 512
-    ("MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_CERTIFICATES",    Undefined),
     ("MBEDTLS_TLS_DEFAULT_ALLOW_SHA1_IN_KEY_EXCHANGE",    Defined),
     ("MBEDTLS_PLATFORM_ZEROIZE_ALT",                      Undefined),
     ("MBEDTLS_PLATFORM_GMTIME_R_ALT",                     Undefined),
