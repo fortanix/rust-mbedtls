@@ -11,7 +11,7 @@ use core::iter::FromIterator;
 use core::ptr::NonNull;
 
 use mbedtls_sys::*;
-use mbedtls_sys::types::raw_types::*;
+use mbedtls_sys::types::raw_types::{c_char, c_void};
 
 use crate::alloc::{List as MbedtlsList, Box as MbedtlsBox};
 #[cfg(not(feature = "std"))]
@@ -21,8 +21,7 @@ use crate::hash::Type as MdType;
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
 use crate::rng::Random;
-use crate::x509::Time;
-use crate::x509::VerifyError;
+use crate::x509::{self, Time, VerifyCallback};
 
 extern "C" {
     pub(crate) fn forward_mbedtls_calloc(n: mbedtls_sys::types::size_t, size: mbedtls_sys::types::size_t) -> *mut mbedtls_sys::types::raw_types::c_void;
@@ -222,11 +221,21 @@ impl Certificate {
         MdType::from(self.inner.sig_md)
     }
 
-    pub fn verify(
+    fn verify_ex<F>(
         chain: &MbedtlsList<Certificate>,
         trust_ca: &MbedtlsList<Certificate>,
         err_info: Option<&mut String>,
-    ) -> Result<()> {
+        cb: Option<F>,
+    ) -> Result<()>
+    where
+        F: VerifyCallback + 'static,
+    {
+        let (f_vrfy, p_vrfy): (Option<unsafe extern "C" fn(_, _, _, _) -> _>, _) = if let Some(cb) = cb {
+            (Some(x509::verify_callback::<F>),
+            &cb as *const _ as *mut c_void)
+        } else {
+            (None, ::core::ptr::null_mut())
+        };
         let mut flags = 0;
         let result = unsafe {
             x509_crt_verify(
@@ -235,8 +244,8 @@ impl Certificate {
                 ::core::ptr::null_mut(),
                 ::core::ptr::null(),
                 &mut flags,
-                None,
-                ::core::ptr::null_mut(),
+                f_vrfy,
+                p_vrfy,
             )
         }
         .into_result();
@@ -255,7 +264,16 @@ impl Certificate {
         result.map(|_| ())
     }
 
-    pub fn verify_callback<F>(
+    pub fn verify(
+        chain: &MbedtlsList<Certificate>,
+        trust_ca: &MbedtlsList<Certificate>,
+        err_info: Option<&mut String>,
+    ) -> Result<()> {
+        let none: Option<Box<dyn VerifyCallback + 'static>> = None;
+        Self::verify_ex(chain, trust_ca, err_info, none)
+    }
+
+    pub fn verify_with_callback<F>(
         chain: &MbedtlsList<Certificate>,
         trust_ca: &MbedtlsList<Certificate>,
         err_info: Option<&mut String>,
@@ -264,34 +282,8 @@ impl Certificate {
     where
         F: VerifyCallback + 'static,
     {
-        let mut flags = 0;
-        let result = unsafe {
-            x509_crt_verify(
-                chain.inner_ffi_mut(),
-                trust_ca.inner_ffi_mut(),
-                ::core::ptr::null_mut(),
-                ::core::ptr::null(),
-                &mut flags,
-                Some(verify_callback::<F>),
-                &cb as *const _ as *mut c_void,
-            )
-        }
-        .into_result();
-
-        if result.is_err() {
-            if let Some(err_info) = err_info {
-                let verify_info = crate::private::alloc_string_repeat(|buf, size| unsafe {
-                    let prefix = "\0";
-                    x509_crt_verify_info(buf, size, prefix.as_ptr() as *const _, flags)
-                });
-                if let Ok(error_str) = verify_info {
-                    *err_info = error_str;
-                }
-            }
-        }
-        result.map(|_| ())
+        Self::verify_ex(chain, trust_ca, err_info, Some(cb))
     }
-
 }
 
 // TODO
@@ -758,42 +750,10 @@ impl Extend<MbedtlsBox::<Certificate>> for MbedtlsList<Certificate> {
     }
 }
 
-pub(crate) unsafe extern "C" fn verify_callback<F>(
-    closure: *mut c_void,
-    crt: *mut x509_crt,
-    depth: c_int,
-    flags: *mut u32,
-) -> c_int
-where
-    F: VerifyCallback + 'static,
-{
-    if crt.is_null() || closure.is_null() || flags.is_null() {
-        return ::mbedtls_sys::ERR_X509_BAD_INPUT_DATA;
-    }
-
-    let cb = &mut *(closure as *mut F);
-    let crt: &mut Certificate = UnsafeFrom::from(crt).expect("valid certificate");
-
-    let mut verify_error = match VerifyError::from_bits(*flags) {
-        Some(ve) => ve,
-        // This can only happen if mbedtls is setting flags in VerifyError that are
-        // missing from our definition.
-        None => return ::mbedtls_sys::ERR_X509_BAD_INPUT_DATA,
-    };
-
-    let res = cb(crt, depth, &mut verify_error);
-    *flags = verify_error.bits();
-    match res {
-        Ok(()) => 0,
-        Err(e) => e.to_int(),
-    }
-}
-
-callback!(VerifyCallback: Fn(&Certificate, i32, &mut VerifyError) -> Result<()>);
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::x509::VerifyError;
 
     struct Test {
         key1: Pk,
@@ -1075,7 +1035,8 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
                 Ok(())
             };
 
-            let res = Certificate::verify_callback(&chain, &mut c_root, Some(&mut err_str), verify_callback);
+            Certificate::verify(&chain, &mut c_root, None).unwrap();
+            let res = Certificate::verify_with_callback(&chain, &mut c_root, Some(&mut err_str), verify_callback);
 
             match res {
                 Ok(()) => (),
@@ -1089,13 +1050,15 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             chain.push(c_int1.clone());
             chain.push(c_int2.clone());
 
+            Certificate::verify(&chain, &mut c_root, None).unwrap();
+
             let verify_callback = |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
                 verify_flags.remove(VerifyError::CERT_EXPIRED);
                 Ok(())
             };
 
             let mut err_str = String::new();
-            let res = Certificate::verify_callback(&chain, &mut c_root, Some(&mut err_str), verify_callback);
+            let res = Certificate::verify_with_callback(&chain, &mut c_root, Some(&mut err_str), verify_callback);
 
             match res {
                 Ok(()) => (),
