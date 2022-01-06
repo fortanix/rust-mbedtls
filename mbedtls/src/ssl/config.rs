@@ -28,10 +28,7 @@ use crate::private::UnsafeFrom;
 use crate::rng::RngCallback;
 use crate::ssl::context::HandshakeContext;
 use crate::ssl::ticket::TicketCallback;
-use crate::x509::Certificate;
-use crate::x509::Crl;
-use crate::x509::Profile;
-use crate::x509::VerifyError;
+use crate::x509::{self, Certificate, Crl, Profile, VerifyCallback};
 
 #[allow(non_camel_case_types)]
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Copy, Clone)]
@@ -98,7 +95,6 @@ define!(
     }
 );
 
-callback!(VerifyCallback: Fn(&Certificate, i32, &mut VerifyError) -> Result<()>);
 #[cfg(feature = "std")]
 callback!(DbgCallback: Fn(i32, Cow<'_, str>, i32, Cow<'_, str>) -> ());
 callback!(SniCallback: Fn(&mut HandshakeContext, &[u8]) -> Result<()>);
@@ -343,40 +339,8 @@ impl Config {
     where
         F: VerifyCallback + 'static,
     {
-        unsafe extern "C" fn verify_callback<F>(
-            closure: *mut c_void,
-            crt: *mut x509_crt,
-            depth: c_int,
-            flags: *mut u32,
-        ) -> c_int
-        where
-            F: VerifyCallback + 'static,
-        {
-            if crt.is_null() || closure.is_null() || flags.is_null() {
-                return ::mbedtls_sys::ERR_X509_BAD_INPUT_DATA;
-            }
-            
-            let cb = &mut *(closure as *mut F);
-            let crt: &mut Certificate = UnsafeFrom::from(crt).expect("valid certificate");
-            
-            let mut verify_error = match VerifyError::from_bits(*flags) {
-                Some(ve) => ve,
-                // This can only happen if mbedtls is setting flags in VerifyError that are
-                // missing from our definition.
-                None => return ::mbedtls_sys::ERR_X509_BAD_INPUT_DATA,
-            };
-            
-            let res = cb(crt, depth, &mut verify_error);
-            *flags = verify_error.bits();
-            match res {
-                Ok(()) => 0,
-                Err(e) => e.to_int(),
-            }
-        }
-
-        
         self.verify_callback = Some(Arc::new(cb));
-        unsafe { ssl_conf_verify(self.into(), Some(verify_callback::<F>), &**self.verify_callback.as_mut().unwrap() as *const _ as *mut c_void) }
+        unsafe { ssl_conf_verify(self.into(), Some(x509::verify_callback::<F>), &**self.verify_callback.as_mut().unwrap() as *const _ as *mut c_void) }
     }
 
     pub fn set_ca_callback<F>(&mut self, cb: F)

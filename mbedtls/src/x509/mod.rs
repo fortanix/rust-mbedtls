@@ -17,6 +17,8 @@ pub mod profile;
 // write_crt
 // write_csr
 
+use crate::error::Error;
+use crate::private::UnsafeFrom;
 #[doc(inline)]
 pub use self::certificate::Certificate;
 pub use self::crl::Crl;
@@ -26,7 +28,7 @@ pub use self::csr::Csr;
 pub use self::profile::Profile;
 
 use mbedtls_sys::*;
-use mbedtls_sys::types::raw_types::c_uint;
+use mbedtls_sys::types::raw_types::{c_int, c_uint, c_void};
 bitflags! {
     pub struct KeyUsage: c_uint {
         const DIGITAL_SIGNATURE  = X509_KU_DIGITAL_SIGNATURE as c_uint;
@@ -114,6 +116,39 @@ impl VerifyError {
             CRL_NOT_TRUSTED    -> "The CRL is not correctly signed by the trusted CA.",
         }
         v
+    }
+}
+
+callback!(VerifyCallback: Fn(&Certificate, i32, &mut VerifyError) -> Result<(), Error>);
+
+pub(crate) unsafe extern "C" fn verify_callback<F>(
+    closure: *mut c_void,
+    crt: *mut x509_crt,
+    depth: c_int,
+    flags: *mut u32,
+) -> c_int
+where
+    F: VerifyCallback + 'static,
+{
+    if crt.is_null() || closure.is_null() || flags.is_null() {
+        return ::mbedtls_sys::ERR_X509_BAD_INPUT_DATA;
+    }
+
+    let cb = &mut *(closure as *mut F);
+    let crt: &mut Certificate = UnsafeFrom::from(crt).expect("valid certificate");
+
+    let mut verify_error = match VerifyError::from_bits(*flags) {
+        Some(ve) => ve,
+        // This can only happen if mbedtls is setting flags in VerifyError that are
+        // missing from our definition.
+        None => return ::mbedtls_sys::ERR_X509_BAD_INPUT_DATA,
+    };
+
+    let res = cb(crt, depth, &mut verify_error);
+    *flags = verify_error.bits();
+    match res {
+        Ok(()) => 0,
+        Err(e) => e.to_int(),
     }
 }
 
