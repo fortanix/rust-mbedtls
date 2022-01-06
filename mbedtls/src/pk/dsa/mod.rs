@@ -149,13 +149,17 @@ impl DsaPublicKey {
             })
         }).map_err(|_| Error::X509InvalidSignature)?;
 
-        let r = Mpi::from_binary(&r.to_bytes_be()).expect("Success");
-        let s = Mpi::from_binary(&s.to_bytes_be()).expect("Success");
-
-        self.verify_signature(&r, &s, pre_hashed_message)
+        self.verify_signature(&r.to_bytes_be(), &s.to_bytes_be(), pre_hashed_message)
     }
 
-    fn verify_signature(&self, r: &Mpi, s: &Mpi, pre_hashed_message: &[u8]) -> Result<()> {
+    pub fn verify_signature(&self, r: &[u8], s: &[u8], pre_hashed_message: &[u8]) -> Result<()> {
+        let r = Mpi::from_binary(r).map_err(|_| Error::X509InvalidSignature)?;
+        let s = Mpi::from_binary(s).map_err(|_| Error::X509InvalidSignature)?;
+
+        self.verify_signature_ex(&r, &s, pre_hashed_message)
+    }
+
+    fn verify_signature_ex(&self, r: &Mpi, s: &Mpi, pre_hashed_message: &[u8]) -> Result<()> {
         let zero = Mpi::new(0)?;
 
         if r <= &zero || s <= &zero {
