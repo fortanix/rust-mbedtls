@@ -340,7 +340,7 @@ impl Config {
         F: VerifyCallback + 'static,
     {
         self.verify_callback = Some(Arc::new(cb));
-        unsafe { ssl_conf_verify(self.into(), Some(x509::verify_callback::<F>), &**self.verify_callback.as_mut().unwrap() as *const _ as *mut c_void) }
+        unsafe { ssl_conf_verify(self.into(), Some(x509::verify_callback::<F>), &**self.verify_callback.as_ref().unwrap() as *const _ as *mut c_void) }
     }
 
     pub fn set_ca_callback<F>(&mut self, cb: F)
