@@ -134,7 +134,7 @@ where
         return ::mbedtls_sys::ERR_X509_BAD_INPUT_DATA;
     }
 
-    let cb = &mut *(closure as *mut F);
+    let cb = &*(closure as *const F);
     let crt: &mut Certificate = UnsafeFrom::from(crt).expect("valid certificate");
 
     let mut verify_error = match VerifyError::from_bits(*flags) {

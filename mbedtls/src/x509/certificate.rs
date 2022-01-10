@@ -225,12 +225,12 @@ impl Certificate {
         chain: &MbedtlsList<Certificate>,
         trust_ca: &MbedtlsList<Certificate>,
         err_info: Option<&mut String>,
-        mut cb: Option<F>,
+        cb: Option<F>,
     ) -> Result<()>
     where
         F: VerifyCallback + 'static,
     {
-        let (f_vrfy, p_vrfy): (Option<unsafe extern "C" fn(_, _, _, _) -> _>, _) = if let Some(cb) = cb.as_mut() {
+        let (f_vrfy, p_vrfy): (Option<unsafe extern "C" fn(_, _, _, _) -> _>, _) = if let Some(cb) = cb.as_ref() {
             (Some(x509::verify_callback::<F>),
             cb as *const _ as *mut c_void)
         } else {
