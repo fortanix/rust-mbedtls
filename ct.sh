@@ -11,7 +11,7 @@ fi
 
 if [ "$TARGET" == "aarch64-unknown-linux-musl" ]; then
   wget https://more.musl.cc/10-20210301/x86_64-linux-musl/aarch64-linux-musl-cross.tgz -O /tmp/aarch64-linux-musl-cross.tgz
-  sha1sum -c ../aarch64-linux-musl-cross.tgz.sha1sum
+  echo "c8ee0e7fd58f5ec6811e3cec5fcdd8fc47cb2b49fb50e9d7717696ddb69c812547b5f389558f62dfbf9db7d6ad808a5a515cc466b8ea3e9ab3daeb20ba1adf33  /tmp/aarch64-linux-musl-cross.tgz" | sha512sum -c
   tar -xf /tmp/aarch64-linux-musl-cross.tgz -C /tmp;
 fi
 
