@@ -10,9 +10,9 @@ if [ -z $TRAVIS_RUST_VERSION ]; then
 fi
 
 if [ "$TARGET" == "aarch64-unknown-linux-musl" ]; then
-  pushd /tmp && wget https://musl.cc/aarch64-linux-musl-cross.tgz;
-  tar -xzf aarch64-linux-musl-cross.tgz;
-  popd;
+  wget https://more.musl.cc/10-20210301/x86_64-linux-musl/aarch64-linux-musl-cross.tgz -O /tmp/aarch64-linux-musl-cross.tgz
+  sha1sum -c ../aarch64-linux-musl-cross.tgz.sha1sum
+  tar -xf /tmp/aarch64-linux-musl-cross.tgz -C /tmp;
 fi
 
 export CFLAGS_x86_64_fortanix_unknown_sgx="-isystem/usr/include/x86_64-linux-gnu -mlvi-hardening -mllvm -x86-experimental-lvi-inline-asm-hardening"
