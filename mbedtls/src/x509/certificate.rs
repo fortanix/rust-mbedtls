@@ -11,7 +11,7 @@ use core::iter::FromIterator;
 use core::ptr::NonNull;
 
 use mbedtls_sys::*;
-use mbedtls_sys::types::raw_types::c_char;
+use mbedtls_sys::types::raw_types::{c_char, c_void};
 
 use crate::alloc::{List as MbedtlsList, Box as MbedtlsBox};
 #[cfg(not(feature = "std"))]
@@ -21,7 +21,7 @@ use crate::hash::Type as MdType;
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
 use crate::rng::Random;
-use crate::x509::Time;
+use crate::x509::{self, Time, VerifyCallback};
 
 extern "C" {
     pub(crate) fn forward_mbedtls_calloc(n: mbedtls_sys::types::size_t, size: mbedtls_sys::types::size_t) -> *mut mbedtls_sys::types::raw_types::c_void;
@@ -221,11 +221,21 @@ impl Certificate {
         MdType::from(self.inner.sig_md)
     }
 
-    pub fn verify(
+    fn verify_ex<F>(
         chain: &MbedtlsList<Certificate>,
         trust_ca: &MbedtlsList<Certificate>,
         err_info: Option<&mut String>,
-    ) -> Result<()> {
+        cb: Option<F>,
+    ) -> Result<()>
+    where
+        F: VerifyCallback + 'static,
+    {
+        let (f_vrfy, p_vrfy): (Option<unsafe extern "C" fn(_, _, _, _) -> _>, _) = if let Some(cb) = cb.as_ref() {
+            (Some(x509::verify_callback::<F>),
+            cb as *const _ as *mut c_void)
+        } else {
+            (None, ::core::ptr::null_mut())
+        };
         let mut flags = 0;
         let result = unsafe {
             x509_crt_verify(
@@ -234,8 +244,8 @@ impl Certificate {
                 ::core::ptr::null_mut(),
                 ::core::ptr::null(),
                 &mut flags,
-                None,
-                ::core::ptr::null_mut(),
+                f_vrfy,
+                p_vrfy,
             )
         }
         .into_result();
@@ -252,6 +262,26 @@ impl Certificate {
             }
         }
         result.map(|_| ())
+    }
+
+    pub fn verify(
+        chain: &MbedtlsList<Certificate>,
+        trust_ca: &MbedtlsList<Certificate>,
+        err_info: Option<&mut String>,
+    ) -> Result<()> {
+        Self::verify_ex(chain, trust_ca, err_info, None::<&dyn VerifyCallback>)
+    }
+
+    pub fn verify_with_callback<F>(
+        chain: &MbedtlsList<Certificate>,
+        trust_ca: &MbedtlsList<Certificate>,
+        err_info: Option<&mut String>,
+        cb: F,
+    ) -> Result<()>
+    where
+        F: VerifyCallback + 'static,
+    {
+        Self::verify_ex(chain, trust_ca, err_info, Some(cb))
     }
 }
 
@@ -719,10 +749,10 @@ impl Extend<MbedtlsBox::<Certificate>> for MbedtlsList<Certificate> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::x509::VerifyError;
 
     struct Test {
         key1: Pk,
@@ -995,7 +1025,22 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
             // try again after fixing the chain
             chain.push(c_int2.clone());
+
+
+            let mut err_str = String::new();
+
+            let verify_callback = |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
+                verify_flags.remove(VerifyError::CERT_EXPIRED);
+                Ok(())
+            };
+
             Certificate::verify(&chain, &mut c_root, None).unwrap();
+            let res = Certificate::verify_with_callback(&chain, &mut c_root, Some(&mut err_str), verify_callback);
+
+            match res {
+                Ok(()) => (),
+                Err(e) => assert!(false, "Failed to verify, error: {}, err_str: {}", e, err_str),
+            };
         }
 
         {
@@ -1005,6 +1050,19 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             chain.push(c_int2.clone());
 
             Certificate::verify(&chain, &mut c_root, None).unwrap();
+
+            let verify_callback = |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
+                verify_flags.remove(VerifyError::CERT_EXPIRED);
+                Ok(())
+            };
+
+            let mut err_str = String::new();
+            let res = Certificate::verify_with_callback(&chain, &mut c_root, Some(&mut err_str), verify_callback);
+
+            match res {
+                Ok(()) => (),
+                Err(e) => assert!(false, "Failed to verify, error: {}, err_str: {}", e, err_str),
+            };
         }
     }
 
