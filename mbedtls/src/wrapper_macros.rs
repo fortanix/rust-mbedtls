@@ -301,69 +301,11 @@ macro_rules! getter {
 
 #[cfg(test)]
 mod tests {
-    #[allow(dead_code)]
-    /// Utilities for testing whether types implement certain traits.
-    ///
-    /// For each trait `Trait` that you want to be able to test, you should
-    /// implement:
-    /// ```ignore
-    /// impl<T: “Trait”> Testable<dyn “Trait”> for T {}
-    /// ```
-    ///
-    /// Then, to test whether a type `Type` implements `Trait`, call:
-    /// ```ignore
-    /// TestTrait::<dyn “Trait”, “Type”>::new().impls_trait()
-    /// ```
-    /// This returns a `bool` indicating whether the trait is implemented. 
-    // This relies on auto-deref to distinguish between types that do and don't
-    // implement the trait.
-    mod testtrait {
-        use core::marker::PhantomData;
-
-        pub struct NonImplTrait<T> {
-            inner: PhantomData<T>
-        }
-
-        pub struct TestTrait<TraitObj: ?Sized, Type> {
-            non_impl: NonImplTrait<Type>,
-            phantom: PhantomData<*const TraitObj>,
-        }
-
-        pub trait Testable<T: ?Sized> {}
-
-        impl<TraitObj: ?Sized, Type> TestTrait<TraitObj, Type> {
-            pub fn new() -> Self {
-                TestTrait { non_impl: NonImplTrait { inner: PhantomData }, phantom: PhantomData }
-            }
-        }
-        
-        impl<TraitObj: ?Sized, Type: Testable<TraitObj>> TestTrait<TraitObj, Type> {
-            pub fn impls_trait(&self) -> bool {
-                true
-            }
-        }
-
-        impl<T> NonImplTrait<T> {
-            pub fn impls_trait(&self) -> bool {
-                false
-            }
-        }
-
-        impl<TraitObj: ?Sized, Type> core::ops::Deref for TestTrait<TraitObj, Type> {
-            type Target = NonImplTrait<Type>;
-            
-            fn deref(&self) -> &NonImplTrait<Type> {
-                &self.non_impl
-            }
-        }
-    }
-    
-    use testtrait::{TestTrait, Testable};
+    use crate::tests::{TestTrait, Testable};
 
     callback!(RustTest: Fn() -> ());
     callback!(NativeTestMut,NativeTest() -> ());
 
-    impl<T: Send + Sync> Testable<dyn Send + Sync> for T {}
     impl<T: RustTest> Testable<dyn RustTest> for T {}
     impl<T: NativeTest> Testable<dyn NativeTest> for T {}
     impl<T: NativeTestMut> Testable<dyn NativeTestMut> for T {}

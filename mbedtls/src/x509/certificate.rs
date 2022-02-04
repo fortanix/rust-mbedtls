@@ -67,6 +67,8 @@ define!(
     impl<'a> UnsafeFrom<ptr> {}
 );
 
+unsafe impl Sync for Certificate {}
+
 fn x509_buf_to_vec(buf: &x509_buf) -> Vec<u8> {
     if buf.p.is_null() || buf.len == 0 {
         return vec![];
@@ -494,10 +496,6 @@ impl<'a> Builder<'a> {
 // x509write_crt_set_subject_key_identifier
 //
 
-unsafe impl Send for MbedtlsBox<Certificate> {}
-
-unsafe impl Sync for MbedtlsBox<Certificate> {}
-
 impl MbedtlsBox<Certificate> {
     fn init() -> Result<Self> {
         unsafe {
@@ -555,10 +553,6 @@ impl<'a> UnsafeFrom<*mut *mut x509_crt> for &'a mut Option<MbedtlsBox<Certificat
         (ptr as *mut Option<MbedtlsBox<Certificate>>).as_mut()
     }
 }
-
-unsafe impl Send for MbedtlsList<Certificate> {}
-
-unsafe impl Sync for MbedtlsList<Certificate> {}
 
 impl MbedtlsList<Certificate> {
     pub fn new() -> Self {
@@ -1438,5 +1432,15 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
         let cert : &mut Certificate = unsafe { UnsafeFrom::from(ptr).unwrap() };
         assert_eq!(c1_info, format!("{:?}", cert));
+    }
+
+    #[test]
+    fn cert_send_sync() {
+        assert!(crate::tests::TestTrait::<dyn Send, Certificate>::new().impls_trait(), "Certificate should be Send");
+        assert!(crate::tests::TestTrait::<dyn Send, MbedtlsBox<Certificate>>::new().impls_trait(), "MbedtlsBox<Certificate> should be Send");
+        assert!(crate::tests::TestTrait::<dyn Send, MbedtlsList<Certificate>>::new().impls_trait(), "MbedtlsList<Certificate> should be Send");
+        assert!(crate::tests::TestTrait::<dyn Sync, Certificate>::new().impls_trait(), "Certificate should be Sync");
+        assert!(crate::tests::TestTrait::<dyn Sync, MbedtlsBox<Certificate>>::new().impls_trait(), "MbedtlsBox<Certificate> should be Sync");
+        assert!(crate::tests::TestTrait::<dyn Sync, MbedtlsList<Certificate>>::new().impls_trait(), "MbedtlsList<Certificate> should be Sync");
     }
 }

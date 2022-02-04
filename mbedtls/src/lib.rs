@@ -158,3 +158,69 @@ cfg_if::cfg_if! {
 pub unsafe fn set_global_debug_threshold(threshold: i32) {
     mbedtls_sys::debug_set_threshold(threshold);
 }
+
+#[cfg(test)]
+mod tests {
+    #[allow(dead_code)]
+    /// Utilities for testing whether types implement certain traits.
+    ///
+    /// For each trait `Trait` that you want to be able to test, you should
+    /// implement:
+    /// ```ignore
+    /// impl<T: “Trait”> Testable<dyn “Trait”> for T {}
+    /// ```
+    ///
+    /// Then, to test whether a type `Type` implements `Trait`, call:
+    /// ```ignore
+    /// TestTrait::<dyn “Trait”, “Type”>::new().impls_trait()
+    /// ```
+    /// This returns a `bool` indicating whether the trait is implemented.
+    // This relies on auto-deref to distinguish between types that do and don't
+    // implement the trait.
+    mod testtrait {
+        use core::marker::PhantomData;
+
+        pub struct NonImplTrait<T> {
+            inner: PhantomData<T>
+        }
+
+        pub struct TestTrait<TraitObj: ?Sized, Type> {
+            non_impl: NonImplTrait<Type>,
+            phantom: PhantomData<*const TraitObj>,
+        }
+
+        pub trait Testable<T: ?Sized> {}
+
+        impl<TraitObj: ?Sized, Type> TestTrait<TraitObj, Type> {
+            pub fn new() -> Self {
+                TestTrait { non_impl: NonImplTrait { inner: PhantomData }, phantom: PhantomData }
+            }
+        }
+
+        impl<TraitObj: ?Sized, Type: Testable<TraitObj>> TestTrait<TraitObj, Type> {
+            pub fn impls_trait(&self) -> bool {
+                true
+            }
+        }
+
+        impl<T> NonImplTrait<T> {
+            pub fn impls_trait(&self) -> bool {
+                false
+            }
+        }
+
+        impl<TraitObj: ?Sized, Type> core::ops::Deref for TestTrait<TraitObj, Type> {
+            type Target = NonImplTrait<Type>;
+
+            fn deref(&self) -> &NonImplTrait<Type> {
+                &self.non_impl
+            }
+        }
+    }
+
+    pub use testtrait::{TestTrait, Testable};
+
+    impl<T: Send> Testable<dyn Send> for T {}
+    impl<T: Sync> Testable<dyn Sync> for T {}
+    impl<T: Send + Sync> Testable<dyn Send + Sync> for T {}
+}
