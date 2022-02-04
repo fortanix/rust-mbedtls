@@ -163,7 +163,7 @@ define!(
 // B. Verifying thread safety.
 //
 // 1. Calls towards the specific Pk implementation are done via function pointers.
-//
+// 
 // - Example call towards Pk:
 //    ../../../mbedtls-sys/vendor/library/ssl_srv.c:3707 - mbedtls_pk_decrypt( private_key, p, len, ...
 // - This calls a generic function pointer via:
@@ -174,7 +174,7 @@ define!(
 // - The function pointers are defined via function:
 //      ../../../mbedtls-sys/vendor/crypto/library/pk.c:115 - mbedtls_pk_info_from_type
 // - They are as follows: mbedtls_rsa_info / mbedtls_eckey_info / mbedtls_ecdsa_info
-// - These are defined in:
+// - These are defined in: 
 //       ../../../mbedtls-sys/vendor/crypto/library/pk_wrap.c:196
 //
 // C. Checking types one by one.
@@ -222,7 +222,7 @@ define!(
 //                    mbedtls_ecp_mul_restartable: ../../../mbedtls-sys/vendor/crypto/library/ecp.c:2351
 //                        MBEDTLS_ECP_INTERNAL_ALT is not defined. (otherwise it might not be safe depending on ecp_init/ecp_free) ../../../mbedtls-sys/build/config.rs:131
 //                        Passes as const to: mbedtls_ecp_check_privkey / mbedtls_ecp_check_pubkey / mbedtls_ecp_get_type( grp
-//
+//        
 // - Ignored due to not defined: ecdsa_verify_rs_wrap, ecdsa_sign_rs_wrap, ecdsa_rs_alloc, ecdsa_rs_free
 //   (Undefined - MBEDTLS_ECP_RESTARTABLE - ../../../mbedtls-sys/build/config.rs:173)
 //
@@ -1042,7 +1042,6 @@ mod tests {
     use super::*;
     use crate::hash::{Type, MdInfo};
     use crate::pk::Type as PkType;
-    use rand::Rng;
 
     // This is test data that must match library output *exactly*
     const TEST_PEM: &'static str = "-----BEGIN RSA PRIVATE KEY-----
@@ -1243,6 +1242,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
     fn rsa_sign_verify_pkcs1v15() {
         let mut pk =
             Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
+        let data = b"SIGNATURE TEST SIGNATURE TEST SIGNATURE TEST SIGNATURE TEST SIGN";
         let mut signature = vec![0u8; (pk.len() + 7) / 8];
 
         let digests = [
@@ -1258,36 +1258,22 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             Type::Ripemd,
         ];
 
-        for digest in &digests {
-            let digest = *digest;
-
-            let hash_len = if let Type::None = digest {
-                // signing raw data, can be of random len but can't be 0
-                rand::thread_rng().gen_range(1, 64)
+        for &digest in &digests {
+            let data = if let Some(md @ MdInfo { .. }) = digest.into() {
+                &data[..md.size()]
             } else {
-                // mbedtls_pk_sign() and mbedtls_pk_verify() and their extended and
-                // restartable variants now require at least the specified hash length if
-                // nonzero. Before, for RSA, hash_len was ignored in favor of the length of
-                // the specified hash algorithm.
-                Into::<Option<MdInfo>>::into(digest)
-                .expect(&format!("Failed to convert {:?} to MdInfo", digest))
-                .size()
+                &data[..]
             };
-
-            let data = rand::thread_rng()
-                .gen_iter::<u8>()
-                .take(hash_len)
-                .collect::<Vec<_>>();
 
             let len = pk
                 .sign(
                     digest,
-                    &data,
+                    data,
                     &mut signature,
                     &mut crate::test_support::rand::test_rng(),
                 )
                 .unwrap();
-            pk.verify(digest, &data, &signature[0..len]).unwrap();
+            pk.verify(digest, data, &signature[0..len]).unwrap();
         }
     }
 
@@ -1295,6 +1281,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
     fn rsa_sign_verify_pss() {
         let mut pk =
             Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
+        let data = b"SIGNATURE TEST SIGNATURE TEST SIGNATURE TEST SIGNATURE TEST SIGN";
         let mut signature = vec![0u8; (pk.len() + 7) / 8];
 
         let digests = [
@@ -1310,26 +1297,12 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             Type::Ripemd,
         ];
 
-        for digest in &digests {
-            let digest = *digest;
-
-            let hash_len = if let Type::None = digest {
-                // signing raw data, can be of random len but can't be 0
-                rand::thread_rng().gen_range(1, 64)
+        for &digest in &digests {
+            let data = if let Some(md @ MdInfo { .. }) = digest.into() {
+                &data[..md.size()]
             } else {
-                // mbedtls_pk_sign() and mbedtls_pk_verify() and their extended and
-                // restartable variants now require at least the specified hash length if
-                // nonzero. Before, for RSA, hash_len was ignored in favor of the length of
-                // the specified hash algorithm.
-                Into::<Option<MdInfo>>::into(digest)
-                    .expect(&format!("Failed to convert {:?} to MdInfo", digest))
-                    .size()
+                &data[..]
             };
-
-            let data = rand::thread_rng()
-                .gen_iter::<u8>()
-                .take(hash_len)
-                .collect::<Vec<_>>();
 
             pk.set_options(Options::Rsa {
                 padding: RsaPadding::Pkcs1V21 { mgf: digest },
@@ -1339,7 +1312,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
                 assert!(pk
                     .sign(
                         digest,
-                        &data,
+                        data,
                         &mut signature,
                         &mut crate::test_support::rand::test_rng()
                     )
@@ -1348,12 +1321,12 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
                 let len = pk
                     .sign(
                         digest,
-                        &data,
+                        data,
                         &mut signature,
                         &mut crate::test_support::rand::test_rng(),
                     )
                     .unwrap();
-                pk.verify(digest, &data, &signature[0..len]).unwrap();
+                pk.verify(digest, data, &signature[0..len]).unwrap();
             }
         }
     }
