@@ -290,13 +290,12 @@ impl Cipher<Encryption, Authenticated, AdditionalData> {
     pub fn encrypt_auth_inplace(
         mut self,
         ad: &[u8],
-        data_and_tag: &mut [u8],
-        input_len: usize,
-        tag_len: usize,
+        data: &mut [u8],
+        tag: &mut [u8],
     ) -> Result<(usize, Cipher<Encryption, Authenticated, Finished>)> {
         Ok((
             self.raw_cipher
-                .encrypt_auth_inplace(ad, data_and_tag, input_len, tag_len)?,
+                .encrypt_auth_inplace(ad, data, tag)?,
             self.change_state(),
         ))
     }
@@ -320,12 +319,12 @@ impl Cipher<Decryption, Authenticated, AdditionalData> {
     pub fn decrypt_auth_inplace(
         mut self,
         ad: &[u8],
-        cipher_text_and_tag: &mut [u8],
-        tag_len: usize,
+        data: &mut [u8],
+        tag: &[u8],
     ) -> Result<(usize, Cipher<Decryption, Authenticated, Finished>)> {
         Ok((
             self.raw_cipher
-                .decrypt_auth_inplace(ad, cipher_text_and_tag, tag_len)?,
+                .decrypt_auth_inplace(ad, data, tag)?,
             self.change_state(),
         ))
     }
@@ -448,8 +447,9 @@ fn ccm_inplace() {
     )
     .unwrap();
     let cipher = cipher.set_key_iv(&k, &iv).unwrap();
+    let (data, tag) = c.split_at_mut(4);
     cipher
-        .encrypt_auth_inplace(&ad, &mut c, 4, 4)
+        .encrypt_auth_inplace(&ad, data, tag)
         .unwrap();
     assert_eq!(c, validate_cipher);
 
@@ -460,8 +460,9 @@ fn ccm_inplace() {
     )
     .unwrap();
     let cipher = cipher.set_key_iv(&k, &iv).unwrap();
-    cipher.decrypt_auth_inplace(&ad, &mut c, 4).unwrap();
-    assert_eq!(validate_plain, c[0..4]);
+    let (data, tag) = c.split_at_mut(4);
+    cipher.decrypt_auth_inplace(&ad, data, tag).unwrap();
+    assert_eq!(validate_plain, data);
 }
 
 #[test]

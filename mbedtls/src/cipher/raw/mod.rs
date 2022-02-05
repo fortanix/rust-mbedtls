@@ -390,62 +390,56 @@ impl Cipher {
     pub fn encrypt_auth_inplace(
         &mut self,
         ad: &[u8],
-        data_and_tag: &mut [u8],
-        input_len: usize,
-        tag_len: usize,
+        data: &mut [u8],
+        tag: &mut [u8],
     ) -> Result<usize> {
-        if data_and_tag.len()
-            .checked_sub(tag_len)
-            .map_or(true, |cipher_len| cipher_len < input_len) {
-            return Err(Error::CipherBadInputData);
-        }
 
         let iv = self.inner.iv;
         let iv_len = self.inner.iv_size;
-        let mut data_and_tag_len = data_and_tag.len();
+        let mut olen = data.len();
         unsafe {
-            cipher_auth_encrypt_ext(
+            cipher_auth_encrypt(
                 &mut self.inner,
                 iv.as_ptr(),
                 iv_len,
                 ad.as_ptr(),
                 ad.len(),
-                data_and_tag.as_ptr(),
-                input_len,
-                data_and_tag.as_mut_ptr(),
-                data_and_tag_len,
-                &mut data_and_tag_len,
-                tag_len,
+                data.as_ptr(),
+                data.len(),
+                data.as_mut_ptr(),
+                &mut olen,
+                tag.as_mut_ptr(),
+                tag.len(),
             )
             .into_result()?
         };
 
-        Ok(data_and_tag_len)
+        Ok(olen)
     }
 
     pub fn decrypt_auth_inplace(
         &mut self,
         ad: &[u8],
-        cipher_and_tag: &mut [u8],
-        tag_len: usize,
+        data: &mut [u8],
+        tag: &[u8],
     ) -> Result<usize> {
 
         let iv = self.inner.iv;
         let iv_len = self.inner.iv_size;
-        let mut plain_len = cipher_and_tag.len();
+        let mut plain_len = data.len();
         unsafe {
-            cipher_auth_decrypt_ext(
+            cipher_auth_decrypt(
                 &mut self.inner,
                 iv.as_ptr(),
                 iv_len,
                 ad.as_ptr(),
                 ad.len(),
-                cipher_and_tag.as_ptr(),
-                cipher_and_tag.len(),
-                cipher_and_tag.as_mut_ptr(),
-                plain_len,
+                data.as_ptr(),
+                data.len(),
+                data.as_mut_ptr(),
                 &mut plain_len,
-                tag_len,
+                tag.as_ptr(),
+                tag.len(),
             )
             .into_result()?
         };
