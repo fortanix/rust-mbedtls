@@ -58,8 +58,10 @@ impl<T> Drop for Box<T> {
     }
 }
 
+unsafe impl<T: Send> Send for Box<T> {}
+unsafe impl<T: Sync> Sync for Box<T> {}
+
 #[repr(transparent)]
 pub struct List<T> {
     pub(crate) inner: Option<Box<T>>
 }
-
