@@ -286,6 +286,19 @@ impl Cipher<Encryption, Authenticated, AdditionalData> {
             self.change_state(),
         ))
     }
+
+    pub fn encrypt_auth_inplace(
+        mut self,
+        ad: &[u8],
+        data: &mut [u8],
+        tag: &mut [u8],
+    ) -> Result<(usize, Cipher<Encryption, Authenticated, Finished>)> {
+        Ok((
+            self.raw_cipher
+                .encrypt_auth_inplace(ad, data, tag)?,
+            self.change_state(),
+        ))
+    }
 }
 
 impl Cipher<Decryption, Authenticated, AdditionalData> {
@@ -299,6 +312,19 @@ impl Cipher<Decryption, Authenticated, AdditionalData> {
         Ok((
             self.raw_cipher
                 .decrypt_auth(ad, cipher_text_and_tag, plain_text, tag_len)?,
+            self.change_state(),
+        ))
+    }
+
+    pub fn decrypt_auth_inplace(
+        mut self,
+        ad: &[u8],
+        data: &mut [u8],
+        tag: &[u8],
+    ) -> Result<(usize, Cipher<Decryption, Authenticated, Finished>)> {
+        Ok((
+            self.raw_cipher
+                .decrypt_auth_inplace(ad, data, tag)?,
             self.change_state(),
         ))
     }
@@ -399,6 +425,44 @@ fn ccm() {
     let cipher = cipher.set_key_iv(&k, &iv).unwrap();
     cipher.decrypt_auth(&ad, &c_out, &mut p_out, 4).unwrap();
     assert_eq!(p, p_out);
+}
+
+#[test]
+fn ccm_inplace() {
+    // Example vector C.1
+    let k = [
+        0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e,
+        0x4f,
+    ];
+    let iv = [0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16];
+    let ad = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07];
+    let mut c = [0x20, 0x21, 0x22, 0x23, 0x0, 0x0, 0x0, 0x0];
+    let validate_cipher = [0x71, 0x62, 0x01, 0x5b, 0x4d, 0xac, 0x25, 0x5d];
+    let validate_plain = [0x20, 0x21, 0x22, 0x23];
+
+    let cipher = Cipher::<_, Authenticated, _>::new(
+        raw::CipherId::Aes,
+        raw::CipherMode::CCM,
+        (k.len() * 8) as _,
+    )
+    .unwrap();
+    let cipher = cipher.set_key_iv(&k, &iv).unwrap();
+    let (data, tag) = c.split_at_mut(4);
+    cipher
+        .encrypt_auth_inplace(&ad, data, tag)
+        .unwrap();
+    assert_eq!(c, validate_cipher);
+
+    let cipher = Cipher::<_, Authenticated, _>::new(
+        raw::CipherId::Aes,
+        raw::CipherMode::CCM,
+        (k.len() * 8) as _,
+    )
+    .unwrap();
+    let cipher = cipher.set_key_iv(&k, &iv).unwrap();
+    let (data, tag) = c.split_at_mut(4);
+    cipher.decrypt_auth_inplace(&ad, data, tag).unwrap();
+    assert_eq!(validate_plain, data);
 }
 
 #[test]
