@@ -146,7 +146,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_AES_ROM_TABLES",                            Undefined),
     ("MBEDTLS_AES_FEWER_TABLES",                          Undefined),
     ("MBEDTLS_CAMELLIA_SMALL_MEMORY",                     Undefined),
-    ("MBEDTLS_CHECK_RETURN_WARNING",                      Undefined),
+    ("MBEDTLS_CHECK_RETURN_WARNING",                      Defined),
     ("MBEDTLS_CIPHER_MODE_CBC",                           Defined),
     ("MBEDTLS_CIPHER_MODE_CFB",                           Defined),
     ("MBEDTLS_CIPHER_MODE_CTR",                           Defined),
