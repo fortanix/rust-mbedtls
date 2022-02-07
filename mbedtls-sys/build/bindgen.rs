@@ -117,6 +117,7 @@ impl super::BuildConfig {
         }
 
         let bindings = bindgen::builder()
+            .enable_function_attribute_detection()
             .clang_args(cc.get_compiler().args().iter().map(|arg| arg.to_str().unwrap()))
             .header_contents("bindgen-input.h", &input)
             .allowlist_function("^(?i)mbedtls_.*")

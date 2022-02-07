@@ -55,9 +55,8 @@
 #endif
 #endif /* _WIN32 */
 
-#if defined(TARGET_LIKE_MBED) && \
-    ( defined(MBEDTLS_NET_C) || defined(MBEDTLS_TIMING_C) )
-#error "The NET and TIMING modules are not available for mbed OS - please use the network and timing functions provided by mbed OS"
+#if defined(TARGET_LIKE_MBED) && defined(MBEDTLS_NET_C)
+#error "The NET module is not available for mbed OS - please use the network functions provided by Mbed OS"
 #endif
 
 #if defined(MBEDTLS_DEPRECATED_WARNING) && \
@@ -504,10 +503,6 @@
 #if defined(MBEDTLS_PLATFORM_STD_MEM_HDR) &&\
     !defined(MBEDTLS_PLATFORM_NO_STD_FUNCTIONS)
 #error "MBEDTLS_PLATFORM_STD_MEM_HDR defined, but not all prerequisites"
-#endif
-
-#if defined(MBEDTLS_PLATFORM_STD_CALLOC) && !defined(MBEDTLS_PLATFORM_MEMORY)
-#error "MBEDTLS_PLATFORM_STD_CALLOC defined, but not all prerequisites"
 #endif
 
 #if defined(MBEDTLS_PLATFORM_STD_CALLOC) && !defined(MBEDTLS_PLATFORM_MEMORY)

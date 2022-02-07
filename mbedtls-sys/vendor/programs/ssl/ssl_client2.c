@@ -19,6 +19,10 @@
 
 #include "ssl_test_lib.h"
 
+#if defined(MBEDTLS_USE_PSA_CRYPTO)
+#include "test/psa_crypto_helpers.h"
+#endif
+
 #if defined(MBEDTLS_SSL_TEST_IMPOSSIBLE)
 int main( void )
 {
@@ -422,9 +426,9 @@ int main( void )
     "    arc4=%%d             default: (library default: 0)\n" \
     "    allow_sha1=%%d       default: 0\n"                             \
     "    min_version=%%s      default: (library default: tls1)\n"       \
-    "    max_version=%%s      default: (library default: tls1_2)\n"     \
+    "    max_version=%%s      default: (library default: tls12)\n"      \
     "    force_version=%%s    default: \"\" (none)\n"       \
-    "                        options: ssl3, tls1, tls1_1, tls1_2, dtls1, dtls1_2\n" \
+    "                        options: ssl3, tls1, tls1_1, tls12, dtls1, dtls12\n" \
     "\n"                                                    \
     "    force_ciphersuite=<name>    default: all enabled\n"\
     "    query_config=<name>         return 0 if the specified\n"       \
@@ -1103,8 +1107,8 @@ int main( int argc, char *argv[] )
             else if( strcmp( q, "tls1_1" ) == 0 ||
                      strcmp( q, "dtls1" ) == 0 )
                 opt.min_version = MBEDTLS_SSL_MINOR_VERSION_2;
-            else if( strcmp( q, "tls1_2" ) == 0 ||
-                     strcmp( q, "dtls1_2" ) == 0 )
+            else if( strcmp( q, "tls12" ) == 0 ||
+                     strcmp( q, "dtls12" ) == 0 )
                 opt.min_version = MBEDTLS_SSL_MINOR_VERSION_3;
             else
                 goto usage;
@@ -1118,8 +1122,8 @@ int main( int argc, char *argv[] )
             else if( strcmp( q, "tls1_1" ) == 0 ||
                      strcmp( q, "dtls1" ) == 0 )
                 opt.max_version = MBEDTLS_SSL_MINOR_VERSION_2;
-            else if( strcmp( q, "tls1_2" ) == 0 ||
-                     strcmp( q, "dtls1_2" ) == 0 )
+            else if( strcmp( q, "tls12" ) == 0 ||
+                     strcmp( q, "dtls12" ) == 0 )
                 opt.max_version = MBEDTLS_SSL_MINOR_VERSION_3;
             else
                 goto usage;
@@ -1159,7 +1163,7 @@ int main( int argc, char *argv[] )
                 opt.min_version = MBEDTLS_SSL_MINOR_VERSION_2;
                 opt.max_version = MBEDTLS_SSL_MINOR_VERSION_2;
             }
-            else if( strcmp( q, "tls1_2" ) == 0 )
+            else if( strcmp( q, "tls12" ) == 0 )
             {
                 opt.min_version = MBEDTLS_SSL_MINOR_VERSION_3;
                 opt.max_version = MBEDTLS_SSL_MINOR_VERSION_3;
@@ -1170,7 +1174,7 @@ int main( int argc, char *argv[] )
                 opt.max_version = MBEDTLS_SSL_MINOR_VERSION_2;
                 opt.transport = MBEDTLS_SSL_TRANSPORT_DATAGRAM;
             }
-            else if( strcmp( q, "dtls1_2" ) == 0 )
+            else if( strcmp( q, "dtls12" ) == 0 )
             {
                 opt.min_version = MBEDTLS_SSL_MINOR_VERSION_3;
                 opt.max_version = MBEDTLS_SSL_MINOR_VERSION_3;
@@ -2997,6 +3001,19 @@ exit:
 
     mbedtls_net_free( &server_fd );
 
+    mbedtls_ssl_free( &ssl );
+    mbedtls_ssl_config_free( &conf );
+    mbedtls_ssl_session_free( &saved_session );
+
+    if( session_data != NULL )
+        mbedtls_platform_zeroize( session_data, session_data_len );
+    mbedtls_free( session_data );
+#if defined(MBEDTLS_SSL_CONTEXT_SERIALIZATION)
+    if( context_buf != NULL )
+        mbedtls_platform_zeroize( context_buf, context_buf_len );
+    mbedtls_free( context_buf );
+#endif
+
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
     mbedtls_x509_crt_free( &clicert );
     mbedtls_x509_crt_free( &cacert );
@@ -3027,22 +3044,24 @@ exit:
 #endif /* MBEDTLS_KEY_EXCHANGE_SOME_PSK_ENABLED &&
           MBEDTLS_USE_PSA_CRYPTO */
 
-    mbedtls_ssl_session_free( &saved_session );
-    mbedtls_ssl_free( &ssl );
-    mbedtls_ssl_config_free( &conf );
-    rng_free( &rng );
-    if( session_data != NULL )
-        mbedtls_platform_zeroize( session_data, session_data_len );
-    mbedtls_free( session_data );
-#if defined(MBEDTLS_SSL_CONTEXT_SERIALIZATION)
-    if( context_buf != NULL )
-        mbedtls_platform_zeroize( context_buf, context_buf_len );
-    mbedtls_free( context_buf );
-#endif
-
 #if defined(MBEDTLS_USE_PSA_CRYPTO)
+    const char* message = mbedtls_test_helper_is_psa_leaking();
+    if( message )
+    {
+        if( ret == 0 )
+            ret = 1;
+        mbedtls_printf( "PSA memory leak detected: %s\n",  message);
+    }
+#endif /* MBEDTLS_USE_PSA_CRYPTO */
+
+    /* For builds with MBEDTLS_TEST_USE_PSA_CRYPTO_RNG psa crypto
+     * resources are freed by rng_free(). */
+#if defined(MBEDTLS_USE_PSA_CRYPTO) && \
+    !defined(MBEDTLS_TEST_USE_PSA_CRYPTO_RNG)
     mbedtls_psa_crypto_free( );
 #endif
+
+    rng_free( &rng );
 
 #if defined(MBEDTLS_TEST_HOOKS)
     if( test_hooks_failure_detected( ) )

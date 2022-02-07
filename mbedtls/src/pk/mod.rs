@@ -1040,7 +1040,7 @@ impl Pk {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hash::Type;
+    use crate::hash::{Type, MdInfo};
     use crate::pk::Type as PkType;
 
     // This is test data that must match library output *exactly*
@@ -1242,7 +1242,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
     fn rsa_sign_verify_pkcs1v15() {
         let mut pk =
             Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
-        let data = b"SIGNATURE TEST SIGNATURE TEST SI";
+        let data = b"SIGNATURE TEST SIGNATURE TEST SIGNATURE TEST SIGNATURE TEST SIGN";
         let mut signature = vec![0u8; (pk.len() + 7) / 8];
 
         let digests = [
@@ -1258,16 +1258,22 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             Type::Ripemd,
         ];
 
-        for digest in &digests {
+        for &digest in &digests {
+            let data = if let Some(md @ MdInfo { .. }) = digest.into() {
+                &data[..md.size()]
+            } else {
+                &data[..]
+            };
+
             let len = pk
                 .sign(
-                    *digest,
+                    digest,
                     data,
                     &mut signature,
                     &mut crate::test_support::rand::test_rng(),
                 )
                 .unwrap();
-            pk.verify(*digest, data, &signature[0..len]).unwrap();
+            pk.verify(digest, data, &signature[0..len]).unwrap();
         }
     }
 
@@ -1275,7 +1281,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
     fn rsa_sign_verify_pss() {
         let mut pk =
             Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
-        let data = b"SIGNATURE TEST SIGNATURE TEST SI";
+        let data = b"SIGNATURE TEST SIGNATURE TEST SIGNATURE TEST SIGNATURE TEST SIGN";
         let mut signature = vec![0u8; (pk.len() + 7) / 8];
 
         let digests = [
@@ -1291,15 +1297,21 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             Type::Ripemd,
         ];
 
-        for digest in &digests {
+        for &digest in &digests {
+            let data = if let Some(md @ MdInfo { .. }) = digest.into() {
+                &data[..md.size()]
+            } else {
+                &data[..]
+            };
+
             pk.set_options(Options::Rsa {
-                padding: RsaPadding::Pkcs1V21 { mgf: *digest },
+                padding: RsaPadding::Pkcs1V21 { mgf: digest },
             });
 
-            if *digest == Type::None {
+            if digest == Type::None {
                 assert!(pk
                     .sign(
-                        *digest,
+                        digest,
                         data,
                         &mut signature,
                         &mut crate::test_support::rand::test_rng()
@@ -1308,13 +1320,13 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             } else {
                 let len = pk
                     .sign(
-                        *digest,
+                        digest,
                         data,
                         &mut signature,
                         &mut crate::test_support::rand::test_rng(),
                     )
                     .unwrap();
-                pk.verify(*digest, data, &signature[0..len]).unwrap();
+                pk.verify(digest, data, &signature[0..len]).unwrap();
             }
         }
     }
