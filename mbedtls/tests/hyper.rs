@@ -12,12 +12,12 @@ use mbedtls::ssl::{Config, Context};
 // Native TLS compatibility - to move to native tls client in the future
 #[derive(Clone)]
 pub struct TlsStream<T> {
-    context: Arc<Mutex<Context>>,
+    context: Arc<Mutex<Context<T>>>,
     phantom: PhantomData<T>,
 }
 
 impl<T> TlsStream<T> {
-    pub fn new(context: Arc<Mutex<Context>>) -> Self {
+    pub fn new(context: Arc<Mutex<Context<T>>>) -> Self {
         TlsStream {
             context: context,
             phantom: PhantomData,
@@ -28,14 +28,15 @@ impl<T> TlsStream<T> {
 unsafe impl<T> Send for TlsStream<T> {}
 unsafe impl<T> Sync for TlsStream<T> {}
 
-impl<T> io::Read for TlsStream<T>
+
+impl<T: io::Read + io::Write + 'static> io::Read for TlsStream<T>
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.context.lock().unwrap().read(buf)
     }
 }
 
-impl<T> io::Write for TlsStream<T>
+impl<T: io::Read + io::Write + 'static> io::Write for TlsStream<T>
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.context.lock().unwrap().write(buf)
@@ -52,19 +53,19 @@ impl<T> NetworkStream for TlsStream<T>
     fn peer_addr(&mut self) -> io::Result<SocketAddr> {
         self.context.lock().unwrap().io_mut()
             .ok_or(IoError::new(IoErrorKind::NotFound, "No peer available"))?
-            .downcast_mut::<T>().unwrap().peer_addr()
+            .peer_addr()
     }
     
     fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.context.lock().unwrap().io_mut()
             .ok_or(IoError::new(IoErrorKind::NotFound, "No peer available"))?
-            .downcast_mut::<T>().unwrap().set_read_timeout(dur)
+            .set_read_timeout(dur)
     }
 
     fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.context.lock().unwrap().io_mut()
             .ok_or(IoError::new(IoErrorKind::NotFound, "No peer available"))?
-            .downcast_mut::<T>().unwrap().set_write_timeout(dur)
+            .set_write_timeout(dur)
     }
 }
 

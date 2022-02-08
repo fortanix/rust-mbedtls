@@ -832,6 +832,11 @@ impl Pk {
         sig: &mut [u8],
         rng: &mut F,
     ) -> Result<usize> {
+        // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to auto-detect size and cause an invalid write.
+        if hash.len() == 0 || sig.len() == 0 {
+            return Err(Error::PkBadInputData)
+        }
+
         match self.pk_type() {
             Type::Rsa | Type::RsaAlt | Type::RsassaPss => {
                 if sig.len() < (self.len() / 8) {
@@ -868,6 +873,11 @@ impl Pk {
         sig: &mut [u8],
         rng: &mut F,
     ) -> Result<usize> {
+        // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to auto-detect size and cause an invalid write.
+        if hash.len() == 0 || sig.len() == 0 {
+            return Err(Error::PkBadInputData)
+        }
+
         use crate::rng::RngCallbackMut;
 
         if self.pk_type() == Type::Ecdsa || self.pk_type() == Type::Eckey {
@@ -913,6 +923,11 @@ impl Pk {
     }
 
     pub fn verify(&mut self, md: MdType, hash: &[u8], sig: &[u8]) -> Result<()> {
+        // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to auto-detect size and cause an invalid write.
+        if hash.len() == 0 || sig.len() == 0 {
+            return Err(Error::PkBadInputData)
+        }
+        
         unsafe {
             pk_verify(
                 &mut self.inner,
@@ -1274,6 +1289,18 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
                 )
                 .unwrap();
             pk.verify(digest, data, &signature[0..len]).unwrap();
+
+            assert_eq!(pk.verify(digest, data, &[]).unwrap_err(), Error::PkBadInputData);
+            assert_eq!(pk.verify(digest, &[], &signature[0..len]).unwrap_err(), Error::PkBadInputData);
+
+
+            let mut dummy_sig = [];
+            assert_eq!(pk.sign(digest, data, &mut dummy_sig, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::PkBadInputData);
+            assert_eq!(pk.sign(digest, &[], &mut signature, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::PkBadInputData);
+            
+            assert_eq!(pk.sign_deterministic(digest, data, &mut dummy_sig, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::PkBadInputData);
+            assert_eq!(pk.sign_deterministic(digest, &[], &mut signature, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::PkBadInputData);
+
         }
     }
 
