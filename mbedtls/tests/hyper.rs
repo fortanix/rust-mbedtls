@@ -25,18 +25,14 @@ impl<T> TlsStream<T> {
     }
 }
 
-unsafe impl<T> Send for TlsStream<T> {}
-unsafe impl<T> Sync for TlsStream<T> {}
-
-
-impl<T: io::Read + io::Write + 'static> io::Read for TlsStream<T>
+impl<T: io::Read + io::Write> io::Read for TlsStream<T>
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.context.lock().unwrap().read(buf)
     }
 }
 
-impl<T: io::Read + io::Write + 'static> io::Write for TlsStream<T>
+impl<T: io::Read + io::Write> io::Write for TlsStream<T>
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.context.lock().unwrap().write(buf)
@@ -82,8 +78,6 @@ impl MbedSSLServer {
         }
     }
 }
-
-unsafe impl Send for MbedSSLServer {}
 
 /// An abstraction to allow any SSL implementation to be used with server-side HttpsStreams.
 impl<T> SslServer<T> for MbedSSLServer
