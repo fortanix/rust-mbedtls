@@ -172,6 +172,18 @@ impl Md {
     }
 }
 
+impl Clone for Md {
+    fn clone(&self) -> Self {
+        fn copy_md(md: &Md) -> Result<Md> {
+            let md_type = unsafe { md_get_type(md.inner.md_info) };
+            let mut m = Md::new(md_type.into())?;
+            unsafe { md_clone(&mut m.inner, &md.inner) }.into_result()?;
+            Ok(m)
+        }
+        copy_md(self).expect("Md::copy success")
+    }
+}
+
 pub fn pbkdf2_hmac(
     md: Type,
     password: &[u8],
