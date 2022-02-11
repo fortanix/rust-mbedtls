@@ -6,7 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use mbedtls::hash::Md;
+use mbedtls::hash::Hkdf;
 use mbedtls::hash::Type as MdType;
 
 #[test]
@@ -21,7 +21,7 @@ fn test_hkdf_sha256() {
     ];
     let info = [0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9];
     let mut output = [0u8; 42];
-    Md::hkdf(MdType::Sha256, &salt, &ikm, &info, &mut output).unwrap();
+    Hkdf::hkdf(MdType::Sha256, &salt, &ikm, &info, &mut output).unwrap();
 
     assert_eq!(
         output,
