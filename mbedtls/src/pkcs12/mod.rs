@@ -31,7 +31,7 @@ use yasna::{ASN1Result, BERDecodable, BERReader, BERReaderSeq, Tag};
 
 use crate::cipher::raw::{CipherId, CipherMode};
 use crate::cipher::{Cipher, Decryption, Fresh, Traditional};
-use crate::hash::{pbkdf_pkcs12, Md, MdInfo, Type as MdType};
+use crate::hash::{pbkdf_pkcs12, Hmac, MdInfo, Type as MdType};
 use crate::pk::Pk;
 use crate::x509::Certificate;
 use crate::alloc::{Box as MbedtlsBox};
@@ -742,7 +742,7 @@ impl Pfx {
 
             let mut computed_hmac = vec![0u8; md_info.size()];
 
-            let hmac_len = Md::hmac(md, &hmac_key, &self.raw_data, &mut computed_hmac)?;
+            let hmac_len = Hmac::hmac(md, &hmac_key, &self.raw_data, &mut computed_hmac)?;
 
             // FIXME const time compare
             if computed_hmac[0..hmac_len] != stored_mac[..] {

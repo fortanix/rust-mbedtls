@@ -124,6 +124,42 @@ impl Md {
             Ok(olen)
         }
     }
+}
+
+pub struct Hmac {
+    ctx: Md,
+}
+
+impl Hmac {
+    pub fn new(md: Type, key: &[u8]) -> Result<Hmac> {
+        let md: MdInfo = match md.into() {
+            Some(md) => md,
+            None => return Err(Error::MdBadInputData),
+        };
+
+        let mut ctx = Md::init();
+        unsafe {
+            md_setup(&mut ctx.inner, md.into(), 1).into_result()?;
+            md_hmac_starts(&mut ctx.inner, key.as_ptr(), key.len()).into_result()?;
+        }
+        Ok(Hmac { ctx })
+    }
+
+    pub fn update(&mut self, data: &[u8]) -> Result<()> {
+        unsafe { md_hmac_update(&mut self.ctx.inner, data.as_ptr(), data.len()) }.into_result()?;
+        Ok(())
+    }
+
+    pub fn finish(mut self, out: &mut [u8]) -> Result<usize> {
+        unsafe {
+            let olen = (*self.ctx.inner.md_info).size as usize;
+            if out.len() < olen {
+                return Err(Error::MdBadInputData);
+            }
+            md_hmac_finish(&mut self.ctx.inner, out.as_mut_ptr()).into_result()?;
+            Ok(olen)
+        }
+    }
 
     pub fn hmac(md: Type, key: &[u8], data: &[u8], out: &mut [u8]) -> Result<usize> {
         let md: MdInfo = match md.into() {
@@ -142,12 +178,19 @@ impl Md {
                 key.len(),
                 data.as_ptr(),
                 data.len(),
-                out.as_mut_ptr()
-            ).into_result()?;
+                out.as_mut_ptr(),
+            )
+            .into_result()?;
             Ok(olen)
         }
     }
+}
 
+pub struct Hkdf {
+    _ctx: Md,
+}
+
+impl Hkdf {
     pub fn hkdf(md: Type, salt: &[u8], ikm: &[u8], info: &[u8], key: &mut [u8]) -> Result<()> {
         let md: MdInfo = match md.into() {
             Some(md) => md,
@@ -195,7 +238,7 @@ pub fn pbkdf2_hmac(
             salt.len(),
             iterations,
             key.len() as u32,
-            key.as_mut_ptr()
+            key.as_mut_ptr(),
         )
         .into_result()?;
         Ok(())
