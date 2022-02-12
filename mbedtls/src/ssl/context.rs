@@ -37,7 +37,7 @@ pub trait IoCallback {
     fn data_ptr(&mut self) -> *mut c_void;
 }
 
-impl<IO: Read + Write + 'static> IoCallback for IO {
+impl<IO: Read + Write> IoCallback for IO {
     unsafe extern "C" fn call_recv(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
         let len = if len > (c_int::max_value() as size_t) {
             c_int::max_value() as size_t
@@ -140,7 +140,7 @@ impl<T> Context<T> {
     }
 }
 
-impl<T: IoCallback + Send + Sync + 'static> Context<T> {
+impl<T: IoCallback> Context<T> {
     pub fn establish(&mut self, io: T, hostname: Option<&str>) -> Result<()> {
         unsafe {
             let mut io = Box::new(io);
@@ -412,13 +412,69 @@ impl HandshakeContext {
 
 #[cfg(test)]
 mod tests {
-    use crate::ssl::context::HandshakeContext;
-    use crate::tests::TestTrait;
+    #[cfg(feature = "std")]
+    use std::io::{Read,Write, Result as IoResult};
 
+    #[cfg(not(feature = "std"))]
+    use core_io::{Read, Write, Result as IoResult};
+
+    use crate::ssl::context::{HandshakeContext, Context};
+    use crate::tests::TestTrait;
+    
     #[test]
     fn handshakecontext_sync() {
         assert!(!TestTrait::<dyn Sync, HandshakeContext>::new().impls_trait(), "HandshakeContext must be !Sync");
     }
+
+    struct NonSendStream {
+        _buffer: core::ptr::NonNull<u8>,
+    }
+
+    impl Read for NonSendStream {
+        fn read(&mut self, _: &mut [u8]) -> IoResult<usize> {
+            unimplemented!()
+        }
+    }
+    
+    impl Write for NonSendStream {
+        fn write(&mut self, _: &[u8]) -> IoResult<usize> {
+            unimplemented!()
+        }
+
+        fn flush(&mut self) -> IoResult<()> {
+            unimplemented!()
+        }
+    }
+
+    struct SendStream {
+        _buffer: u8,
+    }
+
+    impl Read for SendStream {
+        fn read(&mut self, _: &mut [u8]) -> IoResult<usize> {
+            unimplemented!()
+        }
+    }
+    
+    impl Write for SendStream {
+        fn write(&mut self, _: &[u8]) -> IoResult<usize> {
+            unimplemented!()
+        }
+
+        fn flush(&mut self) -> IoResult<()> {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn context_send() {
+        assert!(!TestTrait::<dyn Send, NonSendStream>::new().impls_trait(), "NonSendStream can't be send");
+        assert!(!TestTrait::<dyn Send, Context<NonSendStream>>::new().impls_trait(), "Context<NonSendStream> can't be send");
+
+        assert!(TestTrait::<dyn Send, SendStream>::new().impls_trait(), "SendStream is send");
+        assert!(TestTrait::<dyn Send, Context<SendStream>>::new().impls_trait(), "Context<SendStream> is send");
+    }
+
 }
 
 // ssl_get_alpn_protocol
