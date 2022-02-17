@@ -273,7 +273,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_BIGNUM_C",                                  Defined),
     ("MBEDTLS_BLOWFISH_C",                                Defined),
     ("MBEDTLS_CAMELLIA_C",                                Defined),
-    ("MBEDTLS_ARIA_C",                                    Undefined),
+    ("MBEDTLS_ARIA_C",                                    Defined),
     ("MBEDTLS_CCM_C",                                     Defined),
     ("MBEDTLS_CERTS_C",                                   Defined),
     ("MBEDTLS_CHACHA20_C",                                Defined),
