@@ -23,7 +23,7 @@ fn enable_self_test() {
     static START: Once = Once::new();
 
     let log_f;
-    
+
     cfg_if::cfg_if! {
         if #[cfg(feature = "std")] {
             log_f = None;
@@ -59,6 +59,7 @@ macro_rules! tests {
 tests! {
     fn aes,
     fn arc4,
+    fn aria,
     fn base64,
     fn camellia,
     fn ccm,
