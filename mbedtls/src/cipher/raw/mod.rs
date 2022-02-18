@@ -23,6 +23,7 @@ define!(
         Camellia = CIPHER_ID_CAMELLIA,
         Blowfish = CIPHER_ID_BLOWFISH,
         Arc4 = CIPHER_ID_ARC4,
+        Aria = CIPHER_ID_ARIA,
     }
 );
 
@@ -37,6 +38,7 @@ impl From<cipher_id_t> for CipherId {
             CIPHER_ID_CAMELLIA => CipherId::Camellia,
             CIPHER_ID_BLOWFISH => CipherId::Blowfish,
             CIPHER_ID_ARC4 => CipherId::Arc4,
+            CIPHER_ID_ARIA => CipherId::Aria,
             // This should be replaced with TryFrom once it is stable.
             _ => panic!("Invalid cipher_id_t"),
         }

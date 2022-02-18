@@ -59,7 +59,7 @@ pub unsafe fn disable() {
 }
 
 pub use mbedtls_sys::{
-    aes_self_test as aes, arc4_self_test as arc4, base64_self_test as base64,
+    aes_self_test as aes, arc4_self_test as arc4, aria_self_test as aria, base64_self_test as base64,
     camellia_self_test as camellia, ccm_self_test as ccm, ctr_drbg_self_test as ctr_drbg,
     des_self_test as des, dhm_self_test as dhm, ecjpake_self_test as ecjpake, ecp_self_test as ecp,
     entropy_self_test as entropy, gcm_self_test as gcm, hmac_drbg_self_test as hmac_drbg,
