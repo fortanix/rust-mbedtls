@@ -6,8 +6,8 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use core::convert::TryFrom;
 use crate::error::{Error, IntoResult, Result};
+use core::convert::TryFrom;
 use mbedtls_sys::*;
 
 #[cfg(not(feature = "std"))]

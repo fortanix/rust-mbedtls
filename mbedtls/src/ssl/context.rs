@@ -10,35 +10,50 @@ use core::result::Result as StdResult;
 
 #[cfg(feature = "std")]
 use {
-    std::io::{Read, Write, Result as IoResult},
+    std::io::{Read, Result as IoResult, Write},
     std::sync::Arc,
 };
 
 #[cfg(not(feature = "std"))]
-use core_io::{Read, Write, Result as IoResult};
-
+use core_io::{Read, Result as IoResult, Write};
 
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 use mbedtls_sys::*;
 
+use crate::alloc::List as MbedtlsList;
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
-use crate::alloc::{List as MbedtlsList};
-use crate::error::{Error, Result, IntoResult};
+use crate::error::{Error, IntoResult, Result};
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
-use crate::ssl::config::{Config, Version, AuthMode};
+use crate::ssl::config::{AuthMode, Config, Version};
 use crate::x509::{Certificate, Crl, VerifyError};
 
 pub trait IoCallback {
-    unsafe extern "C" fn call_recv(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int where Self: Sized;
-    unsafe extern "C" fn call_send(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int where Self: Sized;
+    unsafe extern "C" fn call_recv(
+        user_data: *mut c_void,
+        data: *mut c_uchar,
+        len: size_t,
+    ) -> c_int
+    where
+        Self: Sized;
+    unsafe extern "C" fn call_send(
+        user_data: *mut c_void,
+        data: *const c_uchar,
+        len: size_t,
+    ) -> c_int
+    where
+        Self: Sized;
     fn data_ptr(&mut self) -> *mut c_void;
 }
 
 impl<IO: Read + Write> IoCallback for IO {
-    unsafe extern "C" fn call_recv(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
+    unsafe extern "C" fn call_recv(
+        user_data: *mut c_void,
+        data: *mut c_uchar,
+        len: size_t,
+    ) -> c_int {
         let len = if len > (c_int::max_value() as size_t) {
             c_int::max_value() as size_t
         } else {
@@ -50,7 +65,11 @@ impl<IO: Read + Write> IoCallback for IO {
         }
     }
 
-    unsafe extern "C" fn call_send(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int {
+    unsafe extern "C" fn call_send(
+        user_data: *mut c_void,
+        data: *const c_uchar,
+        len: size_t,
+    ) -> c_int {
         let len = if len > (c_int::max_value() as size_t) {
             c_int::max_value() as size_t
         } else {
@@ -67,14 +86,13 @@ impl<IO: Read + Write> IoCallback for IO {
     }
 }
 
-
 define!(
     #[c_ty(ssl_context)]
     #[repr(C)]
     struct HandshakeContext {
         handshake_ca_cert: Option<Arc<MbedtlsList<Certificate>>>,
         handshake_crl: Option<Arc<Crl>>,
-        
+
         handshake_cert: Vec<Arc<MbedtlsList<Certificate>>>,
         handshake_pk: Vec<Arc<Pk>>,
     };
@@ -88,10 +106,10 @@ define!(
 pub struct Context<T> {
     // Base structure used in SNI callback where we cannot determine the io type.
     inner: HandshakeContext,
-    
+
     // config is used read-only for mutliple contexts and is immutable once configured.
-    config: Arc<Config>, 
-    
+    config: Arc<Config>,
+
     // Must be held in heap and pointer to it as pointer is sent to MbedSSL and can't be re-allocated.
     io: Option<Box<T>>,
 }
@@ -111,7 +129,7 @@ impl<'a, T> Into<*mut ssl_context> for &'a mut Context<T> {
 impl<T> Context<T> {
     pub fn new(config: Arc<Config>) -> Self {
         let mut inner = ssl_context::default();
-        
+
         unsafe {
             ssl_init(&mut inner);
             ssl_setup(&mut inner, (&*config).into());
@@ -122,7 +140,7 @@ impl<T> Context<T> {
                 inner,
                 handshake_ca_cert: None,
                 handshake_crl: None,
-                
+
                 handshake_cert: vec![],
                 handshake_pk: vec![],
             },
@@ -157,7 +175,7 @@ impl<T: IoCallback> Context<T> {
             );
 
             self.io = Some(io);
-            self.inner.reset_handshake();            
+            self.inner.reset_handshake();
         }
 
         match self.handshake() {
@@ -166,10 +184,9 @@ impl<T: IoCallback> Context<T> {
             Err(Error::SslWantWrite) => Err(Error::SslWantWrite),
             Err(e) => {
                 self.close();
-                Err(e) 
-            },
+                Err(e)
+            }
         }
-            
     }
 }
 
@@ -213,7 +230,7 @@ impl<T> Context<T> {
     pub fn config(&self) -> &Arc<Config> {
         &self.config
     }
-    
+
     pub fn close(&mut self) {
         unsafe {
             ssl_close_notify(self.into());
@@ -221,15 +238,15 @@ impl<T> Context<T> {
             self.io = None;
         }
     }
-    
+
     pub fn io(&self) -> Option<&T> {
         self.io.as_ref().map(|v| &**v)
     }
-    
+
     pub fn io_mut(&mut self) -> Option<&mut T> {
         self.io.as_mut().map(|v| &mut **v)
     }
-    
+
     /// Return the minor number of the negotiated TLS version
     pub fn minor_version(&self) -> i32 {
         self.handle().minor_ver
@@ -255,13 +272,12 @@ impl<T> Context<T> {
             1 => Version::Tls1_0,
             2 => Version::Tls1_1,
             3 => Version::Tls1_2,
-            _ => unreachable!("unexpected TLS version")
+            _ => unreachable!("unexpected TLS version"),
         }
     }
 
-
     // Session specific functions
-    
+
     /// Return the 16-bit ciphersuite identifier.
     /// All assigned ciphersuites are listed by the IANA in
     /// https://www.iana.org/assignments/tls-parameters/tls-parameters.txt
@@ -269,7 +285,7 @@ impl<T> Context<T> {
         if self.handle().session.is_null() {
             return Err(Error::SslBadInputData);
         }
-        
+
         Ok(unsafe { self.handle().session.as_ref().unwrap().ciphersuite as u16 })
     }
 
@@ -280,11 +296,14 @@ impl<T> Context<T> {
 
         unsafe {
             // We cannot call the peer cert function as we need a pointer to a pointer to create the MbedtlsList, we need something in the heap / cannot use any local variable for that.
-            let peer_cert : &MbedtlsList<Certificate> = UnsafeFrom::from(&((*self.handle().session).peer_cert) as *const *mut x509_crt as *const *const x509_crt).ok_or(Error::SslBadInputData)?;
+            let peer_cert: &MbedtlsList<Certificate> = UnsafeFrom::from(
+                &((*self.handle().session).peer_cert) as *const *mut x509_crt
+                    as *const *const x509_crt,
+            )
+            .ok_or(Error::SslBadInputData)?;
             Ok(Some(peer_cert))
         }
     }
-
 
     #[cfg(feature = "std")]
     pub fn get_alpn_protocol(&self) -> Result<Option<&str>> {
@@ -351,12 +370,12 @@ impl HandshakeContext {
         self.handshake_ca_cert = None;
         self.handshake_crl = None;
     }
-    
+
     pub fn set_authmode(&mut self, am: AuthMode) -> Result<()> {
         if self.inner.handshake as *const _ == ::core::ptr::null() {
             return Err(Error::SslBadInputData);
         }
-        
+
         unsafe { ssl_set_hs_authmode(self.into(), am as i32) }
         Ok(())
     }
@@ -375,8 +394,13 @@ impl HandshakeContext {
         unsafe {
             ssl_set_hs_ca_chain(
                 self.into(),
-                chain.as_ref().map(|chain| chain.inner_ffi_mut()).unwrap_or(::core::ptr::null_mut()),
-                crl.as_ref().map(|crl| crl.inner_ffi_mut()).unwrap_or(::core::ptr::null_mut()),
+                chain
+                    .as_ref()
+                    .map(|chain| chain.inner_ffi_mut())
+                    .unwrap_or(::core::ptr::null_mut()),
+                crl.as_ref()
+                    .map(|crl| crl.inner_ffi_mut())
+                    .unwrap_or(::core::ptr::null_mut()),
             );
         }
 
@@ -389,11 +413,7 @@ impl HandshakeContext {
     /// certificates configured in the `Config` associated with this `Context`.
     /// If this is called at least once, all those are ignored and the set
     /// specified using this function is used.
-    pub fn push_cert(
-        &mut self,
-        chain: Arc<MbedtlsList<Certificate>>,
-        key: Arc<Pk>,
-    ) -> Result<()> {
+    pub fn push_cert(&mut self, chain: Arc<MbedtlsList<Certificate>>, key: Arc<Pk>) -> Result<()> {
         // mbedtls_ssl_set_hs_own_cert does not check for NULL handshake.
         if self.inner.handshake as *const _ == ::core::ptr::null() {
             return Err(Error::SslBadInputData);
@@ -401,7 +421,8 @@ impl HandshakeContext {
 
         // This will append provided certificate pointers in internal structures.
         unsafe {
-            ssl_set_hs_own_cert(self.into(), chain.inner_ffi_mut(), key.inner_ffi_mut()).into_result()?;
+            ssl_set_hs_own_cert(self.into(), chain.inner_ffi_mut(), key.inner_ffi_mut())
+                .into_result()?;
         }
         self.handshake_cert.push(chain);
         self.handshake_pk.push(key);
@@ -413,17 +434,20 @@ impl HandshakeContext {
 #[cfg(test)]
 mod tests {
     #[cfg(feature = "std")]
-    use std::io::{Read,Write, Result as IoResult};
+    use std::io::{Read, Result as IoResult, Write};
 
     #[cfg(not(feature = "std"))]
-    use core_io::{Read, Write, Result as IoResult};
+    use core_io::{Read, Result as IoResult, Write};
 
-    use crate::ssl::context::{HandshakeContext, Context};
+    use crate::ssl::context::{Context, HandshakeContext};
     use crate::tests::TestTrait;
-    
+
     #[test]
     fn handshakecontext_sync() {
-        assert!(!TestTrait::<dyn Sync, HandshakeContext>::new().impls_trait(), "HandshakeContext must be !Sync");
+        assert!(
+            !TestTrait::<dyn Sync, HandshakeContext>::new().impls_trait(),
+            "HandshakeContext must be !Sync"
+        );
     }
 
     struct NonSendStream {
@@ -435,7 +459,7 @@ mod tests {
             unimplemented!()
         }
     }
-    
+
     impl Write for NonSendStream {
         fn write(&mut self, _: &[u8]) -> IoResult<usize> {
             unimplemented!()
@@ -455,7 +479,7 @@ mod tests {
             unimplemented!()
         }
     }
-    
+
     impl Write for SendStream {
         fn write(&mut self, _: &[u8]) -> IoResult<usize> {
             unimplemented!()
@@ -468,13 +492,24 @@ mod tests {
 
     #[test]
     fn context_send() {
-        assert!(!TestTrait::<dyn Send, NonSendStream>::new().impls_trait(), "NonSendStream can't be send");
-        assert!(!TestTrait::<dyn Send, Context<NonSendStream>>::new().impls_trait(), "Context<NonSendStream> can't be send");
+        assert!(
+            !TestTrait::<dyn Send, NonSendStream>::new().impls_trait(),
+            "NonSendStream can't be send"
+        );
+        assert!(
+            !TestTrait::<dyn Send, Context<NonSendStream>>::new().impls_trait(),
+            "Context<NonSendStream> can't be send"
+        );
 
-        assert!(TestTrait::<dyn Send, SendStream>::new().impls_trait(), "SendStream is send");
-        assert!(TestTrait::<dyn Send, Context<SendStream>>::new().impls_trait(), "Context<SendStream> is send");
+        assert!(
+            TestTrait::<dyn Send, SendStream>::new().impls_trait(),
+            "SendStream is send"
+        );
+        assert!(
+            TestTrait::<dyn Send, Context<SendStream>>::new().impls_trait(),
+            "Context<SendStream> is send"
+        );
     }
-
 }
 
 // ssl_get_alpn_protocol

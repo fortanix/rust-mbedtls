@@ -7,10 +7,10 @@
  * according to those terms. */
 
 use core::fmt;
-use core::ops::{Deref, DerefMut};
-use core::ptr::NonNull;
-use core::ptr::drop_in_place;
 use core::mem::ManuallyDrop;
+use core::ops::{Deref, DerefMut};
+use core::ptr::drop_in_place;
+use core::ptr::NonNull;
 
 use mbedtls_sys::types::raw_types::c_void;
 
@@ -20,7 +20,7 @@ extern "C" {
 
 #[repr(transparent)]
 pub struct Box<T> {
-    pub(crate) inner: NonNull<T>
+    pub(crate) inner: NonNull<T>,
 }
 
 impl<T> Box<T> {
@@ -63,5 +63,5 @@ unsafe impl<T: Sync> Sync for Box<T> {}
 
 #[repr(transparent)]
 pub struct List<T> {
-    pub(crate) inner: Option<Box<T>>
+    pub(crate) inner: Option<Box<T>>,
 }

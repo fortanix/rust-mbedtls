@@ -51,14 +51,10 @@ fn sign_verify() {
     let mut signature2 = [0u8; ECDSA_MAX_LEN];
 
     let mut rng = test_rng();
-    let len = k
-        .sign(Sha256, data, &mut signature1, &mut rng)
-        .unwrap();
+    let len = k.sign(Sha256, data, &mut signature1, &mut rng).unwrap();
     k.verify(Sha256, data, &signature1[0..len]).unwrap();
 
-    let len = k
-        .sign(Sha256, data, &mut signature2, &mut rng)
-        .unwrap();
+    let len = k.sign(Sha256, data, &mut signature2, &mut rng).unwrap();
     k.verify(Sha256, data, &signature2[0..len]).unwrap();
 
     // Default ECDSA is randomized

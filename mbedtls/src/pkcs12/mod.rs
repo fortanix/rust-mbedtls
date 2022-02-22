@@ -29,12 +29,12 @@ use yasna::tags::*;
 pub use yasna::{ASN1Error, ASN1ErrorKind};
 use yasna::{ASN1Result, BERDecodable, BERReader, BERReaderSeq, Tag};
 
+use crate::alloc::Box as MbedtlsBox;
 use crate::cipher::raw::{CipherId, CipherMode};
 use crate::cipher::{Cipher, Decryption, Fresh, Traditional};
 use crate::hash::{pbkdf_pkcs12, Hmac, MdInfo, Type as MdType};
 use crate::pk::Pk;
 use crate::x509::Certificate;
-use crate::alloc::{Box as MbedtlsBox};
 use crate::Error as MbedtlsError;
 
 // Constants for various object identifiers used in PKCS12:
@@ -825,33 +825,49 @@ impl Pfx {
         Ok(decrypted)
     }
 
-    fn authsafe_decrypted_contents(&self) -> impl Iterator<Item=&SafeBag> {
-        self.authsafe.contents.iter()
-            .flat_map(|d| if let AuthenticatedSafe::Data(ref d) = d { d.0.as_slice() } else { &[] })
+    fn authsafe_decrypted_contents(&self) -> impl Iterator<Item = &SafeBag> {
+        self.authsafe.contents.iter().flat_map(|d| {
+            if let AuthenticatedSafe::Data(ref d) = d {
+                d.0.as_slice()
+            } else {
+                &[]
+            }
+        })
     }
 
     /// Return the certificates stored in this Pfx along with a possibly empty list
     /// of "friendly names" which are associated with said certificate.
     /// Some or all of the certificates stored in a Pfx may be encrypted in which case
     /// decrypt must be called to access them.
-    pub fn certificates<'a>(&'a self) -> impl Iterator<Item=(Result<MbedtlsBox<Certificate>, crate::Error>, Vec<String>)> + 'a {
-        self.authsafe_decrypted_contents()
-            .filter_map(|sb| if let Pkcs12BagSet::Cert(CertBag(Some(cert))) = &sb.bag_value {
+    pub fn certificates<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (Result<MbedtlsBox<Certificate>, crate::Error>, Vec<String>)> + 'a
+    {
+        self.authsafe_decrypted_contents().filter_map(|sb| {
+            if let Pkcs12BagSet::Cert(CertBag(Some(cert))) = &sb.bag_value {
                 Some((Certificate::from_der(cert), sb.friendly_name()))
-            } else { None })
+            } else {
+                None
+            }
+        })
     }
 
     /// Return the private keys stored in this Pfx along with a possibly empty list
     /// of "friendly names" which are associated with said private key.
-    pub fn private_keys<'a>(&'a self) -> impl Iterator<Item=(Result<Pk, crate::Error>, Vec<String>)> + 'a {
+    pub fn private_keys<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (Result<Pk, crate::Error>, Vec<String>)> + 'a {
         self.authsafe_decrypted_contents()
-            .filter_map(|sb|
-                match &sb.bag_value {
-                    Pkcs12BagSet::Pkcs8(pkcs8) | Pkcs12BagSet::Key(KeyBag { pkcs8 }) =>
-                        Some((Pk::from_private_key(pkcs8, None), sb.friendly_name())),
-                    _ => /* not a private key */ None
+            .filter_map(|sb| match &sb.bag_value {
+                Pkcs12BagSet::Pkcs8(pkcs8) | Pkcs12BagSet::Key(KeyBag { pkcs8 }) => {
+                    Some((Pk::from_private_key(pkcs8, None), sb.friendly_name()))
                 }
-            )
+                _ =>
+                /* not a private key */
+                {
+                    None
+                }
+            })
     }
 }
 
@@ -1220,5 +1236,4 @@ mod tests {
         assert_eq!(pk.name().unwrap(), "RSA");
         assert_eq!(pk.len(), 2048);
     }
-
 }
