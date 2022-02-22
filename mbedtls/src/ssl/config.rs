@@ -111,11 +111,12 @@ unsafe impl Sync for NullTerminatedStrList {}
 
 impl NullTerminatedStrList {
     #[cfg(feature = "std")]
-    pub fn new(list: &[&str]) -> Result<Self> {
+
+    pub fn new<T: AsRef<str>>(list: &[T]) -> Result<Self> {
         let mut ret = NullTerminatedStrList { c: Vec::with_capacity(list.len() + 1) };
 
         for item in list {
-            ret.c.push(::std::ffi::CString::new(*item).map_err(|_| Error::SslBadInputData)?.into_raw());
+            ret.c.push(::std::ffi::CString::new(item.as_ref()).map_err(|_| Error::SslBadInputData)?.into_raw());
         }
         
         ret.c.push(core::ptr::null_mut()); 
@@ -301,12 +302,16 @@ impl Config {
         self.crl = crl;        
     }
 
+    pub fn get_own_certs(&self) -> &Vec<Arc<MbedtlsList<Certificate>>> {
+        &self.own_cert
+    }
+
     pub fn push_cert(&mut self, own_cert: Arc<MbedtlsList<Certificate>>, own_pk: Arc<Pk>) -> Result<()> {
         // Need to ensure own_cert/pk_key outlive the config.
         self.own_cert.push(own_cert.clone());
         self.own_pk.push(own_pk.clone());
 
-        // This will append pointers to our certificates inside mbedtls
+        // This will append pointers to our certificates inside a separate mbedtls structure, does not change own_cert or own_pk.
         unsafe { ssl_conf_own_cert(self.into(), own_cert.inner_ffi_mut(), own_pk.inner_ffi_mut())
                  .into_result()
                  .map(|_| ())

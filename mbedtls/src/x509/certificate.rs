@@ -98,7 +98,15 @@ impl Certificate {
     /// Input must be NULL-terminated
     pub fn from_pem(pem: &[u8]) -> Result<MbedtlsBox<Certificate>> {
         let mut cert = MbedtlsBox::<Certificate>::init()?;
-        unsafe { x509_crt_parse((&mut (*cert)).into(), pem.as_ptr(), pem.len()) }.into_result()?;
+
+        // Mbedtls from_pem needs a trailing NULL byte, only handles c type strings.
+        if !pem.last().map(|c| *c == 0).unwrap_or(false)  {
+            let mut pem = pem.to_vec();
+            pem.push(0);
+            unsafe { x509_crt_parse((&mut (*cert)).into(), pem.as_ptr(), pem.len()) }.into_result()?;
+        } else {
+            unsafe { x509_crt_parse((&mut (*cert)).into(), pem.as_ptr(), pem.len()) }.into_result()?;
+        }
         
         if !(*cert).inner.next.is_null() {
             // Use from_pem_multiple for parsing multiple certificates in a pem.
@@ -111,7 +119,15 @@ impl Certificate {
     /// Input must be NULL-terminated
     pub fn from_pem_multiple(pem: &[u8]) -> Result<MbedtlsList<Certificate>> {
         let mut cert = MbedtlsBox::<Certificate>::init()?;
-        unsafe { x509_crt_parse((&mut (*cert)).into(), pem.as_ptr(), pem.len()) }.into_result()?;
+
+        // Mbedtls from_pem needs a trailing NULL byte, only handles c type strings.
+        if !pem.last().map(|c| *c == 0).unwrap_or(false)  {
+            let mut pem = pem.to_vec();
+            pem.push(0);
+            unsafe { x509_crt_parse((&mut (*cert)).into(), pem.as_ptr(), pem.len()) }.into_result()?;
+        } else {
+            unsafe { x509_crt_parse((&mut (*cert)).into(), pem.as_ptr(), pem.len()) }.into_result()?;
+        }
 
         let mut list = MbedtlsList::<Certificate>::new();
         list.push(cert);

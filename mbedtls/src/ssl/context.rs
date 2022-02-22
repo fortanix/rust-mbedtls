@@ -10,12 +10,12 @@ use core::result::Result as StdResult;
 
 #[cfg(feature = "std")]
 use {
-    std::io::{Read, Write, Result as IoResult},
+    std::io::{Read, Write, Result as IoResult, Error as IoError, ErrorKind as IoErrorKind},
     std::sync::Arc,
 };
 
 #[cfg(not(feature = "std"))]
-use core_io::{Read, Write, Result as IoResult};
+use core_io::{Read, Write, Result as IoResult, Error as IoError, ErrorKind as IoErrorKind};
 
 
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
@@ -45,8 +45,13 @@ impl<IO: Read + Write> IoCallback for IO {
             len
         };
         match (&mut *(user_data as *mut IO)).read(::core::slice::from_raw_parts_mut(data, len)) {
-            Ok(i) => i as c_int,
-            Err(_) => ::mbedtls_sys::ERR_NET_RECV_FAILED,
+            Ok(i) => {
+                i as c_int
+            },
+            Err(e) if e.kind() == IoErrorKind::WouldBlock => ::mbedtls_sys::ERR_SSL_WANT_READ,
+            Err(_) => {
+                ::mbedtls_sys::ERR_NET_RECV_FAILED
+            }
         }
     }
 
@@ -57,8 +62,13 @@ impl<IO: Read + Write> IoCallback for IO {
             len
         };
         match (&mut *(user_data as *mut IO)).write(::core::slice::from_raw_parts(data, len)) {
-            Ok(i) => i as c_int,
-            Err(_) => ::mbedtls_sys::ERR_NET_SEND_FAILED,
+            Ok(i) => {
+                i as c_int
+            },
+            Err(e) if e.kind() == IoErrorKind::WouldBlock => ::mbedtls_sys::ERR_SSL_WANT_WRITE,
+            Err(_) => {
+                ::mbedtls_sys::ERR_NET_SEND_FAILED
+            }
         }
     }
 
@@ -83,6 +93,8 @@ define!(
     // Only use this when you know the type you are casting is originally a rust allocated 'Context'.
     impl<'a> UnsafeFrom<ptr> {}
 );
+
+unsafe impl Sync for HandshakeContext {}
 
 #[repr(C)]
 pub struct Context<T> {
@@ -174,7 +186,7 @@ impl<T: IoCallback> Context<T> {
 }
 
 impl<T> Context<T> {
-    fn handshake(&mut self) -> Result<()> {
+    pub fn handshake(&mut self) -> Result<()> {
         unsafe {
             ssl_flush_output(self.into()).into_result()?;
             ssl_handshake(self.into()).into_result_discard()
@@ -218,7 +230,6 @@ impl<T> Context<T> {
         unsafe {
             ssl_close_notify(self.into());
             ssl_set_bio(self.into(), ::core::ptr::null_mut(), None, None, None);
-            self.io = None;
         }
     }
     
@@ -273,15 +284,14 @@ impl<T> Context<T> {
         Ok(unsafe { self.handle().session.as_ref().unwrap().ciphersuite as u16 })
     }
 
-    pub fn peer_cert(&self) -> Result<Option<&MbedtlsList<Certificate>>> {
+    pub fn peer_cert(&self) -> Option<&MbedtlsList<Certificate>> {
         if self.handle().session.is_null() {
-            return Err(Error::SslBadInputData);
+            return None;
         }
 
         unsafe {
             // We cannot call the peer cert function as we need a pointer to a pointer to create the MbedtlsList, we need something in the heap / cannot use any local variable for that.
-            let peer_cert : &MbedtlsList<Certificate> = UnsafeFrom::from(&((*self.handle().session).peer_cert) as *const *mut x509_crt as *const *const x509_crt).ok_or(Error::SslBadInputData)?;
-            Ok(Some(peer_cert))
+            UnsafeFrom::from(&((*self.handle().session).peer_cert) as *const *mut x509_crt as *const *const x509_crt)
         }
     }
 
@@ -303,7 +313,6 @@ impl<T> Context<T> {
 impl<T> Drop for Context<T> {
     fn drop(&mut self) {
         unsafe {
-            self.close();
             ssl_free(self.into());
         }
     }
@@ -313,6 +322,7 @@ impl<T: IoCallback> Read for Context<T> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match unsafe { ssl_read(self.into(), buf.as_mut_ptr(), buf.len()).into_result() } {
             Err(Error::SslPeerCloseNotify) => Ok(0),
+            Err(Error::SslWantRead) => Err(IoError::new(IoErrorKind::WouldBlock, "")),
             Err(e) => Err(crate::private::error_to_io_error(e)),
             Ok(i) => Ok(i as usize),
         }
@@ -323,6 +333,7 @@ impl<T: IoCallback> Write for Context<T> {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
         match unsafe { ssl_write(self.into(), buf.as_ptr(), buf.len()).into_result() } {
             Err(Error::SslPeerCloseNotify) => Ok(0),
+            Err(Error::SslWantWrite) => Err(IoError::new(IoErrorKind::WouldBlock, "")),
             Err(e) => Err(crate::private::error_to_io_error(e)),
             Ok(i) => Ok(i as usize),
         }
