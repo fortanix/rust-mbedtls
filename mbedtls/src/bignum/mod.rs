@@ -409,13 +409,15 @@ impl Mpi {
         Ok(r)
     }
 
-    /// The Miller-Rabin primality test. Returns `MpiNotAcceptable` is self is
-    /// definitely not prime. If no error is returned, self is probably prime. See
+    /// The Miller-Rabin primality test with k rounds. Returns
+    /// `MpiNotAcceptable` if self is definitely not prime. If no error is
+    /// returned, self is prime with a probability of 1 - 1/2^{2k}. See
     /// mbedtls_mpi_is_prime.
-    pub fn is_prime<F: Random>(&self, rng: &mut F) -> Result<()> {
+    pub fn is_prime<F: Random>(&self, k: u32, rng: &mut F) -> Result<()> {
         unsafe {
-            mpi_is_prime(
+            mpi_is_prime_ext(
                 &self.inner,
+                k as i32,
                 Some(F::call),
                 rng.data_ptr(),
             )

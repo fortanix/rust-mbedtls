@@ -423,8 +423,9 @@ fn is_prime() {
         use mbedtls::rng::{CtrDrbg, Rdseed};
         use mbedtls::Error::MpiNotAcceptable;
         let mut rng = CtrDrbg::new(Rdseed.into(), None).unwrap();
+        let rounds = 15; // accuracy 1/2**30
 
-        let result = input.is_prime(&mut rng);
+        let result = input.is_prime(rounds, &mut rng);
         if prime_expected {
             assert!(result.is_ok());
         } else {
@@ -444,7 +445,7 @@ fn is_prime() {
     test_is_prime(Mpi::new(10007).unwrap(), true);  // First prime after 10000
     test_is_prime(Mpi::new(10009).unwrap(), true);
     test_is_prime(Mpi::new(22801763489).unwrap(), true);  // 1000000000th prime
-    test_is_prime(Mpi::new(22801763491).unwrap(), false); // 1000000000th prime
+    test_is_prime(Mpi::new(22801763491).unwrap(), false);
 
     // RSA-250, the largest RSA challenge solved (829 bits)
     let rsa_250_n = Mpi::from_binary(&[
