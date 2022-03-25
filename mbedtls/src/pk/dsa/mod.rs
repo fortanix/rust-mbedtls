@@ -38,13 +38,13 @@ impl DsaParams {
     }
 
     fn key_size(&self) -> Result<(usize, usize)> {
-        Ok((self.p.bit_length()?, self.q.bit_length()?))
+        Ok((self.p.bit_length(), self.q.bit_length()))
     }
 }
 
 fn reduce_mod_q(m: &[u8], q: &Mpi) -> Result<Mpi> {
     // First truncate bitlength then reduce (see FIPS 186-4 sec 4.6)
-    let q_bits = q.bit_length()?;
+    let q_bits = q.bit_length();
 
     let m_bits = m.len() * 8;
 
@@ -201,7 +201,7 @@ fn sample_secret_value<F: Random>(upper_bound: &Mpi, rng: &mut F) -> Result<Mpi>
     /*
     See FIPS 186-4 Appendix B.2.1
      */
-    let bits = upper_bound.bit_length()?;
+    let bits = upper_bound.bit_length();
     let mut rnd_buf = vec![0u8; (bits + 7 + 64) / 8];
     rng.random(&mut rnd_buf)?;
     let c = Mpi::from_binary(&rnd_buf)?;
@@ -476,7 +476,7 @@ mod tests {
 
         let q = params.q.clone();
 
-        let q_bits = q.bit_length().unwrap();
+        let q_bits = q.bit_length();
         let y = params.g.clone();
 
         let pubkey = DsaPublicKey::from_components(params, y).unwrap();

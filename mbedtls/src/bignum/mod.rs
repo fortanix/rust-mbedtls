@@ -140,7 +140,7 @@ impl Mpi {
     }
 
     pub fn as_u32(&self) -> Result<u32> {
-        if self.bit_length()? > 32 {
+        if self.bit_length() > 32 {
             // Not exactly correct but close enough
             return Err(Error::MpiBufferTooSmall);
         }
@@ -181,7 +181,7 @@ impl Mpi {
 
     /// Serialize the MPI as big endian binary data
     pub fn to_binary(&self) -> Result<Vec<u8>> {
-        let len = self.byte_length()?;
+        let len = self.byte_length();
         let mut ret = vec![0u8; len];
         unsafe { mpi_write_binary(&self.inner, ret.as_mut_ptr(), ret.len()).into_result() }?;
         Ok(ret)
@@ -190,7 +190,7 @@ impl Mpi {
     /// Serialize the MPI as big endian binary data, padding to at least min_len
     /// bytes
     pub fn to_binary_padded(&self, min_len: usize) -> Result<Vec<u8>> {
-        let len = self.byte_length()?;
+        let len = self.byte_length();
         let larger_len = if len < min_len { min_len } else { len };
         let mut ret = vec![0u8; larger_len];
         let pad_len = ret.len() - len;
@@ -199,15 +199,15 @@ impl Mpi {
     }
 
     /// Return size of this MPI in bits
-    pub fn bit_length(&self) -> Result<usize> {
+    pub fn bit_length(&self) -> usize {
         let l = unsafe { mpi_bitlen(&self.inner) };
-        Ok(l)
+        l
     }
 
     /// Return size of this MPI in bytes (rounded up)
-    pub fn byte_length(&self) -> Result<usize> {
+    pub fn byte_length(&self) -> usize {
         let l = unsafe { mpi_size(&self.inner) };
-        Ok(l)
+        l
     }
 
     pub fn divrem(&self, other: &Mpi) -> Result<(Mpi, Mpi)> {

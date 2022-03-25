@@ -37,8 +37,8 @@ fn bignum_from_str() {
 fn bignum() {
     let six = Mpi::new(6).unwrap();
 
-    assert_eq!(six.byte_length().unwrap(), 1);
-    assert_eq!(six.bit_length().unwrap(), 3);
+    assert_eq!(six.byte_length(), 1);
+    assert_eq!(six.bit_length(), 3);
 
     let six_bytes = six.to_binary().unwrap();
     assert_eq!(six_bytes.len(), 1);
@@ -51,8 +51,8 @@ fn bignum() {
 
     let bigger = Mpi::new(0x2a2f5dce).unwrap();
 
-    assert_eq!(bigger.byte_length().unwrap(), 4);
-    assert_eq!(bigger.bit_length().unwrap(), 30);
+    assert_eq!(bigger.byte_length(), 4);
+    assert_eq!(bigger.bit_length(), 30);
 
     let b_bytes = bigger.to_binary().unwrap();
     assert_eq!(b_bytes.len(), 4);

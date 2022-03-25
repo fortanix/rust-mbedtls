@@ -89,8 +89,8 @@ impl EcGroup {
     pub fn from_parameters(p: Mpi, a: Mpi, b: Mpi, g_x: Mpi, g_y: Mpi, order: Mpi) -> Result<EcGroup> {
         let mut ret = Self::init();
 
-        ret.inner.pbits = p.bit_length()?;
-        ret.inner.nbits = order.bit_length()?;
+        ret.inner.pbits = p.bit_length();
+        ret.inner.nbits = order.bit_length();
         ret.inner.h = 0; // indicate to mbedtls that the values are not static constants
 
         let zero = Mpi::new(0)?;
@@ -259,7 +259,7 @@ impl EcPoint {
             let a = group.a()?;
             let b = group.b()?;
 
-            if bin.len() != (p.byte_length()? + 1) {
+            if bin.len() != (p.byte_length() + 1) {
                 return Err(Error::EcpBadInputData);
             }
 
@@ -459,7 +459,7 @@ mod tests {
         for group_id in &groups {
             let mut group = EcGroup::new(*group_id).unwrap();
 
-            let p_len = group.p().unwrap().byte_length().unwrap();
+            let p_len = group.p().unwrap().byte_length();
 
             let generator = group.generator().unwrap();
 
@@ -491,7 +491,7 @@ mod tests {
         use std::str::FromStr;
 
         let mut secp256k1 = EcGroup::new(EcGroupId::SecP256K1).unwrap();
-        let bitlen = secp256k1.p().unwrap().bit_length().unwrap();
+        let bitlen = secp256k1.p().unwrap().bit_length();
         let g = secp256k1.generator().unwrap();
         assert_eq!(g.is_zero().unwrap(), false);
 
