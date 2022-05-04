@@ -96,13 +96,13 @@ impl EcGroup {
         let zero = Mpi::new(0)?;
 
         // basic bounds checking
-        if &a <= &zero
+        if &a < &zero
             || &a >= &p
-            || &b <= &zero
+            || &b < &zero
             || &b >= &p
-            || &g_x <= &zero
+            || &g_x < &zero
             || &g_x >= &p
-            || &g_y <= &zero
+            || &g_y < &zero
             || &g_y >= &p
             || &order <= &zero
         {
