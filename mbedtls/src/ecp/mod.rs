@@ -756,4 +756,95 @@ mod tests {
         let pt3 = pt1.clone();
         assert_eq!(pt2.eq(&pt3).unwrap(), true);
     }
+
+    struct Params<'a> {
+        p:   &'a str,
+        a:   &'a str,
+        b:   &'a str,
+        g_x: &'a str,
+        g_y: &'a str,
+        n:   &'a str,
+    }
+
+    #[cfg(feature = "std")]
+    impl Into<super::Result<EcGroup>> for Params<'_> {
+        fn into(self) -> super::Result<EcGroup> {
+            use std::str::FromStr;
+            EcGroup::from_parameters(
+                Mpi::from_str(self.p)?,
+                Mpi::from_str(self.a)?,
+                Mpi::from_str(self.b)?,
+                Mpi::from_str(self.g_x)?,
+                Mpi::from_str(self.g_y)?,
+                Mpi::from_str(self.n)?,
+            )
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn bad_generator() {
+        // y² = x³ + x + 6 (mod 7) with bad generator (1, 2) and prime order 11
+        let small_curve: super::Result<_> = Params {
+            p:   "0x07",
+            a:   "0x01",
+            b:   "0x06",
+            g_x: "0x01",
+            g_y: "0x02",
+            n:   "0x0b",
+        }.into();
+        assert!(small_curve.is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn unknown_cofactor() {
+        // y² = x³ + x + 6 (mod 7)  with generator (1, 6) and prime order 11
+        let small_curve: super::Result<_> = Params {
+            p:   "0x07",
+            a:   "0x01",
+            b:   "0x06",
+            g_x: "0x01",
+            g_y: "0x06",
+            n:   "0x0b",
+        }.into();
+        assert!(small_curve.unwrap().cofactor().is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn zero_params_curves() {
+        use super::Result;
+        // Barreto-Naehrig 254, note a = 0
+        let bn254: Result<_> = Params {
+            p:   "0x2523648240000001BA344D80000000086121000000000013A700000000000013",
+            a:   "0x0000000000000000000000000000000000000000000000000000000000000000",
+            b:   "0x0000000000000000000000000000000000000000000000000000000000000002",
+            g_x: "0x2523648240000001BA344D80000000086121000000000013A700000000000012",
+            g_y: "0x0000000000000000000000000000000000000000000000000000000000000001",
+            n:   "0x2523648240000001BA344D8000000007FF9F800000000010A10000000000000D",
+        }.into();
+        assert!(bn254.is_ok());
+
+        // secp256k1, note a = 0
+        let my_secp256k1: Result<EcGroup> = Params {
+            p:   "0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
+            a:   "0x0000000000000000000000000000000000000000000000000000000000000000",
+            b:   "0x0000000000000000000000000000000000000000000000000000000000000007",
+            g_x: "0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+            g_y: "0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+            n:   "0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+        }.into();
+        assert!(my_secp256k1.is_ok());
+        let my_secp256k1 = my_secp256k1.unwrap();
+
+        // We compare against the known SecP256K1
+        let secp256k1 = EcGroup::new(EcGroupId::SecP256K1).unwrap();
+        assert!(my_secp256k1.p()         == secp256k1.p());
+        assert!(my_secp256k1.a()         == secp256k1.a());
+        assert!(my_secp256k1.b()         == secp256k1.b());
+        assert!(my_secp256k1.cofactor()  == secp256k1.cofactor());
+        assert!(my_secp256k1.generator() == secp256k1.generator());
+        assert!(my_secp256k1.order()     == secp256k1.order());
+    }
 }
