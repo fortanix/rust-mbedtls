@@ -191,6 +191,8 @@ impl EcGroup {
         match self.group_id()? {
             EcGroupId::Curve25519 => Ok(8),
             EcGroupId::Curve448 => Ok(4),
+            // Requires a point-counting algorithm such as SEA.
+            EcGroupId::None => Err(Error::EcpFeatureUnavailable),
             _ => Ok(1),
         }
     }
@@ -826,7 +828,40 @@ mod tests {
         }.into();
         assert!(bn254.is_ok());
 
-        // secp256k1, note a = 0
+        // Prescribed embedded degree of 12, BLS12-381
+        let bls12_381: Result<_> = Params {
+            p:   "0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab",
+            a:   "0x00",
+            b:   "0x04",
+            g_x: "0x17F1D3A73197D7942695638C4FA9AC0FC3688C4F9774B905A14E3A3F171BAC586C55E83FF97A1AEFFB3AF00ADB22C6BB",
+            g_y: "0x08B3F481E3AAA0F1A09E30ED741D8AE4FCF5E095D5D00AF600DB18CB2C04B3EDD03CC744A2888AE40CAA232946C5E7E1",
+            n:   "0x73EDA753299D7D483339D80809A1D80553BDA402FFFE5BFEFFFFFFFF00000001",
+        }.into();
+        assert!(bls12_381.is_ok());
+
+        // Fp256BN
+        let fp256_bn: Result<_> = Params {
+            p:   "0xfffffffffffcf0cd46e5f25eee71a49f0cdc65fb12980a82d3292ddbaed33013",
+            a:   "0x00",
+            b:   "0x03",
+            g_x: "0x01",
+            g_y: "0x02",
+            n:   "0xfffffffffffcf0cd46e5f25eee71a49e0cdc65fb1299921af62d536cd10b500d",
+        }.into();
+        assert!(fp256_bn.is_ok());
+
+        // id-GostR3410-2001-CryptoPro-C-ParamSet, note g_x = 0
+        let gost_r3410: Result<_> = Params {
+            p:   "0x9b9f605f5a858107ab1ec85e6b41c8aacf846e86789051d37998f7b9022d759b",
+            a:   "0x9b9f605f5a858107ab1ec85e6b41c8aacf846e86789051d37998f7b9022d7598",
+            b:   "0x805a",
+            g_x: "0x00",
+            g_y: "0x41ece55743711a8c3cbf3783cd08c0ee4d4dc440d4641a8f366e550dfdb3bb67",
+            n:   "0x9b9f605f5a858107ab1ec85e6b41c8aa582ca3511eddfb74f02f3a6598980bb9",
+        }.into();
+        assert!(gost_r3410.is_ok());
+
+        // secp256k1 (Bitcoin), note a = 0
         let my_secp256k1: Result<EcGroup> = Params {
             p:   "0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
             a:   "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -843,7 +878,6 @@ mod tests {
         assert!(my_secp256k1.p()         == secp256k1.p());
         assert!(my_secp256k1.a()         == secp256k1.a());
         assert!(my_secp256k1.b()         == secp256k1.b());
-        assert!(my_secp256k1.cofactor()  == secp256k1.cofactor());
         assert!(my_secp256k1.generator() == secp256k1.generator());
         assert!(my_secp256k1.order()     == secp256k1.order());
     }
