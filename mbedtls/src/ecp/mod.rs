@@ -79,7 +79,7 @@ impl EcGroup {
         Ok(ret)
     }
 
-    /// Enables the use of custom curves.
+    /// Initialize an EcGroup with custom group parameters.
     ///
     /// HAZMAT: This function DOES NOT perform a full check on parameters
     /// against all known attacks. The caller MUST make sure that parameters are
