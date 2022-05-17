@@ -112,6 +112,7 @@ impl EcGroup {
             || &g_y < &zero
             || &g_y >= &p
             || &order <= &zero
+            || (&a == &zero && &b == &zero)
         {
             return Err(Error::EcpBadInputData);
         }
@@ -766,6 +767,7 @@ mod tests {
         assert_eq!(pt2.eq(&pt3).unwrap(), true);
     }
 
+    #[cfg(feature = "std")]
     struct Params<'a> {
         p:   &'a str,
         a:   &'a str,
@@ -792,7 +794,22 @@ mod tests {
 
     #[test]
     #[cfg(feature = "std")]
-    fn bad_generator() {
+    fn pathological_parameters() {
+        // y² = x³ mod 7 (note  a == b == 0)
+        let singular: super::Result<_> = Params {
+            p:   "0x07",
+            a:   "0x00",
+            b:   "0x00",
+            g_x: "0x01",
+            g_y: "0x02",
+            n:   "0x0b",
+        }.into();
+        assert!(singular.is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn bad_generators() {
         // y² = x³ + x + 6 (mod 7) with bad generator (1, 2) and prime order 11
         let small_curve: super::Result<_> = Params {
             p:   "0x07",
@@ -803,6 +820,17 @@ mod tests {
             n:   "0x0b",
         }.into();
         assert!(small_curve.is_err());
+
+        // y² = x³ + x + 6 (mod 7) with bad generator (0, 0) and prime order 11
+        let small_curve_zero_gen: super::Result<_> = Params {
+            p:   "0x07",
+            a:   "0x01",
+            b:   "0x06",
+            g_x: "0x00",
+            g_y: "0x00",
+            n:   "0x0b",
+        }.into();
+        assert!(small_curve_zero_gen.is_err());
     }
 
     #[test]
