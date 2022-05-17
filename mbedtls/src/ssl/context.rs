@@ -264,7 +264,7 @@ impl<T> Context<T> {
     
     /// Return the 16-bit ciphersuite identifier.
     /// All assigned ciphersuites are listed by the IANA in
-    /// https://www.iana.org/assignments/tls-parameters/tls-parameters.txt
+    /// <https://www.iana.org/assignments/tls-parameters/tls-parameters.txt>
     pub fn ciphersuite(&self) -> Result<u16> {
         if self.handle().session.is_null() {
             return Err(Error::SslBadInputData);
