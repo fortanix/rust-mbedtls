@@ -79,6 +79,13 @@ impl EcGroup {
         Ok(ret)
     }
 
+    /// Enables the use of custom curves.
+    ///
+    /// HAZMAT: This function DOES NOT perform a full check on parameters
+    /// against all known attacks. The caller MUST make sure that parameters are
+    /// trusted. Failing to comply with this requirement may result in the use
+    /// of INSECURE curves. Prefer [EcGroup::new] with known curves listed in
+    /// [EcGroupId].
     pub fn from_parameters(
         p: Mpi,
         a: Mpi,
