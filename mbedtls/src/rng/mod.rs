@@ -23,7 +23,7 @@ pub use self::os_entropy::OsEntropy;
 #[cfg(any(feature = "rdrand", target_env = "sgx"))]
 pub use self::rdrand::{Entropy as Rdseed, Nrbg as Rdrand};
 
-use crate::error::{Result, IntoResult};
+use crate::error::{IntoResult, Result};
 use mbedtls_sys::types::raw_types::{c_int, c_uchar};
 use mbedtls_sys::types::size_t;
 
@@ -31,7 +31,10 @@ callback!(EntropyCallbackMut,EntropyCallback(data: *mut c_uchar, len: size_t) ->
 callback!(RngCallbackMut,RngCallback(data: *mut c_uchar, len: size_t) -> c_int);
 
 pub trait Random: RngCallback {
-    fn random(&mut self, data: &mut [u8]) -> Result<()> where Self: Sized {
+    fn random(&mut self, data: &mut [u8]) -> Result<()>
+    where
+        Self: Sized,
+    {
         unsafe { Self::call(self.data_ptr(), data.as_mut_ptr(), data.len()) }.into_result()?;
         Ok(())
     }

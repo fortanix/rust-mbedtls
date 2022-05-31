@@ -19,11 +19,11 @@ mod mod_bindgen;
 #[path = "cmake.rs"]
 mod mod_cmake;
 
+use features::FEATURES;
 use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use features::FEATURES;
 
 struct BuildConfig {
     out_dir: PathBuf,
@@ -93,7 +93,8 @@ impl BuildConfig {
     fn new() -> Self {
         let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR environment not set?"));
         let config_h = out_dir.join("config.h");
-        let mbedtls_src = PathBuf::from(env::var("RUST_MBEDTLS_SYS_SOURCE").unwrap_or("vendor".to_owned()));
+        let mbedtls_src =
+            PathBuf::from(env::var("RUST_MBEDTLS_SYS_SOURCE").unwrap_or("vendor".to_owned()));
         let mbedtls_include = mbedtls_src.join("include");
 
         let mut cflags = vec![];

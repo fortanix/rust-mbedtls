@@ -33,6 +33,7 @@ mod wrapper_macros;
 pub mod bignum;
 mod error;
 pub use crate::error::{Error, Result};
+pub mod alloc;
 pub mod cipher;
 pub mod ecp;
 pub mod hash;
@@ -41,7 +42,6 @@ pub mod rng;
 pub mod self_test;
 pub mod ssl;
 pub mod x509;
-pub mod alloc;
 
 #[cfg(feature = "pkcs12")]
 pub mod pkcs12;
@@ -96,13 +96,13 @@ mod mbedtls {
 #[cfg(not(feature = "std"))]
 mod alloc_prelude {
     #![allow(unused)]
+    pub(crate) use rust_alloc::borrow::Cow;
     pub(crate) use rust_alloc::borrow::ToOwned;
     pub(crate) use rust_alloc::boxed::Box;
-    pub(crate) use rust_alloc::sync::Arc;
     pub(crate) use rust_alloc::string::String;
     pub(crate) use rust_alloc::string::ToString;
+    pub(crate) use rust_alloc::sync::Arc;
     pub(crate) use rust_alloc::vec::Vec;
-    pub(crate) use rust_alloc::borrow::Cow;
 }
 
 cfg_if::cfg_if! {
@@ -181,7 +181,7 @@ mod tests {
         use core::marker::PhantomData;
 
         pub struct NonImplTrait<T> {
-            inner: PhantomData<T>
+            inner: PhantomData<T>,
         }
 
         pub struct TestTrait<TraitObj: ?Sized, Type> {
@@ -193,7 +193,10 @@ mod tests {
 
         impl<TraitObj: ?Sized, Type> TestTrait<TraitObj, Type> {
             pub fn new() -> Self {
-                TestTrait { non_impl: NonImplTrait { inner: PhantomData }, phantom: PhantomData }
+                TestTrait {
+                    non_impl: NonImplTrait { inner: PhantomData },
+                    phantom: PhantomData,
+                }
             }
         }
 

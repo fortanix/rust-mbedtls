@@ -21,4 +21,4 @@ pub use bindings::*;
 /* This value is defined by a C function macro, something which is not supported by bindgen currently
    https://github.com/rust-lang-nursery/rust-bindgen/issues/231
 */
-pub const ECDSA_MAX_LEN : u32 = 141;
+pub const ECDSA_MAX_LEN: u32 = 141;

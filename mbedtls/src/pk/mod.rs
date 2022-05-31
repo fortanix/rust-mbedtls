@@ -12,12 +12,12 @@ use mbedtls_sys::*;
 
 use mbedtls_sys::types::raw_types::c_void;
 
-use core::ptr;
-use core::convert::TryInto;
 use crate::error::{Error, IntoResult, Result};
+use crate::hash::Type as MdType;
 use crate::private::UnsafeFrom;
 use crate::rng::Random;
-use crate::hash::Type as MdType;
+use core::convert::TryInto;
+use core::ptr;
 
 use byteorder::{BigEndian, ByteOrder};
 
@@ -43,7 +43,7 @@ pub use dhparam::Dhm;
 // SHA-256("Fortanix")[:4]
 const CUSTOM_PK_TYPE: pk_type_t = 0x8b205408 as pk_type_t;
 
-const RAW_RSA_DECRYPT : i32 = 1040451858;
+const RAW_RSA_DECRYPT: i32 = 1040451858;
 
 define!(
     #[c_ty(pk_type_t)]
@@ -163,7 +163,7 @@ define!(
 // B. Verifying thread safety.
 //
 // 1. Calls towards the specific Pk implementation are done via function pointers.
-// 
+//
 // - Example call towards Pk:
 //    ../../../mbedtls-sys/vendor/library/ssl_srv.c:3707 - mbedtls_pk_decrypt( private_key, p, len, ...
 // - This calls a generic function pointer via:
@@ -174,7 +174,7 @@ define!(
 // - The function pointers are defined via function:
 //      ../../../mbedtls-sys/vendor/crypto/library/pk.c:115 - mbedtls_pk_info_from_type
 // - They are as follows: mbedtls_rsa_info / mbedtls_eckey_info / mbedtls_ecdsa_info
-// - These are defined in: 
+// - These are defined in:
 //       ../../../mbedtls-sys/vendor/crypto/library/pk_wrap.c:196
 //
 // C. Checking types one by one.
@@ -222,7 +222,7 @@ define!(
 //                    mbedtls_ecp_mul_restartable: ../../../mbedtls-sys/vendor/crypto/library/ecp.c:2351
 //                        MBEDTLS_ECP_INTERNAL_ALT is not defined. (otherwise it might not be safe depending on ecp_init/ecp_free) ../../../mbedtls-sys/build/config.rs:131
 //                        Passes as const to: mbedtls_ecp_check_privkey / mbedtls_ecp_check_pubkey / mbedtls_ecp_get_type( grp
-//        
+//
 // - Ignored due to not defined: ecdsa_verify_rs_wrap, ecdsa_sign_rs_wrap, ecdsa_rs_alloc, ecdsa_rs_free
 //   (Undefined - MBEDTLS_ECP_RESTARTABLE - ../../../mbedtls-sys/build/config.rs:173)
 //
@@ -276,10 +276,13 @@ impl Pk {
         Ok(ret)
     }
 
-    pub fn generate_ec<F: Random, C: TryInto<EcGroup, Error = impl Into<Error>>>(rng: &mut F, curve: C) -> Result<Pk> {
+    pub fn generate_ec<F: Random, C: TryInto<EcGroup, Error = impl Into<Error>>>(
+        rng: &mut F,
+        curve: C,
+    ) -> Result<Pk> {
         let mut ret = Self::init();
         unsafe {
-            let curve : EcGroup = curve.try_into().map_err(|e| e.into())?;
+            let curve: EcGroup = curve.try_into().map_err(|e| e.into())?;
             pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result()?;
             let ctx = ret.inner.pk_ctx as *mut ecp_keypair;
             (*ctx).grp = curve.clone().into_inner();
@@ -684,7 +687,7 @@ impl Pk {
     ) -> Result<usize> {
         if self.pk_type() == Type::Rsa {
             let ctx = self.inner.pk_ctx as *mut rsa_context;
-            if unsafe { (*ctx).padding  == RAW_RSA_DECRYPT } {
+            if unsafe { (*ctx).padding == RAW_RSA_DECRYPT } {
                 let olen = self.len() / 8;
                 if plain.len() < olen {
                     return Err(Error::RsaOutputTooLarge);
@@ -696,8 +699,9 @@ impl Pk {
                         Some(F::call),
                         rng.data_ptr(),
                         cipher.as_ptr(),
-                        plain.as_mut_ptr()
-                    ).into_result()?;
+                        plain.as_mut_ptr(),
+                    )
+                    .into_result()?;
                 };
                 return Ok(olen);
             }
@@ -714,7 +718,8 @@ impl Pk {
                 plain.len(),
                 Some(F::call),
                 rng.data_ptr(),
-            ).into_result()?;
+            )
+            .into_result()?;
         };
         Ok(ret)
     }
@@ -750,7 +755,8 @@ impl Pk {
                 cipher.as_ptr(),
                 plain.as_mut_ptr(),
                 plain.len(),
-            ).into_result()?;
+            )
+            .into_result()?;
         }
         Ok(ret)
     }
@@ -772,7 +778,8 @@ impl Pk {
                 cipher.len(),
                 Some(F::call),
                 rng.data_ptr(),
-            ).into_result()?;
+            )
+            .into_result()?;
         };
         Ok(ret)
     }
@@ -809,8 +816,9 @@ impl Pk {
                 label.len(),
                 plain.len(),
                 plain.as_ptr(),
-                cipher.as_mut_ptr()
-            ).into_result()?;
+                cipher.as_mut_ptr(),
+            )
+            .into_result()?;
         }
         Ok(olen)
     }
@@ -834,7 +842,7 @@ impl Pk {
     ) -> Result<usize> {
         // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to auto-detect size and cause an invalid write.
         if hash.len() == 0 || sig.len() == 0 {
-            return Err(Error::PkBadInputData)
+            return Err(Error::PkBadInputData);
         }
 
         match self.pk_type() {
@@ -861,7 +869,8 @@ impl Pk {
                 &mut ret,
                 Some(F::call),
                 rng.data_ptr(),
-            ).into_result()?;
+            )
+            .into_result()?;
         };
         Ok(ret)
     }
@@ -875,7 +884,7 @@ impl Pk {
     ) -> Result<usize> {
         // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to auto-detect size and cause an invalid write.
         if hash.len() == 0 || sig.len() == 0 {
-            return Err(Error::PkBadInputData)
+            return Err(Error::PkBadInputData);
         }
 
         use crate::rng::RngCallbackMut;
@@ -905,7 +914,8 @@ impl Pk {
                     &mut ret,
                     Some(Rfc6979Rng::call_mut),
                     rng.data_ptr_mut(),
-                ).into_result()?;
+                )
+                .into_result()?;
             };
             Ok(ret)
         } else if self.pk_type() == Type::Rsa {
@@ -925,9 +935,9 @@ impl Pk {
     pub fn verify(&mut self, md: MdType, hash: &[u8], sig: &[u8]) -> Result<()> {
         // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to auto-detect size and cause an invalid write.
         if hash.len() == 0 || sig.len() == 0 {
-            return Err(Error::PkBadInputData)
+            return Err(Error::PkBadInputData);
         }
-        
+
         unsafe {
             pk_verify(
                 &mut self.inner,
@@ -1055,7 +1065,7 @@ impl Pk {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hash::{Type, MdInfo};
+    use crate::hash::{MdInfo, Type};
     use crate::pk::Type as PkType;
 
     // This is test data that must match library output *exactly*
@@ -1182,30 +1192,40 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
 
     #[test]
     fn generate_ec_curve25519() {
-        let _generated =
-            Pk::generate_ec(&mut crate::test_support::rand::test_rng(), EcGroupId::Curve25519).unwrap();
+        let _generated = Pk::generate_ec(
+            &mut crate::test_support::rand::test_rng(),
+            EcGroupId::Curve25519,
+        )
+        .unwrap();
         // mbedtls does not have an OID for Curve25519, so can't write it as PEM
     }
 
     #[test]
     fn generate_ec_secp192r1() {
-        let _generated =
-            Pk::generate_ec(&mut crate::test_support::rand::test_rng(), EcGroupId::SecP192R1)
-                .unwrap()
-                .write_private_pem_string()
-                .unwrap();
+        let _generated = Pk::generate_ec(
+            &mut crate::test_support::rand::test_rng(),
+            EcGroupId::SecP192R1,
+        )
+        .unwrap()
+        .write_private_pem_string()
+        .unwrap();
     }
 
     #[test]
     fn generate_ec_secp256r1() {
-        let mut key1 =
-            Pk::generate_ec(&mut crate::test_support::rand::test_rng(), EcGroupId::SecP256R1).unwrap();
+        let mut key1 = Pk::generate_ec(
+            &mut crate::test_support::rand::test_rng(),
+            EcGroupId::SecP256R1,
+        )
+        .unwrap();
         let pem1 = key1.write_private_pem_string().unwrap();
 
         let secp256r1 = EcGroup::new(EcGroupId::SecP256R1).unwrap();
-        let mut key2 =
-            Pk::generate_ec(&mut crate::test_support::rand::test_rng(), secp256r1.clone())
-                .unwrap();
+        let mut key2 = Pk::generate_ec(
+            &mut crate::test_support::rand::test_rng(),
+            secp256r1.clone(),
+        )
+        .unwrap();
         let pem2 = key2.write_private_pem_string().unwrap();
 
         assert_eq!(pem1, pem2);
@@ -1228,11 +1248,13 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
 
     #[test]
     fn generate_ec_secp256k1() {
-        let _generated =
-            Pk::generate_ec(&mut crate::test_support::rand::test_rng(), EcGroupId::SecP256K1)
-                .unwrap()
-                .write_private_pem_string()
-                .unwrap();
+        let _generated = Pk::generate_ec(
+            &mut crate::test_support::rand::test_rng(),
+            EcGroupId::SecP256K1,
+        )
+        .unwrap()
+        .write_private_pem_string()
+        .unwrap();
     }
 
     #[test]
@@ -1290,17 +1312,57 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
                 .unwrap();
             pk.verify(digest, data, &signature[0..len]).unwrap();
 
-            assert_eq!(pk.verify(digest, data, &[]).unwrap_err(), Error::PkBadInputData);
-            assert_eq!(pk.verify(digest, &[], &signature[0..len]).unwrap_err(), Error::PkBadInputData);
-
+            assert_eq!(
+                pk.verify(digest, data, &[]).unwrap_err(),
+                Error::PkBadInputData
+            );
+            assert_eq!(
+                pk.verify(digest, &[], &signature[0..len]).unwrap_err(),
+                Error::PkBadInputData
+            );
 
             let mut dummy_sig = [];
-            assert_eq!(pk.sign(digest, data, &mut dummy_sig, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::PkBadInputData);
-            assert_eq!(pk.sign(digest, &[], &mut signature, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::PkBadInputData);
-            
-            assert_eq!(pk.sign_deterministic(digest, data, &mut dummy_sig, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::PkBadInputData);
-            assert_eq!(pk.sign_deterministic(digest, &[], &mut signature, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::PkBadInputData);
+            assert_eq!(
+                pk.sign(
+                    digest,
+                    data,
+                    &mut dummy_sig,
+                    &mut crate::test_support::rand::test_rng()
+                )
+                .unwrap_err(),
+                Error::PkBadInputData
+            );
+            assert_eq!(
+                pk.sign(
+                    digest,
+                    &[],
+                    &mut signature,
+                    &mut crate::test_support::rand::test_rng()
+                )
+                .unwrap_err(),
+                Error::PkBadInputData
+            );
 
+            assert_eq!(
+                pk.sign_deterministic(
+                    digest,
+                    data,
+                    &mut dummy_sig,
+                    &mut crate::test_support::rand::test_rng()
+                )
+                .unwrap_err(),
+                Error::PkBadInputData
+            );
+            assert_eq!(
+                pk.sign_deterministic(
+                    digest,
+                    &[],
+                    &mut signature,
+                    &mut crate::test_support::rand::test_rng()
+                )
+                .unwrap_err(),
+                Error::PkBadInputData
+            );
         }
     }
 
@@ -1364,18 +1426,24 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         let mut cipher1 = [0u8; 2048 / 8];
         let mut cipher2 = [0u8; 2048 / 8];
         assert_eq!(
-            pk.encrypt(b"test", &mut cipher1, &mut crate::test_support::rand::test_rng())
-                .unwrap(),
+            pk.encrypt(
+                b"test",
+                &mut cipher1,
+                &mut crate::test_support::rand::test_rng()
+            )
+            .unwrap(),
             cipher1.len()
         );
         pk.set_options(Options::Rsa {
-            padding: RsaPadding::Pkcs1V21 {
-                mgf: Type::Sha256,
-            },
+            padding: RsaPadding::Pkcs1V21 { mgf: Type::Sha256 },
         });
         assert_eq!(
-            pk.encrypt(b"test", &mut cipher2, &mut crate::test_support::rand::test_rng())
-                .unwrap(),
+            pk.encrypt(
+                b"test",
+                &mut cipher2,
+                &mut crate::test_support::rand::test_rng()
+            )
+            .unwrap(),
             cipher2.len()
         );
         assert_ne!(&cipher1[..], &cipher2[..]);
@@ -1387,18 +1455,17 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         let mut cipher = [0u8; 2048 / 8];
         let mut rng = crate::test_support::rand::test_rng();
         pk.set_options(Options::Rsa {
-            padding: RsaPadding::Pkcs1V15
+            padding: RsaPadding::Pkcs1V15,
         });
         assert_eq!(
-            pk.encrypt(b"test", &mut cipher, &mut rng)
-                .unwrap(),
+            pk.encrypt(b"test", &mut cipher, &mut rng).unwrap(),
             cipher.len()
         );
         let mut decrypted_data1 = [0u8; 2048 / 8];
         let length_with_padding = pk.decrypt(&cipher, &mut decrypted_data1, &mut rng).unwrap();
         // set raw decryption padding mode to perform raw decryption
         pk.set_options(Options::Rsa {
-            padding: RsaPadding::None
+            padding: RsaPadding::None,
         });
         let mut decrypted_data2 = [0u8; 2048 / 8];
         let length_without_padding = pk.decrypt(&cipher, &mut decrypted_data2, &mut rng).unwrap();
@@ -1414,11 +1481,15 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         let mut cipher = [0u8; 2048 / 8];
         // set raw decryption padding mode
         pk.set_options(Options::Rsa {
-            padding: RsaPadding::None
+            padding: RsaPadding::None,
         });
         assert_eq!(
-            pk.encrypt(b"test", &mut cipher, &mut crate::test_support::rand::test_rng())
-                .unwrap_err(),
+            pk.encrypt(
+                b"test",
+                &mut cipher,
+                &mut crate::test_support::rand::test_rng()
+            )
+            .unwrap_err(),
             Error::RsaInvalidPadding
         );
     }
@@ -1429,26 +1500,44 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         let mut cipher = [0u8; 2048 / 8];
         // set raw decryption padding mode
         pk.set_options(Options::Rsa {
-            padding: RsaPadding::Pkcs1V21 { mgf: MdType::Sha256 }
+            padding: RsaPadding::Pkcs1V21 {
+                mgf: MdType::Sha256,
+            },
         });
 
         let plain = b"testing123";
-        let cipher_len = pk.encrypt_with_label(plain, &mut cipher,
-                                         &mut crate::test_support::rand::test_rng(),
-                                         b"MY_LABEL").unwrap();
+        let cipher_len = pk
+            .encrypt_with_label(
+                plain,
+                &mut cipher,
+                &mut crate::test_support::rand::test_rng(),
+                b"MY_LABEL",
+            )
+            .unwrap();
         assert_eq!(cipher_len, cipher.len());
 
         let mut plain_decrypted = [0u8; 10];
-        let plain_len = pk.decrypt_with_label(&cipher, &mut plain_decrypted,
-                                              &mut crate::test_support::rand::test_rng(),
-                                              b"MY_LABEL").unwrap();
+        let plain_len = pk
+            .decrypt_with_label(
+                &cipher,
+                &mut plain_decrypted,
+                &mut crate::test_support::rand::test_rng(),
+                b"MY_LABEL",
+            )
+            .unwrap();
         assert_eq!(plain_len, plain.len());
         assert_eq!(&plain_decrypted, plain);
 
-        assert_eq!(pk.decrypt_with_label(&cipher, &mut plain_decrypted,
-                                              &mut crate::test_support::rand::test_rng(),
-                                              b"WRONG_LABEL").unwrap_err(),
-                   Error::RsaInvalidPadding);
+        assert_eq!(
+            pk.decrypt_with_label(
+                &cipher,
+                &mut plain_decrypted,
+                &mut crate::test_support::rand::test_rng(),
+                b"WRONG_LABEL"
+            )
+            .unwrap_err(),
+            Error::RsaInvalidPadding
+        );
     }
 
     #[test]
@@ -1462,8 +1551,13 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             padding: RsaPadding::None,
         });
         assert_eq!(
-            pk.sign(Type::Sha256, data, &mut signature, &mut crate::test_support::rand::test_rng())
-                .unwrap_err(),
+            pk.sign(
+                Type::Sha256,
+                data,
+                &mut signature,
+                &mut crate::test_support::rand::test_rng()
+            )
+            .unwrap_err(),
             Error::RsaInvalidPadding
         );
     }
@@ -1479,15 +1573,20 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         pk.set_options(Options::Rsa {
             padding: RsaPadding::Pkcs1V21 { mgf: digest },
         });
-        let len = pk.sign(digest, data, &mut signature, &mut crate::test_support::rand::test_rng())
+        let len = pk
+            .sign(
+                digest,
+                data,
+                &mut signature,
+                &mut crate::test_support::rand::test_rng(),
+            )
             .unwrap();
         // set raw decryption padding mode
         pk.set_options(Options::Rsa {
             padding: RsaPadding::None,
         });
         assert_eq!(
-            pk.verify(digest, data, &signature[0..len])
-                .unwrap_err(),
+            pk.verify(digest, data, &signature[0..len]).unwrap_err(),
             Error::RsaInvalidPadding
         );
     }
@@ -1536,5 +1635,4 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         assert!(pk.custom_public_key().is_err());
         assert!(pk.custom_private_key().is_err());
     }
-
 }

@@ -13,10 +13,10 @@ use crate::alloc_prelude::*;
 
 use mbedtls_sys::*;
 
-use crate::private::{alloc_string_repeat, alloc_vec_repeat};
 use crate::error::{Error, IntoResult, Result};
-use crate::pk::Pk;
 use crate::hash::Type as MdType;
+use crate::pk::Pk;
+use crate::private::{alloc_string_repeat, alloc_vec_repeat};
 use crate::rng::Random;
 
 define!(
@@ -41,9 +41,7 @@ impl Csr {
     }
 
     pub fn subject(&self) -> Result<String> {
-        alloc_string_repeat(|buf, size| unsafe {
-            x509_dn_gets(buf, size, &self.inner.subject)
-        })
+        alloc_string_repeat(|buf, size| unsafe { x509_dn_gets(buf, size, &self.inner.subject) })
     }
 
     pub fn subject_raw(&self) -> Result<Vec<u8>> {
@@ -82,7 +80,8 @@ define!(
 
 impl<'a> Builder<'a> {
     unsafe fn subject_with_nul_unchecked(&mut self, subject: &[u8]) -> Result<&mut Self> {
-        x509write_csr_set_subject_name(&mut self.inner, subject.as_ptr() as *const _).into_result()?;
+        x509write_csr_set_subject_name(&mut self.inner, subject.as_ptr() as *const _)
+            .into_result()?;
         Ok(self)
     }
 
@@ -119,7 +118,8 @@ impl<'a> Builder<'a> {
             return Err(Error::X509FeatureUnavailable);
         }
 
-        unsafe { x509write_csr_set_key_usage(&mut self.inner, (usage & 0xfe) as u8) }.into_result()?;
+        unsafe { x509write_csr_set_key_usage(&mut self.inner, (usage & 0xfe) as u8) }
+            .into_result()?;
         Ok(self)
     }
 
@@ -130,9 +130,10 @@ impl<'a> Builder<'a> {
                 oid.as_ptr() as *const _,
                 oid.len(),
                 val.as_ptr(),
-                val.len()
+                val.len(),
             )
-        }.into_result()?;
+        }
+        .into_result()?;
         Ok(self)
     }
 
@@ -218,7 +219,8 @@ mod tests {
     impl Test {
         fn new() -> Self {
             Test {
-                key: Pk::from_private_key(crate::test_support::keys::PEM_SELF_SIGNED_KEY, None).unwrap(),
+                key: Pk::from_private_key(crate::test_support::keys::PEM_SELF_SIGNED_KEY, None)
+                    .unwrap(),
             }
         }
 

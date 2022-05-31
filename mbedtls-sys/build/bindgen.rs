@@ -19,14 +19,19 @@ struct MbedtlsParseCallbacks;
 
 impl bindgen::callbacks::ParseCallbacks for MbedtlsParseCallbacks {
     fn item_name(&self, original_item_name: &str) -> Option<String> {
-        Some(original_item_name.trim_start_matches("mbedtls_").trim_start_matches("MBEDTLS_").to_owned())
+        Some(
+            original_item_name
+                .trim_start_matches("mbedtls_")
+                .trim_start_matches("MBEDTLS_")
+                .to_owned(),
+        )
     }
 
     fn enum_variant_name(
         &self,
         _enum_name: Option<&str>,
         original_variant_name: &str,
-        _variant_value: bindgen::callbacks::EnumVariantValue
+        _variant_value: bindgen::callbacks::EnumVariantValue,
     ) -> Option<String> {
         self.item_name(original_variant_name)
     }
@@ -39,7 +44,11 @@ impl bindgen::callbacks::ParseCallbacks for MbedtlsParseCallbacks {
         }
     }
 
-    fn blocklisted_type_implements_trait(&self, _name: &str, derive_trait: bindgen::callbacks::DeriveTrait) -> Option<bindgen::callbacks::ImplementsTrait> {
+    fn blocklisted_type_implements_trait(
+        &self,
+        _name: &str,
+        derive_trait: bindgen::callbacks::DeriveTrait,
+    ) -> Option<bindgen::callbacks::ImplementsTrait> {
         if derive_trait == bindgen::callbacks::DeriveTrait::Default {
             Some(bindgen::callbacks::ImplementsTrait::Manually)
         } else {
@@ -53,24 +62,33 @@ impl bindgen::callbacks::ParseCallbacks for MbedtlsParseCallbacks {
 fn generate_deprecated_union_accessors(bindings: &str) -> String {
     #[derive(Default)]
     struct UnionImplBuilder {
-        impls: String
+        impls: String,
     }
 
     impl<'ast> syn::visit::Visit<'ast> for UnionImplBuilder {
         fn visit_item_union(&mut self, i: &'ast syn::ItemUnion) {
             let union_name = &i.ident;
-            let field_name = i.fields.named.iter().map(|field| field.ident.as_ref().unwrap());
+            let field_name = i
+                .fields
+                .named
+                .iter()
+                .map(|field| field.ident.as_ref().unwrap());
             let field_type = i.fields.named.iter().map(|field| &field.ty);
-            write!(self.impls, "{}", quote::quote! {
-                impl #union_name {
-                    #(
-                        #[deprecated]
-                        pub unsafe fn #field_name(&mut self) -> *mut #field_type {
-                            &mut self.#field_name
-                        }
-                    )*
+            write!(
+                self.impls,
+                "{}",
+                quote::quote! {
+                    impl #union_name {
+                        #(
+                            #[deprecated]
+                            pub unsafe fn #field_name(&mut self) -> *mut #field_type {
+                                &mut self.#field_name
+                            }
+                        )*
+                    }
                 }
-            }).unwrap();
+            )
+            .unwrap();
         }
     }
 
@@ -88,8 +106,7 @@ impl super::BuildConfig {
         }
 
         let mut cc = cc::Build::new();
-        cc.include(&self.mbedtls_include)
-        .flag(&format!(
+        cc.include(&self.mbedtls_include).flag(&format!(
             "-DMBEDTLS_CONFIG_FILE=\"{}\"",
             self.config_h.to_str().expect("config.h UTF-8 error")
         ));
@@ -150,7 +167,8 @@ impl super::BuildConfig {
                 f.write_all(union_impls.as_bytes())?;
                 f.write_all(b"use crate::types::*;\n")?; // for FILE, time_t, etc.
                 Ok(())
-            }).expect("bindings.rs I/O error");
+            })
+            .expect("bindings.rs I/O error");
 
         let mod_bindings = self.out_dir.join("mod-bindings.rs");
         fs::write(mod_bindings, b"mod bindings;\n").expect("mod-bindings.rs I/O error");

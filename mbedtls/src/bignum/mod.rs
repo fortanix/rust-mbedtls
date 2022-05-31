@@ -81,7 +81,7 @@ impl ::core::str::FromStr for Mpi {
     }
 }
 
-#[derive(Debug,Copy,Clone,Eq,PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Sign {
     Negative,
     Zero,

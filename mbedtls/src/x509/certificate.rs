@@ -10,10 +10,10 @@ use core::fmt;
 use core::iter::FromIterator;
 use core::ptr::NonNull;
 
-use mbedtls_sys::*;
 use mbedtls_sys::types::raw_types::{c_char, c_void};
+use mbedtls_sys::*;
 
-use crate::alloc::{List as MbedtlsList, Box as MbedtlsBox};
+use crate::alloc::{Box as MbedtlsBox, List as MbedtlsList};
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 use crate::error::{Error, IntoResult, Result};
@@ -24,17 +24,22 @@ use crate::rng::Random;
 use crate::x509::{self, Time, VerifyCallback};
 
 extern "C" {
-    pub(crate) fn forward_mbedtls_calloc(n: mbedtls_sys::types::size_t, size: mbedtls_sys::types::size_t) -> *mut mbedtls_sys::types::raw_types::c_void;
+    pub(crate) fn forward_mbedtls_calloc(
+        n: mbedtls_sys::types::size_t,
+        size: mbedtls_sys::types::size_t,
+    ) -> *mut mbedtls_sys::types::raw_types::c_void;
 }
 
 #[cfg(feature = "std")]
-use yasna::{BERDecodable, BERReader, ASN1Result, ASN1Error, ASN1ErrorKind, models::ObjectIdentifier};
+use yasna::{
+    models::ObjectIdentifier, ASN1Error, ASN1ErrorKind, ASN1Result, BERDecodable, BERReader,
+};
 
-#[derive(Debug,Copy,Clone,Eq,PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CertificateVersion {
     V1,
     V2,
-    V3
+    V3,
 }
 
 #[cfg(feature = "std")]
@@ -52,11 +57,14 @@ impl BERDecodable for Extension {
             let oid = reader.next().read_oid()?;
             let critical = reader.read_optional(|r| r.read_bool())?.unwrap_or(false);
             let value = reader.next().read_bytes()?;
-            Ok(Extension { oid, critical, value })
+            Ok(Extension {
+                oid,
+                critical,
+                value,
+            })
         })
     }
 }
-
 
 define!(
     #[c_ty(x509_crt)]
@@ -84,14 +92,22 @@ fn x509_time_to_time(tm: &x509_time) -> Result<Time> {
         return Err(Error::X509InvalidDate);
     }
 
-    Time::new(tm.year as u16, tm.mon as u8, tm.day as u8, tm.hour as u8, tm.min as u8, tm.sec as u8).ok_or(Error::X509InvalidDate)
+    Time::new(
+        tm.year as u16,
+        tm.mon as u8,
+        tm.day as u8,
+        tm.hour as u8,
+        tm.min as u8,
+        tm.sec as u8,
+    )
+    .ok_or(Error::X509InvalidDate)
 }
-
 
 impl Certificate {
     pub fn from_der(der: &[u8]) -> Result<MbedtlsBox<Certificate>> {
         let mut cert = MbedtlsBox::<Certificate>::init()?;
-        unsafe { x509_crt_parse_der((&mut (*cert)).into(), der.as_ptr(), der.len()) }.into_result()?;
+        unsafe { x509_crt_parse_der((&mut (*cert)).into(), der.as_ptr(), der.len()) }
+            .into_result()?;
         Ok(cert)
     }
 
@@ -99,7 +115,7 @@ impl Certificate {
     pub fn from_pem(pem: &[u8]) -> Result<MbedtlsBox<Certificate>> {
         let mut cert = MbedtlsBox::<Certificate>::init()?;
         unsafe { x509_crt_parse((&mut (*cert)).into(), pem.as_ptr(), pem.len()) }.into_result()?;
-        
+
         if !(*cert).inner.next.is_null() {
             // Use from_pem_multiple for parsing multiple certificates in a pem.
             return Err(Error::X509BadInputData);
@@ -107,7 +123,7 @@ impl Certificate {
 
         Ok(cert)
     }
-    
+
     /// Input must be NULL-terminated
     pub fn from_pem_multiple(pem: &[u8]) -> Result<MbedtlsList<Certificate>> {
         let mut cert = MbedtlsBox::<Certificate>::init()?;
@@ -117,7 +133,7 @@ impl Certificate {
         list.push(cert);
         Ok(list)
     }
-    
+
     pub fn check_key_usage(&self, usage: super::KeyUsage) -> bool {
         unsafe { x509_crt_check_key_usage(&self.inner, usage.bits()) }
             .into_result()
@@ -179,7 +195,7 @@ impl Certificate {
             1 => Ok(CertificateVersion::V1),
             2 => Ok(CertificateVersion::V2),
             3 => Ok(CertificateVersion::V3),
-            _ => Err(Error::X509InvalidVersion)
+            _ => Err(Error::X509InvalidVersion),
         }
     }
 
@@ -210,7 +226,8 @@ impl Certificate {
                 }
             })?;
             return Ok(());
-        }).map_err(|_| Error::X509InvalidExtensions)?;
+        })
+        .map_err(|_| Error::X509InvalidExtensions)?;
 
         Ok(ext)
     }
@@ -232,12 +249,15 @@ impl Certificate {
     where
         F: VerifyCallback + 'static,
     {
-        let (f_vrfy, p_vrfy): (Option<unsafe extern "C" fn(_, _, _, _) -> _>, _) = if let Some(cb) = cb.as_ref() {
-            (Some(x509::verify_callback::<F>),
-            cb as *const _ as *mut c_void)
-        } else {
-            (None, ::core::ptr::null_mut())
-        };
+        let (f_vrfy, p_vrfy): (Option<unsafe extern "C" fn(_, _, _, _) -> _>, _) =
+            if let Some(cb) = cb.as_ref() {
+                (
+                    Some(x509::verify_callback::<F>),
+                    cb as *const _ as *mut c_void,
+                )
+            } else {
+                (None, ::core::ptr::null_mut())
+            };
         let mut flags = 0;
         let result = unsafe {
             x509_crt_verify(
@@ -316,7 +336,8 @@ define!(
 
 impl<'a> Builder<'a> {
     unsafe fn subject_with_nul_unchecked(&mut self, subject: &[u8]) -> Result<&mut Self> {
-        x509write_crt_set_subject_name(&mut self.inner, subject.as_ptr() as *const _).into_result()?;
+        x509write_crt_set_subject_name(&mut self.inner, subject.as_ptr() as *const _)
+            .into_result()?;
         Ok(self)
     }
 
@@ -337,7 +358,8 @@ impl<'a> Builder<'a> {
     }
 
     unsafe fn issuer_with_nul_unchecked(&mut self, issuer: &[u8]) -> Result<&mut Self> {
-        x509write_crt_set_issuer_name(&mut self.inner, issuer.as_ptr() as *const _).into_result()?;
+        x509write_crt_set_issuer_name(&mut self.inner, issuer.as_ptr() as *const _)
+            .into_result()?;
         Ok(self)
     }
 
@@ -385,19 +407,18 @@ impl<'a> Builder<'a> {
                 oid.len(),
                 critical as _,
                 val.as_ptr(),
-                val.len()
-            ) }.into_result()?;
+                val.len(),
+            )
+        }
+        .into_result()?;
         Ok(self)
     }
 
     pub fn basic_constraints(&mut self, ca: bool, pathlen: Option<u32>) -> Result<&mut Self> {
         unsafe {
-            x509write_crt_set_basic_constraints(
-                &mut self.inner,
-                ca as _,
-                pathlen.unwrap_or(0) as _
-            )
-        }.into_result()?;
+            x509write_crt_set_basic_constraints(&mut self.inner, ca as _, pathlen.unwrap_or(0) as _)
+        }
+        .into_result()?;
         Ok(self)
     }
 
@@ -410,9 +431,10 @@ impl<'a> Builder<'a> {
             x509write_crt_set_validity(
                 &mut self.inner,
                 not_before.to_x509_time().as_ptr() as _,
-                not_after.to_x509_time().as_ptr() as _
+                not_after.to_x509_time().as_ptr() as _,
             )
-        }.into_result()?;
+        }
+        .into_result()?;
         Ok(self)
     }
 
@@ -499,27 +521,32 @@ impl<'a> Builder<'a> {
 impl MbedtlsBox<Certificate> {
     fn init() -> Result<Self> {
         unsafe {
-            let inner = forward_mbedtls_calloc(1, core::mem::size_of::<x509_crt>()) as *mut x509_crt;
+            let inner =
+                forward_mbedtls_calloc(1, core::mem::size_of::<x509_crt>()) as *mut x509_crt;
 
             // If alignment is wrong it means someone pushed their own allocator to mbedtls and that is not functioning correctly.
             assert_eq!(inner.align_offset(core::mem::align_of::<x509_crt>()), 0);
 
             let inner = NonNull::new(inner).ok_or(Error::X509AllocFailed)?;
             x509_crt_init(inner.as_ptr());
-            
-            Ok(MbedtlsBox { inner: inner.cast() })
+
+            Ok(MbedtlsBox {
+                inner: inner.cast(),
+            })
         }
     }
-    
+
     fn list_next(&self) -> Option<&MbedtlsBox<Certificate>> {
         unsafe {
-            <&Option<MbedtlsBox<_>> as UnsafeFrom<_>>::from(&(**self).inner.next).unwrap().as_ref()
+            <&Option<MbedtlsBox<_>> as UnsafeFrom<_>>::from(&(**self).inner.next)
+                .unwrap()
+                .as_ref()
         }
     }
 
     fn list_next_mut(&mut self) -> &mut Option<MbedtlsBox<Certificate>> {
         unsafe {
-            <&mut Option<MbedtlsBox<_>> as UnsafeFrom<_>>::from(&mut(**self).inner.next).unwrap()
+            <&mut Option<MbedtlsBox<_>> as UnsafeFrom<_>>::from(&mut (**self).inner.next).unwrap()
         }
     }
 }
@@ -536,7 +563,8 @@ impl Clone for MbedtlsBox<Certificate> {
                 unreachable!("Trying to clone an uninitialized certificate.");
             } else {
                 // We have a certificate that was already created once, failing the re-parse is a possible memory corruption or bad usage of mbedtls internals.
-                Certificate::from_der(core::slice::from_raw_parts((**self).inner.raw.p, len)).expect("Failed re-parsing existing DER")
+                Certificate::from_der(core::slice::from_raw_parts((**self).inner.raw.p, len))
+                    .expect("Failed re-parsing existing DER")
             }
         }
     }
@@ -561,15 +589,20 @@ impl MbedtlsList<Certificate> {
 
     pub(crate) fn into_raw(mut self) -> *mut x509_crt {
         // This leaks a *mut Certificate that we can cast to x509_crt as it's transparent and has no extra fields.
-        self.inner.take().map(|x| x.into_raw()).unwrap_or(core::ptr::null_mut()) as *mut x509_crt
+        self.inner
+            .take()
+            .map(|x| x.into_raw())
+            .unwrap_or(core::ptr::null_mut()) as *mut x509_crt
     }
-    
+
     pub fn is_empty(&self) -> bool {
         self.inner.is_none()
     }
-    
+
     pub fn push(&mut self, certificate: MbedtlsBox<Certificate>) -> () {
-        self.append(MbedtlsList::<Certificate> { inner: Some(certificate) });
+        self.append(MbedtlsList::<Certificate> {
+            inner: Some(certificate),
+        });
     }
 
     pub fn pop_back(&mut self) -> Option<MbedtlsBox<Certificate>> {
@@ -582,18 +615,16 @@ impl MbedtlsList<Certificate> {
             }
             prev = cur;
         }
-        
+
         // no iterations in for loop: head equals tail
         self.inner.take()
     }
 
-    
     pub fn pop_front(&mut self) -> Option<MbedtlsBox<Certificate>> {
         let mut ret = self.inner.take()?;
         self.inner = ret.list_next_mut().take();
         Some(ret)
     }
-
 
     pub fn append(&mut self, list: MbedtlsList<Certificate>) {
         let tail = match self.iter_mut().last() {
@@ -602,17 +633,23 @@ impl MbedtlsList<Certificate> {
         };
         *tail = list.inner;
     }
-    
+
     pub fn iter(&self) -> Iter<'_> {
-        Iter { next: self.inner.as_ref() }
+        Iter {
+            next: self.inner.as_ref(),
+        }
     }
 
     pub fn iter_mut(&mut self) -> IterMut<'_> {
-        IterMut { next: self.inner.as_mut() }
+        IterMut {
+            next: self.inner.as_mut(),
+        }
     }
 
     pub(crate) unsafe fn inner_ffi_mut(&self) -> *mut x509_crt {
-        self.inner.as_ref().map_or(::core::ptr::null_mut(), |c| c.inner.as_ptr() as *mut x509_crt)
+        self.inner.as_ref().map_or(::core::ptr::null_mut(), |c| {
+            c.inner.as_ptr() as *mut x509_crt
+        })
     }
 }
 
@@ -624,13 +661,17 @@ impl Clone for MbedtlsList<Certificate> {
 
 impl Into<*const x509_crt> for &MbedtlsList<Certificate> {
     fn into(self) -> *const x509_crt {
-        self.inner.as_ref().map_or(::core::ptr::null_mut(), |c| c.inner.as_ptr() as *const x509_crt)
+        self.inner.as_ref().map_or(::core::ptr::null_mut(), |c| {
+            c.inner.as_ptr() as *const x509_crt
+        })
     }
 }
 
 impl Into<*mut x509_crt> for &mut MbedtlsList<Certificate> {
     fn into(self) -> *mut x509_crt {
-        self.inner.as_ref().map_or(::core::ptr::null_mut(), |c| c.inner.as_ptr() as *mut x509_crt)
+        self.inner.as_ref().map_or(::core::ptr::null_mut(), |c| {
+            c.inner.as_ptr() as *mut x509_crt
+        })
     }
 }
 
@@ -654,15 +695,14 @@ impl<'a> UnsafeFrom<*mut *mut x509_crt> for &'a mut MbedtlsList<Certificate> {
     }
 }
 
-
 pub struct Iter<'a> {
-    next: Option<&'a MbedtlsBox::<Certificate>>,
+    next: Option<&'a MbedtlsBox<Certificate>>,
 }
 
 impl<'a> Iterator for Iter<'a> {
     type Item = &'a MbedtlsBox<Certificate>;
 
-    fn next(&mut self) -> Option<&'a MbedtlsBox::<Certificate>> {
+    fn next(&mut self) -> Option<&'a MbedtlsBox<Certificate>> {
         let ret = self.next.take()?;
         self.next = ret.list_next();
         Some(ret)
@@ -670,16 +710,18 @@ impl<'a> Iterator for Iter<'a> {
 }
 
 pub struct IterMut<'a> {
-    next: Option<&'a mut MbedtlsBox::<Certificate>>,
+    next: Option<&'a mut MbedtlsBox<Certificate>>,
 }
 
 impl<'a> Iterator for IterMut<'a> {
     type Item = &'a mut MbedtlsBox<Certificate>;
 
-    fn next(&mut self) -> Option<&'a mut MbedtlsBox::<Certificate>> {
+    fn next(&mut self) -> Option<&'a mut MbedtlsBox<Certificate>> {
         let ret = self.next.take()?;
         unsafe {
-            self.next = <&mut Option<MbedtlsBox<_>> as UnsafeFrom<_>>::from(&mut (**ret).inner.next).and_then(|v| v.as_mut());
+            self.next =
+                <&mut Option<MbedtlsBox<_>> as UnsafeFrom<_>>::from(&mut (**ret).inner.next)
+                    .and_then(|v| v.as_mut());
         }
         Some(ret)
     }
@@ -712,7 +754,7 @@ impl IntoIterator for MbedtlsList<Certificate> {
 }
 
 impl<'a> IntoIterator for &'a MbedtlsList<Certificate> {
-    type Item = &'a MbedtlsBox::<Certificate>;
+    type Item = &'a MbedtlsBox<Certificate>;
     type IntoIter = Iter<'a>;
 
     fn into_iter(self) -> Iter<'a> {
@@ -729,16 +771,16 @@ impl<'a> IntoIterator for &'a mut MbedtlsList<Certificate> {
     }
 }
 
-impl FromIterator<MbedtlsBox::<Certificate>> for MbedtlsList<Certificate> {
-    fn from_iter<I: IntoIterator<Item = MbedtlsBox::<Certificate>>>(iter: I) -> Self {
+impl FromIterator<MbedtlsBox<Certificate>> for MbedtlsList<Certificate> {
+    fn from_iter<I: IntoIterator<Item = MbedtlsBox<Certificate>>>(iter: I) -> Self {
         let mut list = Self::new();
         list.extend(iter);
         list
     }
 }
 
-impl Extend<MbedtlsBox::<Certificate>> for MbedtlsList<Certificate> {
-    fn extend<I: IntoIterator<Item = MbedtlsBox::<Certificate>>>(&mut self, iter: I) {
+impl Extend<MbedtlsBox<Certificate>> for MbedtlsList<Certificate> {
+    fn extend<I: IntoIterator<Item = MbedtlsBox<Certificate>>>(&mut self, iter: I) {
         iter.into_iter().for_each(move |elt| self.push(elt));
     }
 }
@@ -756,8 +798,10 @@ mod tests {
     impl Test {
         fn new() -> Self {
             Test {
-                key1: Pk::from_private_key(crate::test_support::keys::PEM_SELF_SIGNED_KEY, None).unwrap(),
-                key2: Pk::from_private_key(crate::test_support::keys::PEM_SELF_SIGNED_KEY, None).unwrap(),
+                key1: Pk::from_private_key(crate::test_support::keys::PEM_SELF_SIGNED_KEY, None)
+                    .unwrap(),
+                key2: Pk::from_private_key(crate::test_support::keys::PEM_SELF_SIGNED_KEY, None)
+                    .unwrap(),
             }
         }
 
@@ -852,7 +896,8 @@ JS7pkcufTIoN0Yj0SxAWLW711FgB
         let mut t = Test::new();
         let output = t
             .builder()
-            .serial(&[5]).unwrap()
+            .serial(&[5])
+            .unwrap()
             .signature_hash(MdType::Sha256)
             .write_der_vec(&mut crate::test_support::rand::test_rng())
             .unwrap();
@@ -864,14 +909,14 @@ JS7pkcufTIoN0Yj0SxAWLW711FgB
         let mut t = Test::new();
         let output = t
             .builder()
-            .serial(&[5]).unwrap()
+            .serial(&[5])
+            .unwrap()
             .signature_hash(MdType::Sha256)
             .write_pem_string(&mut crate::test_support::rand::test_rng())
             .unwrap();
         assert_eq!(output, TEST_PEM);
     }
 
-    
     const TEST_CERT_PEM: &'static str = "-----BEGIN CERTIFICATE-----
 MIIDLDCCAhSgAwIBAgIRALY0SS5pY9Yb/aIHvSAvmOswDQYJKoZIhvcNAQELBQAw
 HzEQMA4GA1UEAxMHVGVzdCBDQTELMAkGA1UEBhMCVVMwHhcNMTkwMTA4MDAxODM1
@@ -895,7 +940,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
     #[test]
     fn cert_field_access() {
         let cert = Certificate::from_pem(TEST_CERT_PEM.as_bytes()).unwrap();
-        
+
         assert_eq!(cert.version().unwrap(), CertificateVersion::V3);
         assert_eq!(cert.issuer().unwrap(), "CN=Test CA, C=US");
         assert_eq!(cert.subject().unwrap(), "CN=Test Cert, O=Test");
@@ -905,44 +950,74 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         );
         assert_eq!(cert.digest_type(), MdType::Sha256);
 
-        assert_eq!(hex::encode(cert.serial_raw().unwrap()), "00b634492e6963d61bfda207bd202f98eb");
-        assert_eq!(hex::encode(cert.issuer_raw().unwrap()), "301f3110300e0603550403130754657374204341310b3009060355040613025553");
-        assert_eq!(hex::encode(cert.subject_raw().unwrap()), "30233112301006035504031309546573742043657274310d300b060355040a130454657374");
+        assert_eq!(
+            hex::encode(cert.serial_raw().unwrap()),
+            "00b634492e6963d61bfda207bd202f98eb"
+        );
+        assert_eq!(
+            hex::encode(cert.issuer_raw().unwrap()),
+            "301f3110300e0603550403130754657374204341310b3009060355040613025553"
+        );
+        assert_eq!(
+            hex::encode(cert.subject_raw().unwrap()),
+            "30233112301006035504031309546573742043657274310d300b060355040a130454657374"
+        );
         assert_eq!(hex::encode(cert.signature().unwrap()), "4a4b2638e636a0c0121b0334e04b342ac17b178b1a3000d5dc84c0612941519e3ac99da72823809e643f9d1c0ff7ca2734c63974215879f6286532d43b0da6086fb212a96c8f573de4230c9ab3ae09d621719d2e35b3e91963d5e763a273f0e25d6bbc5fcd0cd7ace688821df1724fb3956c96046cd58126f3ae2a66680cccc8aaecbe680fa5fc79684ef33f64153b319713f42ea17aa3fdb99b94d95466ed75e572789d2c7388a49d35a6590429fe9b6959896e8658aee276f3474ff315051e6633be236d2acf552164ea6936122f9d718a746c7fd170f4c2d19f996aa49632d7f146b93adcc25017d117a4309dbd045c4cc0fd0fce4326b30a9fc6ae9aad0c");
         assert_eq!(hex::encode(cert.extensions_raw().unwrap()), "30819f30210603551d0e041a04186839fad57e6544121cc6bc421953cc9620655c57cfac060230320603551d11042b302981117465737440666f7274616e69782e636f6d82146578616d706c652e666f7274616e69782e636f6d300c0603551d130101ff0402300030230603551d23041c301a801879076bcc8da0077e4116f84b8e4c9c5c6af7ec4fa000d98730130603551d25040c300a06082b06010505070302");
 
-        assert_eq!(cert.not_before().unwrap(), Time::new(2019,1,8,0,18,35).unwrap());
-        assert_eq!(cert.not_after().unwrap(), Time::new(2029,1,5,0,18,35).unwrap());
+        assert_eq!(
+            cert.not_before().unwrap(),
+            Time::new(2019, 1, 8, 0, 18, 35).unwrap()
+        );
+        assert_eq!(
+            cert.not_after().unwrap(),
+            Time::new(2029, 1, 5, 0, 18, 35).unwrap()
+        );
 
-        #[cfg(feature = "std")] {
+        #[cfg(feature = "std")]
+        {
             let ext = cert.extensions().unwrap();
             assert_eq!(ext.len(), 5);
 
-            assert_eq!(ext[0], Extension {
-                oid: ObjectIdentifier::from_slice(&[2,5,29,14]),
-                critical: false,
-                value: hex::decode("04186839FAD57E6544121CC6BC421953CC9620655C57CFAC0602").unwrap(),
-            });
+            assert_eq!(
+                ext[0],
+                Extension {
+                    oid: ObjectIdentifier::from_slice(&[2, 5, 29, 14]),
+                    critical: false,
+                    value: hex::decode("04186839FAD57E6544121CC6BC421953CC9620655C57CFAC0602")
+                        .unwrap(),
+                }
+            );
             assert_eq!(ext[1], Extension {
                 oid: ObjectIdentifier::from_slice(&[2,5,29,17]),
                 critical: false,
                 value: hex::decode("302981117465737440666f7274616e69782e636f6d82146578616d706c652e666f7274616e69782e636f6d").unwrap()
             });
-            assert_eq!(ext[2], Extension {
-                oid: ObjectIdentifier::from_slice(&[2,5,29,19]),
-                critical: true,
-                value: hex::decode("3000").unwrap()
-            });
-            assert_eq!(ext[3], Extension {
-                oid: ObjectIdentifier::from_slice(&[2,5,29,35]),
-                critical: false,
-                value: hex::decode("301a801879076BCC8DA0077E4116F84B8E4C9C5C6AF7EC4FA000D987").unwrap()
-            });
-            assert_eq!(ext[4], Extension {
-                oid: ObjectIdentifier::from_slice(&[2,5,29,37]),
-                critical: false,
-                value: hex::decode("300a06082b06010505070302").unwrap(),
-            });
+            assert_eq!(
+                ext[2],
+                Extension {
+                    oid: ObjectIdentifier::from_slice(&[2, 5, 29, 19]),
+                    critical: true,
+                    value: hex::decode("3000").unwrap()
+                }
+            );
+            assert_eq!(
+                ext[3],
+                Extension {
+                    oid: ObjectIdentifier::from_slice(&[2, 5, 29, 35]),
+                    critical: false,
+                    value: hex::decode("301a801879076BCC8DA0077E4116F84B8E4C9C5C6AF7EC4FA000D987")
+                        .unwrap()
+                }
+            );
+            assert_eq!(
+                ext[4],
+                Extension {
+                    oid: ObjectIdentifier::from_slice(&[2, 5, 29, 37]),
+                    critical: false,
+                    value: hex::decode("300a06082b06010505070302").unwrap(),
+                }
+            );
         }
     }
 
@@ -972,7 +1047,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
         let mut iter = list.iter();
         let cert = iter.next().unwrap();
-        
+
         let pk = cert.public_key();
 
         assert_eq!(pk.pk_type(), crate::pk::Type::Rsa);
@@ -999,16 +1074,16 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
     #[test]
     fn verify_chain() {
-        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"),"\0");
-        const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"),"\0");
-        const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"),"\0");
-        const C_ROOT: &'static str = concat!(include_str!("../../tests/data/chain-root.crt"),"\0");
+        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"), "\0");
+        const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"), "\0");
+        const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"), "\0");
+        const C_ROOT: &'static str = concat!(include_str!("../../tests/data/chain-root.crt"), "\0");
 
         let c_leaf = Certificate::from_pem(C_LEAF.as_bytes()).unwrap();
         let c_int1 = Certificate::from_pem(C_INT1.as_bytes()).unwrap();
         let c_int2 = Certificate::from_pem(C_INT2.as_bytes()).unwrap();
         let mut c_root = Certificate::from_pem_multiple(C_ROOT.as_bytes()).unwrap();
-        
+
         {
             let mut chain = MbedtlsList::<Certificate>::new();
             chain.push(c_leaf.clone());
@@ -1020,20 +1095,29 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             // try again after fixing the chain
             chain.push(c_int2.clone());
 
-
             let mut err_str = String::new();
 
-            let verify_callback = |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
-                verify_flags.remove(VerifyError::CERT_EXPIRED);
-                Ok(())
-            };
+            let verify_callback =
+                |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
+                    verify_flags.remove(VerifyError::CERT_EXPIRED);
+                    Ok(())
+                };
 
             Certificate::verify(&chain, &mut c_root, None).unwrap();
-            let res = Certificate::verify_with_callback(&chain, &mut c_root, Some(&mut err_str), verify_callback);
+            let res = Certificate::verify_with_callback(
+                &chain,
+                &mut c_root,
+                Some(&mut err_str),
+                verify_callback,
+            );
 
             match res {
                 Ok(()) => (),
-                Err(e) => assert!(false, "Failed to verify, error: {}, err_str: {}", e, err_str),
+                Err(e) => assert!(
+                    false,
+                    "Failed to verify, error: {}, err_str: {}",
+                    e, err_str
+                ),
             };
         }
 
@@ -1045,23 +1129,31 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
             Certificate::verify(&chain, &mut c_root, None).unwrap();
 
-            let verify_callback = |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
-                verify_flags.remove(VerifyError::CERT_EXPIRED);
-                Ok(())
-            };
+            let verify_callback =
+                |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
+                    verify_flags.remove(VerifyError::CERT_EXPIRED);
+                    Ok(())
+                };
 
             let mut err_str = String::new();
-            let res = Certificate::verify_with_callback(&chain, &mut c_root, Some(&mut err_str), verify_callback);
+            let res = Certificate::verify_with_callback(
+                &chain,
+                &mut c_root,
+                Some(&mut err_str),
+                verify_callback,
+            );
 
             match res {
                 Ok(()) => (),
-                Err(e) => assert!(false, "Failed to verify, error: {}, err_str: {}", e, err_str),
+                Err(e) => assert!(
+                    false,
+                    "Failed to verify, error: {}, err_str: {}",
+                    e, err_str
+                ),
             };
         }
     }
 
-    
-    
     #[test]
     fn clone_test() {
         let cert_chain = Certificate::from_pem(TEST_CERT_PEM.as_bytes()).unwrap();
@@ -1070,7 +1162,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         chain.push(cert_chain.clone());
         chain.push(cert_chain.clone());
         chain.push(cert_chain);
-        
+
         let clone = chain.clone();
         let mut it = clone.iter();
 
@@ -1088,12 +1180,11 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         assert!(it.next().is_none());
     }
 
-
     #[test]
     fn list_pop_back_test() {
-        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"),"\0");
-        const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"),"\0");
-        const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"),"\0");
+        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"), "\0");
+        const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"), "\0");
+        const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"), "\0");
 
         let mut chain = MbedtlsList::<Certificate>::new();
 
@@ -1105,7 +1196,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         let c1_info = format!("{:?}", c1.iter().next().unwrap());
         let c2_info = format!("{:?}", c2.iter().next().unwrap());
         let c3_info = format!("{:?}", c3.iter().next().unwrap());
-        
+
         chain.append(c1.clone());
         chain.append(c2.clone());
         chain.append(c3.clone());
@@ -1125,7 +1216,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             assert_eq!(c2_info, format!("{:?}", it.next().unwrap()));
             assert!(it.next().is_none());
         }
-        
+
         chain.append(c3.clone());
         chain.append(c1.clone());
         {
@@ -1153,7 +1244,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             let mut it = chain.iter();
             assert!(it.next().is_none());
         }
-        
+
         assert!(chain.pop_back().is_none());
         {
             let mut it = chain.iter();
@@ -1170,12 +1261,11 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         }
     }
 
-
     #[test]
     fn list_pop_front_test() {
-        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"),"\0");
-        const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"),"\0");
-        const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"),"\0");
+        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"), "\0");
+        const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"), "\0");
+        const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"), "\0");
 
         let mut chain = MbedtlsList::<Certificate>::new();
 
@@ -1187,7 +1277,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         let c1_info = format!("{:?}", c1);
         let c2_info = format!("{:?}", c2);
         let c3_info = format!("{:?}", c3);
-        
+
         chain.push(c1.clone());
         chain.push(c2.clone());
         chain.push(c3.clone());
@@ -1207,7 +1297,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             assert_eq!(c3_info, format!("{:?}", it.next().unwrap()));
             assert!(it.next().is_none());
         }
-        
+
         chain.push(c3.clone());
         chain.push(c1.clone());
         {
@@ -1235,7 +1325,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             let mut it = chain.iter();
             assert!(it.next().is_none());
         }
-        
+
         assert!(chain.pop_front().is_none());
         {
             let mut it = chain.iter();
@@ -1252,12 +1342,11 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         }
     }
 
-
     #[test]
     fn list_clone_test1() {
-        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"),"\0");
-        const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"),"\0");
-        const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"),"\0");
+        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"), "\0");
+        const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"), "\0");
+        const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"), "\0");
 
         let mut chain = MbedtlsList::<Certificate>::new();
 
@@ -1294,9 +1383,9 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
     #[test]
     fn list_into_iter() {
-        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"),"\0");
-        const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"),"\0");
-        const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"),"\0");
+        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"), "\0");
+        const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"), "\0");
+        const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"), "\0");
 
         let mut chain = MbedtlsList::<Certificate>::new();
 
@@ -1322,7 +1411,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         }
 
         let clone = chain.clone();
-        
+
         {
             let mut it = chain.into_iter();
             assert_eq!(c1_info, format!("{:?}", it.next().unwrap()));
@@ -1340,35 +1429,30 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         }
     }
 
-
-
     #[test]
     fn unsafefrom_ptr_checks_test() {
-        let mut ptr : *mut x509_crt = ::core::ptr::null_mut() as *mut x509_crt;
-        let ptr_test : *mut *mut x509_crt = &mut ptr as *mut *mut x509_crt;
+        let mut ptr: *mut x509_crt = ::core::ptr::null_mut() as *mut x509_crt;
+        let ptr_test: *mut *mut x509_crt = &mut ptr as *mut *mut x509_crt;
 
-        let option = unsafe {
-            <&mut Option<MbedtlsBox<_>> as UnsafeFrom<_>>::from(ptr_test).unwrap()
-        };
+        let option =
+            unsafe { <&mut Option<MbedtlsBox<_>> as UnsafeFrom<_>>::from(ptr_test).unwrap() };
         assert!(option.is_none());
-        
-        let cert_list : Option<&mut MbedtlsList<Certificate>> = unsafe { UnsafeFrom::from(ptr_test) };
+
+        let cert_list: Option<&mut MbedtlsList<Certificate>> =
+            unsafe { UnsafeFrom::from(ptr_test) };
         assert!(cert_list.is_none());
 
-
-        let ptr_test : *mut *mut x509_crt = ::core::ptr::null_mut() as *mut *mut x509_crt;
-        let cert_list : Option<&mut MbedtlsList<Certificate>> = unsafe { UnsafeFrom::from(ptr_test) };
+        let ptr_test: *mut *mut x509_crt = ::core::ptr::null_mut() as *mut *mut x509_crt;
+        let cert_list: Option<&mut MbedtlsList<Certificate>> =
+            unsafe { UnsafeFrom::from(ptr_test) };
         assert!(cert_list.is_none());
-
-
-        
     }
 
     #[test]
     fn mbedtls_list_to_box_iter_clone() {
-        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"),"\0");
-        const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"),"\0");
-        const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"),"\0");
+        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"), "\0");
+        const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"), "\0");
+        const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"), "\0");
 
         let mut chain = MbedtlsList::<Certificate>::new();
 
@@ -1378,12 +1462,12 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
         // Using debug strings so failing unit tests can identify any issue with contents.
         let c1_info = format!("{:?}", c1);
-        
+
         chain.push(c1.clone());
         chain.push(c2.clone());
         chain.push(c3.clone());
 
-        let cert : &MbedtlsBox::<Certificate> = chain.iter().next().unwrap();
+        let cert: &MbedtlsBox<Certificate> = chain.iter().next().unwrap();
 
         // First item reference within a list of 3 elements still has next set.
         assert_ne!((**cert).inner.next, ::core::ptr::null_mut());
@@ -1395,7 +1479,6 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         assert_eq!((*cert).inner.next, ::core::ptr::null_mut());
         assert_eq!(c1_info, format!("{:?}", cert));
 
-        
         let cert = chain.clone().into_iter().next().unwrap();
 
         // Using into_iter and extracting a certificate must have its next set to null
@@ -1405,14 +1488,14 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
     #[test]
     fn mbedtls_list_into_test() {
-        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"),"\0");
+        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"), "\0");
 
         let mut chain = MbedtlsList::<Certificate>::new();
 
-        let ptr : *const x509_crt = (&chain).into();
+        let ptr: *const x509_crt = (&chain).into();
         assert_eq!(ptr, ::core::ptr::null());
 
-        let ptr : *mut x509_crt = (&mut chain).into();
+        let ptr: *mut x509_crt = (&mut chain).into();
         assert_eq!(ptr, ::core::ptr::null_mut());
 
         let c1 = Certificate::from_pem(C_LEAF.as_bytes()).unwrap();
@@ -1421,26 +1504,44 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         let c1_info = format!("{:?}", *c1);
         chain.push(c1.clone());
 
-        let ptr : *const x509_crt = (&chain).into();
+        let ptr: *const x509_crt = (&chain).into();
         assert_ne!(ptr, ::core::ptr::null());
 
-        let cert : &Certificate = unsafe { UnsafeFrom::from(ptr).unwrap() };
+        let cert: &Certificate = unsafe { UnsafeFrom::from(ptr).unwrap() };
         assert_eq!(c1_info, format!("{:?}", cert));
-        
-        let ptr : *mut x509_crt = (&mut chain).into();
+
+        let ptr: *mut x509_crt = (&mut chain).into();
         assert_ne!(ptr, ::core::ptr::null_mut());
 
-        let cert : &mut Certificate = unsafe { UnsafeFrom::from(ptr).unwrap() };
+        let cert: &mut Certificate = unsafe { UnsafeFrom::from(ptr).unwrap() };
         assert_eq!(c1_info, format!("{:?}", cert));
     }
 
     #[test]
     fn cert_send_sync() {
-        assert!(crate::tests::TestTrait::<dyn Send, Certificate>::new().impls_trait(), "Certificate should be Send");
-        assert!(crate::tests::TestTrait::<dyn Send, MbedtlsBox<Certificate>>::new().impls_trait(), "MbedtlsBox<Certificate> should be Send");
-        assert!(crate::tests::TestTrait::<dyn Send, MbedtlsList<Certificate>>::new().impls_trait(), "MbedtlsList<Certificate> should be Send");
-        assert!(crate::tests::TestTrait::<dyn Sync, Certificate>::new().impls_trait(), "Certificate should be Sync");
-        assert!(crate::tests::TestTrait::<dyn Sync, MbedtlsBox<Certificate>>::new().impls_trait(), "MbedtlsBox<Certificate> should be Sync");
-        assert!(crate::tests::TestTrait::<dyn Sync, MbedtlsList<Certificate>>::new().impls_trait(), "MbedtlsList<Certificate> should be Sync");
+        assert!(
+            crate::tests::TestTrait::<dyn Send, Certificate>::new().impls_trait(),
+            "Certificate should be Send"
+        );
+        assert!(
+            crate::tests::TestTrait::<dyn Send, MbedtlsBox<Certificate>>::new().impls_trait(),
+            "MbedtlsBox<Certificate> should be Send"
+        );
+        assert!(
+            crate::tests::TestTrait::<dyn Send, MbedtlsList<Certificate>>::new().impls_trait(),
+            "MbedtlsList<Certificate> should be Send"
+        );
+        assert!(
+            crate::tests::TestTrait::<dyn Sync, Certificate>::new().impls_trait(),
+            "Certificate should be Sync"
+        );
+        assert!(
+            crate::tests::TestTrait::<dyn Sync, MbedtlsBox<Certificate>>::new().impls_trait(),
+            "MbedtlsBox<Certificate> should be Sync"
+        );
+        assert!(
+            crate::tests::TestTrait::<dyn Sync, MbedtlsList<Certificate>>::new().impls_trait(),
+            "MbedtlsList<Certificate> should be Sync"
+        );
     }
 }

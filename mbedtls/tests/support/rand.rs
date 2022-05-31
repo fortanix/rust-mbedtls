@@ -40,7 +40,6 @@ impl crate::mbedtls::rng::RngCallback for TestRandom {
     }
 }
 
-
 /// Not cryptographically secure!!! Use for testing only!!!
 pub fn test_rng() -> TestRandom {
     TestRandom(XorShiftRng::new_unseeded())

@@ -17,8 +17,6 @@ pub mod profile;
 // write_crt
 // write_csr
 
-use crate::error::Error;
-use crate::private::UnsafeFrom;
 #[doc(inline)]
 pub use self::certificate::Certificate;
 pub use self::crl::Crl;
@@ -26,9 +24,11 @@ pub use self::crl::Crl;
 pub use self::csr::Csr;
 #[doc(inline)]
 pub use self::profile::Profile;
+use crate::error::Error;
+use crate::private::UnsafeFrom;
 
-use mbedtls_sys::*;
 use mbedtls_sys::types::raw_types::{c_int, c_uint, c_void};
+use mbedtls_sys::*;
 bitflags! {
     pub struct KeyUsage: c_uint {
         const DIGITAL_SIGNATURE  = X509_KU_DIGITAL_SIGNATURE as c_uint;
@@ -92,7 +92,7 @@ impl VerifyError {
             }}
         }
         let mut v = Vec::new();
-        map!{
+        map! {
             self, v,
             CERT_BAD_KEY       -> "The certificate is signed with an unacceptable key (eg bad curve, RSA too short).",
             CERT_BAD_MD        -> "The certificate is signed with an unacceptable hash.",

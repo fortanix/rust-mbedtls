@@ -31,26 +31,29 @@ fn client(
     conn: TcpStream,
     min_version: Version,
     max_version: Version,
-    exp_version: Option<Version>) -> TlsResult<()> {
+    exp_version: Option<Version>,
+) -> TlsResult<()> {
     let entropy = Arc::new(entropy_new());
     let rng = Arc::new(CtrDrbg::new(entropy, None)?);
-    let cacert = Arc::new(Certificate::from_pem_multiple(keys::ROOT_CA_CERT.as_bytes())?);
+    let cacert = Arc::new(Certificate::from_pem_multiple(
+        keys::ROOT_CA_CERT.as_bytes(),
+    )?);
     let expected_flags = VerifyError::empty();
     #[cfg(feature = "time")]
     let expected_flags = expected_flags | VerifyError::CERT_EXPIRED;
     {
-        let verify_callback = move |crt: &Certificate, depth: i32, verify_flags: &mut VerifyError| {
+        let verify_callback =
+            move |crt: &Certificate, depth: i32, verify_flags: &mut VerifyError| {
+                match (crt.subject().unwrap().as_str(), depth, &verify_flags) {
+                    ("CN=RootCA", 1, _) => (),
+                    (keys::EXPIRED_CERT_SUBJECT, 0, flags) => assert_eq!(**flags, expected_flags),
+                    _ => assert!(false),
+                };
 
-            match (crt.subject().unwrap().as_str(), depth, &verify_flags) {
-                ("CN=RootCA", 1, _) => (),
-                (keys::EXPIRED_CERT_SUBJECT, 0, flags) => assert_eq!(**flags, expected_flags),
-                _ => assert!(false),
+                verify_flags.remove(VerifyError::CERT_EXPIRED); //we check the flags at the end,
+                                                                //so removing this flag here prevents the connections from failing with VerifyError
+                Ok(())
             };
-            
-            verify_flags.remove(VerifyError::CERT_EXPIRED); //we check the flags at the end,
-            //so removing this flag here prevents the connections from failing with VerifyError
-            Ok(())
-        };
         let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
         config.set_rng(rng);
         config.set_verify_callback(verify_callback);
@@ -65,8 +68,10 @@ fn client(
             }
             Err(e) => {
                 match e {
-                    Error::SslBadHsProtocolVersion => {assert!(exp_version.is_none())},
-                    Error::SslFatalAlertMessage => {},
+                    Error::SslBadHsProtocolVersion => {
+                        assert!(exp_version.is_none())
+                    }
+                    Error::SslFatalAlertMessage => {}
                     e => panic!("Unexpected error {}", e),
                 };
                 return Ok(());
@@ -74,7 +79,8 @@ fn client(
         };
 
         let ciphersuite = ctx.ciphersuite().unwrap();
-        ctx.write_all(format!("Client2Server {:4x}", ciphersuite).as_bytes()).unwrap();
+        ctx.write_all(format!("Client2Server {:4x}", ciphersuite).as_bytes())
+            .unwrap();
         let mut buf = [0u8; 13 + 4 + 1];
         ctx.read_exact(&mut buf).unwrap();
         assert_eq!(&buf, format!("Server2Client {:4x}", ciphersuite).as_bytes());
@@ -90,7 +96,9 @@ fn server(
 ) -> TlsResult<()> {
     let entropy = entropy_new();
     let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
-    let cert = Arc::new(Certificate::from_pem_multiple(keys::EXPIRED_CERT.as_bytes())?);
+    let cert = Arc::new(Certificate::from_pem_multiple(
+        keys::EXPIRED_CERT.as_bytes(),
+    )?);
     let key = Arc::new(Pk::from_private_key(keys::EXPIRED_KEY.as_bytes(), None)?);
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(rng);
@@ -106,8 +114,10 @@ fn server(
         Err(e) => {
             match e {
                 // client just closes connection instead of sending alert
-                Error::NetSendFailed => {assert!(exp_version.is_none())},
-                Error::SslBadHsProtocolVersion => {},
+                Error::NetSendFailed => {
+                    assert!(exp_version.is_none())
+                }
+                Error::SslBadHsProtocolVersion => {}
                 e => panic!("Unexpected error {}", e),
             };
             return Ok(());
@@ -115,7 +125,8 @@ fn server(
     };
 
     let ciphersuite = ctx.ciphersuite().unwrap();
-    ctx.write_all(format!("Server2Client {:4x}", ciphersuite).as_bytes()).unwrap();
+    ctx.write_all(format!("Server2Client {:4x}", ciphersuite).as_bytes())
+        .unwrap();
     let mut buf = [0u8; 13 + 1 + 4];
     ctx.read_exact(&mut buf).unwrap();
 
@@ -131,7 +142,7 @@ mod test {
     fn client_server_test() {
         use mbedtls::ssl::Version;
 
-        #[derive(Copy,Clone)]
+        #[derive(Copy, Clone)]
         struct TestConfig {
             min_c: Version,
             max_c: Version,
@@ -141,20 +152,80 @@ mod test {
         }
 
         impl TestConfig {
-            pub fn new(min_c: Version, max_c: Version, min_s: Version, max_s: Version, exp_ver: Option<Version>) -> Self {
-                TestConfig { min_c, max_c, min_s, max_s, exp_ver }
+            pub fn new(
+                min_c: Version,
+                max_c: Version,
+                min_s: Version,
+                max_s: Version,
+                exp_ver: Option<Version>,
+            ) -> Self {
+                TestConfig {
+                    min_c,
+                    max_c,
+                    min_s,
+                    max_s,
+                    exp_ver,
+                }
             }
         }
 
         let test_configs = [
-            TestConfig::new(Version::Ssl3, Version::Ssl3, Version::Ssl3, Version::Ssl3, Some(Version::Ssl3)),
-            TestConfig::new(Version::Ssl3, Version::Tls1_2, Version::Ssl3, Version::Ssl3, Some(Version::Ssl3)),
-            TestConfig::new(Version::Tls1_0, Version::Tls1_0, Version::Tls1_0, Version::Tls1_0, Some(Version::Tls1_0)),
-            TestConfig::new(Version::Tls1_1, Version::Tls1_1, Version::Tls1_1, Version::Tls1_1, Some(Version::Tls1_1)),
-            TestConfig::new(Version::Tls1_2, Version::Tls1_2, Version::Tls1_2, Version::Tls1_2, Some(Version::Tls1_2)),
-            TestConfig::new(Version::Tls1_0, Version::Tls1_2, Version::Tls1_0, Version::Tls1_2, Some(Version::Tls1_2)),
-            TestConfig::new(Version::Tls1_2, Version::Tls1_2, Version::Tls1_0, Version::Tls1_2, Some(Version::Tls1_2)),
-            TestConfig::new(Version::Tls1_0, Version::Tls1_1, Version::Tls1_2, Version::Tls1_2, None)
+            TestConfig::new(
+                Version::Ssl3,
+                Version::Ssl3,
+                Version::Ssl3,
+                Version::Ssl3,
+                Some(Version::Ssl3),
+            ),
+            TestConfig::new(
+                Version::Ssl3,
+                Version::Tls1_2,
+                Version::Ssl3,
+                Version::Ssl3,
+                Some(Version::Ssl3),
+            ),
+            TestConfig::new(
+                Version::Tls1_0,
+                Version::Tls1_0,
+                Version::Tls1_0,
+                Version::Tls1_0,
+                Some(Version::Tls1_0),
+            ),
+            TestConfig::new(
+                Version::Tls1_1,
+                Version::Tls1_1,
+                Version::Tls1_1,
+                Version::Tls1_1,
+                Some(Version::Tls1_1),
+            ),
+            TestConfig::new(
+                Version::Tls1_2,
+                Version::Tls1_2,
+                Version::Tls1_2,
+                Version::Tls1_2,
+                Some(Version::Tls1_2),
+            ),
+            TestConfig::new(
+                Version::Tls1_0,
+                Version::Tls1_2,
+                Version::Tls1_0,
+                Version::Tls1_2,
+                Some(Version::Tls1_2),
+            ),
+            TestConfig::new(
+                Version::Tls1_2,
+                Version::Tls1_2,
+                Version::Tls1_0,
+                Version::Tls1_2,
+                Some(Version::Tls1_2),
+            ),
+            TestConfig::new(
+                Version::Tls1_0,
+                Version::Tls1_1,
+                Version::Tls1_2,
+                Version::Tls1_2,
+                None,
+            ),
         ];
 
         for config in &test_configs {
@@ -164,7 +235,9 @@ mod test {
             let max_s = config.max_s;
             let exp_ver = config.exp_ver;
 
-            if (max_c < Version::Tls1_2 || max_s < Version::Tls1_2) && !cfg!(feature = "legacy_protocols") {
+            if (max_c < Version::Tls1_2 || max_s < Version::Tls1_2)
+                && !cfg!(feature = "legacy_protocols")
+            {
                 continue;
             }
 

@@ -96,7 +96,7 @@ impl RngCallbackMut for Nrbg {
     unsafe extern "C" fn call_mut(_: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
         // outbuf data/len are stack variables
         let mut outbuf = from_raw_parts_mut(data, len);
-        
+
         // rdrand function is thread safe
         write_rng_to_slice(&mut outbuf, rdrand)
     }
@@ -110,7 +110,7 @@ impl RngCallback for Nrbg {
     unsafe extern "C" fn call(_: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
         // outbuf data/len are stack variables
         let mut outbuf = from_raw_parts_mut(data, len);
-        
+
         // rdrand function is thread safe
         write_rng_to_slice(&mut outbuf, rdrand)
     }
@@ -119,4 +119,3 @@ impl RngCallback for Nrbg {
         ::core::ptr::null_mut()
     }
 }
-
