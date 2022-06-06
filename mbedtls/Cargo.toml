@@ -47,7 +47,7 @@ rand = "0.4.0"
 serde_cbor = "0.6"
 hex = "0.3"
 matches = "0.1.8"
-hyper = { version = "0.10.16", default-features = false }
+hyper = { version = "0.14.10", default-features = false }
 
 [build-dependencies]
 cc = "1.0"
