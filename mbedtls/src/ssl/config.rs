@@ -457,6 +457,21 @@ impl Config {
         self.dbg_callback = Some(Arc::new(cb));
         unsafe { ssl_conf_dbg(self.into(), Some(dbg_callback::<F>), &**self.dbg_callback.as_mut().unwrap() as *const _ as *mut c_void) }
     }
+
+    /// Sets the PSK and the PSK-Identity
+    ///
+    /// Only a single entry is supported at the moment. If another one was set before, it will be
+    /// overridden.
+    pub fn set_psk(&mut self, psk: &[u8], psk_identity: &str) -> Result<()> {
+        unsafe {
+            // This allocates and copies the buffers and does not store any pointer to them
+            let psk_identity = psk_identity.as_bytes();
+            ssl_conf_psk(self.into(), psk.as_ptr(), psk.len(), psk_identity.as_ptr(), psk_identity.len())
+                .into_result()
+                .map(|_| ())?;
+        }
+        Ok(())
+    }
 }
 
 // TODO
@@ -466,7 +481,6 @@ impl Config {
 // ssl_conf_dtls_badmac_limit
 // ssl_conf_handshake_timeout
 // ssl_conf_session_cache
-// ssl_conf_psk
 // ssl_conf_psk_cb
 // ssl_conf_sig_hashes
 // ssl_conf_alpn_protocols
