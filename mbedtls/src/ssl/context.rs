@@ -67,6 +67,121 @@ impl<IO: Read + Write> IoCallback for IO {
     }
 }
 
+#[cfg(feature = "std")]
+pub struct ConnectedUdpSocket {
+    socket: std::net::UdpSocket,
+}
+
+#[cfg(feature = "std")]
+impl ConnectedUdpSocket {
+    pub fn connect<A: std::net::ToSocketAddrs>(socket: std::net::UdpSocket, addr: A) -> std::result::Result<Self, (std::io::Error, std::net::UdpSocket)> {
+        match socket.connect(addr) {
+            Ok(_) => Ok(ConnectedUdpSocket {
+                socket,
+            }),
+            Err(e) => Err((e, socket)),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl IoCallback for ConnectedUdpSocket {
+    unsafe extern "C" fn call_recv(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
+        let len = if len > (c_int::max_value() as size_t) {
+            c_int::max_value() as size_t
+        } else {
+            len
+        };
+        match (&mut *(user_data as *mut ConnectedUdpSocket)).socket.recv(::core::slice::from_raw_parts_mut(data, len)) {
+            Ok(i) => i as c_int,
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => 0,
+            Err(_) => ::mbedtls_sys::ERR_NET_RECV_FAILED,
+        }
+    }
+
+    unsafe extern "C" fn call_send(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int {
+        let len = if len > (c_int::max_value() as size_t) {
+            c_int::max_value() as size_t
+        } else {
+            len
+        };
+        match (&mut *(user_data as *mut ConnectedUdpSocket)).socket.send(::core::slice::from_raw_parts(data, len)) {
+            Ok(i) => i as c_int,
+            Err(_) => ::mbedtls_sys::ERR_NET_SEND_FAILED,
+        }
+    }
+
+    fn data_ptr(&mut self) -> *mut c_void {
+        self as *mut ConnectedUdpSocket as *mut c_void
+    }
+}
+
+pub trait TimerCallback: Sync {
+    unsafe extern "C" fn set_timer(
+        p_timer: *mut c_void,
+        int_ms: u32,
+        fin_ms: u32,
+    ) where Self: Sized;
+
+    unsafe extern "C" fn get_timer(
+        p_timer: *mut c_void,
+    ) -> c_int where Self: Sized;
+
+    fn data_ptr(&mut self) -> *mut c_void;
+}
+
+#[cfg(feature = "std")]
+pub struct Timer {
+    timer_start: std::time::Instant,
+    timer_int_ms: u32,
+    timer_fin_ms: u32,
+}
+
+#[cfg(feature = "std")]
+impl Timer {
+    pub fn new() -> Self {
+        Timer {
+            timer_start: std::time::Instant::now(),
+            timer_int_ms: 0,
+            timer_fin_ms: 0,
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl TimerCallback for Timer {
+    unsafe extern "C" fn set_timer(
+        p_timer: *mut c_void,
+        int_ms: u32,
+        fin_ms: u32,
+    ) where Self: Sized {
+        let slf = (p_timer as *mut Timer).as_mut().unwrap();
+        slf.timer_start = std::time::Instant::now();
+        slf.timer_int_ms = int_ms;
+        slf.timer_fin_ms = fin_ms;
+    }
+
+    unsafe extern "C" fn get_timer(
+        p_timer: *mut c_void,
+    ) -> c_int where Self: Sized {
+        let slf = (p_timer as *mut Timer).as_mut().unwrap();
+        if slf.timer_int_ms == 0 || slf.timer_fin_ms == 0 {
+            return 0;
+        }
+        let passed = std::time::Instant::now() - slf.timer_start;
+        if passed.as_millis() >= slf.timer_fin_ms.into() {
+            2
+        } else if passed.as_millis() >= slf.timer_int_ms.into() {
+            1
+        } else {
+            0
+        }
+    }
+
+    fn data_ptr(&mut self) -> *mut mbedtls_sys::types::raw_types::c_void {
+        self as *mut _ as *mut _
+    }
+}
 
 define!(
     #[c_ty(ssl_context)]
@@ -89,11 +204,13 @@ pub struct Context<T> {
     // Base structure used in SNI callback where we cannot determine the io type.
     inner: HandshakeContext,
     
-    // config is used read-only for mutliple contexts and is immutable once configured.
+    // config is used read-only for multiple contexts and is immutable once configured.
     config: Arc<Config>, 
     
     // Must be held in heap and pointer to it as pointer is sent to MbedSSL and can't be re-allocated.
     io: Option<Box<T>>,
+
+    timer_callback: Option<Box<dyn TimerCallback>>,
 }
 
 impl<'a, T> Into<*const ssl_context> for &'a Context<T> {
@@ -128,6 +245,7 @@ impl<T> Context<T> {
             },
             config: config.clone(),
             io: None,
+            timer_callback: None,
         }
     }
 
@@ -157,7 +275,7 @@ impl<T: IoCallback> Context<T> {
             );
 
             self.io = Some(io);
-            self.inner.reset_handshake();            
+            self.inner.reset_handshake();
         }
 
         match self.handshake() {
@@ -297,6 +415,13 @@ impl<T> Context<T> {
                 Ok(Some(s))
             }
         }
+    }
+
+    pub fn set_timer_callback<F: TimerCallback + 'static>(&mut self, mut cb: Box<F>) {
+        unsafe {
+            ssl_set_timer_cb(self.into(), cb.data_ptr(), Some(F::set_timer), Some(F::get_timer));
+        }
+        self.timer_callback = Some(cb);
     }
 }
 
