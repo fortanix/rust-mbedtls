@@ -116,7 +116,7 @@ impl IoCallback for ConnectedUdpSocket {
     }
 }
 
-pub trait TimerCallback: Sync {
+pub trait TimerCallback: Send + Sync {
     unsafe extern "C" fn set_timer(
         p_timer: *mut c_void,
         int_ms: u32,

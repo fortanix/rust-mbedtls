@@ -36,7 +36,7 @@ fn result_main(addr: &str) -> TlsResult<()> {
 
     let sock = UdpSocket::bind("localhost:12345").unwrap();
     let sock = mbedtls::ssl::context::ConnectedUdpSocket::connect(sock, addr).unwrap();
-    let mut res = ctx.establish(sock, None).unwrap();
+    ctx.establish(sock, None).unwrap();
 
     let mut line = String::new();
     stdin().read_line(&mut line).unwrap();
