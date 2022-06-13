@@ -74,6 +74,14 @@ name = "client"
 required-features = ["std"]
 
 [[example]]
+name = "client_dtls"
+required-features = ["std"]
+
+[[example]]
+name = "client_psk"
+required-features = ["std"]
+
+[[example]]
 name = "server"
 required-features = ["std"]
 
