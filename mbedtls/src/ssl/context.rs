@@ -509,23 +509,31 @@ impl<T> Drop for Context<T> {
 }
 
 #[cfg(feature = "std")]
-impl<T: IoCallback> Read for Context<T> {
+/// Implements [`std::io::Read`] whenever T implements `Read`, too. This ensures that
+/// `Read`, which is designated for byte-oriented sources, is only implemented when the
+/// underlying [`IoCallback`] is byte-oriented, too. Specifically, this means that it is implemented
+/// for `Context<TcpStream>`, i.e. TLS connections but not for DTLS connections.
+impl<T: IoCallback + Read> Read for Context<T> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match self.read(buf) {
             Err(Error::SslPeerCloseNotify) => Ok(0),
             Err(e) => Err(crate::private::error_to_io_error(e)),
-            Ok(i) => Ok(i as usize),
+            Ok(i) => Ok(i),
         }
     }
 }
 
 #[cfg(feature = "std")]
-impl<T: IoCallback> Write for Context<T> {
+/// Implements [`std::io::Write`] whenever T implements `Write`, too. This ensures that
+/// `Write`, which is designated for byte-oriented sinks, is only implemented when the
+/// underlying [`IoCallback`] is byte-oriented, too. Specifically, this means that it is implemented
+/// for `Context<TcpStream>`, i.e. TLS connections but not for DTLS connections.
+impl<T: IoCallback + Write> Write for Context<T> {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
         match self.write(buf) {
             Err(Error::SslPeerCloseNotify) => Ok(0),
             Err(e) => Err(crate::private::error_to_io_error(e)),
-            Ok(i) => Ok(i as usize),
+            Ok(i) => Ok(i),
         }
     }
 
