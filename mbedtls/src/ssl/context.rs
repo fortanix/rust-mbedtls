@@ -486,13 +486,13 @@ impl<T> Context<T> {
 }
 
 impl<T: IoCallback> Context<T> {
-    pub fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+    pub fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
         unsafe {
             ssl_read(self.into(), buf.as_mut_ptr(), buf.len()).into_result().map(|r| r as usize)
         }
     }
 
-    pub fn write(&mut self, buf: &[u8]) -> Result<usize> {
+    pub fn send(&mut self, buf: &[u8]) -> Result<usize> {
         unsafe {
             ssl_write(self.into(), buf.as_ptr(), buf.len()).into_result().map(|w| w as usize)
         }
@@ -515,7 +515,7 @@ impl<T> Drop for Context<T> {
 /// for `Context<TcpStream>`, i.e. TLS connections but not for DTLS connections.
 impl<T: IoCallback + Read> Read for Context<T> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
-        match self.read(buf) {
+        match self.recv(buf) {
             Err(Error::SslPeerCloseNotify) => Ok(0),
             Err(e) => Err(crate::private::error_to_io_error(e)),
             Ok(i) => Ok(i),
@@ -530,7 +530,7 @@ impl<T: IoCallback + Read> Read for Context<T> {
 /// for `Context<TcpStream>`, i.e. TLS connections but not for DTLS connections.
 impl<T: IoCallback + Write> Write for Context<T> {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
-        match self.write(buf) {
+        match self.send(buf) {
             Err(Error::SslPeerCloseNotify) => Ok(0),
             Err(e) => Err(crate::private::error_to_io_error(e)),
             Ok(i) => Ok(i),

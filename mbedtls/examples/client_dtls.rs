@@ -40,10 +40,10 @@ fn result_main(addr: &str) -> TlsResult<()> {
 
     let mut line = String::new();
     stdin().read_line(&mut line).unwrap();
-    ctx.write(line.as_bytes()).unwrap();
+    ctx.send(line.as_bytes()).unwrap();
     let mut resp = Vec::with_capacity(100);
-    ctx.read(&mut resp).unwrap();
-    if let Ok(s) = std::str::from_utf8(&resp) {
+    let len = ctx.recv(&mut resp).unwrap();
+    if let Ok(s) = std::str::from_utf8(&resp[..len]) {
         println!("{}", s);
     } else {
         eprintln!("Invalid UTF-8 received");
