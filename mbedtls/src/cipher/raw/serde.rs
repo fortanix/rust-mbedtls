@@ -341,20 +341,20 @@ unsafe impl BytesSerde for gcm_context {}
 
 // If the C API changes, the serde implementation needs to be reviewed for correctness.
 
-unsafe fn _check_cipher_context_t_size(ctx: cipher_context_t) -> [u8; 96] {
+unsafe fn _check_cipher_context_t_size(ctx: cipher_context_t) -> [u8; size_of::<cipher_context_t>()] {
     ::core::mem::transmute(ctx)
 }
 
-unsafe fn _check_aes_context_size(ctx: aes_context) -> [u8; 288] {
+unsafe fn _check_aes_context_size(ctx: aes_context) -> [u8; size_of::<aes_context>()] {
     ::core::mem::transmute(ctx)
 }
 
-unsafe fn _check_des_context_size(ctx: des_context) -> [u8; 128] {
+unsafe fn _check_des_context_size(ctx: des_context) -> [u8; size_of::<des_context>()] {
     ::core::mem::transmute(ctx)
 }
 
-unsafe fn _check_des3_context_size(ctx: des3_context) -> [u8; 384] {
+unsafe fn _check_des3_context_size(ctx: des3_context) -> [u8; size_of::<des3_context>()] {
     ::core::mem::transmute(ctx)
 }
 
-unsafe fn _check_gcm_context_size(ctx: gcm_context) -> [u8; 424] { ::core::mem::transmute(ctx) }
+unsafe fn _check_gcm_context_size(ctx: gcm_context) -> [u8; size_of::<gcm_context>()] { ::core::mem::transmute(ctx) }
