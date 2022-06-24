@@ -26,6 +26,18 @@ impl super::BuildConfig {
             cmk.define("CMAKE_C_COMPILER_FORCED", "TRUE");
         }
 
+        let target = std::env::var("TARGET").expect("TARGET environment variable should be set in build scripts");
+        // thumbv6m-none-eabi, thumbv7em-none-eabi, thumbv7em-none-eabihf, thumbv7m-none-eabi
+        // probably use arm-none-eabi-gcc which can cause the cmake compiler test to fail.
+        if target.starts_with("thumbv") && target.contains("none-eabi") {
+            // When building on Linux, -rdynamic flag is added automatically. Changing the
+            // CMAKE_SYSTEM_NAME to Generic avoids this.
+            cmk.define("CMAKE_SYSTEM_NAME", "Generic");
+            // The compiler test requires _exit which is not available. By just trying to compile
+            // a library, we can fix it.
+            cmk.define("CMAKE_TRY_COMPILE_TARGET_TYPE", "STATIC_LIBRARY");
+        }
+
         let mut dst = cmk.build();
 
         dst.push("build");
