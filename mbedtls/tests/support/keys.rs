@@ -92,3 +92,7 @@ pub const ROOT_CA_KEY: &'static str = concat!(include_str!("./keys/ca.key"),"\0"
 pub const EXPIRED_CERT_SUBJECT: &'static str = "CN=ExpiredNode";
 pub const EXPIRED_CERT: &'static str = concat!(include_str!("./keys/expired.crt"),"\0");
 pub const EXPIRED_KEY: &'static str = concat!(include_str!("./keys/expired.key"),"\0");
+
+pub const PRESHARED_KEY: &'static [u8] = &[
+    234, 206, 151, 23, 219,  21,  71, 144,
+    107,  42,  23, 67, 249, 173, 182, 224 ];

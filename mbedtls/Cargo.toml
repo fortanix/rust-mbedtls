@@ -86,6 +86,10 @@ name = "ssl_conf_ca_cb"
 required-features = ["std"]
 
 [[test]]
+name = "ssl_conf_psk_cb"
+required-features = ["std"]
+
+[[test]]
 name = "ssl_conf_verify"
 required-features = ["std"]
 
