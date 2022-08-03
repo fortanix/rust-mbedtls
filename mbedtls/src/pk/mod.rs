@@ -113,7 +113,7 @@ extern "C" fn alloc_custom_pk_ctx() -> *mut c_void {
 }
 
 unsafe extern "C" fn free_custom_pk_ctx(p: *mut c_void) {
-    Box::from_raw(p as *mut CustomPkContext);
+    let _ = Box::from_raw(p as *mut CustomPkContext);
 }
 
 extern "C" fn custom_pk_can_do(_t: u32) -> i32 {
