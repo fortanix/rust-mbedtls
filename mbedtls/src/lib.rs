@@ -141,7 +141,9 @@ cfg_if::cfg_if! {
         #[doc(hidden)]
         #[no_mangle]
         pub unsafe extern "C" fn mbedtls_time(tp: *mut time_t) -> time_t {
-            let timestamp = chrono::Utc::now().timestamp() as time_t;
+            let now =
+                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("system time before Unix epoch");
+            let timestamp = now.as_secs() as time_t;
             if !tp.is_null() {
                 *tp = timestamp;
             }

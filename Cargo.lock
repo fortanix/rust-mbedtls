@@ -158,7 +158,6 @@ dependencies = [
  "libc",
  "num-integer",
  "num-traits",
- "time",
 ]
 
 [[package]]
