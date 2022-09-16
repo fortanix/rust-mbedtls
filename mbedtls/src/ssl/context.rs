@@ -10,7 +10,7 @@ use core::result::Result as StdResult;
 
 #[cfg(feature = "std")]
 use {
-    std::io::{Read, Write, Result as IoResult},
+    std::io::{Read, Write, Result as IoResult, Error as IoError},
     std::sync::Arc,
 };
 
@@ -74,7 +74,7 @@ pub struct ConnectedUdpSocket {
 
 #[cfg(feature = "std")]
 impl ConnectedUdpSocket {
-    pub fn connect<A: std::net::ToSocketAddrs>(socket: std::net::UdpSocket, addr: A) -> std::result::Result<Self, (std::io::Error, std::net::UdpSocket)> {
+    pub fn connect<A: std::net::ToSocketAddrs>(socket: std::net::UdpSocket, addr: A) -> StdResult<Self, (IoError, std::net::UdpSocket)> {
         match socket.connect(addr) {
             Ok(_) => Ok(ConnectedUdpSocket {
                 socket,
