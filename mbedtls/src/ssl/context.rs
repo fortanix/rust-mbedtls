@@ -15,7 +15,7 @@ use {
 };
 
 #[cfg(not(feature = "std"))]
-use core_io::{Read, Write, Result as IoResult};
+use core2::io::{Read, Write, Result as IoResult};
 
 
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
@@ -416,7 +416,7 @@ mod tests {
     use std::io::{Read,Write, Result as IoResult};
 
     #[cfg(not(feature = "std"))]
-    use core_io::{Read, Write, Result as IoResult};
+    use core2::io::{Read, Write, Result as IoResult};
 
     use crate::ssl::context::{HandshakeContext, Context};
     use crate::tests::TestTrait;
