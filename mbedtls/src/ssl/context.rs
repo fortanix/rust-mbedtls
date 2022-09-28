@@ -214,7 +214,7 @@ pub struct Context<T> {
 
     /// Stores the client identification on the DTLS server-side for the current connection. Must
     /// be stored in [`Context`] first so that it can be set after the `ssl_session_reset` in the
-    /// [`establish`] call.
+    /// [`establish`](Context::establish) call.
     client_transport_id: Option<Vec<u8>>,
 }
 
@@ -294,15 +294,15 @@ impl<T: IoCallback> Context<T> {
 impl<T> Context<T> {
     /// Try to complete the handshake procedure to set up a (D)TLS connection
     ///
-    /// In general, this should not be called directly. Instead, [`establish`] should be used which
-    /// properly sets up the [`IoCallback`] and resets any previous sessions.
+    /// In general, this should not be called directly. Instead, [`establish`](Context::establish)
+    /// should be used which properly sets up the [`IoCallback`] and resets any previous sessions.
     ///
     /// This should only be used directly if the handshake could not be completed successfully in
-    /// [`establish`], i.e.:
-    /// - If using nonblocking operation and [`establish`] failed with [`Error::SslWantRead`] or
+    /// `establish`, i.e.:
+    /// - If using nonblocking operation and `establish` failed with [`Error::SslWantRead`] or
     /// [`Error::SslWantWrite`]
     /// - If running a DTLS server and it answers the first `ClientHello` (without cookie) with a
-    /// `HelloVerifyRequest`, i.e. [`establish`] failed with [`Error::SslHelloVerifyRequired`]
+    /// `HelloVerifyRequest`, i.e. `establish` failed with [`Error::SslHelloVerifyRequired`]
     pub fn handshake(&mut self) -> Result<()> {
         match self.inner_handshake() {
             Ok(()) => Ok(()),
@@ -480,9 +480,9 @@ impl<T> Context<T> {
     /// See `mbedtls_ssl_set_client_transport_id`
     ///
     /// The `info` is used only for the next connection, i.e. it will be used for the next
-    /// [`establish`] call. Afterwards, it will be unset again. This is to ensure that no client
-    /// identification is accidentally reused if this [`Context`] is reused for further
-    /// connections.
+    /// [`establish`](Context::establish) call. Afterwards, it will be unset again. This is to
+    /// ensure that no client identification is accidentally reused if this [`Context`] is reused
+    /// for further connections.
     pub fn set_client_transport_id_once(&mut self, info: &[u8]) {
         self.client_transport_id = Some(info.into());
     }
