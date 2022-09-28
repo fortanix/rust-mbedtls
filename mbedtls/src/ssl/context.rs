@@ -211,6 +211,11 @@ pub struct Context<T> {
     io: Option<Box<T>>,
 
     timer_callback: Option<Box<dyn TimerCallback>>,
+
+    /// Stores the client identification on the DTLS server-side for the current connection. Must
+    /// be stored in [`Context`] first so that it can be set after the `ssl_session_reset` in the
+    /// [`establish`] call.
+    client_transport_id: Option<Vec<u8>>,
 }
 
 impl<'a, T> Into<*const ssl_context> for &'a Context<T> {
@@ -246,6 +251,7 @@ impl<T> Context<T> {
             config: config.clone(),
             io: None,
             timer_callback: None,
+            client_transport_id: None,
         }
     }
 
@@ -264,6 +270,9 @@ impl<T: IoCallback> Context<T> {
             let mut io = Box::new(io);
             ssl_session_reset(self.into()).into_result()?;
             self.set_hostname(hostname)?;
+            if let Some(client_id) = self.client_transport_id.take() {
+                self.set_client_transport_id(&client_id)?;
+            }
 
             let ptr = &mut *io as *mut _ as *mut c_void;
             ssl_set_bio(
@@ -278,21 +287,52 @@ impl<T: IoCallback> Context<T> {
             self.inner.reset_handshake();
         }
 
-        match self.handshake() {
-            Ok(()) => Ok(()),
-            Err(Error::SslWantRead) => Err(Error::SslWantRead),
-            Err(Error::SslWantWrite) => Err(Error::SslWantWrite),
-            Err(e) => {
-                self.close();
-                Err(e) 
-            },
-        }
-            
+        self.handshake()
     }
 }
 
 impl<T> Context<T> {
-    fn handshake(&mut self) -> Result<()> {
+    /// Try to complete the handshake procedure to set up a (D)TLS connection
+    ///
+    /// In general, this should not be called directly. Instead, [`establish`] should be used which
+    /// properly sets up the [`IoCallback`] and resets any previous sessions.
+    ///
+    /// This should only be used directly if the handshake could not be completed successfully in
+    /// [`establish`], i.e.:
+    /// - If using nonblocking operation and [`establish`] failed with [`Error::SslWantRead`] or
+    /// [`Error::SslWantWrite`]
+    /// - If running a DTLS server and it answers the first `ClientHello` (without cookie) with a
+    /// `HelloVerifyRequest`, i.e. [`establish`] failed with [`Error::SslHelloVerifyRequired`]
+    pub fn handshake(&mut self) -> Result<()> {
+        match self.inner_handshake() {
+            Ok(()) => Ok(()),
+            Err(Error::SslWantRead) => Err(Error::SslWantRead),
+            Err(Error::SslWantWrite) => Err(Error::SslWantWrite),
+            Err(Error::SslHelloVerifyRequired) => {
+                unsafe {
+                    // `ssl_session_reset` resets the client ID but the user will call handshake
+                    // again in this case and the client ID is required for a DTLS connection setup
+                    // on the server side. So we extract it before and set it after
+                    // `ssl_session_reset`.
+                    let mut client_transport_id = None;
+                    if !self.inner.handle().cli_id.is_null() {
+                        client_transport_id = Some(Vec::from(core::slice::from_raw_parts(self.inner.handle().cli_id, self.inner.handle().cli_id_len)));
+                    }
+                    ssl_session_reset(self.into()).into_result()?;
+                    if let Some(client_id) = client_transport_id.take() {
+                        self.set_client_transport_id(&client_id)?;
+                    }
+                }
+                Err(Error::SslHelloVerifyRequired)
+            }
+            Err(e) => {
+                self.close();
+                Err(e)
+            },
+        }
+    }
+
+    fn inner_handshake(&mut self) -> Result<()> {
         unsafe {
             ssl_flush_output(self.into()).into_result()?;
             ssl_handshake(self.into()).into_result_discard()
@@ -423,6 +463,29 @@ impl<T> Context<T> {
         }
         self.timer_callback = Some(cb);
     }
+
+    /// Set client's transport-level identification info (dtls server only)
+    ///
+    /// See `mbedtls_ssl_set_client_transport_id`
+    fn set_client_transport_id(&mut self, info: &[u8]) -> Result<()> {
+        unsafe {
+            ssl_set_client_transport_id(self.into(), info.as_ptr(), info.len())
+                .into_result()
+                .map(|_| ())
+        }
+    }
+
+    /// Set client's transport-level identification info (dtls server only)
+    ///
+    /// See `mbedtls_ssl_set_client_transport_id`
+    ///
+    /// The `info` is used only for the next connection, i.e. it will be used for the next
+    /// [`establish`] call. Afterwards, it will be unset again. This is to ensure that no client
+    /// identification is accidentally reused if this [`Context`] is reused for further
+    /// connections.
+    pub fn set_client_transport_id_once(&mut self, info: &[u8]) {
+        self.client_transport_id = Some(info.into());
+    }
 }
 
 impl<T> Drop for Context<T> {
@@ -459,7 +522,7 @@ impl<T: IoCallback> Write for Context<T> {
 }
 //
 // Class exists only during SNI callback that is configured from Config.
-// SNI Callback must provide input whos lifetime exceed the SNI closure to avoid memory corruptions.
+// SNI Callback must provide input whose lifetime exceeds the SNI closure to avoid memory corruptions.
 // That can be achieved easily by storing certificate chains/crls inside the closure for the lifetime of the closure.
 //
 // That is due to SNI being held by an Arc inside Config.

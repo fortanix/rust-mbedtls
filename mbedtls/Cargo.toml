@@ -68,6 +68,7 @@ padlock = ["mbedtls-sys-auto/padlock"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "block-modes"]
+legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
 
 [[example]]
 name = "client"
