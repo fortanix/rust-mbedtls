@@ -10,7 +10,7 @@ use core::result::Result as StdResult;
 
 #[cfg(feature = "std")]
 use {
-    std::io::{Read, Write, Result as IoResult},
+    std::io::{Read, Write, Result as IoResult, Error as IoError},
     std::sync::Arc,
 };
 
@@ -67,6 +67,121 @@ impl<IO: Read + Write> IoCallback for IO {
     }
 }
 
+#[cfg(feature = "std")]
+pub struct ConnectedUdpSocket {
+    socket: std::net::UdpSocket,
+}
+
+#[cfg(feature = "std")]
+impl ConnectedUdpSocket {
+    pub fn connect<A: std::net::ToSocketAddrs>(socket: std::net::UdpSocket, addr: A) -> StdResult<Self, (IoError, std::net::UdpSocket)> {
+        match socket.connect(addr) {
+            Ok(_) => Ok(ConnectedUdpSocket {
+                socket,
+            }),
+            Err(e) => Err((e, socket)),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl IoCallback for ConnectedUdpSocket {
+    unsafe extern "C" fn call_recv(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
+        let len = if len > (c_int::max_value() as size_t) {
+            c_int::max_value() as size_t
+        } else {
+            len
+        };
+        match (&mut *(user_data as *mut ConnectedUdpSocket)).socket.recv(::core::slice::from_raw_parts_mut(data, len)) {
+            Ok(i) => i as c_int,
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => 0,
+            Err(_) => ::mbedtls_sys::ERR_NET_RECV_FAILED,
+        }
+    }
+
+    unsafe extern "C" fn call_send(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int {
+        let len = if len > (c_int::max_value() as size_t) {
+            c_int::max_value() as size_t
+        } else {
+            len
+        };
+        match (&mut *(user_data as *mut ConnectedUdpSocket)).socket.send(::core::slice::from_raw_parts(data, len)) {
+            Ok(i) => i as c_int,
+            Err(_) => ::mbedtls_sys::ERR_NET_SEND_FAILED,
+        }
+    }
+
+    fn data_ptr(&mut self) -> *mut c_void {
+        self as *mut ConnectedUdpSocket as *mut c_void
+    }
+}
+
+pub trait TimerCallback: Send + Sync {
+    unsafe extern "C" fn set_timer(
+        p_timer: *mut c_void,
+        int_ms: u32,
+        fin_ms: u32,
+    ) where Self: Sized;
+
+    unsafe extern "C" fn get_timer(
+        p_timer: *mut c_void,
+    ) -> c_int where Self: Sized;
+
+    fn data_ptr(&mut self) -> *mut c_void;
+}
+
+#[cfg(feature = "std")]
+pub struct Timer {
+    timer_start: std::time::Instant,
+    timer_int_ms: u32,
+    timer_fin_ms: u32,
+}
+
+#[cfg(feature = "std")]
+impl Timer {
+    pub fn new() -> Self {
+        Timer {
+            timer_start: std::time::Instant::now(),
+            timer_int_ms: 0,
+            timer_fin_ms: 0,
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl TimerCallback for Timer {
+    unsafe extern "C" fn set_timer(
+        p_timer: *mut c_void,
+        int_ms: u32,
+        fin_ms: u32,
+    ) where Self: Sized {
+        let slf = (p_timer as *mut Timer).as_mut().unwrap();
+        slf.timer_start = std::time::Instant::now();
+        slf.timer_int_ms = int_ms;
+        slf.timer_fin_ms = fin_ms;
+    }
+
+    unsafe extern "C" fn get_timer(
+        p_timer: *mut c_void,
+    ) -> c_int where Self: Sized {
+        let slf = (p_timer as *mut Timer).as_mut().unwrap();
+        if slf.timer_int_ms == 0 || slf.timer_fin_ms == 0 {
+            return 0;
+        }
+        let passed = std::time::Instant::now() - slf.timer_start;
+        if passed.as_millis() >= slf.timer_fin_ms.into() {
+            2
+        } else if passed.as_millis() >= slf.timer_int_ms.into() {
+            1
+        } else {
+            0
+        }
+    }
+
+    fn data_ptr(&mut self) -> *mut mbedtls_sys::types::raw_types::c_void {
+        self as *mut _ as *mut _
+    }
+}
 
 define!(
     #[c_ty(ssl_context)]
@@ -89,11 +204,18 @@ pub struct Context<T> {
     // Base structure used in SNI callback where we cannot determine the io type.
     inner: HandshakeContext,
     
-    // config is used read-only for mutliple contexts and is immutable once configured.
+    // config is used read-only for multiple contexts and is immutable once configured.
     config: Arc<Config>, 
     
     // Must be held in heap and pointer to it as pointer is sent to MbedSSL and can't be re-allocated.
     io: Option<Box<T>>,
+
+    timer_callback: Option<Box<dyn TimerCallback>>,
+
+    /// Stores the client identification on the DTLS server-side for the current connection. Must
+    /// be stored in [`Context`] first so that it can be set after the `ssl_session_reset` in the
+    /// [`establish`](Context::establish) call.
+    client_transport_id: Option<Vec<u8>>,
 }
 
 impl<'a, T> Into<*const ssl_context> for &'a Context<T> {
@@ -128,6 +250,8 @@ impl<T> Context<T> {
             },
             config: config.clone(),
             io: None,
+            timer_callback: None,
+            client_transport_id: None,
         }
     }
 
@@ -146,6 +270,9 @@ impl<T: IoCallback> Context<T> {
             let mut io = Box::new(io);
             ssl_session_reset(self.into()).into_result()?;
             self.set_hostname(hostname)?;
+            if let Some(client_id) = self.client_transport_id.take() {
+                self.set_client_transport_id(&client_id)?;
+            }
 
             let ptr = &mut *io as *mut _ as *mut c_void;
             ssl_set_bio(
@@ -157,24 +284,55 @@ impl<T: IoCallback> Context<T> {
             );
 
             self.io = Some(io);
-            self.inner.reset_handshake();            
+            self.inner.reset_handshake();
         }
 
-        match self.handshake() {
-            Ok(()) => Ok(()),
-            Err(Error::SslWantRead) => Err(Error::SslWantRead),
-            Err(Error::SslWantWrite) => Err(Error::SslWantWrite),
-            Err(e) => {
-                self.close();
-                Err(e) 
-            },
-        }
-            
+        self.handshake()
     }
 }
 
 impl<T> Context<T> {
-    fn handshake(&mut self) -> Result<()> {
+    /// Try to complete the handshake procedure to set up a (D)TLS connection
+    ///
+    /// In general, this should not be called directly. Instead, [`establish`](Context::establish)
+    /// should be used which properly sets up the [`IoCallback`] and resets any previous sessions.
+    ///
+    /// This should only be used directly if the handshake could not be completed successfully in
+    /// `establish`, i.e.:
+    /// - If using nonblocking operation and `establish` failed with [`Error::SslWantRead`] or
+    /// [`Error::SslWantWrite`]
+    /// - If running a DTLS server and it answers the first `ClientHello` (without cookie) with a
+    /// `HelloVerifyRequest`, i.e. `establish` failed with [`Error::SslHelloVerifyRequired`]
+    pub fn handshake(&mut self) -> Result<()> {
+        match self.inner_handshake() {
+            Ok(()) => Ok(()),
+            Err(Error::SslWantRead) => Err(Error::SslWantRead),
+            Err(Error::SslWantWrite) => Err(Error::SslWantWrite),
+            Err(Error::SslHelloVerifyRequired) => {
+                unsafe {
+                    // `ssl_session_reset` resets the client ID but the user will call handshake
+                    // again in this case and the client ID is required for a DTLS connection setup
+                    // on the server side. So we extract it before and set it after
+                    // `ssl_session_reset`.
+                    let mut client_transport_id = None;
+                    if !self.inner.handle().cli_id.is_null() {
+                        client_transport_id = Some(Vec::from(core::slice::from_raw_parts(self.inner.handle().cli_id, self.inner.handle().cli_id_len)));
+                    }
+                    ssl_session_reset(self.into()).into_result()?;
+                    if let Some(client_id) = client_transport_id.take() {
+                        self.set_client_transport_id(&client_id)?;
+                    }
+                }
+                Err(Error::SslHelloVerifyRequired)
+            }
+            Err(e) => {
+                self.close();
+                Err(e)
+            },
+        }
+    }
+
+    fn inner_handshake(&mut self) -> Result<()> {
         unsafe {
             ssl_flush_output(self.into()).into_result()?;
             ssl_handshake(self.into()).into_result_discard()
@@ -298,6 +456,36 @@ impl<T> Context<T> {
             }
         }
     }
+
+    pub fn set_timer_callback<F: TimerCallback + 'static>(&mut self, mut cb: Box<F>) {
+        unsafe {
+            ssl_set_timer_cb(self.into(), cb.data_ptr(), Some(F::set_timer), Some(F::get_timer));
+        }
+        self.timer_callback = Some(cb);
+    }
+
+    /// Set client's transport-level identification info (dtls server only)
+    ///
+    /// See `mbedtls_ssl_set_client_transport_id`
+    fn set_client_transport_id(&mut self, info: &[u8]) -> Result<()> {
+        unsafe {
+            ssl_set_client_transport_id(self.into(), info.as_ptr(), info.len())
+                .into_result()
+                .map(|_| ())
+        }
+    }
+
+    /// Set client's transport-level identification info (dtls server only)
+    ///
+    /// See `mbedtls_ssl_set_client_transport_id`
+    ///
+    /// The `info` is used only for the next connection, i.e. it will be used for the next
+    /// [`establish`](Context::establish) call. Afterwards, it will be unset again. This is to
+    /// ensure that no client identification is accidentally reused if this [`Context`] is reused
+    /// for further connections.
+    pub fn set_client_transport_id_once(&mut self, info: &[u8]) {
+        self.client_transport_id = Some(info.into());
+    }
 }
 
 impl<T> Drop for Context<T> {
@@ -334,7 +522,7 @@ impl<T: IoCallback> Write for Context<T> {
 }
 //
 // Class exists only during SNI callback that is configured from Config.
-// SNI Callback must provide input whos lifetime exceed the SNI closure to avoid memory corruptions.
+// SNI Callback must provide input whose lifetime exceeds the SNI closure to avoid memory corruptions.
 // That can be achieved easily by storing certificate chains/crls inside the closure for the lifetime of the closure.
 //
 // That is due to SNI being held by an Arc inside Config.

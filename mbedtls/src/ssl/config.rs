@@ -26,6 +26,7 @@ use crate::pk::Pk;
 use crate::pk::dhparam::Dhm;
 use crate::private::UnsafeFrom;
 use crate::rng::RngCallback;
+use crate::ssl::cookie::CookieCallback;
 use crate::ssl::context::HandshakeContext;
 use crate::ssl::ticket::TicketCallback;
 use crate::x509::{self, Certificate, Crl, Profile, VerifyCallback};
@@ -164,6 +165,7 @@ define!(
         sni_callback: Option<Arc<dyn SniCallback + 'static>>,
         ticket_callback: Option<Arc<dyn TicketCallback + 'static>>,
         ca_callback: Option<Arc<dyn CaCallback + 'static>>,
+        dtls_cookies: Option<Arc<dyn CookieCallback + 'static>>,
     };
     const drop: fn(&mut Self) = ssl_config_free;
     impl<'a> Into<ptr> {}
@@ -199,6 +201,7 @@ impl Config {
             sni_callback: None,
             ticket_callback: None,
             ca_callback: None,
+            dtls_cookies: None,
         }
     }
 
@@ -457,6 +460,25 @@ impl Config {
         self.dbg_callback = Some(Arc::new(cb));
         unsafe { ssl_conf_dbg(self.into(), Some(dbg_callback::<F>), &**self.dbg_callback.as_mut().unwrap() as *const _ as *mut c_void) }
     }
+
+    /// Sets the PSK and the PSK-Identity
+    ///
+    /// Only a single entry is supported at the moment. If another one was set before, it will be
+    /// overridden.
+    pub fn set_psk(&mut self, psk: &[u8], psk_identity: &str) -> Result<()> {
+        unsafe {
+            // This allocates and copies the buffers and does not store any pointer to them
+            ssl_conf_psk(self.into(), psk.as_ptr(), psk.len(), psk_identity.as_ptr(), psk_identity.len())
+                .into_result()
+                .map(|_| ())
+        }
+    }
+
+    /// Sets the cookie context and callbacks which are required for DTLS servers
+    pub fn set_dtls_cookies<T: CookieCallback + 'static>(&mut self, dtls_cookies: Arc<T>) {
+        unsafe { ssl_conf_dtls_cookies(self.into(), Some(T::cookie_write), Some(T::cookie_check), dtls_cookies.data_ptr()) };
+        self.dtls_cookies = Some(dtls_cookies);
+    }
 }
 
 // TODO
@@ -466,7 +488,6 @@ impl Config {
 // ssl_conf_dtls_badmac_limit
 // ssl_conf_handshake_timeout
 // ssl_conf_session_cache
-// ssl_conf_psk
 // ssl_conf_psk_cb
 // ssl_conf_sig_hashes
 // ssl_conf_alpn_protocols

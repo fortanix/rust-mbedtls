@@ -57,7 +57,7 @@ cc = "1.0"
 default = ["std", "aesni", "time", "padlock"]
 std = ["mbedtls-sys-auto/std", "serde/std", "yasna"]
 debug = ["mbedtls-sys-auto/debug"]
-no_std_deps = ["core_io", "spin"]
+no_std_deps = ["core_io", "spin", "serde/alloc"]
 force_aesni_support = ["mbedtls-sys-auto/custom_has_support", "mbedtls-sys-auto/aes_alt", "aesni"]
 mpi_force_c_code = ["mbedtls-sys-auto/mpi_force_c_code"]
 rdrand = []
@@ -68,9 +68,18 @@ padlock = ["mbedtls-sys-auto/padlock"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "block-modes"]
+legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
 
 [[example]]
 name = "client"
+required-features = ["std"]
+
+[[example]]
+name = "client_dtls"
+required-features = ["std"]
+
+[[example]]
+name = "client_psk"
 required-features = ["std"]
 
 [[example]]

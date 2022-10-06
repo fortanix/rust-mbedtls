@@ -9,6 +9,7 @@
 pub mod ciphersuites;
 pub mod config;
 pub mod context;
+pub mod cookie;
 pub mod ticket;
 
 #[doc(inline)]
@@ -17,5 +18,7 @@ pub use self::ciphersuites::CipherSuite;
 pub use self::config::{Config, Version, UseSessionTickets};
 #[doc(inline)]
 pub use self::context::Context;
+#[doc(inline)]
+pub use self::cookie::CookieContext;
 #[doc(inline)]
 pub use self::ticket::TicketContext;
