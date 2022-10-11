@@ -6,7 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-#![deny(warnings)]
+//#![deny(warnings)]
 #![allow(unused_doc_comments)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -162,4 +162,13 @@ pub unsafe extern "C" fn mbedtls_time(tp: *mut time_t) -> time_t {
         *tp = timestamp;
     }
     timestamp
+}
+
+/// # Safety
+///
+/// The caller must ensure no other MbedTLS code is running when calling this
+/// function.
+#[cfg(feature = "debug")]
+pub unsafe fn set_global_debug_threshold(threshold: i32) {
+    mbedtls_sys::debug_set_threshold(threshold);
 }

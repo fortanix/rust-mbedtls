@@ -54,6 +54,7 @@ cc = "1.0"
 # Features are documented in the README
 default = ["std", "aesni", "time", "padlock", "legacy_protocols", "use_libc"]
 std = ["mbedtls-sys-auto/std", "serde/std", "yasna"]
+debug = ["mbedtls-sys-auto/debug"]
 threading = []
 pthread = ["threading","std","mbedtls-sys-auto/pthread"]
 spin_threading = ["threading","spin","mbedtls-sys-auto/custom_threading"]
