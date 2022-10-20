@@ -21,9 +21,9 @@ keywords = ["MbedTLS","mbed","TLS","SSL","cryptography"]
 bitflags = "1"
 core_io = { version = "0.1", features = ["collections"], optional = true }
 spin = { version = "0.4.0", default-features = false, optional = true }
-serde = { version = "1.0.7", default-features = false }
+serde = { version = "1.0.7", default-features = false, features = ["alloc"] }
 serde_derive = "1.0.7"
-byteorder = "1.0.0"
+byteorder = { version = "1.0.0", default-features = false }
 yasna = { version = "0.2", optional = true, features = ["num-bigint", "bit-vec"] }
 num-bigint = { version = "0.2", optional = true }
 bit-vec = { version = "0.5", optional = true }
@@ -55,7 +55,7 @@ cc = "1.0"
 [features]
 # Features are documented in the README
 default = ["std", "aesni", "time", "padlock"]
-std = ["mbedtls-sys-auto/std", "serde/std", "yasna"]
+std = ["byteorder/std", "mbedtls-sys-auto/std", "serde/std", "yasna"]
 debug = ["mbedtls-sys-auto/debug"]
 no_std_deps = ["core_io", "spin", "serde/alloc"]
 force_aesni_support = ["mbedtls-sys-auto/custom_has_support", "mbedtls-sys-auto/aes_alt", "aesni"]
