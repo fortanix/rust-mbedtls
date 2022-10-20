@@ -36,14 +36,7 @@
 #include <stdio.h>
 #endif
 
-#if defined(MBEDTLS_SELF_TEST)
-#if defined(MBEDTLS_PLATFORM_C)
 #include "mbedtls/platform.h"
-#else
-#include <stdio.h>
-#define mbedtls_printf printf
-#endif /* MBEDTLS_PLATFORM_C */
-#endif /* MBEDTLS_SELF_TEST */
 
 /*
  * CTR_DRBG context initialization
@@ -312,7 +305,7 @@ exit:
  * and with outputs
  *   ctx = initial_working_state
  */
-int mbedtls_ctr_drbg_update_ret( mbedtls_ctr_drbg_context *ctx,
+int mbedtls_ctr_drbg_update( mbedtls_ctr_drbg_context *ctx,
                                  const unsigned char *additional,
                                  size_t add_len )
 {
@@ -331,19 +324,6 @@ exit:
     mbedtls_platform_zeroize( add_input, sizeof( add_input ) );
     return( ret );
 }
-
-#if !defined(MBEDTLS_DEPRECATED_REMOVED)
-void mbedtls_ctr_drbg_update( mbedtls_ctr_drbg_context *ctx,
-                              const unsigned char *additional,
-                              size_t add_len )
-{
-    /* MAX_INPUT would be more logical here, but we have to match
-     * block_cipher_df()'s limits since we can't propagate errors */
-    if( add_len > MBEDTLS_CTR_DRBG_MAX_SEED_INPUT )
-        add_len = MBEDTLS_CTR_DRBG_MAX_SEED_INPUT;
-    (void) mbedtls_ctr_drbg_update_ret( ctx, additional, add_len );
-}
-#endif /* MBEDTLS_DEPRECATED_REMOVED */
 
 /* CTR_DRBG_Reseed with derivation function (SP 800-90A &sect;10.2.1.4.2)
  * mbedtls_ctr_drbg_reseed(ctx, additional, len, nonce_len)
@@ -620,6 +600,9 @@ int mbedtls_ctr_drbg_write_seed_file( mbedtls_ctr_drbg_context *ctx,
     if( ( f = fopen( path, "wb" ) ) == NULL )
         return( MBEDTLS_ERR_CTR_DRBG_FILE_IO_ERROR );
 
+    /* Ensure no stdio buffering of secrets, as such buffers cannot be wiped. */
+    mbedtls_setbuf( f, NULL );
+
     if( ( ret = mbedtls_ctr_drbg_random( ctx, buf,
                                          MBEDTLS_CTR_DRBG_MAX_INPUT ) ) != 0 )
         goto exit;
@@ -653,6 +636,9 @@ int mbedtls_ctr_drbg_update_seed_file( mbedtls_ctr_drbg_context *ctx,
     if( ( f = fopen( path, "rb" ) ) == NULL )
         return( MBEDTLS_ERR_CTR_DRBG_FILE_IO_ERROR );
 
+    /* Ensure no stdio buffering of secrets, as such buffers cannot be wiped. */
+    mbedtls_setbuf( f, NULL );
+
     n = fread( buf, 1, sizeof( buf ), f );
     if( fread( &c, 1, 1, f ) != 0 )
     {
@@ -667,7 +653,7 @@ int mbedtls_ctr_drbg_update_seed_file( mbedtls_ctr_drbg_context *ctx,
     fclose( f );
     f = NULL;
 
-    ret = mbedtls_ctr_drbg_update_ret( ctx, buf, n );
+    ret = mbedtls_ctr_drbg_update( ctx, buf, n );
 
 exit:
     mbedtls_platform_zeroize( buf, sizeof( buf ) );
@@ -828,7 +814,7 @@ static int ctr_drbg_self_test_entropy( void *data, unsigned char *buf,
                         return( 1 );                        \
                     }
 
-#define SELF_TEST_OUPUT_DISCARD_LENGTH 64
+#define SELF_TEST_OUTPUT_DISCARD_LENGTH 64
 
 /*
  * Checkup routine
@@ -854,7 +840,7 @@ int mbedtls_ctr_drbg_self_test( int verbose )
                                 (void *) entropy_source_pr,
                                 pers_pr, MBEDTLS_CTR_DRBG_KEYSIZE ) );
     mbedtls_ctr_drbg_set_prediction_resistance( &ctx, MBEDTLS_CTR_DRBG_PR_ON );
-    CHK( mbedtls_ctr_drbg_random( &ctx, buf, SELF_TEST_OUPUT_DISCARD_LENGTH ) );
+    CHK( mbedtls_ctr_drbg_random( &ctx, buf, SELF_TEST_OUTPUT_DISCARD_LENGTH ) );
     CHK( mbedtls_ctr_drbg_random( &ctx, buf, sizeof( result_pr ) ) );
     CHK( memcmp( buf, result_pr, sizeof( result_pr ) ) );
 
@@ -879,7 +865,7 @@ int mbedtls_ctr_drbg_self_test( int verbose )
                                 (void *) entropy_source_nopr,
                                 pers_nopr, MBEDTLS_CTR_DRBG_KEYSIZE ) );
     CHK( mbedtls_ctr_drbg_reseed( &ctx, NULL, 0 ) );
-    CHK( mbedtls_ctr_drbg_random( &ctx, buf, SELF_TEST_OUPUT_DISCARD_LENGTH ) );
+    CHK( mbedtls_ctr_drbg_random( &ctx, buf, SELF_TEST_OUTPUT_DISCARD_LENGTH ) );
     CHK( mbedtls_ctr_drbg_random( &ctx, buf, sizeof( result_nopr ) ) );
     CHK( memcmp( buf, result_nopr, sizeof( result_nopr ) ) );
 

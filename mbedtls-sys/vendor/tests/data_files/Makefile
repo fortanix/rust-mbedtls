@@ -416,15 +416,7 @@ rsa_pkcs8_pbe_sha1_1024_2des.pem: rsa_pkcs1_1024_clear.pem
 all_final += rsa_pkcs8_pbe_sha1_1024_2des.pem
 keys_rsa_enc_pkcs8_v1_1024_2des: rsa_pkcs8_pbe_sha1_1024_2des.pem rsa_pkcs8_pbe_sha1_1024_2des.der
 
-rsa_pkcs8_pbe_sha1_1024_rc4_128.der: rsa_pkcs1_1024_clear.pem
-	$(OPENSSL) pkcs8 -inform PEM -in $< -outform DER -out $@ -passout "pass:$(keys_rsa_pkcs8_pwd)" -topk8 -v1 PBE-SHA1-RC4-128
-all_final += rsa_pkcs8_pbe_sha1_1024_rc4_128.der
-rsa_pkcs8_pbe_sha1_1024_rc4_128.pem: rsa_pkcs1_1024_clear.pem
-	$(OPENSSL) pkcs8 -inform PEM -in $< -outform PEM -out $@ -passout "pass:$(keys_rsa_pkcs8_pwd)" -topk8 -v1 PBE-SHA1-RC4-128
-all_final += rsa_pkcs8_pbe_sha1_1024_rc4_128.pem
-keys_rsa_enc_pkcs8_v1_1024_rc4_128: rsa_pkcs8_pbe_sha1_1024_rc4_128.pem rsa_pkcs8_pbe_sha1_1024_rc4_128.der
-
-keys_rsa_enc_pkcs8_v1_1024: keys_rsa_enc_pkcs8_v1_1024_3des keys_rsa_enc_pkcs8_v1_1024_2des keys_rsa_enc_pkcs8_v1_1024_rc4_128
+keys_rsa_enc_pkcs8_v1_1024: keys_rsa_enc_pkcs8_v1_1024_3des keys_rsa_enc_pkcs8_v1_1024_2des
 
 ### 2048-bit
 rsa_pkcs8_pbe_sha1_2048_3des.der: rsa_pkcs1_2048_clear.pem
@@ -443,15 +435,7 @@ rsa_pkcs8_pbe_sha1_2048_2des.pem: rsa_pkcs1_2048_clear.pem
 all_final += rsa_pkcs8_pbe_sha1_2048_2des.pem
 keys_rsa_enc_pkcs8_v1_2048_2des: rsa_pkcs8_pbe_sha1_2048_2des.pem rsa_pkcs8_pbe_sha1_2048_2des.der
 
-rsa_pkcs8_pbe_sha1_2048_rc4_128.der: rsa_pkcs1_2048_clear.pem
-	$(OPENSSL) pkcs8 -inform PEM -in $< -outform DER -out $@ -passout "pass:$(keys_rsa_pkcs8_pwd)" -topk8 -v1 PBE-SHA1-RC4-128
-all_final += rsa_pkcs8_pbe_sha1_2048_rc4_128.der
-rsa_pkcs8_pbe_sha1_2048_rc4_128.pem: rsa_pkcs1_2048_clear.pem
-	$(OPENSSL) pkcs8 -inform PEM -in $< -outform PEM -out $@ -passout "pass:$(keys_rsa_pkcs8_pwd)" -topk8 -v1 PBE-SHA1-RC4-128
-all_final += rsa_pkcs8_pbe_sha1_2048_rc4_128.pem
-keys_rsa_enc_pkcs8_v1_2048_rc4_128: rsa_pkcs8_pbe_sha1_2048_rc4_128.pem rsa_pkcs8_pbe_sha1_2048_rc4_128.der
-
-keys_rsa_enc_pkcs8_v1_2048: keys_rsa_enc_pkcs8_v1_2048_3des keys_rsa_enc_pkcs8_v1_2048_2des keys_rsa_enc_pkcs8_v1_2048_rc4_128
+keys_rsa_enc_pkcs8_v1_2048: keys_rsa_enc_pkcs8_v1_2048_3des keys_rsa_enc_pkcs8_v1_2048_2des
 
 ### 4096-bit
 rsa_pkcs8_pbe_sha1_4096_3des.der: rsa_pkcs1_4096_clear.pem
@@ -470,15 +454,7 @@ rsa_pkcs8_pbe_sha1_4096_2des.pem: rsa_pkcs1_4096_clear.pem
 all_final += rsa_pkcs8_pbe_sha1_4096_2des.pem
 keys_rsa_enc_pkcs8_v1_4096_2des: rsa_pkcs8_pbe_sha1_4096_2des.pem rsa_pkcs8_pbe_sha1_4096_2des.der
 
-rsa_pkcs8_pbe_sha1_4096_rc4_128.der: rsa_pkcs1_4096_clear.pem
-	$(OPENSSL) pkcs8 -inform PEM -in $< -outform DER -out $@ -passout "pass:$(keys_rsa_pkcs8_pwd)" -topk8 -v1 PBE-SHA1-RC4-128
-all_final += rsa_pkcs8_pbe_sha1_4096_rc4_128.der
-rsa_pkcs8_pbe_sha1_4096_rc4_128.pem: rsa_pkcs1_4096_clear.pem
-	$(OPENSSL) pkcs8 -inform PEM -in $< -outform PEM -out $@ -passout "pass:$(keys_rsa_pkcs8_pwd)" -topk8 -v1 PBE-SHA1-RC4-128
-all_final += rsa_pkcs8_pbe_sha1_4096_rc4_128.pem
-keys_rsa_enc_pkcs8_v1_4096_rc4_128: rsa_pkcs8_pbe_sha1_4096_rc4_128.pem rsa_pkcs8_pbe_sha1_4096_rc4_128.der
-
-keys_rsa_enc_pkcs8_v1_4096: keys_rsa_enc_pkcs8_v1_4096_3des keys_rsa_enc_pkcs8_v1_4096_2des keys_rsa_enc_pkcs8_v1_4096_rc4_128
+keys_rsa_enc_pkcs8_v1_4096: keys_rsa_enc_pkcs8_v1_4096_3des keys_rsa_enc_pkcs8_v1_4096_2des
 
 ###
 ### PKCS8-v2 encoded, encrypted RSA keys, no PRF specified (default for OpenSSL1.0: hmacWithSHA1)
@@ -893,10 +869,6 @@ server1.req.sha1: server1.key
 	$(MBEDTLS_CERT_REQ) output_file=$@ filename=$< subject_name="C=NL,O=PolarSSL,CN=PolarSSL Server 1" md=SHA1
 all_final += server1.req.sha1
 
-server1.req.md4: server1.key
-	$(MBEDTLS_CERT_REQ) output_file=$@ filename=$< subject_name="C=NL,O=PolarSSL,CN=PolarSSL Server 1" md=MD4
-all_final += server1.req.md4
-
 server1.req.md5: server1.key
 	$(MBEDTLS_CERT_REQ) output_file=$@ filename=$< subject_name="C=NL,O=PolarSSL,CN=PolarSSL Server 1" md=MD5
 all_final += server1.req.md5
@@ -936,6 +908,10 @@ all_final += server1.req.key_usage_empty
 server1.req.cert_type_empty: server1.key
 	$(MBEDTLS_CERT_REQ) output_file=$@ filename=$< subject_name="C=NL,O=PolarSSL,CN=PolarSSL Server 1" md=SHA1 force_ns_cert_type=1
 all_final += server1.req.cert_type_empty
+
+server1.req.commas.sha256: server1.key
+	$(MBEDTLS_CERT_REQ) output_file=$@ filename=$< subject_name="C=NL,O=PolarSSL\, Commas,CN=PolarSSL Server 1" md=SHA256
+all_final += server1.req.commas.sha256
 
 # server2*
 
@@ -994,7 +970,9 @@ server1.crt.der: server1.crt
 	$(MBEDTLS_CERT_WRITE) request_file=server1.req.sha256 issuer_crt=$(test_ca_crt) issuer_key=$(test_ca_key_file_rsa) issuer_pwd=$(test_ca_pwd_rsa) not_before=20190210144406 not_after=20290210144406 md=SHA1 authority_identifier=0 version=3 output_file=$@
 server1.der: server1.crt
 	$(OPENSSL) x509 -inform PEM -in $< -outform DER -out $@
-all_final += server1.crt server1.noauthid.crt server1.crt.der
+server1.commas.crt: server1.key server1.req.commas.sha256 $(test_ca_crt) $(test_ca_key_file_rsa)
+	$(MBEDTLS_CERT_WRITE) request_file=server1.req.commas.sha256 issuer_crt=$(test_ca_crt) issuer_key=$(test_ca_key_file_rsa) issuer_pwd=$(test_ca_pwd_rsa) version=1 not_before=20190210144406 not_after=20290210144406 md=SHA1 version=3 output_file=$@
+all_final += server1.crt server1.noauthid.crt server1.crt.der server1.commas.crt
 
 server1.key_usage.crt: server1.key server1.req.sha256 $(test_ca_crt) $(test_ca_key_file_rsa)
 	$(MBEDTLS_CERT_WRITE) request_file=server1.req.sha256 issuer_crt=$(test_ca_crt) issuer_key=$(test_ca_key_file_rsa) issuer_pwd=$(test_ca_pwd_rsa) version=1 not_before=20190210144406 not_after=20290210144406 md=SHA1 key_usage=digital_signature,non_repudiation,key_encipherment version=3 output_file=$@
@@ -1103,25 +1081,9 @@ server2-sha256.crt: server2.req.sha256
 	$(MBEDTLS_CERT_WRITE) request_file=server2.req.sha256 serial=2 issuer_crt=$(test_ca_crt) issuer_key=$(test_ca_key_file_rsa) issuer_pwd=$(test_ca_pwd_rsa) not_before=20190210144406 not_after=20290210144406 md=SHA256 version=3 output_file=$@
 all_final += server2-sha256.crt
 
-# MD2, MD4, MD5 test certificates
+# MD5 test certificate
 
 cert_md_test_key = $(cli_crt_key_file_rsa)
-
-cert_md2.csr: $(cert_md_test_key)
-	$(MBEDTLS_CERT_REQ) output_file=$@ filename=$< subject_name="C=NL,O=PolarSSL,CN=PolarSSL Cert MD2" md=MD2
-all_intermediate += cert_md2.csr
-
-cert_md2.crt: cert_md2.csr
-	$(MBEDTLS_CERT_WRITE) request_file=$< serial=9 issuer_crt=$(test_ca_crt) issuer_key=$(test_ca_key_file_rsa) issuer_pwd=$(test_ca_pwd_rsa) not_before=20000101121212 not_after=20300101121212 md=MD2 version=3 output_file=$@
-all_final += cert_md2.crt
-
-cert_md4.csr: $(cert_md_test_key)
-	$(MBEDTLS_CERT_REQ) output_file=$@ filename=$< subject_name="C=NL,O=PolarSSL,CN=PolarSSL Cert MD4" md=MD4
-all_intermediate += cert_md4.csr
-
-cert_md4.crt: cert_md4.csr
-	$(MBEDTLS_CERT_WRITE) request_file=$< serial=5 issuer_crt=$(test_ca_crt) issuer_key=$(test_ca_key_file_rsa) issuer_pwd=$(test_ca_pwd_rsa) not_before=20000101121212 not_after=20300101121212 md=MD4 version=3 output_file=$@
-all_final += cert_md4.crt
 
 cert_md5.csr: $(cert_md_test_key)
 	$(MBEDTLS_CERT_REQ) output_file=$@ filename=$< subject_name="C=NL,O=PolarSSL,CN=PolarSSL Cert MD5" md=MD5
@@ -1130,6 +1092,44 @@ all_intermediate += cert_md5.csr
 cert_md5.crt: cert_md5.csr
 	$(MBEDTLS_CERT_WRITE) request_file=$< serial=6 issuer_crt=$(test_ca_crt) issuer_key=$(test_ca_key_file_rsa) issuer_pwd=$(test_ca_pwd_rsa) not_before=20000101121212 not_after=20300101121212 md=MD5 version=3 output_file=$@
 all_final += cert_md5.crt
+
+# TLSv1.3 test certificates
+ecdsa_secp256r1.key: ec_256_prv.pem
+	cp $< $@
+
+ecdsa_secp256r1.csr: ecdsa_secp256r1.key
+	$(OPENSSL) req -new -subj "/C=NL/O=PolarSSL/CN=localhost" \
+					-key $< -out $@
+all_intermediate += ecdsa_secp256r1.csr
+ecdsa_secp256r1.crt: ecdsa_secp256r1.csr
+	$(OPENSSL) x509 -req -CA $(test_ca_crt_file_ec) -CAkey $(test_ca_key_file_ec) \
+				-set_serial 77 -days 3653 -sha384 -in $< -out $@
+all_final += ecdsa_secp256r1.crt ecdsa_secp256r1.key
+tls13_certs: ecdsa_secp256r1.crt ecdsa_secp256r1.key
+
+ecdsa_secp384r1.key: ec_384_prv.pem
+	cp $< $@
+ecdsa_secp384r1.csr: ecdsa_secp384r1.key
+	$(OPENSSL) req -new -subj "/C=NL/O=PolarSSL/CN=localhost" \
+					-key $< -out $@
+all_intermediate += ecdsa_secp384r1.csr
+ecdsa_secp384r1.crt: ecdsa_secp384r1.csr
+	$(OPENSSL) x509 -req -CA $(test_ca_crt_file_ec) -CAkey $(test_ca_key_file_ec) \
+				-set_serial 77 -days 3653 -sha384 -in $< -out $@
+all_final += ecdsa_secp384r1.crt ecdsa_secp384r1.key
+tls13_certs: ecdsa_secp384r1.crt ecdsa_secp384r1.key
+
+ecdsa_secp521r1.key: ec_521_prv.pem
+	cp $< $@
+ecdsa_secp521r1.csr: ecdsa_secp521r1.key
+	$(OPENSSL) req -new -subj "/C=NL/O=PolarSSL/CN=localhost" \
+					-key $< -out $@
+all_intermediate += ecdsa_secp521r1.csr
+ecdsa_secp521r1.crt: ecdsa_secp521r1.csr
+	$(OPENSSL) x509 -req -CA $(test_ca_crt_file_ec) -CAkey $(test_ca_key_file_ec) \
+				-set_serial 77 -days 3653 -sha384 -in $< -out $@
+all_final += ecdsa_secp521r1.crt ecdsa_secp521r1.key
+tls13_certs: ecdsa_secp521r1.crt ecdsa_secp521r1.key
 
 ################################################################
 #### Diffie-Hellman parameters

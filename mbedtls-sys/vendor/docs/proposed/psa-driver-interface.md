@@ -60,6 +60,10 @@ How to provide the driver description file, the C header files and the object co
 
 The concrete syntax for a driver description file is JSON.
 
+In addition to the properties described here, any JSON object may have a property called `"_comment"` of type string, which will be ignored.
+
+PSA Cryptography core implementations may support additional properties. Such properties must use names consisting of the implementation's name, a slash, and additional characters. For example, the Yoyodyne implementation may use property names such as `"yoyodyne/foo"` and `"yoyodyne/widgets/girth"`.
+
 #### Driver description list
 
 PSA Cryptography core implementations should support multiple drivers. The driver description files are passed to the implementation as an ordered list in an unspecified manner. This may be, for example, a list of file names passed on a command line, or a JSON list whose elements are individual driver descriptions.
@@ -68,7 +72,7 @@ PSA Cryptography core implementations should support multiple drivers. The drive
 
 A driver description is a JSON object containing the following properties:
 
-* `"prefix"` (mandatory, string). This must be a valid prefix for a C identifier. All the types and functions provided by the driver have a name that starts with this prefix unless overridden with a `"name"` element in the applicable capability as described below.
+* `"prefix"` (mandatory, string). This must be a valid, non-empty prefix for a C identifier. All the types and functions provided by the driver have a name that starts with this prefix unless overridden with a `"name"` element in the applicable capability as described below.
 * `"type"` (mandatory, string). One of `"transparent"` or `"opaque"`.
 * `"headers"` (optional, array of strings). A list of header files. These header files must define the types, macros and constants referenced by the driver description. They may declare the entry point functions, but this is not required. They may include other PSA headers and standard headers of the platform. Whether they may include other headers is implementation-specific. If omitted, the list of headers is empty. The header files must be present at the specified location relative to a directory on the compiler's include path when compiling glue code between the core and the drivers.
 * `"capabilities"` (mandatory, array of [capabilities](#driver-description-capability)).
@@ -305,9 +309,12 @@ This family requires the following type and entry points:
 * `"key_derivation_setup"`: called by `psa_key_derivation_setup()`.
 * `"key_derivation_set_capacity"`: called by `psa_key_derivation_set_capacity()`. The core will always enforce the capacity, therefore this function does not need to do anything for algorithms where the output stream only depends on the effective generated length and not on the capacity.
 * `"key_derivation_input_bytes"`: called by `psa_key_derivation_input_bytes()` and `psa_key_derivation_input_key()`. For transparent drivers, when processing a call to `psa_key_derivation_input_key()`, the core always calls the applicable driver's `"key_derivation_input_bytes"` entry point.
+* `"key_derivation_input_integer"`: called by `psa_key_derivation_input_integer()`.
 * `"key_derivation_input_key"` (opaque drivers only)
 * `"key_derivation_output_bytes"`: called by `psa_key_derivation_output_bytes()`; also by `psa_key_derivation_output_key()` for transparent drivers.
 * `"key_derivation_output_key"`: called by `psa_key_derivation_output_key()` for transparent drivers when deriving an asymmetric key pair, and also for opaque drivers.
+* `"key_derivation_verify_bytes"` (opaque drivers only).
+* `"key_derivation_verify_key"` (opaque drivers only).
 * `"key_derivation_abort"`: called by all key derivation functions of the PSA Cryptography API.
 
 TODO: key input and output for opaque drivers; deterministic key generation for transparent drivers

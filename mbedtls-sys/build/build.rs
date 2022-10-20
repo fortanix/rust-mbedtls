@@ -64,7 +64,7 @@ impl BuildConfig {
                 }
                 f.write_all(config::SUFFIX.as_bytes())
             })
-            .expect("config.h I/O error");
+            .expect("mbedtls_config.h I/O error");
     }
 
     fn print_rerun_files(&self) {
@@ -92,7 +92,7 @@ impl BuildConfig {
 
     fn new() -> Self {
         let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR environment not set?"));
-        let config_h = out_dir.join("config.h");
+        let config_h = out_dir.join("mbedtls_config.h");
         let mbedtls_src = PathBuf::from(env::var("RUST_MBEDTLS_SYS_SOURCE").unwrap_or("vendor".to_owned()));
         let mbedtls_include = mbedtls_src.join("include");
 

@@ -21,7 +21,7 @@ use crate::features::FEATURES;
  *      grep '^#include' *|grep -v '<'|grep -v MBEDTLS_|sed 's/:#include//;s/"//g'|sed 's#mbedtls/##g'| egrep -v ' (psa/crypto.h|psa/crypto_config.h|everest/everest.h|zlib.h|.*_alt.h)$'; \
  *       ls *.h|awk '{print $1 " " $1}' \
  *  )|tsort|tac| \
- *  egrep -v '^(compat-1.3.h|certs.h|config.h|check_config.h)$' \
+ *  egrep -v '^(compat-2.x.h|mbedtls_config.h|check_config.h)$' \
  * )
  */
 
@@ -57,53 +57,35 @@ pub const ORDERED: &'static [(Option<&'static str>, &'static str)] = &[
     (None,                 "ecjpake.h"),
     (None,                 "psa_util.h"),
     (None,                 "net_sockets.h"),
-    (None,                 "havege.h"),
     (None,                 "poly1305.h"),
     (None,                 "chacha20.h"),
-    (None,                 "xtea.h"),
     (None,                 "x509_csr.h"),
-    (None,                 "version.h"),
+    (None,                 "build_info.h"),
     (None,                 "timing.h"),
     (None,                 "ssl_ticket.h"),
-    (None,                 "ssl_internal.h"),
     (None,                 "ssl_cookie.h"),
     (None,                 "ssl_cache.h"),
-    (None,                 "rsa_internal.h"),
     (None,                 "ripemd160.h"),
     (None,                 "platform.h"),
     (None,                 "pkcs5.h"),
     (None,                 "pkcs12.h"),
-    (Some("pkcs11"),       "pkcs11.h"),
-    (None,                 "pk_internal.h"),
     (None,                 "pem.h"),
-    (None,                 "padlock.h"),
     (None,                 "nist_kw.h"),
-    (None,                 "net.h"),
     (None,                 "memory_buffer_alloc.h"),
-    (None,                 "md_internal.h"),
-    (None,                 "md4.h"),
-    (None,                 "md2.h"),
     (None,                 "hkdf.h"),
     (None,                 "gcm.h"),
     (None,                 "error.h"),
-    (None,                 "entropy_poll.h"),
     (None,                 "entropy.h"),
-    (None,                 "ecp_internal.h"),
     (None,                 "des.h"),
     (None,                 "debug.h"),
     (None,                 "constant_time.h"),
     (None,                 "cmac.h"),
-    (None,                 "cipher_internal.h"),
     (None,                 "chachapoly.h"),
     (None,                 "ccm.h"),
     (None,                 "camellia.h"),
-    (None,                 "bn_mul.h"),
-    (None,                 "blowfish.h"),
     (None,                 "base64.h"),
     (None,                 "asn1write.h"),
     (None,                 "aria.h"),
-    (None,                 "arc4.h"),
-    (None,                 "aesni.h"),
 ];
 
 pub fn enabled_ordered() -> Box<dyn Iterator<Item = &'static str>> {

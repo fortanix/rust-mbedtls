@@ -105,10 +105,5 @@ cfg_if! {
 #[cfg(threading_component = "pthread")]
 pub use self::libc::pthread_mutex_t;
 
-#[cfg(feature = "zlib")]
-extern crate libz_sys;
-#[cfg(feature = "zlib")]
-pub use self::libz_sys::z_stream;
 
-#[cfg(feature = "pkcs11")]
-const ERROR: _PKCS11_NOT_SUPPORTED_ = ();
+

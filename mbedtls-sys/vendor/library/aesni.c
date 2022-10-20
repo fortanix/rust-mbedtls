@@ -32,7 +32,7 @@
 #endif
 #endif
 
-#include "mbedtls/aesni.h"
+#include "aesni.h"
 
 #include <string.h>
 
@@ -42,7 +42,6 @@
 
 #if defined(MBEDTLS_HAVE_X86_64)
 
-#if !defined(MBEDTLS_CUSTOM_HAS_AESNI)
 /*
  * AES-NI support detection routine
  */
@@ -63,7 +62,6 @@ int mbedtls_aesni_has_support( unsigned int what )
 
     return( ( c & what ) != 0 );
 }
-#endif
 
 /*
  * Binutils needs to be at least 2.19 to support AES-NI instructions.

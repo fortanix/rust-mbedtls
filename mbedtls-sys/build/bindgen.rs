@@ -19,7 +19,8 @@ struct MbedtlsParseCallbacks;
 
 impl bindgen::callbacks::ParseCallbacks for MbedtlsParseCallbacks {
     fn item_name(&self, original_item_name: &str) -> Option<String> {
-        Some(original_item_name.trim_start_matches("mbedtls_").trim_start_matches("MBEDTLS_").to_owned())
+        Some(original_item_name.trim_start_matches("psa_").trim_start_matches("PSA_")
+            .trim_start_matches("mbedtls_").trim_start_matches("MBEDTLS_").to_owned())
     }
 
     fn enum_variant_name(
@@ -75,7 +76,7 @@ fn generate_deprecated_union_accessors(bindings: &str) -> String {
     }
 
     let mut impl_builder = UnionImplBuilder::default();
-    syn::visit::visit_file(&mut impl_builder, &syn::parse_file(&bindings).unwrap());
+    syn::visit::visit_file(&mut impl_builder, &syn::parse_file(bindings).unwrap());
 
     impl_builder.impls
 }
@@ -91,7 +92,7 @@ impl super::BuildConfig {
         cc.include(&self.mbedtls_include)
         .flag(&format!(
             "-DMBEDTLS_CONFIG_FILE=\"{}\"",
-            self.config_h.to_str().expect("config.h UTF-8 error")
+            self.config_h.to_str().expect("mbedtls_config.h UTF-8 error")
         ));
 
         for cflag in &self.cflags {
@@ -102,20 +103,16 @@ impl super::BuildConfig {
         // uses the correct headers
         let compiler = cc.get_compiler();
         if compiler.is_like_gnu() {
-            let output = compiler.to_command().args(&["--print-sysroot"]).output();
-            match output {
-                Ok(sysroot) => {
-                    let path = std::str::from_utf8(&sysroot.stdout).expect("Malformed sysroot");
-                    let trimmed_path = path
-                        .strip_suffix("\r\n")
-                        .or(path.strip_suffix("\n"))
-                        .unwrap_or(&path);
-                    cc.flag(&format!("--sysroot={}", trimmed_path));
-                }
-                _ => {} // skip toolchains without a configured sysroot
+            let output = compiler.to_command().args(["--print-sysroot"]).output();
+            if let Ok(sysroot) = output {
+                let path = std::str::from_utf8(&sysroot.stdout).expect("Malformed sysroot");
+                let trimmed_path = path
+                    .strip_suffix("\r\n")
+                    .or(path.strip_suffix("\n"))
+                    .unwrap_or(path);
+                cc.flag(&format!("--sysroot={}", trimmed_path));
             };
         }
-
         let bindings = bindgen::builder()
             .enable_function_attribute_detection()
             .clang_args(cc.get_compiler().args().iter().map(|arg| arg.to_str().unwrap()))
@@ -123,6 +120,9 @@ impl super::BuildConfig {
             .allowlist_function("^(?i)mbedtls_.*")
             .allowlist_type("^(?i)mbedtls_.*")
             .allowlist_var("^(?i)mbedtls_.*")
+            .allowlist_function("^(?i)psa_.*")
+            .allowlist_type("^(?i)psa_.*")
+            .allowlist_var("^(?i)psa_.*")
             .allowlist_recursively(false)
             .blocklist_type("^mbedtls_time_t$")
             .use_core()
@@ -135,7 +135,7 @@ impl super::BuildConfig {
             .derive_default(true)
             .prepend_enum_name(false)
             .translate_enum_integer_types(true)
-            .rustfmt_bindings(false)
+            .rustfmt_bindings(true)
             .raw_line("#![allow(dead_code, deref_nullptr, non_snake_case, non_camel_case_types, non_upper_case_globals, invalid_value)]")
             .generate()
             .expect("bindgen error")

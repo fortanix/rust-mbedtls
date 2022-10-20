@@ -21,12 +21,9 @@
  */
 #ifndef MBEDTLS_BIGNUM_H
 #define MBEDTLS_BIGNUM_H
+#include "mbedtls/private_access.h"
 
-#if !defined(MBEDTLS_CONFIG_FILE)
-#include "mbedtls/config.h"
-#else
-#include MBEDTLS_CONFIG_FILE
-#endif
+#include "mbedtls/build_info.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -191,9 +188,9 @@ extern "C" {
  */
 typedef struct mbedtls_mpi
 {
-    int s;              /*!<  Sign: -1 if the mpi is negative, 1 otherwise */
-    size_t n;           /*!<  total # of limbs  */
-    mbedtls_mpi_uint *p;          /*!<  pointer to limbs  */
+    int MBEDTLS_PRIVATE(s);              /*!<  Sign: -1 if the mpi is negative, 1 otherwise */
+    size_t MBEDTLS_PRIVATE(n);           /*!<  total # of limbs  */
+    mbedtls_mpi_uint *MBEDTLS_PRIVATE(p);          /*!<  pointer to limbs  */
 }
 mbedtls_mpi;
 
@@ -950,37 +947,6 @@ int mbedtls_mpi_gcd( mbedtls_mpi *G, const mbedtls_mpi *A,
 int mbedtls_mpi_inv_mod( mbedtls_mpi *X, const mbedtls_mpi *A,
                          const mbedtls_mpi *N );
 
-#if !defined(MBEDTLS_DEPRECATED_REMOVED)
-#if defined(MBEDTLS_DEPRECATED_WARNING)
-#define MBEDTLS_DEPRECATED      __attribute__((deprecated))
-#else
-#define MBEDTLS_DEPRECATED
-#endif
-/**
- * \brief          Perform a Miller-Rabin primality test with error
- *                 probability of 2<sup>-80</sup>.
- *
- * \deprecated     Superseded by mbedtls_mpi_is_prime_ext() which allows
- *                 specifying the number of Miller-Rabin rounds.
- *
- * \param X        The MPI to check for primality.
- *                 This must point to an initialized MPI.
- * \param f_rng    The RNG function to use. This must not be \c NULL.
- * \param p_rng    The RNG parameter to be passed to \p f_rng.
- *                 This may be \c NULL if \p f_rng doesn't use a
- *                 context parameter.
- *
- * \return         \c 0 if successful, i.e. \p X is probably prime.
- * \return         #MBEDTLS_ERR_MPI_ALLOC_FAILED if a memory allocation failed.
- * \return         #MBEDTLS_ERR_MPI_NOT_ACCEPTABLE if \p X is not prime.
- * \return         Another negative error code on other kinds of failure.
- */
-MBEDTLS_DEPRECATED int mbedtls_mpi_is_prime( const mbedtls_mpi *X,
-                          int (*f_rng)(void *, unsigned char *, size_t),
-                          void *p_rng );
-#undef MBEDTLS_DEPRECATED
-#endif /* !MBEDTLS_DEPRECATED_REMOVED */
-
 /**
  * \brief          Miller-Rabin primality test.
  *
@@ -989,7 +955,7 @@ MBEDTLS_DEPRECATED int mbedtls_mpi_is_prime( const mbedtls_mpi *X,
  *                 generate yourself and that are supposed to be prime, then
  *                 \p rounds should be at least the half of the security
  *                 strength of the cryptographic algorithm. On the other hand,
- *                 if \p X is chosen uniformly or non-adversially (as is the
+ *                 if \p X is chosen uniformly or non-adversarially (as is the
  *                 case when mbedtls_mpi_gen_prime calls this function), then
  *                 \p rounds can be much lower.
  *

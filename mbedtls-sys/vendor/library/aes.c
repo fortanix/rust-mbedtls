@@ -34,10 +34,10 @@
 #include "mbedtls/platform_util.h"
 #include "mbedtls/error.h"
 #if defined(MBEDTLS_PADLOCK_C)
-#include "mbedtls/padlock.h"
+#include "padlock.h"
 #endif
 #if defined(MBEDTLS_AESNI_C)
-#include "mbedtls/aesni.h"
+#include "aesni.h"
 #endif
 
 #if defined(MBEDTLS_SELF_TEST)
@@ -898,15 +898,6 @@ int mbedtls_internal_aes_encrypt( mbedtls_aes_context *ctx,
 }
 #endif /* !MBEDTLS_AES_ENCRYPT_ALT */
 
-#if !defined(MBEDTLS_DEPRECATED_REMOVED)
-void mbedtls_aes_encrypt( mbedtls_aes_context *ctx,
-                          const unsigned char input[16],
-                          unsigned char output[16] )
-{
-    MBEDTLS_IGNORE_RETURN( mbedtls_internal_aes_encrypt( ctx, input, output ) );
-}
-#endif /* !MBEDTLS_DEPRECATED_REMOVED */
-
 /*
  * AES-ECB block decryption
  */
@@ -971,15 +962,6 @@ int mbedtls_internal_aes_decrypt( mbedtls_aes_context *ctx,
 }
 #endif /* !MBEDTLS_AES_DECRYPT_ALT */
 
-#if !defined(MBEDTLS_DEPRECATED_REMOVED)
-void mbedtls_aes_decrypt( mbedtls_aes_context *ctx,
-                          const unsigned char input[16],
-                          unsigned char output[16] )
-{
-    MBEDTLS_IGNORE_RETURN( mbedtls_internal_aes_decrypt( ctx, input, output ) );
-}
-#endif /* !MBEDTLS_DEPRECATED_REMOVED */
-
 /*
  * AES-ECB block encryption/decryption
  */
@@ -989,6 +971,7 @@ int mbedtls_aes_crypt_ecb( mbedtls_aes_context *ctx,
                            unsigned char output[16] )
 {
     AES_VALIDATE_RET( ctx != NULL );
+    AES_VALIDATE_RET( ctx->rk != NULL );
     AES_VALIDATE_RET( input != NULL );
     AES_VALIDATE_RET( output != NULL );
     AES_VALIDATE_RET( mode == MBEDTLS_AES_ENCRYPT ||
@@ -1000,7 +983,7 @@ int mbedtls_aes_crypt_ecb( mbedtls_aes_context *ctx,
 #endif
 
 #if defined(MBEDTLS_PADLOCK_C) && defined(MBEDTLS_HAVE_X86)
-    if( aes_padlock_ace )
+    if( aes_padlock_ace > 0)
     {
         if( mbedtls_padlock_xcryptecb( ctx, mode, input, output ) == 0 )
             return( 0 );
@@ -1043,7 +1026,7 @@ int mbedtls_aes_crypt_cbc( mbedtls_aes_context *ctx,
         return( MBEDTLS_ERR_AES_INVALID_INPUT_LENGTH );
 
 #if defined(MBEDTLS_PADLOCK_C) && defined(MBEDTLS_HAVE_X86)
-    if( aes_padlock_ace )
+    if( aes_padlock_ace > 0 )
     {
         if( mbedtls_padlock_xcryptcbc( ctx, mode, length, iv, input, output ) == 0 )
             return( 0 );
@@ -1106,7 +1089,7 @@ typedef unsigned char mbedtls_be128[16];
  *
  * This function multiplies a field element by x in the polynomial field
  * representation. It uses 64-bit word operations to gain speed but compensates
- * for machine endianess and hence works correctly on both big and little
+ * for machine endianness and hence works correctly on both big and little
  * endian machines.
  */
 static void mbedtls_gf128mul_x_ble( unsigned char r[16],
@@ -1206,7 +1189,7 @@ int mbedtls_aes_crypt_xts( mbedtls_aes_xts_context *ctx,
         unsigned char *prev_output = output - 16;
 
         /* Copy ciphertext bytes from the previous block to our output for each
-         * byte of cyphertext we won't steal. At the same time, copy the
+         * byte of ciphertext we won't steal. At the same time, copy the
          * remainder of the input for this final round (since the loop bounds
          * are the same). */
         for( i = 0; i < leftover; i++ )

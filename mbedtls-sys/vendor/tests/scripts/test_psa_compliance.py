@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the PSA Cryto API compliance test suite.
+"""Run the PSA Crypto API compliance test suite.
 Clone the repo and check out the commit specified by PSA_ARCH_TEST_REPO and PSA_ARCH_TEST_REF,
 then complie and run the test suite. The clone is stored at <Mbed TLS root>/psa-arch-tests.
 Known defects in either the test suite or mbedtls - identified by their test number - are ignored,
@@ -33,24 +33,21 @@ import sys
 # Test number 2xx corresponds to the files in the folder
 # psa-arch-tests/api-tests/dev_apis/crypto/test_c0xx
 EXPECTED_FAILURES = {
-    # Multipart AEAD is not supported in Mbed TLS 2.x.
-    252, 253, 254, 255, 256, 257, 258, 259, 260, 261,
-
     # psa_hash_suspend() and psa_hash_resume() are not supported.
     # - Tracked in issue #3274
     262, 263
 }
 
 # We currently use a fork of ARM-software/psa-arch-tests, with a couple of downstream patches
-# that allow it to build with Mbed TLS 2, and fixes a couple of issues in the compliance test suite.
+# that allow it to build with MbedTLS 3, and fixes a couple of issues in the compliance test suite.
 # These fixes allow the tests numbered 216, 248 and 249 to complete successfully.
 #
 # Once all the fixes are upstreamed, this fork should be replaced with an upstream commit/tag.
 # - Tracked in issue #5145
 #
-# Web URL: https://github.com/bensze01/psa-arch-tests/tree/fixes-for-mbedtls-2
+# Web URL: https://github.com/bensze01/psa-arch-tests/tree/fixes-for-mbedtls-3
 PSA_ARCH_TESTS_REPO = 'https://github.com/bensze01/psa-arch-tests.git'
-PSA_ARCH_TESTS_REF = 'fixes-for-mbedtls-2'
+PSA_ARCH_TESTS_REF = 'fix-pr-5736'
 
 #pylint: disable=too-many-branches,too-many-statements
 def main():
@@ -84,7 +81,6 @@ def main():
                      '-DTARGET=tgt_dev_apis_stdc',
                      '-DTOOLCHAIN=HOST_GCC',
                      '-DSUITE=CRYPTO',
-                     '-DMISSING_CRYPTO_1_0=1',
                      '-DPSA_CRYPTO_LIB_FILENAME={}/library/libmbedcrypto.a'.format(mbedtls_dir),
                      '-DPSA_INCLUDE_PATHS={}/include'.format(mbedtls_dir)
         ])

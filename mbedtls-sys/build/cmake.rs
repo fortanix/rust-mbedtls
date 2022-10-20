@@ -13,7 +13,7 @@ impl super::BuildConfig {
         let mut cmk = cmake::Config::new(&self.mbedtls_src);
         cmk.cflag(format!(
             r#"-DMBEDTLS_CONFIG_FILE="\"{}\"""#,
-            self.config_h.to_str().expect("config.h UTF-8 error")
+            self.config_h.to_str().expect("mbedtls_config.h UTF-8 error")
         ))
         .define("ENABLE_PROGRAMS", "OFF")
         .define("ENABLE_TESTING", "OFF")
@@ -48,6 +48,6 @@ impl super::BuildConfig {
         println!("cargo:rustc-link-lib=mbedcrypto");
 
         println!("cargo:include={}", ::std::env::current_dir().unwrap().join(&self.mbedtls_include).to_str().expect("include/ UTF-8 error"));
-        println!("cargo:config_h={}", self.config_h.to_str().expect("config.h UTF-8 error"));
+        println!("cargo:config_h={}", self.config_h.to_str().expect("mbedtls_config.h UTF-8 error"));
     }
 }

@@ -30,8 +30,6 @@ impl Macro {
 pub type CDefine = (&'static str, Macro);
 
 pub const PREFIX: &'static str = r#"
-#ifndef MBEDTLS_CONFIG_H
-#define MBEDTLS_CONFIG_H
 
 #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_DEPRECATE)
 #define _CRT_SECURE_NO_DEPRECATE 1
@@ -52,7 +50,7 @@ define_with_default = re.compile(r'.*#define (MBEDTLS_[A-Z0-9_]+) +([0-9A-Za-z_]
 def format(macro, state):
     return "    (\"%s\", %s)," % (macro, state.rjust(49 - len(macro) + len(state)))
 
-for line in open('vendor/include/mbedtls/config.h').readlines():
+for line in open('vendor/include/mbedtls/mbedtls_config.h').readlines():
     match = simple_define.match(line)
 
     if match:
@@ -231,11 +229,12 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_SSL_SRV_SUPPORT_SSLV2_CLIENT_HELLO",        Undefined),
     ("MBEDTLS_SSL_SRV_RESPECT_CLIENT_PREFERENCE",         Undefined),
     ("MBEDTLS_SSL_MAX_FRAGMENT_LENGTH",                   Defined),
-    ("MBEDTLS_SSL_PROTO_SSL3",                            Undefined),
-    ("MBEDTLS_SSL_PROTO_TLS1",                            Undefined),
-    ("MBEDTLS_SSL_PROTO_TLS1_1",                          Undefined),
     ("MBEDTLS_SSL_PROTO_TLS1_2",                          Defined),
-    ("MBEDTLS_SSL_PROTO_TLS1_3_EXPERIMENTAL",             Undefined),
+    ("MBEDTLS_SSL_PROTO_TLS1_3",                          Defined),
+    ("MBEDTLS_SSL_TLS1_3_COMPATIBILITY_MODE",             Defined),
+    ("MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_ENABLED",           Defined),
+    ("MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED",     Defined),
+    ("MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_EPHEMERAL_ENABLED", Defined),
     ("MBEDTLS_SSL_PROTO_DTLS",                            Defined),
     ("MBEDTLS_SSL_ALPN",                                  Defined),
     ("MBEDTLS_SSL_DTLS_ANTI_REPLAY",                      Defined),
@@ -246,8 +245,6 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_SSL_SESSION_TICKETS",                       Defined),
     ("MBEDTLS_SSL_EXPORT_KEYS",                           Defined),
     ("MBEDTLS_SSL_SERVER_NAME_INDICATION",                Defined),
-    ("MBEDTLS_SSL_TRUNCATED_HMAC",                        Defined),
-    ("MBEDTLS_SSL_TRUNCATED_HMAC_COMPAT",                 Undefined),
     ("MBEDTLS_SSL_VARIABLE_BUFFER_LENGTH",                Undefined),
     ("MBEDTLS_TEST_CONSTANT_FLOW_MEMSAN",                 Undefined),
     ("MBEDTLS_TEST_CONSTANT_FLOW_VALGRIND",               Undefined),
@@ -263,7 +260,6 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_X509_CHECK_KEY_USAGE",                      Defined),
     ("MBEDTLS_X509_CHECK_EXTENDED_KEY_USAGE",             Defined),
     ("MBEDTLS_X509_RSASSA_PSS_SUPPORT",                   Defined),
-    ("MBEDTLS_ZLIB_SUPPORT",                              Undefined),
     ("MBEDTLS_AESNI_C",                                   Undefined),
     ("MBEDTLS_AES_C",                                     Defined),
     ("MBEDTLS_ARC4_C",                                    Defined),
@@ -313,14 +309,16 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_PKCS12_C",                                  Defined),
     ("MBEDTLS_PLATFORM_C",                                Undefined),
     ("MBEDTLS_POLY1305_C",                                Defined),
-    ("MBEDTLS_PSA_CRYPTO_C",                              Undefined),
+    ("MBEDTLS_PSA_CRYPTO_C",                              Defined),
     ("MBEDTLS_PSA_CRYPTO_SE_C",                           Undefined),
     ("MBEDTLS_PSA_CRYPTO_STORAGE_C",                      Undefined),
     ("MBEDTLS_PSA_ITS_FILE_C",                            Undefined),
     ("MBEDTLS_RIPEMD160_C",                               Defined),
     ("MBEDTLS_RSA_C",                                     Defined),
     ("MBEDTLS_SHA1_C",                                    Defined),
+    ("MBEDTLS_SHA224_C",                                  Defined),
     ("MBEDTLS_SHA256_C",                                  Defined),
+    ("MBEDTLS_SHA384_C",                                  Defined),
     ("MBEDTLS_SHA512_C",                                  Defined),
     ("MBEDTLS_SSL_CACHE_C",                               Defined),
     ("MBEDTLS_SSL_COOKIE_C",                              Defined),
@@ -380,7 +378,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_PLATFORM_NV_SEED_READ_MACRO",               Undefined), // default: mbedtls_platform_std_nv_seed_read
     ("MBEDTLS_PLATFORM_NV_SEED_WRITE_MACRO",              Undefined), // default: mbedtls_platform_std_nv_seed_write
     ("MBEDTLS_CHECK_RETURN",                              Undefined), // default: __attribute__((__warn_unused_result__))
-    ("MBEDTLS_PSA_HMAC_DRBG_MD_TYPE",                     Undefined), // default: see config.h
+    ("MBEDTLS_PSA_HMAC_DRBG_MD_TYPE",                     Undefined), // default: see mbedtls_config.h
     ("MBEDTLS_PSA_KEY_SLOT_COUNT",                        Undefined), // default: 32
     ("MBEDTLS_SSL_CACHE_DEFAULT_TIMEOUT",                 Undefined), // default: 86400
     ("MBEDTLS_SSL_CACHE_DEFAULT_MAX_ENTRIES",             Undefined), // default: 50
@@ -421,10 +419,7 @@ pub fn default_defines() -> HashMap<&'static str, Macro> {
 pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
     ("time",                  ("MBEDTLS_HAVE_TIME",                         Defined)),
     ("time",                  ("MBEDTLS_HAVE_TIME_DATE",                    Defined)),
-    ("havege",                ("MBEDTLS_HAVEGE_C",                          Defined)),
     ("threading",             ("MBEDTLS_THREADING_C",                       Defined)),
-    ("pkcs11",                ("MBEDTLS_PKCS11_C",                          Defined)),
-    ("zlib",                  ("MBEDTLS_ZLIB_SUPPORT",                      Defined)),
     ("debug",                 ("MBEDTLS_DEBUG_C",                           Defined)),
     ("custom_printf",         ("MBEDTLS_PLATFORM_C",                        Defined)),
     ("custom_printf",         ("MBEDTLS_PLATFORM_PRINTF_MACRO",             DefinedAs("mbedtls_printf"))),
@@ -432,13 +427,8 @@ pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
     ("padlock",               ("MBEDTLS_PADLOCK_C",                         Defined)),
     ("custom_has_support",    ("MBEDTLS_CUSTOM_HAS_AESNI",                  Defined)),
     ("custom_has_support",    ("MBEDTLS_CUSTOM_HAS_PADLOCK",                Defined)),
-    ("legacy_protocols",      ("MBEDTLS_SSL_PROTO_SSL3",                    Defined)),
-    ("legacy_protocols",      ("MBEDTLS_SSL_PROTO_TLS1",                    Defined)),
-    ("legacy_protocols",      ("MBEDTLS_SSL_PROTO_TLS1_1",                  Defined)),
-    ("legacy_protocols",      ("MBEDTLS_SSL_CBC_RECORD_SPLITTING",          Defined)),
     ("aes_alt",               ("MBEDTLS_AES_ENCRYPT_ALT",                   Defined)),
     ("aes_alt",               ("MBEDTLS_AES_DECRYPT_ALT",                   Defined)),
-    ("mpi_force_c_code",      ("MBEDTLS_MPI_FORCE_C_CODE",                  Defined)),
     ("trusted_cert_callback", ("MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK", Defined)),
 ];
 
@@ -460,6 +450,4 @@ pub const SUFFIX: &'static str = r#"
 #if defined(TARGET_LIKE_MBED)
 #include "mbedtls/target_config.h"
 #endif
-#include <mbedtls/check_config.h>
-#endif /* MBEDTLS_CONFIG_H */
 "#;

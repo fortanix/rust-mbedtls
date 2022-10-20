@@ -225,7 +225,7 @@ class CodeParser():
 
         # Globally excluded filenames.
         # Note that "*" can match directory separators in exclude lists.
-        self.excluded_files = ["*/bn_mul", "*/compat-1.3.h"]
+        self.excluded_files = ["*/bn_mul", "*/compat-2.x.h"]
 
     @staticmethod
     def check_repo_path():
@@ -627,8 +627,8 @@ class CodeParser():
 
         # Back up the config and atomically compile with the full configratuion.
         shutil.copy(
-            "include/mbedtls/config.h",
-            "include/mbedtls/config.h.bak"
+            "include/mbedtls/mbedtls_config.h",
+            "include/mbedtls/mbedtls_config.h.bak"
         )
         try:
             # Use check=True in all subprocess calls so that failures are raised
@@ -675,8 +675,8 @@ class CodeParser():
             # Put back the original config regardless of there being errors.
             # Works also for keyboard interrupts.
             shutil.move(
-                "include/mbedtls/config.h.bak",
-                "include/mbedtls/config.h"
+                "include/mbedtls/mbedtls_config.h.bak",
+                "include/mbedtls/mbedtls_config.h"
             )
 
         return symbols
@@ -813,7 +813,7 @@ class NameChecker():
 
     def check_for_typos(self):
         """
-        Perform a check that all words in the soure code beginning with MBED are
+        Perform a check that all words in the source code beginning with MBED are
         either defined as macros, or as enum constants.
         Assumes parse_names_in_source() was called before this.
 

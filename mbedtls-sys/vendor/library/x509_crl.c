@@ -52,10 +52,12 @@
 #define mbedtls_snprintf   snprintf
 #endif
 
+#if defined(MBEDTLS_HAVE_TIME)
 #if defined(_WIN32) && !defined(EFIX64) && !defined(EFI32)
 #include <windows.h>
 #else
 #include <time.h>
+#endif
 #endif
 
 #if defined(MBEDTLS_FS_IO) || defined(EFIX64) || defined(EFI32)
@@ -614,6 +616,7 @@ int mbedtls_x509_crl_parse_file( mbedtls_x509_crl *chain, const char *path )
 }
 #endif /* MBEDTLS_FS_IO */
 
+#if !defined(MBEDTLS_X509_REMOVE_INFO)
 /*
  * Return an informational string about the certificate.
  */
@@ -693,6 +696,7 @@ int mbedtls_x509_crl_info( char *buf, size_t size, const char *prefix,
 
     return( (int) ( size - n ) );
 }
+#endif /* MBEDTLS_X509_REMOVE_INFO */
 
 /*
  * Initialize a CRL chain

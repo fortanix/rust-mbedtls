@@ -17,11 +17,7 @@
  *  limitations under the License.
  */
 
-#if !defined(MBEDTLS_CONFIG_FILE)
-#include "mbedtls/config.h"
-#else
-#include MBEDTLS_CONFIG_FILE
-#endif
+#include "mbedtls/build_info.h"
 
 #if defined(MBEDTLS_PLATFORM_C)
 #include "mbedtls/platform.h"
@@ -138,11 +134,6 @@ exit:
         mbedtls_strerror( ret, (char *) buf, sizeof(buf) );
         mbedtls_printf( "  !  Last error was: %s\n", buf );
     }
-#endif
-
-#if defined(_WIN32)
-    mbedtls_printf( "  + Press Enter to exit this program.\n" );
-    fflush( stdout ); getchar();
 #endif
 
     mbedtls_exit( exit_code );

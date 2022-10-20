@@ -17,28 +17,22 @@
  *  limitations under the License.
  */
 
-#if !defined(MBEDTLS_CONFIG_FILE)
-#include "mbedtls/config.h"
-#else
-#include MBEDTLS_CONFIG_FILE
-#endif
+#define MBEDTLS_ALLOW_PRIVATE_ACCESS
+
+#include "mbedtls/build_info.h"
 
 #include "mbedtls/entropy.h"
-#include "mbedtls/entropy_poll.h"
 #include "mbedtls/hmac_drbg.h"
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/dhm.h"
 #include "mbedtls/gcm.h"
 #include "mbedtls/ccm.h"
 #include "mbedtls/cmac.h"
-#include "mbedtls/md2.h"
-#include "mbedtls/md4.h"
 #include "mbedtls/md5.h"
 #include "mbedtls/ripemd160.h"
 #include "mbedtls/sha1.h"
 #include "mbedtls/sha256.h"
 #include "mbedtls/sha512.h"
-#include "mbedtls/arc4.h"
 #include "mbedtls/des.h"
 #include "mbedtls/aes.h"
 #include "mbedtls/camellia.h"
@@ -50,13 +44,14 @@
 #include "mbedtls/bignum.h"
 #include "mbedtls/rsa.h"
 #include "mbedtls/x509.h"
-#include "mbedtls/xtea.h"
 #include "mbedtls/pkcs5.h"
 #include "mbedtls/ecp.h"
 #include "mbedtls/ecjpake.h"
 #include "mbedtls/timing.h"
 #include "mbedtls/nist_kw.h"
+#include "mbedtls/debug.h"
 
+#include <limits.h>
 #include <string.h>
 
 #if defined(MBEDTLS_PLATFORM_C)
@@ -89,7 +84,6 @@ static int calloc_self_test( int verbose )
     void *empty2 = mbedtls_calloc( 0, 1 );
     void *buffer1 = mbedtls_calloc( 1, 1 );
     void *buffer2 = mbedtls_calloc( 1, 1 );
-    uintptr_t old_buffer1;
 
     if( empty1 == NULL && empty2 == NULL )
     {
@@ -131,7 +125,6 @@ static int calloc_self_test( int verbose )
             mbedtls_printf( "  CALLOC(1): passed\n" );
     }
 
-    old_buffer1 = (uintptr_t) buffer1;
     mbedtls_free( buffer1 );
     buffer1 = mbedtls_calloc( 1, 1 );
     if( buffer1 == NULL )
@@ -143,9 +136,7 @@ static int calloc_self_test( int verbose )
     else
     {
         if( verbose )
-            mbedtls_printf( "  CALLOC(1 again): passed (%s address)\n",
-                            (uintptr_t) old_buffer1 == (uintptr_t) buffer1 ?
-                            "same" : "different" );
+            mbedtls_printf( "  CALLOC(1 again): passed\n" );
     }
 
     if( verbose )
@@ -255,12 +246,6 @@ typedef struct
 const selftest_t selftests[] =
 {
     {"calloc", calloc_self_test},
-#if defined(MBEDTLS_MD2_C)
-    {"md2", mbedtls_md2_self_test},
-#endif
-#if defined(MBEDTLS_MD4_C)
-    {"md4", mbedtls_md4_self_test},
-#endif
 #if defined(MBEDTLS_MD5_C)
     {"md5", mbedtls_md5_self_test},
 #endif
@@ -275,9 +260,6 @@ const selftest_t selftests[] =
 #endif
 #if defined(MBEDTLS_SHA512_C)
     {"sha512", mbedtls_sha512_self_test},
-#endif
-#if defined(MBEDTLS_ARC4_C)
-    {"arc4", mbedtls_arc4_self_test},
 #endif
 #if defined(MBEDTLS_DES_C)
     {"des", mbedtls_des_self_test},
@@ -315,12 +297,6 @@ const selftest_t selftests[] =
 #if defined(MBEDTLS_RSA_C)
     {"rsa", mbedtls_rsa_self_test},
 #endif
-#if defined(MBEDTLS_X509_USE_C)
-    {"x509", mbedtls_x509_self_test},
-#endif
-#if defined(MBEDTLS_XTEA_C)
-    {"xtea", mbedtls_xtea_self_test},
-#endif
 #if defined(MBEDTLS_CAMELLIA_C)
     {"camellia", mbedtls_camellia_self_test},
 #endif
@@ -347,10 +323,6 @@ const selftest_t selftests[] =
 #endif
 #if defined(MBEDTLS_PKCS5_C)
     {"pkcs5", mbedtls_pkcs5_self_test},
-#endif
-/* Slower test after the faster ones */
-#if defined(MBEDTLS_TIMING_C)
-    {"timing", mbedtls_timing_self_test},
 #endif
 /* Heap test comes last */
 #if defined(MBEDTLS_MEMORY_BUFFER_ALLOC_C)
@@ -385,6 +357,78 @@ int main( int argc, char *argv[] )
         mbedtls_printf( "all-bits-zero is not a NULL pointer\n" );
         mbedtls_exit( MBEDTLS_EXIT_FAILURE );
     }
+
+    /*
+     * The C standard allows padding bits in the representation
+     * of standard integer types, but our code does currently not
+     * support them.
+     *
+     * Here we check that the underlying C implementation doesn't
+     * use padding bits, and fail cleanly if it does.
+     *
+     * The check works by casting the maximum value representable
+     * by a given integer type into the unpadded integer type of the
+     * same bit-width and checking that it agrees with the maximum value
+     * of that unpadded type. For example, for a 4-byte int,
+     * MAX_INT should be 0x7fffffff in int32_t. This assumes that
+     * CHAR_BIT == 8, which is checked in check_config.h.
+     *
+     * We assume that [u]intxx_t exist and that they don't
+     * have padding bits, as the standard requires.
+     */
+
+#define CHECK_PADDING_SIGNED(TYPE, NAME)                                \
+    do                                                                  \
+    {                                                                   \
+        if( sizeof( TYPE ) == 2 || sizeof( TYPE ) == 4 ||               \
+                sizeof( TYPE ) == 8 ) {                                 \
+            if( ( sizeof( TYPE ) == 2 &&                                \
+                (int16_t) NAME ## _MAX != 0x7FFF )             ||       \
+                ( sizeof( TYPE ) == 4 &&                                \
+                (int32_t) NAME ## _MAX != 0x7FFFFFFF )         ||       \
+                ( sizeof( TYPE ) == 8 &&                                \
+                (int64_t) NAME ## _MAX != 0x7FFFFFFFFFFFFFFF ) )        \
+            {                                                           \
+                mbedtls_printf( "Type '" #TYPE "' has padding bits\n" );\
+                mbedtls_exit( MBEDTLS_EXIT_FAILURE );                   \
+            }                                                           \
+        } else {                                                        \
+            mbedtls_printf( "Padding checks only implemented for types of size 2, 4 or 8" \
+                " - cannot check type '" #TYPE "' of size %" MBEDTLS_PRINTF_SIZET "\n",       \
+                sizeof( TYPE ) );                                       \
+            mbedtls_exit( MBEDTLS_EXIT_FAILURE );                       \
+        }                                                               \
+    } while( 0 )
+
+#define CHECK_PADDING_UNSIGNED(TYPE, NAME)                              \
+    do                                                                  \
+    {                                                                   \
+        if( ( sizeof( TYPE ) == 2 &&                                    \
+              (uint16_t) NAME ## _MAX != 0xFFFF )             ||        \
+            ( sizeof( TYPE ) == 4 &&                                    \
+              (uint32_t) NAME ## _MAX != 0xFFFFFFFF )         ||        \
+            ( sizeof( TYPE ) == 8 &&                                    \
+              (uint64_t) NAME ## _MAX != 0xFFFFFFFFFFFFFFFF ) )         \
+        {                                                               \
+            mbedtls_printf( "Type '" #TYPE "' has padding bits\n" );    \
+            mbedtls_exit( MBEDTLS_EXIT_FAILURE );                       \
+        }                                                               \
+    } while( 0 )
+
+    CHECK_PADDING_SIGNED( short,        SHRT );
+    CHECK_PADDING_SIGNED( int,           INT );
+    CHECK_PADDING_SIGNED( long,         LONG );
+    CHECK_PADDING_SIGNED( long long,   LLONG );
+    CHECK_PADDING_SIGNED( ptrdiff_t, PTRDIFF );
+
+    CHECK_PADDING_UNSIGNED( unsigned short,      USHRT );
+    CHECK_PADDING_UNSIGNED( unsigned,             UINT );
+    CHECK_PADDING_UNSIGNED( unsigned long,       ULONG );
+    CHECK_PADDING_UNSIGNED( unsigned long long, ULLONG );
+    CHECK_PADDING_UNSIGNED( size_t,               SIZE );
+
+#undef CHECK_PADDING_SIGNED
+#undef CHECK_PADDING_UNSIGNED
 
     /*
      * Make sure we have a snprintf that correctly zero-terminates
@@ -489,10 +533,6 @@ int main( int argc, char *argv[] )
         {
             mbedtls_printf( "  [ All tests PASS ]\n\n" );
         }
-#if defined(_WIN32)
-        mbedtls_printf( "  Press Enter to exit this program.\n" );
-        fflush( stdout ); getchar();
-#endif
     }
 
     if( suites_failed > 0)

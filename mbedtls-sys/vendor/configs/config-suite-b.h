@@ -33,9 +33,6 @@
  * See README.txt for usage instructions.
  */
 
-#ifndef MBEDTLS_CONFIG_H
-#define MBEDTLS_CONFIG_H
-
 /* System support */
 #define MBEDTLS_HAVE_ASM
 #define MBEDTLS_HAVE_TIME
@@ -63,7 +60,12 @@
 #define MBEDTLS_OID_C
 #define MBEDTLS_PK_C
 #define MBEDTLS_PK_PARSE_C
+/* The library does not currently support enabling SHA-224 without SHA-256.
+ * A future version of the library will have this option disabled
+ * by default. */
+#define MBEDTLS_SHA224_C
 #define MBEDTLS_SHA256_C
+#define MBEDTLS_SHA384_C
 #define MBEDTLS_SHA512_C
 #define MBEDTLS_SSL_CLI_C
 #define MBEDTLS_SSL_SRV_C
@@ -73,14 +75,13 @@
 
 /* For test certificates */
 #define MBEDTLS_BASE64_C
-#define MBEDTLS_CERTS_C
 #define MBEDTLS_PEM_PARSE_C
 
 /* Save RAM at the expense of ROM */
 #define MBEDTLS_AES_ROM_TABLES
 
 /* Save RAM by adjusting to our exact needs */
-#define MBEDTLS_MPI_MAX_SIZE    48 // 48 bytes for a 384-bit elliptic curve
+#define MBEDTLS_MPI_MAX_SIZE    48 // 384-bit EC curve = 48 bytes
 
 /* Save RAM at the expense of speed, see ecp.h */
 #define MBEDTLS_ECP_WINDOW_SIZE        2
@@ -103,12 +104,19 @@
 
 /*
  * Save RAM at the expense of interoperability: do this only if you control
- * both ends of the connection!  (See coments in "mbedtls/ssl.h".)
+ * both ends of the connection!  (See comments in "mbedtls/ssl.h".)
  * The minimum size here depends on the certificate chain used as well as the
  * typical size of records.
  */
-#define MBEDTLS_SSL_MAX_CONTENT_LEN             1024
+#define MBEDTLS_SSL_IN_CONTENT_LEN             1024
+#define MBEDTLS_SSL_OUT_CONTENT_LEN             1024
 
-#include "mbedtls/check_config.h"
+/* These defines are present so that the config modifying scripts can enable
+ * them during tests/scripts/test-ref-configs.pl */
+//#define MBEDTLS_USE_PSA_CRYPTO
+//#define MBEDTLS_PSA_CRYPTO_C
 
-#endif /* MBEDTLS_CONFIG_H */
+/* Error messages and TLS debugging traces
+ * (huge code size increase, needed for tests/ssl-opt.sh) */
+//#define MBEDTLS_DEBUG_C
+//#define MBEDTLS_ERROR_C

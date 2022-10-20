@@ -27,7 +27,7 @@
 #endif
 
 #if defined(MBEDTLS_SSL_TLS_C)
-#include "mbedtls/ssl_internal.h"
+#include "ssl_misc.h"
 #endif
 
 #include <stddef.h>
@@ -221,6 +221,13 @@ void mbedtls_ct_memcpy_if_eq( unsigned char *dest,
  * offset_secret, but only on \p offset_min, \p offset_max and \p len.
  * Functionally equivalent to `memcpy(dst, src + offset_secret, len)`.
  *
+ * \note                This function reads from \p dest, but the value that
+ *                      is read does not influence the result and this
+ *                      function's behavior is well-defined regardless of the
+ *                      contents of the buffers. This may result in false
+ *                      positives from static or dynamic analyzers, especially
+ *                      if \p dest is not initialized.
+ *
  * \param dest          The destination buffer. This must point to a writable
  *                      buffer of at least \p len bytes.
  * \param src           The base of the source buffer. This must point to a
@@ -276,6 +283,17 @@ void mbedtls_ct_memcpy_offset( unsigned char *dest,
  * \retval #MBEDTLS_ERR_PLATFORM_HW_ACCEL_FAILED
  *         The hardware accelerator failed.
  */
+#if defined(MBEDTLS_USE_PSA_CRYPTO)
+int mbedtls_ct_hmac( mbedtls_svc_key_id_t key,
+                     psa_algorithm_t alg,
+                     const unsigned char *add_data,
+                     size_t add_data_len,
+                     const unsigned char *data,
+                     size_t data_len_secret,
+                     size_t min_data_len,
+                     size_t max_data_len,
+                     unsigned char *output );
+#else
 int mbedtls_ct_hmac( mbedtls_md_context_t *ctx,
                      const unsigned char *add_data,
                      size_t add_data_len,
@@ -284,6 +302,7 @@ int mbedtls_ct_hmac( mbedtls_md_context_t *ctx,
                      size_t min_data_len,
                      size_t max_data_len,
                      unsigned char *output );
+#endif /* MBEDTLS_USE_PSA_CRYPTO */
 
 #endif /* MBEDTLS_SSL_SOME_SUITES_USE_TLS_CBC */
 
@@ -298,8 +317,6 @@ int mbedtls_ct_hmac( mbedtls_md_context_t *ctx,
  *       is often a situation that an attacker can provoke and leaking which
  *       one is the result is precisely the information the attacker wants.
  *
- * \param mode           The mode of operation. This must be either
- *                       #MBEDTLS_RSA_PRIVATE or #MBEDTLS_RSA_PUBLIC (deprecated).
  * \param input          The input buffer which is the payload inside PKCS#1v1.5
  *                       encryption padding, called the "encoded message EM"
  *                       by the terminology.
@@ -317,8 +334,7 @@ int mbedtls_ct_hmac( mbedtls_md_context_t *ctx,
  * \return      #MBEDTLS_ERR_RSA_INVALID_PADDING
  *              The input doesn't contain properly formatted padding.
  */
-int mbedtls_ct_rsaes_pkcs1_v15_unpadding( int mode,
-                                          unsigned char *input,
+int mbedtls_ct_rsaes_pkcs1_v15_unpadding( unsigned char *input,
                                           size_t ilen,
                                           unsigned char *output,
                                           size_t output_max_len,
