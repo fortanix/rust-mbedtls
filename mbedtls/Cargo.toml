@@ -30,6 +30,8 @@ bit-vec = { version = "0.5", optional = true }
 block-modes = { version = "0.3", optional = true }
 rc2 = { version = "0.3", optional = true }
 cfg-if = "1.0.0"
+libc = "0.2.0"
+freelist = { git = "https://github.com/MihirLuthra/freelist.git", optional = true }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.2.0"
@@ -69,6 +71,7 @@ dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "block-modes"]
 legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
+freelist_alloc = ["freelist", "mbedtls-sys-auto/freelist"]
 
 [[example]]
 name = "client"
