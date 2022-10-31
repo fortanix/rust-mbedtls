@@ -125,6 +125,32 @@ use mbedtls_sys::types::{time_t, tm};
 #[cfg(any(feature = "custom_gmtime_r", feature = "custom_time"))]
 extern crate chrono;
 
+cfg_if::cfg_if! {
+    if #[cfg(feature = "freelist_alloc")] {
+
+        extern "C" {
+            pub(crate) fn forward_calloc(n: mbedtls_sys::types::size_t, size: mbedtls_sys::types::size_t) -> *mut mbedtls_sys::types::raw_types::c_void;
+            pub(crate) fn forward_free(n: *mut mbedtls_sys::types::raw_types::c_void);
+        }
+
+        use freelist::calloc::{calloc, free};
+
+        // needs to be pub for global visiblity
+        #[doc(hidden)]
+        #[no_mangle]
+        pub unsafe extern "C" fn freelist_calloc(nmemb: mbedtls_sys::types::size_t, size: mbedtls_sys::types::size_t) -> *mut mbedtls_sys::types::raw_types::c_void {
+            calloc(nmemb, size, |nmemb, size| forward_calloc(nmemb, size))
+        }
+
+        // needs to be pub for global visiblity
+        #[doc(hidden)]
+        #[no_mangle]
+        pub unsafe extern "C" fn freelist_free(ptr: *mut mbedtls_sys::types::raw_types::c_void) {
+            free(ptr, |ptr| forward_free(ptr))
+        }
+    }
+}
+
 #[cfg(feature="custom_gmtime_r")]
 #[doc(hidden)]
 #[no_mangle]

@@ -67,6 +67,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f59bbe95d4e52a6398ec21238d31577f2b28a9d86807f06ca59d191d8440d0bb"
 
 [[package]]
+name = "bit_fiddler"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3a666ed6092e37aa11efdf011e40e6c701d857e231510799cc22f6adbc7f31c"
+
+[[package]]
 name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -210,6 +216,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "freelist"
+version = "0.1.0"
+source = "git+https://github.com/MihirLuthra/freelist#c0eda4fcc8bbe9366168a563d94b2bb1b17c41b1"
+dependencies = [
+ "bit_fiddler",
+ "libc",
+ "once_cell",
+ "seq-macro",
+]
+
+[[package]]
 name = "fuchsia-cprng"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -265,9 +282,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.81"
+version = "0.2.137"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1482821306169ec4d07f6aca392a4681f66c75c9918aa49641a2595db64053cb"
+checksum = "fc7fcc620a3bff7cdd7a365be3376c97191aeaccc2a603e600951e452615bf89"
 
 [[package]]
 name = "libloading"
@@ -315,8 +332,10 @@ dependencies = [
  "block-modes",
  "byteorder",
  "cc",
+ "cfg-if 1.0.0",
  "chrono",
  "core_io",
+ "freelist",
  "hex",
  "libc",
  "matches",
@@ -336,8 +355,7 @@ dependencies = [
 [[package]]
 name = "mbedtls-sys-auto"
 version = "2.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2231108271d9a10052178d940926baf24b57a2eb1703732faae387592dd6ac3"
+source = "git+https://github.com/fortanix/rust-mbedtls.git?branch=mihir/mbedtls0.8-optimizations#d225d91b597f5e9c2dcfcb0d1edae6473e5d681e"
 dependencies = [
  "bindgen",
  "cc",
@@ -395,6 +413,12 @@ checksum = "9a64b1ec5cda2586e284722486d802acf1f7dbdc623e2bfc57e65ca1cd099290"
 dependencies = [
  "autocfg",
 ]
+
+[[package]]
+name = "once_cell"
+version = "1.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86f0b0d4bf799edbc74508c1e8bf170ff5f41238e5f8225603ca7caaae2b7860"
 
 [[package]]
 name = "opaque-debug"
@@ -531,6 +555,12 @@ name = "semver"
 version = "0.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4f410fedcf71af0345d7607d246e7ad15faaadd49d240ee3b24e5dc21a820ac"
+
+[[package]]
+name = "seq-macro"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0772c5c30e1a0d91f6834f8e545c69281c099dfa9a3ac58d96a9fd629c8d4898"
 
 [[package]]
 name = "serde"

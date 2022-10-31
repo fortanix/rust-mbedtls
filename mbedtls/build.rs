@@ -12,7 +12,14 @@ use std::env;
 
 fn main() {
     let mut b = cc::Build::new();
+    b.include(env::var_os("DEP_MBEDTLS_INCLUDE").unwrap());
+    let config_file = format!(r#""{}""#, env::var("DEP_MBEDTLS_CONFIG_H").unwrap());
+    b.define("MBEDTLS_CONFIG_FILE",
+        Some(config_file.as_str()));
+
+
     b.file("src/rust_printf.c");
+    b.file("src/mbedtls_malloc.c");
     if env::var_os("CARGO_FEATURE_STD").is_none()
         || ::std::env::var("TARGET")
 	    .map(|s| (s == "x86_64-unknown-none-gnu") || (s == "x86_64-fortanix-unknown-sgx"))
