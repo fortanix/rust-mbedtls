@@ -72,7 +72,6 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_HAVE_SSE2",                                 Undefined),
     ("MBEDTLS_HAVE_TIME",                                 Undefined),
     ("MBEDTLS_HAVE_TIME_DATE",                            Undefined),
-    ("MBEDTLS_PLATFORM_MEMORY",                           Undefined),
     ("MBEDTLS_PLATFORM_NO_STD_FUNCTIONS",                 Undefined),
     ("MBEDTLS_PLATFORM_EXIT_ALT",                         Undefined),
     ("MBEDTLS_PLATFORM_TIME_ALT",                         Undefined),
@@ -368,8 +367,6 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_PLATFORM_STD_EXIT_FAILURE",                 Undefined), // default: 1
     ("MBEDTLS_PLATFORM_STD_NV_SEED_READ",                 Undefined), // default: mbedtls_platform_std_nv_seed_read
     ("MBEDTLS_PLATFORM_STD_NV_SEED_WRITE",                Undefined), // default: mbedtls_platform_std_nv_seed_write
-    ("MBEDTLS_PLATFORM_CALLOC_MACRO",                     Undefined), // default: calloc
-    ("MBEDTLS_PLATFORM_FREE_MACRO",                       Undefined), // default: free
     ("MBEDTLS_PLATFORM_EXIT_MACRO",                       Undefined), // default: exit
     ("MBEDTLS_PLATFORM_TIME_MACRO",                       Undefined), // default: time
     ("MBEDTLS_PLATFORM_TIME_TYPE_MACRO",                  Undefined), // default: time_t
@@ -428,6 +425,10 @@ pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
     ("debug",                 ("MBEDTLS_DEBUG_C",                           Defined)),
     ("custom_printf",         ("MBEDTLS_PLATFORM_C",                        Defined)),
     ("custom_printf",         ("MBEDTLS_PLATFORM_PRINTF_MACRO",             DefinedAs("mbedtls_printf"))),
+    ("freelist",              ("MBEDTLS_PLATFORM_C",                        Defined)),
+    ("freelist",              ("MBEDTLS_PLATFORM_MEMORY",                   Defined)),
+    ("freelist",              ("MBEDTLS_PLATFORM_CALLOC_MACRO",             DefinedAs("freelist_calloc"))),
+    ("freelist",              ("MBEDTLS_PLATFORM_FREE_MACRO",               DefinedAs("freelist_free"))),
     ("aesni",                 ("MBEDTLS_AESNI_C",                           Defined)),
     ("padlock",               ("MBEDTLS_PADLOCK_C",                         Defined)),
     ("custom_has_support",    ("MBEDTLS_CUSTOM_HAS_AESNI",                  Defined)),

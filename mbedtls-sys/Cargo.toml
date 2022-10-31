@@ -46,6 +46,7 @@ default = ["std", "debug", "threading", "zlib", "time", "aesni", "padlock", "leg
 std = ["debug"] # deprecated automatic enabling of debug, can be removed on major version bump
 debug = []
 custom_printf = []
+freelist = []
 custom_has_support = []
 aes_alt = []
 threading = []
