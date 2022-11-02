@@ -1,3 +1,7 @@
+This branch is a combination of optimizations made in:
+- `mihir/mbedtls0.8-freelist`
+- `mihir/mbedtls-sys-ec-precompute`
+
 # mbedtls
 
 [![Build Status](https://travis-ci.com/fortanix/rust-mbedtls.svg?branch=master)](https://travis-ci.com/fortanix/rust-mbedtls)
