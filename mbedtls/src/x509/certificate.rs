@@ -99,7 +99,7 @@ impl Certificate {
     pub fn from_pem(pem: &[u8]) -> Result<MbedtlsBox<Certificate>> {
         let mut cert = MbedtlsBox::<Certificate>::init()?;
         unsafe { x509_crt_parse((&mut (*cert)).into(), pem.as_ptr(), pem.len()) }.into_result()?;
-        
+
         if !(*cert).inner.next.is_null() {
             // Use from_pem_multiple for parsing multiple certificates in a pem.
             return Err(Error::X509BadInputData);
@@ -107,7 +107,7 @@ impl Certificate {
 
         Ok(cert)
     }
-    
+
     /// Input must be NULL-terminated
     pub fn from_pem_multiple(pem: &[u8]) -> Result<MbedtlsList<Certificate>> {
         let mut cert = MbedtlsBox::<Certificate>::init()?;
@@ -117,7 +117,7 @@ impl Certificate {
         list.push(cert);
         Ok(list)
     }
-    
+
     pub fn check_key_usage(&self, usage: super::KeyUsage) -> bool {
         unsafe { x509_crt_check_key_usage(&self.inner, usage.bits()) }
             .into_result()
@@ -216,11 +216,11 @@ impl Certificate {
     }
 
     pub fn signature(&self) -> Result<Vec<u8>> {
-        Ok(x509_buf_to_vec(&self.inner.sig))
+        Ok(x509_buf_to_vec(&self.inner.private_sig))
     }
 
     pub fn digest_type(&self) -> MdType {
-        MdType::from(self.inner.sig_md)
+        MdType::from(self.inner.private_sig_md)
     }
 
     fn verify_ex<F>(
@@ -506,11 +506,11 @@ impl MbedtlsBox<Certificate> {
 
             let inner = NonNull::new(inner).ok_or(Error::X509AllocFailed)?;
             x509_crt_init(inner.as_ptr());
-            
+
             Ok(MbedtlsBox { inner: inner.cast() })
         }
     }
-    
+
     fn list_next(&self) -> Option<&MbedtlsBox<Certificate>> {
         unsafe {
             <&Option<MbedtlsBox<_>> as UnsafeFrom<_>>::from(&(**self).inner.next).unwrap().as_ref()
@@ -563,12 +563,12 @@ impl MbedtlsList<Certificate> {
         // This leaks a *mut Certificate that we can cast to x509_crt as it's transparent and has no extra fields.
         self.inner.take().map(|x| x.into_raw()).unwrap_or(core::ptr::null_mut()) as *mut x509_crt
     }
-    
+
     pub fn is_empty(&self) -> bool {
         self.inner.is_none()
     }
-    
-    pub fn push(&mut self, certificate: MbedtlsBox<Certificate>) -> () {
+
+    pub fn push(&mut self, certificate: MbedtlsBox<Certificate>) {
         self.append(MbedtlsList::<Certificate> { inner: Some(certificate) });
     }
 
@@ -582,12 +582,12 @@ impl MbedtlsList<Certificate> {
             }
             prev = cur;
         }
-        
+
         // no iterations in for loop: head equals tail
         self.inner.take()
     }
 
-    
+
     pub fn pop_front(&mut self) -> Option<MbedtlsBox<Certificate>> {
         let mut ret = self.inner.take()?;
         self.inner = ret.list_next_mut().take();
@@ -602,7 +602,7 @@ impl MbedtlsList<Certificate> {
         };
         *tail = list.inner;
     }
-    
+
     pub fn iter(&self) -> Iter<'_> {
         Iter { next: self.inner.as_ref() }
     }
@@ -756,8 +756,8 @@ mod tests {
     impl Test {
         fn new() -> Self {
             Test {
-                key1: Pk::from_private_key(crate::test_support::keys::PEM_SELF_SIGNED_KEY, None).unwrap(),
-                key2: Pk::from_private_key(crate::test_support::keys::PEM_SELF_SIGNED_KEY, None).unwrap(),
+                key1: Pk::from_private_key(&mut crate::test_support::rand::test_rng(), crate::test_support::keys::PEM_SELF_SIGNED_KEY, None).unwrap(),
+                key2: Pk::from_private_key(&mut crate::test_support::rand::test_rng(), crate::test_support::keys::PEM_SELF_SIGNED_KEY, None).unwrap(),
             }
         }
 
@@ -871,7 +871,7 @@ JS7pkcufTIoN0Yj0SxAWLW711FgB
         assert_eq!(output, TEST_PEM);
     }
 
-    
+
     const TEST_CERT_PEM: &'static str = "-----BEGIN CERTIFICATE-----
 MIIDLDCCAhSgAwIBAgIRALY0SS5pY9Yb/aIHvSAvmOswDQYJKoZIhvcNAQELBQAw
 HzEQMA4GA1UEAxMHVGVzdCBDQTELMAkGA1UEBhMCVVMwHhcNMTkwMTA4MDAxODM1
@@ -895,7 +895,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
     #[test]
     fn cert_field_access() {
         let cert = Certificate::from_pem(TEST_CERT_PEM.as_bytes()).unwrap();
-        
+
         assert_eq!(cert.version().unwrap(), CertificateVersion::V3);
         assert_eq!(cert.issuer().unwrap(), "CN=Test CA, C=US");
         assert_eq!(cert.subject().unwrap(), "CN=Test Cert, O=Test");
@@ -972,7 +972,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
         let mut iter = list.iter();
         let cert = iter.next().unwrap();
-        
+
         let pk = cert.public_key();
 
         assert_eq!(pk.pk_type(), crate::pk::Type::Rsa);
@@ -1008,7 +1008,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         let c_int1 = Certificate::from_pem(C_INT1.as_bytes()).unwrap();
         let c_int2 = Certificate::from_pem(C_INT2.as_bytes()).unwrap();
         let mut c_root = Certificate::from_pem_multiple(C_ROOT.as_bytes()).unwrap();
-        
+
         {
             let mut chain = MbedtlsList::<Certificate>::new();
             chain.push(c_leaf.clone());
@@ -1060,8 +1060,8 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         }
     }
 
-    
-    
+
+
     #[test]
     fn clone_test() {
         let cert_chain = Certificate::from_pem(TEST_CERT_PEM.as_bytes()).unwrap();
@@ -1070,7 +1070,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         chain.push(cert_chain.clone());
         chain.push(cert_chain.clone());
         chain.push(cert_chain);
-        
+
         let clone = chain.clone();
         let mut it = clone.iter();
 
@@ -1105,7 +1105,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         let c1_info = format!("{:?}", c1.iter().next().unwrap());
         let c2_info = format!("{:?}", c2.iter().next().unwrap());
         let c3_info = format!("{:?}", c3.iter().next().unwrap());
-        
+
         chain.append(c1.clone());
         chain.append(c2.clone());
         chain.append(c3.clone());
@@ -1125,7 +1125,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             assert_eq!(c2_info, format!("{:?}", it.next().unwrap()));
             assert!(it.next().is_none());
         }
-        
+
         chain.append(c3.clone());
         chain.append(c1.clone());
         {
@@ -1153,7 +1153,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             let mut it = chain.iter();
             assert!(it.next().is_none());
         }
-        
+
         assert!(chain.pop_back().is_none());
         {
             let mut it = chain.iter();
@@ -1187,7 +1187,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         let c1_info = format!("{:?}", c1);
         let c2_info = format!("{:?}", c2);
         let c3_info = format!("{:?}", c3);
-        
+
         chain.push(c1.clone());
         chain.push(c2.clone());
         chain.push(c3.clone());
@@ -1207,7 +1207,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             assert_eq!(c3_info, format!("{:?}", it.next().unwrap()));
             assert!(it.next().is_none());
         }
-        
+
         chain.push(c3.clone());
         chain.push(c1.clone());
         {
@@ -1235,7 +1235,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             let mut it = chain.iter();
             assert!(it.next().is_none());
         }
-        
+
         assert!(chain.pop_front().is_none());
         {
             let mut it = chain.iter();
@@ -1322,7 +1322,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         }
 
         let clone = chain.clone();
-        
+
         {
             let mut it = chain.into_iter();
             assert_eq!(c1_info, format!("{:?}", it.next().unwrap()));
@@ -1351,7 +1351,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             <&mut Option<MbedtlsBox<_>> as UnsafeFrom<_>>::from(ptr_test).unwrap()
         };
         assert!(option.is_none());
-        
+
         let cert_list : Option<&mut MbedtlsList<Certificate>> = unsafe { UnsafeFrom::from(ptr_test) };
         assert!(cert_list.is_none());
 
@@ -1361,7 +1361,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         assert!(cert_list.is_none());
 
 
-        
+
     }
 
     #[test]
@@ -1378,7 +1378,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
         // Using debug strings so failing unit tests can identify any issue with contents.
         let c1_info = format!("{:?}", c1);
-        
+
         chain.push(c1.clone());
         chain.push(c2.clone());
         chain.push(c3.clone());
@@ -1395,7 +1395,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         assert_eq!((*cert).inner.next, ::core::ptr::null_mut());
         assert_eq!(c1_info, format!("{:?}", cert));
 
-        
+
         let cert = chain.clone().into_iter().next().unwrap();
 
         // Using into_iter and extracting a certificate must have its next set to null
@@ -1426,7 +1426,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
         let cert : &Certificate = unsafe { UnsafeFrom::from(ptr).unwrap() };
         assert_eq!(c1_info, format!("{:?}", cert));
-        
+
         let ptr : *mut x509_crt = (&mut chain).into();
         assert_ne!(ptr, ::core::ptr::null_mut());
 

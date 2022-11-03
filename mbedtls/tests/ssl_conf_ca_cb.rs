@@ -24,6 +24,7 @@ use mbedtls::ssl::config::CaCallback;
 
 mod support;
 use support::entropy::entropy_new;
+use support::rand::test_rng;
 
 use mbedtls::alloc::{List as MbedtlsList};
 
@@ -44,7 +45,7 @@ fn server(conn: TcpStream, cert: &[u8], key: &[u8]) -> TlsResult<()> {
     let entropy = entropy_new();
     let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
     let cert = Arc::new(Certificate::from_pem_multiple(cert)?);
-    let key = Arc::new(Pk::from_private_key(key, None)?);
+    let key = Arc::new(Pk::from_private_key(&mut test_rng(), key, None)?);
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(rng);
     config.push_cert(cert, key)?;

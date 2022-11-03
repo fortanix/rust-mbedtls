@@ -11,11 +11,11 @@
 //! Calling MbedTLS self test functions before they're enabled using the
 //! `enable()` function here will result in a panic.
 //!
-//! Using this module in multithreaded or async environment will fail. The self 
-//! test functions rely on global variables to track operations and anything 
-//! non-self-test related operations will clobber these variables, resulting in 
-//! self test failures. Make sure no other code uses MbedTLS while running the 
-//! self tests. Multiple self test operations done simultaneously may also 
+//! Using this module in multithreaded or async environment will fail. The self
+//! test functions rely on global variables to track operations and anything
+//! non-self-test related operations will clobber these variables, resulting in
+//! self test failures. Make sure no other code uses MbedTLS while running the
+//! self tests. Multiple self test operations done simultaneously may also
 //! return failures.
 
 use mbedtls_sys::types::raw_types::{c_char, c_int};
@@ -56,9 +56,9 @@ cfg_if::cfg_if! {
 
 /// Set callback functions to enable the MbedTLS self tests.
 ///
-/// `rand` only needs to be set on platforms that don't have a `rand()` 
-/// function in libc. `log` only needs to be set when using `no_std`, i.e. 
-/// the `std` feature of this create is not enabled. If neither function 
+/// `rand` only needs to be set on platforms that don't have a `rand()`
+/// function in libc. `log` only needs to be set when using `no_std`, i.e.
+/// the `std` feature of this create is not enabled. If neither function
 /// needs to be set, you don't have to call `enable()`.
 ///
 /// # Safety
@@ -89,17 +89,36 @@ pub unsafe fn disable() {
 }
 
 /// # Safety
-/// 
+///
 /// The caller needs to ensure this function is not called while *any other*
 /// MbedTLS function is called. See the module documentation for more
 /// information.
 pub use mbedtls_sys::{
-    aes_self_test as aes, arc4_self_test as arc4, aria_self_test as aria, base64_self_test as base64,
-    camellia_self_test as camellia, ccm_self_test as ccm, ctr_drbg_self_test as ctr_drbg,
-    des_self_test as des, dhm_self_test as dhm, ecjpake_self_test as ecjpake, ecp_self_test as ecp,
-    entropy_self_test as entropy, gcm_self_test as gcm, hmac_drbg_self_test as hmac_drbg,
-    md2_self_test as md2, md4_self_test as md4, md5_self_test as md5, mpi_self_test as mpi,
-    pkcs5_self_test as pkcs5, ripemd160_self_test as ripemd160, rsa_self_test as rsa,
-    sha1_self_test as sha1, sha256_self_test as sha256, sha512_self_test as sha512,
-    x509_self_test as x509, xtea_self_test as xtea, nist_kw_self_test as nist_kw, cmac_self_test as cmac
+    aes_self_test as aes,
+    aria_self_test as aria,
+    base64_self_test as base64,
+    camellia_self_test as camellia,
+    ccm_self_test as ccm,
+    chacha20_self_test as chacha20,
+    chachapoly_self_test as chachapoly,
+    cmac_self_test as cmac,
+    ctr_drbg_self_test as ctr_drbg,
+    des_self_test as des,
+    dhm_self_test as dhm,
+    ecjpake_self_test as ecjpake,
+    ecp_self_test as ecp,
+    entropy_self_test as entropy,
+    gcm_self_test as gcm,
+    hmac_drbg_self_test as hmac_drbg,
+    md5_self_test as md5,
+    memory_buffer_alloc_self_test as memory_buffer_alloc,
+    mpi_self_test as mpi,
+    nist_kw_self_test as nist_kw,
+    pkcs5_self_test as pkcs5,
+    poly1305_self_test as poly1305,
+    ripemd160_self_test as ripemd160,
+    rsa_self_test as rsa,
+    sha1_self_test as sha1,
+    sha256_self_test as sha256,
+    sha512_self_test as sha512,
 };

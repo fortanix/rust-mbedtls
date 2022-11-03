@@ -9,6 +9,10 @@ use std::borrow::Cow;
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use mbedtls::ssl::{Config, Context};
 
+extern crate mbedtls;
+mod support;
+use support::rand::test_rng;
+
 // Native TLS compatibility - to move to native tls client in the future
 #[derive(Clone)]
 pub struct TlsStream<T> {
@@ -51,7 +55,7 @@ impl<T> NetworkStream for TlsStream<T>
             .ok_or(IoError::new(IoErrorKind::NotFound, "No peer available"))?
             .peer_addr()
     }
-    
+
     fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
         self.context.lock().unwrap().io_mut()
             .ok_or(IoError::new(IoErrorKind::NotFound, "No peer available"))?
@@ -85,7 +89,7 @@ impl<T> SslServer<T> for MbedSSLServer
 {
     /// The protected stream.
     type Stream = TlsStream<T>;
-    
+
     /// Wrap a server stream with SSL.
     fn wrap_server(&self, stream: T) -> Result<Self::Stream, hyper::Error> {
         let mut ctx = Context::new(self.rc_config.clone());
@@ -113,7 +117,7 @@ impl MbedSSLClient {
             override_sni: None,
         }
     }
-    
+
     #[allow(dead_code)]
     pub fn new_with_sni(rc_config: Arc<Config>, verify_hostname: bool, override_sni: Option<String>) -> Self {
         MbedSSLClient {
@@ -136,7 +140,7 @@ impl<T> SslClient<T> for MbedSSLClient
             true => Some(self.override_sni.as_ref().map(|v| v.as_str()).unwrap_or(host)),
             false => None,
         };
-        
+
         match context.establish(stream, verify_hostname) {
             Ok(()) => Ok(TlsStream::new(Arc::new(Mutex::new(context)))),
             Err(e) => Err(hyper::Error::Ssl(Box::new(e))),
@@ -167,7 +171,7 @@ mod tests {
     use mbedtls::ssl::CipherSuite::*;
     use std::io::Write;
     use mbedtls::ssl::TicketContext;
-    
+
     #[cfg(not(target_env = "sgx"))]
     use mbedtls::rng::{OsEntropy, CtrDrbg};
 
@@ -185,16 +189,16 @@ mod tests {
     pub fn rng_new() -> Arc<Rdrand> {
         Arc::new(Rdrand)
     }
-    
+
     #[test]
     fn test_simple_request() {
         let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
-
-        config.set_authmode(AuthMode::None);
+        config.set_authmode(AuthMode::Required);
         config.set_rng(rng_new());
-        config.set_min_version(Version::Tls1_2).unwrap();
+        config.set_min_version(Version::Tls1_3).unwrap();
+        config.set_ca_list(Arc::new(Certificate::from_pem_multiple(GOOGLE_ROOT_CA_CERT).unwrap()), None);
 
-        let ssl = MbedSSLClient::new(Arc::new(config), false);
+        let ssl = MbedSSLClient::new(Arc::new(config), true);
         let connector = HttpsConnector::new(ssl);
         let client = hyper::Client::with_connector(Pool::with_connector(Default::default(), connector));
 
@@ -209,11 +213,12 @@ mod tests {
         let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
 
         config.set_rng(rng_new());
-        config.set_authmode(AuthMode::None);
-        config.set_min_version(Version::Tls1_2).unwrap();
-        
+        config.set_authmode(AuthMode::Required);
+        config.set_min_version(Version::Tls1_3).unwrap();
+        config.set_ca_list(Arc::new(Certificate::from_pem_multiple(GOOGLE_ROOT_CA_CERT).unwrap()), None);
+
         // Immutable from this point on
-        let ssl = MbedSSLClient::new(Arc::new(config), false);
+        let ssl = MbedSSLClient::new(Arc::new(config), true);
 
         let client1 = hyper::Client::with_connector(Pool::with_connector(Default::default(), HttpsConnector::new(ssl.clone())));
         let response = client1.get("https://www.google.com/").send().unwrap();
@@ -232,11 +237,12 @@ mod tests {
     fn test_hyper_multithread() {
         let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
 
-        config.set_authmode(AuthMode::None);
+        config.set_authmode(AuthMode::Required);
         config.set_rng(rng_new());
-        config.set_min_version(Version::Tls1_2).unwrap();
-        
-        let ssl = MbedSSLClient::new(Arc::new(config), false);
+        config.set_min_version(Version::Tls1_3).unwrap();
+        config.set_ca_list(Arc::new(Certificate::from_pem_multiple(GOOGLE_ROOT_CA_CERT).unwrap()), None);
+
+        let ssl = MbedSSLClient::new(Arc::new(config), true);
         let client = Arc::new(hyper::Client::with_connector(Pool::with_connector(Default::default(), HttpsConnector::new(ssl.clone()))));
 
         let clone1 = client.clone();
@@ -245,9 +251,10 @@ mod tests {
             let response = clone1.get("https://google.com").send().unwrap();
             assert_eq!(response.status, hyper::status::StatusCode::Ok);
         });
-        
+
         let t2 = std::thread::spawn(move || {
-            clone2.post("https://google.com").body("foo=bar").send().unwrap();
+            let response = clone2.post("https://google.com").body("foo=bar").send().unwrap();
+            assert_eq!(response.status, hyper::status::StatusCode::MethodNotAllowed);
         });
 
         t1.join().unwrap();
@@ -261,7 +268,7 @@ mod tests {
 
         config.set_authmode(AuthMode::Required);
         config.set_rng(rng_new());
-        config.set_min_version(Version::Tls1_2).unwrap();
+        config.set_min_version(Version::Tls1_3).unwrap();
 
         let verify_callback = |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
             *verify_flags = VerifyError::CERT_OTHER;
@@ -276,7 +283,7 @@ mod tests {
         config.set_dbg_callback(dbg_callback);
 
         config.set_ca_list(Arc::new(Certificate::from_pem_multiple(ROOT_CA_CERT).unwrap()), None);
-        
+
         let ssl = MbedSSLClient::new(Arc::new(config), false);
         let connector = HttpsConnector::new(ssl.clone());
         let client = Arc::new(hyper::Client::with_connector(Pool::with_connector(Default::default(), connector)));
@@ -287,21 +294,24 @@ mod tests {
         };
     }
 
-    
+
     #[test]
     fn test_hyper_server() {
         std::env::set_var("RUST_BACKTRACE", "full");
-
         let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
 
         config.set_rng(rng_new());
         config.set_authmode(AuthMode::None);
-        config.set_min_version(Version::Tls1_2).unwrap();
+        config.set_min_version(Version::Tls1_3).unwrap();
+        config.set_max_version(Version::Tls1_3).unwrap();
+
+        let sig_algs = Arc::new(mbedtls::ssl::tls1_3_preset_default_sig_algs());
+        config.set_signature_algorithms(sig_algs);
 
         let cert = Arc::new(Certificate::from_pem_multiple(PEM_CERT).unwrap());
-        let key = Arc::new(Pk::from_private_key(PEM_KEY, None).unwrap());
+        let key = Arc::new(Pk::from_private_key(&mut test_rng(), PEM_KEY, None).unwrap());
         config.push_cert(cert, key).unwrap();
-        
+
         let ssl = MbedSSLServer { rc_config: Arc::new(config) };
 
         // Random port is intentional
@@ -315,14 +325,15 @@ mod tests {
         }, 3).unwrap();
 
         std::thread::sleep(core::time::Duration::from_millis(10));
-        
+
         let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
 
         config.set_authmode(AuthMode::Required);
         config.set_rng(rng_new());
-        config.set_min_version(Version::Tls1_2).unwrap();
+        config.set_min_version(Version::Tls1_3).unwrap();
+        config.set_max_version(Version::Tls1_3).unwrap();
         config.set_ca_list(Arc::new(Certificate::from_pem_multiple(ROOT_CA_CERT).unwrap()), None);
-        
+
         let ssl = MbedSSLClient::new(Arc::new(config), false);
         let client = Arc::new(hyper::Client::with_connector(Pool::with_connector(Default::default(), HttpsConnector::new(ssl.clone()))));
 
@@ -331,6 +342,7 @@ mod tests {
         // If this fails due to EWOULDBLOCK it means not enough threads were created.
         let t1 = std::thread::Builder::new().spawn(move || {
             let response = client1.post(&format!("https://{}/path", local_addr)).body("foo=bar").send();
+            assert!(response.is_ok());
             println!("{:?}", response);
         }).unwrap();
 
@@ -342,27 +354,51 @@ mod tests {
     fn test_sni_hyper_server() {
         std::env::set_var("RUST_BACKTRACE", "full");
 
+        #[cfg(feature = "debug")]
+        mbedtls::set_global_debug_threshold(1);
+
         // This is mostly as an example - how to debug mbedtls
-        let dbg_callback = |level: i32, file: Cow<'_, str>, line: i32, message: Cow<'_, str>| {
-            println!("{} {}:{} {}", level, file, line, message);
+        let s_dbg_callback = |level: i32, file: Cow<'_, str>, line: i32, message: Cow<'_, str>| {
+            println!("server {} {}:{} {}", level, file, line, message);
+        };
+
+        let c_dbg_callback = |level: i32, file: Cow<'_, str>, line: i32, message: Cow<'_, str>| {
+            println!("client {} {}:{} {}", level, file, line, message);
         };
 
         let rng = rng_new();
-        
+
         let (local_addr, server) = {
             let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
 
             config.set_rng(rng.clone());
-            config.set_min_version(Version::Tls1_2).unwrap();
-            config.set_dbg_callback(dbg_callback.clone());
+            config.set_min_version(Version::Tls1_3).unwrap();
+            config.set_max_version(Version::Tls1_3).unwrap();
+            config.set_dbg_callback(s_dbg_callback.clone());
+
+            let sig_algs = Arc::new(mbedtls::ssl::tls1_3_preset_default_sig_algs());
+            config.set_signature_algorithms(sig_algs);
 
             let cert = Arc::new(Certificate::from_pem_multiple(PEM_CERT).unwrap());
-            let key = Arc::new(Pk::from_private_key(PEM_KEY, None).unwrap());
+            let key = Arc::new(Pk::from_private_key(&mut test_rng(), PEM_KEY, None).unwrap());
 
-            let cipher_suites : Vec<i32> = vec![RsaWithAes128GcmSha256.into(), DheRsaWithAes128GcmSha256.into(), PskWithAes128GcmSha256.into(), DhePskWithAes128GcmSha256.into(), RsaPskWithAes128GcmSha256.into(), 0];
+
+            let cipher_suites : Vec<i32> = vec![
+                RsaWithAes128GcmSha256.into(),
+                DheRsaWithAes128GcmSha256.into(),
+                PskWithAes128GcmSha256.into(),
+                DhePskWithAes128GcmSha256.into(),
+                RsaPskWithAes128GcmSha256.into(),
+                Tls1_3Aes128GcmSha256.into(),
+                Tls1_3Aes256GcmSha384.into(),
+                Tls1_3Chacha20Poly1305Sha256.into(),
+                Tls1_3Aes128CcmSha256.into(),
+                Tls1_3Aes128Ccm8Sha256.into(),
+                0,
+            ];
 
             config.set_ciphersuites(Arc::new(cipher_suites));
-            
+
             let sni_callback = move |ctx: &mut HandshakeContext, name: &[u8]| -> Result<(), mbedtls::Error> {
                 let name = std::str::from_utf8(name).unwrap();
                 if name == "mbedtls.example" {
@@ -374,7 +410,7 @@ mod tests {
                 }
             };
 
-            config.set_sni_callback(sni_callback);                                    
+            config.set_sni_callback(sni_callback);
 
             let tctx = TicketContext::new(rng.clone(), mbedtls::cipher::raw::CipherType::Aes128Gcm, 300).unwrap();
             config.set_session_tickets_callback(Arc::new(tctx));
@@ -392,46 +428,52 @@ mod tests {
         }, 3).unwrap();
 
         std::thread::sleep(core::time::Duration::from_millis(10));
-        
+
         let client = {
             let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
 
             config.set_authmode(AuthMode::Required);
             config.set_rng(rng.clone());
-            config.set_min_version(Version::Tls1_2).unwrap();
+            config.set_min_version(Version::Tls1_3).unwrap();
+            config.set_max_version(Version::Tls1_3).unwrap();
             config.set_ca_list(Arc::new(Certificate::from_pem_multiple(ROOT_CA_CERT).unwrap()), None);
 
-            config.set_dbg_callback(dbg_callback.clone());
-            
+            config.set_dbg_callback(c_dbg_callback.clone());
+
             config.set_session_tickets(UseSessionTickets::Enabled);
             config.set_renegotiation(Renegotiation::Enabled);
-            
+
             let ssl = MbedSSLClient::new_with_sni(Arc::new(config), true, Some("mbedtls.example".to_string()));
             Arc::new(hyper::Client::with_connector(Pool::with_connector(Default::default(), HttpsConnector::new(ssl))))
         };
-        
-        {
-            let response = client.post(&format!("https://{}/path", local_addr)).body("foo=bar").send().unwrap();
-            println!("Response: {}", response.status);
-            assert_eq!(response.status, StatusCode::MethodNotAllowed);
-        }
-        {
-            let response = client.post(&format!("https://{}/path", local_addr)).body("foo=bar").send().unwrap();
-            println!("Response: {}", response.status);
-            assert_eq!(response.status, StatusCode::MethodNotAllowed);
-        }
-        {
-            let response = client.post(&format!("https://{}/path", local_addr)).body("foo=bar").send().unwrap();
-            println!("Response: {}", response.status);
-            assert_eq!(response.status, StatusCode::MethodNotAllowed);
-        }
-
+        let do_tests = || -> Result<(), hyper::Error> {
+            {
+                let response = client.post(&format!("https://{}/path", local_addr)).body("foo=bar").send()?;
+                println!("Response: {}", response.status);
+                assert_eq!(response.status, StatusCode::MethodNotAllowed);
+            }
+            {
+                let response = client.post(&format!("https://{}/path", local_addr)).body("foo=bar").send()?;
+                println!("Response: {}", response.status);
+                assert_eq!(response.status, StatusCode::MethodNotAllowed);
+            }
+            {
+                let response = client.post(&format!("https://{}/path", local_addr)).body("foo=bar").send()?;
+                println!("Response: {}", response.status);
+                assert_eq!(response.status, StatusCode::MethodNotAllowed);
+            }
+            Ok(())
+        };
+        let result = do_tests();
         handler.close().unwrap();
         std::io::stdout().flush().unwrap();
+        assert!(result.is_ok());
     }
 
 
     pub const PEM_KEY: &'static [u8] = concat!(include_str!("./support/keys/user.key"),"\0").as_bytes();
     pub const PEM_CERT: &'static [u8] = concat!(include_str!("./support/keys/user.crt"),"\0").as_bytes();
     pub const ROOT_CA_CERT: &'static [u8] = concat!(include_str!("./support/keys/ca.crt"),"\0").as_bytes();
+    // root cert downloaded from Google Trust Services: https://pki.goog/roots.pem
+    pub const GOOGLE_ROOT_CA_CERT: &'static [u8] = concat!(include_str!("./support/keys/roots.pem"),"\0").as_bytes();
 }

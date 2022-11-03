@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.8.2"
+version = "0.9.0"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -20,15 +20,15 @@ keywords = ["MbedTLS","mbed","TLS","SSL","cryptography"]
 [dependencies]
 bitflags = "1"
 core_io = { version = "0.1", features = ["collections"], optional = true }
-spin = { version = "0.4.0", default-features = false, optional = true }
-serde = { version = "1.0.7", default-features = false }
+spin = { version = "0.9.4", default-features = false, optional = true }
+serde = { version = "1.0.7", default-features = false, features = ["alloc"] }
 serde_derive = "1.0.7"
 byteorder = "1.0.0"
-yasna = { version = "0.2", optional = true, features = ["num-bigint", "bit-vec"] }
-num-bigint = { version = "0.2", optional = true }
-bit-vec = { version = "0.5", optional = true }
-block-modes = { version = "0.3", optional = true }
-rc2 = { version = "0.3", optional = true }
+yasna = { version = "0.5", optional = true, features = ["num-bigint", "bit-vec"] }
+num-bigint = { version = "0.4", optional = true }
+bit-vec = { version = "0.6", optional = true }
+block-modes = { version = "0.9", optional = true }
+rc2 = { version = "0.8", optional = true }
 cfg-if = "1.0.0"
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
@@ -36,7 +36,7 @@ rs-libc = "0.2.0"
 chrono = "0.4"
 
 [dependencies.mbedtls-sys-auto]
-version = "2.25.0"
+version = "3.2.1"
 default-features = false
 features = ["custom_printf", "trusted_cert_callback", "threading"]
 path = "../mbedtls-sys"
@@ -44,8 +44,8 @@ path = "../mbedtls-sys"
 [dev-dependencies]
 libc = "0.2.0"
 rand = "0.4.0"
-serde_cbor = "0.6"
-hex = "0.3"
+serde_cbor = "0.11"
+hex = "0.4"
 matches = "0.1.8"
 hyper = { version = "0.10.16", default-features = false }
 
@@ -54,21 +54,17 @@ cc = "1.0"
 
 [features]
 # Features are documented in the README
-default = ["std", "aesni", "time", "padlock"]
-std = ["mbedtls-sys-auto/std", "serde/std", "yasna"]
+default = ["std", "time", "padlock"]
+std = ["byteorder/std", "mbedtls-sys-auto/std", "serde/std", "yasna"]
 debug = ["mbedtls-sys-auto/debug"]
 no_std_deps = ["core_io", "spin", "serde/alloc"]
-force_aesni_support = ["mbedtls-sys-auto/custom_has_support", "mbedtls-sys-auto/aes_alt", "aesni"]
-mpi_force_c_code = ["mbedtls-sys-auto/mpi_force_c_code"]
+force_aesni_support = ["mbedtls-sys-auto/custom_has_support", "mbedtls-sys-auto/aes_alt"]
 rdrand = []
-aesni = ["mbedtls-sys-auto/aesni"]
-zlib = ["mbedtls-sys-auto/zlib"]
 time = ["mbedtls-sys-auto/time"]
 padlock = ["mbedtls-sys-auto/padlock"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "block-modes"]
-legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
 
 [[example]]
 name = "client"

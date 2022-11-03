@@ -203,12 +203,12 @@ impl Time {
             && second < 60
         {
             Some(Time {
-                year: year,
-                month: month,
-                day: day,
-                hour: hour,
-                minute: minute,
-                second: second,
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                second,
             })
         } else {
             None

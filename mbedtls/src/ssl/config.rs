@@ -34,12 +34,9 @@ use crate::x509::{self, Certificate, Crl, Profile, VerifyCallback};
 #[allow(non_camel_case_types)]
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Copy, Clone)]
 pub enum Version {
-    Ssl3,
-    Tls1_0,
-    Tls1_1,
     Tls1_2,
-    #[doc(hidden)]
-    __NonExhaustive,
+    Tls1_3,
+    Unknown,
 }
 
 define!(
@@ -47,6 +44,18 @@ define!(
     enum Endpoint {
         Client = SSL_IS_CLIENT,
         Server = SSL_IS_SERVER,
+    }
+);
+
+define!(
+    #[c_ty(c_int)]
+    enum Tls1_3KeyExchangeMode {
+        Psk = SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK,
+        Ephemeral = SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL,
+        PskEphemeral = SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_EPHEMERAL,
+        All = SSL_TLS1_3_KEY_EXCHANGE_MODE_ALL,
+        PskAll = SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_ALL,
+        EphemeralAll = SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ALL,
     }
 );
 
@@ -77,6 +86,8 @@ define!(
         Optional = SSL_VERIFY_OPTIONAL,
         /// default on client
         Required = SSL_VERIFY_REQUIRED,
+        /// used only for sni_authmode
+        Unset = SSL_VERIFY_UNSET,
     }
 );
 
@@ -97,7 +108,7 @@ define!(
 );
 
 #[cfg(feature = "std")]
-callback!(DbgCallback: Fn(i32, Cow<'_, str>, i32, Cow<'_, str>) -> ());
+callback!(DbgCallback: Fn(i32, Cow<'_, str>, i32, Cow<'_, str>));
 callback!(SniCallback: Fn(&mut HandshakeContext, &[u8]) -> Result<()>);
 callback!(CaCallback: Fn(&MbedtlsList<Certificate>) -> Result<MbedtlsList<Certificate>>);
 
@@ -118,8 +129,8 @@ impl NullTerminatedStrList {
         for item in list {
             ret.c.push(::std::ffi::CString::new(*item).map_err(|_| Error::SslBadInputData)?.into_raw());
         }
-        
-        ret.c.push(core::ptr::null_mut()); 
+
+        ret.c.push(core::ptr::null_mut());
         Ok(ret)
     }
 
@@ -149,16 +160,17 @@ define!(
         // This allows caller to share structure on multiple configs if needed.
         own_cert: Vec<Arc<MbedtlsList<Certificate>>>,
         own_pk: Vec<Arc<Pk>>,
-    
+
         ca_cert: Option<Arc<MbedtlsList<Certificate>>>,
         crl: Option<Arc<Crl>>,
-        
+
         rng: Option<Arc<dyn RngCallback + 'static>>,
-        
+
         ciphersuites: Vec<Arc<Vec<c_int>>>,
         curves: Option<Arc<Vec<ecp_group_id>>>,
         protocols: Option<Arc<NullTerminatedStrList>>,
-        
+        signature_algorithms: Option<Arc<Vec<u16>>>,
+
         verify_callback: Option<Arc<dyn VerifyCallback + 'static>>,
         #[cfg(feature = "std")]
         dbg_callback: Option<Arc<dyn DbgCallback + 'static>>,
@@ -178,11 +190,16 @@ impl Config {
         let mut inner = ssl_config::default();
 
         unsafe {
+            // PSA crypto need to be initialized for TLS 1.3
+            let status = crypto_init();
+            if status != 0 {
+                panic!("Failed to initialize PSA Crypto\n");
+            }
+
             // This is just a memset to 0.
             ssl_config_init(&mut inner);
-
             // Set default values - after this point we will need ssl_config_free to be called.
-            ssl_config_defaults(&mut inner, e as c_int, t as c_int, p as c_int);
+            ssl_config_defaults(&mut inner, e as c_int, t as c_int, p as c_int).into_result().unwrap();
         };
 
         Config {
@@ -195,6 +212,7 @@ impl Config {
             ciphersuites: vec![],
             curves: None,
             protocols: None,
+            signature_algorithms: None,
             verify_callback: None,
             #[cfg(feature = "std")]
             dbg_callback: None,
@@ -211,7 +229,7 @@ impl Config {
     setter!(set_transport(t: Transport) = ssl_conf_transport);
     // need bitfield support getter!(authmode() -> AuthMode = field authmode);
     setter!(set_authmode(am: AuthMode) = ssl_conf_authmode);
-    getter!(read_timeout() -> u32 = .read_timeout);
+    getter!(read_timeout() -> u32 = .private_read_timeout);
     setter!(set_read_timeout(t: u32) = ssl_conf_read_timeout);
 
     fn check_c_list<T: Default + Eq>(list: &[T]) {
@@ -225,6 +243,16 @@ impl Config {
         self.ciphersuites.push(list);
     }
 
+    pub fn set_signature_algorithms(&mut self,  list: Arc<Vec<u16>>) {
+        Self::check_c_list(&list);
+        unsafe { ssl_conf_sig_algs(self.into(), list.as_ptr()) }
+        self.signature_algorithms = Some(list);
+    }
+
+    pub fn set_tls1_3_key_exchange_modes(&mut self, mode: Tls1_3KeyExchangeMode) {
+        unsafe { ssl_conf_tls13_key_exchange_modes(self.into(), mode.into()) }
+    }
+
     /// Set the supported Application Layer Protocols.
     pub fn set_alpn_protocols(&mut self, protocols: Arc<NullTerminatedStrList>) -> Result<()> {
         unsafe {
@@ -235,12 +263,6 @@ impl Config {
 
         self.protocols = Some(protocols);
         Ok(())
-    }
-    
-    pub fn set_ciphersuites_for_version(&mut self, list: Arc<Vec<c_int>>, major: c_int, minor: c_int) {
-        Self::check_c_list(&list);
-        unsafe { ssl_conf_ciphersuites_for_version(self.into(), list.as_ptr(), major, minor) }
-        self.ciphersuites.push(list);
     }
 
     pub fn set_curves(&mut self, list: Arc<Vec<ecp_group_id>>) {
@@ -253,14 +275,12 @@ impl Config {
         unsafe { ssl_conf_rng(self.into(), Some(T::call), rng.data_ptr()) };
         self.rng = Some(rng);
     }
-    
+
     pub fn set_min_version(&mut self, version: Version) -> Result<()> {
         let minor = match version {
-            Version::Ssl3 => 0,
-            Version::Tls1_0 => 1,
-            Version::Tls1_1 => 2,
             Version::Tls1_2 => 3,
-            _ => { return Err(Error::SslBadHsProtocolVersion); }
+            Version::Tls1_3 => 4,
+            _ => { return Err(Error::SslBadProtocolVersion); }
         };
 
         unsafe { ssl_conf_min_version(self.into(), 3, minor) };
@@ -269,11 +289,9 @@ impl Config {
 
     pub fn set_max_version(&mut self, version: Version) -> Result<()> {
         let minor = match version {
-            Version::Ssl3 => 0,
-            Version::Tls1_0 => 1,
-            Version::Tls1_1 => 2,
             Version::Tls1_2 => 3,
-            _ => { return Err(Error::SslBadHsProtocolVersion); }
+            Version::Tls1_3 => 4,
+            _ => { return Err(Error::SslBadProtocolVersion); }
         };
         unsafe { ssl_conf_max_version(self.into(), 3, minor) };
         Ok(())
@@ -297,11 +315,11 @@ impl Config {
 
     pub fn set_ca_list(&mut self, ca_cert: Arc<MbedtlsList<Certificate>>, crl: Option<Arc<Crl>>) {
         // This will override internal pointers to what we provide.
-        
+
         unsafe { ssl_conf_ca_chain(self.into(), ca_cert.inner_ffi_mut(), crl.as_ref().map(|crl| crl.inner_ffi_mut()).unwrap_or(::core::ptr::null_mut())); }
 
         self.ca_cert = Some(ca_cert);
-        self.crl = crl;        
+        self.crl = crl;
     }
 
     pub fn push_cert(&mut self, own_cert: Arc<MbedtlsList<Certificate>>, own_pk: Arc<Pk>) -> Result<()> {
@@ -315,7 +333,7 @@ impl Config {
                  .map(|_| ())
         }
     }
-    
+
     /// Server only: configure callback to use for generating/interpreting session tickets.
     pub fn set_session_tickets_callback<T: TicketCallback + 'static>(&mut self, cb: Arc<T>) {
         unsafe {
@@ -341,7 +359,7 @@ impl Config {
         /// Client only: minimal FFDH group size
         set_ffdh_min_bitlen(bitlen: c_uint) = ssl_conf_dhm_min_bitlen
     );
-    
+
     pub fn set_sni_callback<F>(&mut self, cb: F)
     where
         F: SniCallback + 'static,
@@ -370,7 +388,7 @@ impl Config {
             //
             let cb = &mut *(closure as *mut F);
             let ctx = UnsafeFrom::from(ctx).unwrap();
-            
+
             let name = from_raw_parts(name, name_len);
             match cb(ctx, name) {
                 Ok(()) => 0,
@@ -378,7 +396,7 @@ impl Config {
             }
         }
 
-        
+
         self.sni_callback = Some(Arc::new(cb));
         unsafe { ssl_conf_sni(self.into(), Some(sni_callback::<F>), &**self.sni_callback.as_mut().unwrap() as *const _ as *mut c_void) }
     }
@@ -438,7 +456,7 @@ impl Config {
             file: *const c_char,
             line: c_int,
             message: *const c_char
-        ) -> ()
+        )
         where
             F: DbgCallback + 'static,
         {
@@ -448,12 +466,12 @@ impl Config {
                 false => std::ffi::CStr::from_ptr(file).to_string_lossy(),
                 true => Cow::from(""),
             };
-            
+
             let message = match message.is_null() {
                 false => std::ffi::CStr::from_ptr(message).to_string_lossy(),
                 true => Cow::from(""),
             };
-            
+
             cb(level, file, line, message);
         }
 

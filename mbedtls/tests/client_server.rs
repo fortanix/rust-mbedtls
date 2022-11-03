@@ -13,6 +13,7 @@ extern crate mbedtls;
 
 use std::io::{Read, Write};
 use std::net::TcpStream;
+use std::borrow::Cow;
 
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
@@ -30,6 +31,7 @@ use mbedtls_sys::types::size_t;
 mod support;
 use support::entropy::entropy_new;
 use support::keys;
+use support::rand::test_rng;
 
 /// Simple type to unify TCP and UDP connections, to support both TLS and DTLS
 enum Connection {
@@ -71,6 +73,11 @@ fn client(
         Connection::Tcp(_) => Config::new(Endpoint::Client, Transport::Stream, Preset::Default),
         Connection::Udp(_) => Config::new(Endpoint::Client, Transport::Datagram, Preset::Default),
     };
+    let c_dbg_callback = |level: i32, file: Cow<'_, str>, line: i32, message: Cow<'_, str>| {
+        println!("client {} {}:{} {}", level, file, line, message);
+    };
+    config.set_dbg_callback(c_dbg_callback.clone());
+
     config.set_rng(rng);
     config.set_min_version(min_version)?;
     config.set_max_version(max_version)?;
@@ -86,7 +93,7 @@ fn client(
                 (keys::EXPIRED_CERT_SUBJECT, 0, flags) => assert_eq!(**flags, expected_flags),
                 _ => assert!(false),
             };
-            
+
             verify_flags.remove(VerifyError::CERT_EXPIRED); //we check the flags at the end,
             //so removing this flag here prevents the connections from failing with VerifyError
             Ok(())
@@ -109,7 +116,7 @@ fn client(
         }
         Err(e) => {
             match e {
-                Error::SslBadHsProtocolVersion => {assert!(exp_version.is_none())},
+                Error::SslBadProtocolVersion => {assert!(exp_version.is_none())},
                 Error::SslFatalAlertMessage => {},
                 e => panic!("Unexpected error {}", e),
             };
@@ -144,12 +151,23 @@ fn server(
             config
         }
     };
+    let s_dbg_callback = |level: i32, file: Cow<'_, str>, line: i32, message: Cow<'_, str>| {
+        println!("server {} {}:{} {}", level, file, line, message);
+    };
+    config.set_dbg_callback(s_dbg_callback.clone());
+
     config.set_rng(rng);
     config.set_min_version(min_version)?;
     config.set_max_version(max_version)?;
+
+    if min_version == Version::Tls1_3 || max_version == Version::Tls1_3{
+        let sig_algs = Arc::new(mbedtls::ssl::tls1_3_preset_default_sig_algs());
+        config.set_signature_algorithms(sig_algs);
+    }
+
     if !use_psk { // for certificate-based operation, set up certificates
         let cert = Arc::new(Certificate::from_pem_multiple(keys::EXPIRED_CERT.as_bytes())?);
-        let key = Arc::new(Pk::from_private_key(keys::EXPIRED_KEY.as_bytes(), None)?);
+        let key = Arc::new(Pk::from_private_key(&mut test_rng(), keys::EXPIRED_KEY.as_bytes(), None)?);
         config.push_cert(cert, key)?;
     } else { // for psk-based operation, only PSK required
         config.set_psk(&[0x12, 0x34, 0x56, 0x78], "client")?;
@@ -181,7 +199,7 @@ fn server(
             match e {
                 // client just closes connection instead of sending alert
                 Error::NetSendFailed => {assert!(exp_version.is_none())},
-                Error::SslBadHsProtocolVersion => {},
+                Error::SslBadProtocolVersion => {},
                 e => panic!("Unexpected error {}", e),
             };
             return Ok(());
@@ -207,6 +225,9 @@ mod test {
         use std::net::UdpSocket;
         use mbedtls::ssl::context::ConnectedUdpSocket;
 
+        #[cfg(feature = "debug")]
+        mbedtls::set_global_debug_threshold(3);
+
         #[derive(Copy,Clone)]
         struct TestConfig {
             min_c: Version,
@@ -223,14 +244,9 @@ mod test {
         }
 
         let test_configs = [
-            TestConfig::new(Version::Ssl3, Version::Ssl3, Version::Ssl3, Version::Ssl3, Some(Version::Ssl3)),
-            TestConfig::new(Version::Ssl3, Version::Tls1_2, Version::Ssl3, Version::Ssl3, Some(Version::Ssl3)),
-            TestConfig::new(Version::Tls1_0, Version::Tls1_0, Version::Tls1_0, Version::Tls1_0, Some(Version::Tls1_0)),
-            TestConfig::new(Version::Tls1_1, Version::Tls1_1, Version::Tls1_1, Version::Tls1_1, Some(Version::Tls1_1)),
             TestConfig::new(Version::Tls1_2, Version::Tls1_2, Version::Tls1_2, Version::Tls1_2, Some(Version::Tls1_2)),
-            TestConfig::new(Version::Tls1_0, Version::Tls1_2, Version::Tls1_0, Version::Tls1_2, Some(Version::Tls1_2)),
-            TestConfig::new(Version::Tls1_2, Version::Tls1_2, Version::Tls1_0, Version::Tls1_2, Some(Version::Tls1_2)),
-            TestConfig::new(Version::Tls1_0, Version::Tls1_1, Version::Tls1_2, Version::Tls1_2, None)
+            TestConfig::new(Version::Tls1_2, Version::Tls1_3, Version::Tls1_3, Version::Tls1_3, Some(Version::Tls1_3)),
+            TestConfig::new(Version::Tls1_3, Version::Tls1_3, Version::Tls1_3, Version::Tls1_3, Some(Version::Tls1_3)),
         ];
 
         for config in &test_configs {
@@ -253,6 +269,14 @@ mod test {
             c.join().unwrap();
             s.join().unwrap();
 
+            // skip following tests because:
+            // 1. DTLS 1.3 is not yet supported, ref: https://github.com/Mbed-TLS/mbedtls/blob/v3.2.1/library/ssl_tls.c#L942
+            // 2. embedTLS currently only support the ephemeral or (EC)DHE key echange mode, ref: https://github.com/Mbed-TLS/mbedtls/blob/v3.2.1/library/ssl_tls13_server.c#L820-L822
+            //    PKS ext is also not supported now: ref: https://github.com/Mbed-TLS/mbedtls/blob/v3.2.1/docs/architecture/tls13-support.md
+            if min_s == Version::Tls1_3 || min_c == Version::Tls1_3{
+                continue;
+            }
+
             // TLS tests using PSK
 
             let (c, s) = crate::support::net::create_tcp_pair().unwrap();
@@ -263,11 +287,6 @@ mod test {
             s.join().unwrap();
 
             // DTLS tests using certificates
-
-            // DTLS 1.0 is based on TSL 1.1
-            if min_c < Version::Tls1_1 || min_s < Version::Tls1_1 || exp_ver.is_none() {
-                continue;
-            }
 
             let s = UdpSocket::bind("127.0.0.1:12340").expect("could not bind UdpSocket");
             let s = ConnectedUdpSocket::connect(s, "127.0.0.1:12341").expect("could not connect UdpSocket");

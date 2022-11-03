@@ -131,8 +131,8 @@ impl Mpi {
     }
 
     fn get_limb(&self, n: usize) -> mpi_uint {
-        if n < self.inner.n {
-            unsafe { *self.inner.p.offset(n as isize) }
+        if n < self.inner.private_n {
+            unsafe { *self.inner.private_p.offset(n as isize) }
         } else {
             // zero pad
             0

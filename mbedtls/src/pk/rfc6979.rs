@@ -87,7 +87,7 @@ impl Rfc6979Rng {
         let k = generate_rfc6979_nonce(&md, x, q, digest_bytes)?;
 
         Ok(Rfc6979Rng {
-            k: k,
+            k,
             k_read: 0,
             rng: HmacDrbg::from_buf(md, random_seed)?,
         })

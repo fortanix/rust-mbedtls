@@ -9,7 +9,8 @@
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 
-use rand::{Rng, XorShiftRng};
+use rand::XorShiftRng;
+use rand::Rng;
 
 /// Not cryptographically secure!!! Use for testing only!!!
 pub struct TestRandom(XorShiftRng);

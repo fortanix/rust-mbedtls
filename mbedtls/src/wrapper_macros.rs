@@ -34,7 +34,7 @@ macro_rules! callback {
 
         pub trait $m: Send + Sync {
             unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized;
-            
+
             fn data_ptr(&self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
         }
 
@@ -172,7 +172,7 @@ macro_rules! define_struct {
         unsafe impl<$($l)*> Send for $name<$($l)*> {}
         );
     };
-    
+
     { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> const init: fn() -> Self = $ctor:ident $({ $($member:ident: $member_init:expr,)* })?; $($defs:tt)* } => {
         define_struct!(init $name () init $ctor $(lifetime $l)* members $($($member: $member_init,)*)* );
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
@@ -192,7 +192,7 @@ macro_rules! define_struct {
                     inner.assume_init()
                 };
                 $name{
-                    inner:inner,
+                    inner,
                     $(r: ::core::marker::PhantomData::<&$l _>,)*
                     $($member: $member_init,)*
                 }

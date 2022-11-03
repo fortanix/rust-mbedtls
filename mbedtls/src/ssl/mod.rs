@@ -11,6 +11,7 @@ pub mod config;
 pub mod context;
 pub mod cookie;
 pub mod ticket;
+pub mod algorithms;
 
 #[doc(inline)]
 pub use self::ciphersuites::CipherSuite;
@@ -22,3 +23,7 @@ pub use self::context::Context;
 pub use self::cookie::CookieContext;
 #[doc(inline)]
 pub use self::ticket::TicketContext;
+
+#[doc(inline)]
+pub use self::algorithms::TLS1_3SignatureAlgorithms;
+pub use self::algorithms::tls1_3_preset_default_sig_algs;

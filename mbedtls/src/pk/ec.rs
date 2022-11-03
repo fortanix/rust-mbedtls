@@ -79,15 +79,16 @@ define!(
 
 impl Ecdh {
     pub fn from_keys(private: &EcpKeypair, public: &EcpKeypair) -> Result<Ecdh> {
-        if public.inner.grp.id == ECP_DP_NONE || public.inner.grp.id != private.inner.grp.id {
+        if public.inner.private_grp.id == ECP_DP_NONE || public.inner.private_grp.id != private.inner.private_grp.id {
             return Err(Error::EcpBadInputData);
         }
 
         let mut ret = Self::init();
         unsafe {
-            ecp_group_copy(&mut ret.inner.grp, &private.inner.grp).into_result()?;
-            mpi_copy(&mut ret.inner.d, &private.inner.d).into_result()?;
-            ecp_copy(&mut ret.inner.Qp, &public.inner.Q).into_result()?;
+            ecdh_setup(&mut ret.inner, public.inner.private_grp.id).into_result()?;
+            ecp_group_copy(&mut ret.inner.private_ctx.private_mbed_ecdh.private_grp, &private.inner.private_grp).into_result()?;
+            mpi_copy(&mut ret.inner.private_ctx.private_mbed_ecdh.private_d, &private.inner.private_d).into_result()?;
+            ecp_copy(&mut ret.inner.private_ctx.private_mbed_ecdh.private_Qp, &public.inner.private_Q).into_result()?;
         }
         Ok(ret)
     }
@@ -138,7 +139,7 @@ hXzA375dfGH6yIsRgRveMo6KDRK/AanSBLUj
             0xf7, 0xce, 0x3c, 0x78, 0x31, 0x24, 0xf6, 0xd5, 0x1c, 0xd0,
         ];
 
-        let mut k_pr = Pk::from_private_key(PRIVATE_P192, None).unwrap();
+        let mut k_pr = Pk::from_private_key(&mut crate::test_support::rand::test_rng(), PRIVATE_P192, None).unwrap();
         let k_pb = Pk::from_public_key(PUBLIC_P192).unwrap();
         let mut out = [0; 192 / 8];
         let len = k_pr

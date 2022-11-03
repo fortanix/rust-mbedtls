@@ -155,8 +155,8 @@ cfg_if::cfg_if! {
 /// The caller must ensure no other MbedTLS code is running when calling this
 /// function.
 #[cfg(feature = "debug")]
-pub unsafe fn set_global_debug_threshold(threshold: i32) {
-    mbedtls_sys::debug_set_threshold(threshold);
+pub fn set_global_debug_threshold(threshold: i32) {
+    unsafe { mbedtls_sys::debug_set_threshold(threshold); }
 }
 
 #[cfg(test)]

@@ -58,7 +58,6 @@ macro_rules! tests {
 
 tests! {
     fn aes,
-    fn arc4,
     fn aria,
     fn base64,
     fn camellia,
@@ -70,8 +69,6 @@ tests! {
     fn entropy,
     fn gcm,
     fn hmac_drbg,
-    fn md2,
-    fn md4,
     fn md5,
     fn mpi,
     fn pkcs5,
@@ -80,8 +77,6 @@ tests! {
     fn sha1,
     fn sha256,
     fn sha512,
-    fn x509,
-    fn xtea,
     fn nist_kw,
     fn cmac,
 }
