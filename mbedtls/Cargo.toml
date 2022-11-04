@@ -20,6 +20,7 @@ keywords = ["MbedTLS","mbed","TLS","SSL","cryptography"]
 [dependencies]
 bitflags = "1"
 core_io = { version = "0.1", features = ["collections"], optional = true }
+
 spin = { version = "0.9.4", default-features = false, optional = true }
 serde = { version = "1.0.7", default-features = false, features = ["alloc"] }
 serde_derive = "1.0.7"
@@ -29,6 +30,7 @@ num-bigint = { version = "0.4", optional = true }
 bit-vec = { version = "0.6", optional = true }
 block-modes = { version = "0.9", optional = true }
 rc2 = { version = "0.8", optional = true }
+
 cfg-if = "1.0.0"
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
