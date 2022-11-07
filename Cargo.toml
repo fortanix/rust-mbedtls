@@ -1,2 +1,3 @@
 [workspace]
 members = ["mbedtls", "mbedtls-sys"]
+resolver = "2"
