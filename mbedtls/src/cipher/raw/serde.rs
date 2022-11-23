@@ -339,22 +339,34 @@ unsafe impl BytesSerde for des_context {}
 unsafe impl BytesSerde for des3_context {}
 unsafe impl BytesSerde for gcm_context {}
 
-// If the C API changes, the serde implementation needs to be reviewed for correctness.
+// If the C API changes, the serde implementation needs to be reviewed for correctness. The
+// following (unused) functions will most probably fail to compile when this happens so a
+// compilation failure here reminds us of reviewing the serde impl.
 
-unsafe fn _check_cipher_context_t_size(ctx: cipher_context_t) -> [u8; size_of::<cipher_context_t>()] {
+// The sizes of usize and isize as well as all pointer types will be dependent on the architecture
+// we are building for. So to be platform independent, the expected sizes are calculated from the
+// fixed-sized fields, the number and size of pointer-sized fields and some alignment bytes.
+
+const _SIZE_OF_CIPHER_CONTEXT: usize = size_of::<usize>() + 2 * 4 + 2 * size_of::<usize>() + 16 + size_of::<usize>() + 16 + 3 * size_of::<usize>();
+const _SIZE_OF_AES_CONTEXT: usize = 2 * size_of::<usize>() + 4 * 68;
+const _SIZE_OF_DES_CONTEXT: usize = 4 * 32;
+const _SIZE_OF_DES3_CONTEXT: usize = 4 * 96;
+const _SIZE_OF_GCM_CONTEXT: usize = _SIZE_OF_CIPHER_CONTEXT + 8 * 16 + 8 * 16 + 8 + 8 + 16 + 16 + 16 + size_of::<usize>();
+
+unsafe fn _check_cipher_context_t_size(ctx: cipher_context_t) -> [u8; _SIZE_OF_CIPHER_CONTEXT] {
     ::core::mem::transmute(ctx)
 }
 
-unsafe fn _check_aes_context_size(ctx: aes_context) -> [u8; size_of::<aes_context>()] {
+unsafe fn _check_aes_context_size(ctx: aes_context) -> [u8; _SIZE_OF_AES_CONTEXT] {
     ::core::mem::transmute(ctx)
 }
 
-unsafe fn _check_des_context_size(ctx: des_context) -> [u8; size_of::<des_context>()] {
+unsafe fn _check_des_context_size(ctx: des_context) -> [u8; _SIZE_OF_DES_CONTEXT] {
     ::core::mem::transmute(ctx)
 }
 
-unsafe fn _check_des3_context_size(ctx: des3_context) -> [u8; size_of::<des3_context>()] {
+unsafe fn _check_des3_context_size(ctx: des3_context) -> [u8; _SIZE_OF_DES3_CONTEXT] {
     ::core::mem::transmute(ctx)
 }
 
-unsafe fn _check_gcm_context_size(ctx: gcm_context) -> [u8; size_of::<gcm_context>()] { ::core::mem::transmute(ctx) }
+unsafe fn _check_gcm_context_size(ctx: gcm_context) -> [u8; _SIZE_OF_GCM_CONTEXT] { ::core::mem::transmute(ctx) }
