@@ -348,7 +348,7 @@ const _SIZE_OF_CIPHER_CONTEXT: usize = size_of::<usize>() + 2 * 4 + 2 * size_of:
 const _SIZE_OF_AES_CONTEXT: usize = 2 * size_of::<usize>() + 4 * 68;
 const _SIZE_OF_DES_CONTEXT: usize = 4 * 32;
 const _SIZE_OF_DES3_CONTEXT: usize = 4 * 96;
-const _SIZE_OF_GCM_CONTEXT: usize = _SIZE_OF_CIPHER_CONTEXT + 8 * 16 + 8 * 16 + 8 + 8 + 16 + 16 + 16 + size_of::<usize>();
+const _SIZE_OF_GCM_CONTEXT: usize = (_SIZE_OF_CIPHER_CONTEXT+7)/8*8 + 8 * 16 + 8 * 16 + 8 + 8 + 16 + 16 + 16 + 8; // first summand: cipher_context 8-byte aligned
 
 unsafe fn _check_cipher_context_t_size(ctx: cipher_context_t) -> [u8; _SIZE_OF_CIPHER_CONTEXT] {
     ::core::mem::transmute(ctx)
