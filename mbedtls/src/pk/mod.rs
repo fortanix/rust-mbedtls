@@ -1393,14 +1393,14 @@ WdZi/FF8PgEU8xVBQ/7m5PjNxXINOMOi3t+cEWjiPPtCd+0k
 
     #[test]
     fn parse_write_pem() {
-        for (pem, len) in [
+        for (pem, len) in &[
             (TEST_PEM, 2048),
             (TEST_PEM_2047, 2047),
             (TEST_PEM_2046, 2046),
             ] {
             let mut pk = Pk::from_private_key(pem.as_bytes(), None)
             .unwrap();
-            assert_eq!(len, pk.rsa_public_modulus().unwrap().bit_length().unwrap());
+            assert_eq!(*len, pk.rsa_public_modulus().unwrap().bit_length().unwrap());
             let parsed = pk
             .write_private_pem_string()
             .unwrap();
@@ -1410,17 +1410,17 @@ WdZi/FF8PgEU8xVBQ/7m5PjNxXINOMOi3t+cEWjiPPtCd+0k
 
     #[test]
     fn parse_write_der() {
-        for (der, len) in [
+        for (der, len) in &[
             (TEST_DER, 2048),
             (TEST_DER_2047, 2047)
             ] {
             let mut pk = Pk::from_private_key(der, None)
                 .unwrap();
-            assert_eq!(len, pk.rsa_public_modulus().unwrap().bit_length().unwrap());
+            assert_eq!(*len, pk.rsa_public_modulus().unwrap().bit_length().unwrap());
             let parsed = pk
                 .write_private_der_vec()
                 .unwrap();
-            assert!(parsed == der);
+            assert!(parsed.as_slice() == *der);
         }
     }
 
