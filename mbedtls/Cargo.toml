@@ -4,7 +4,7 @@ version = "0.9.0"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
-license = "Apache-2.0/GPL-2.0+"
+license = "Apache-2.0 OR GPL-2.0-or-later"
 description = """
 Idiomatic Rust wrapper for MbedTLS, allowing you to use MbedTLS with only safe
 code while being able to use such great Rust features like error handling and
