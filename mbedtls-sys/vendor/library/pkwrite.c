@@ -329,6 +329,51 @@ int mbedtls_pk_write_pubkey_der( mbedtls_pk_context *key, unsigned char *buf, si
     return( (int) len );
 }
 
+/*
+ * RFC8410
+ *
+ * OneAsymmetricKey ::= SEQUENCE {
+ *    version Version,
+ *    privateKeyAlgorithm PrivateKeyAlgorithmIdentifier,
+ *    privateKey PrivateKey,
+ *    attributes [0] IMPLICIT Attributes OPTIONAL,
+ *    ...,
+ *    [[2: publicKey [1] IMPLICIT PublicKey OPTIONAL ]],
+ *    ...
+ * }
+ *
+ * CurvePrivateKey ::= OCTET STRING
+ */
+static int pk_write_ec_curdle_der( unsigned char **p, unsigned char *buf,
+                               mbedtls_ecp_keypair *ec )
+{
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+    size_t len = 0;
+    size_t oid_len = 0;
+    const char *oid;
+
+    /* privateKey */
+    MBEDTLS_ASN1_CHK_ADD( len, pk_write_ec_private( p, buf, ec ) );
+    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_len( p, buf, len ) );
+    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_tag( p, buf, MBEDTLS_ASN1_OCTET_STRING ) );
+
+    /* privateKeyAlgorithm */
+    if( ( ret = mbedtls_oid_get_oid_by_ec_grp_algid( ec->grp.id, &oid, &oid_len ) ) != 0 )
+    {
+        return( ret );
+    }
+    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_algorithm_identifier_ex( p, buf, oid, oid_len, 0, 0 ) );
+
+    /* version */
+    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_int( p, buf, 0 ) );
+
+    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_len( p, buf, len ) );
+    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_tag( p, buf, MBEDTLS_ASN1_CONSTRUCTED |
+                                                MBEDTLS_ASN1_SEQUENCE ) );
+
+    return( (int) len );
+}
+
 int mbedtls_pk_write_key_der( mbedtls_pk_context *key, unsigned char *buf, size_t size )
 {
     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
@@ -427,6 +472,19 @@ int mbedtls_pk_write_key_der( mbedtls_pk_context *key, unsigned char *buf, size_
         mbedtls_ecp_keypair *ec = mbedtls_pk_ec( *key );
         size_t pub_len = 0, par_len = 0;
 
+#if defined(MBEDTLS_ECP_DP_CURVE25519_ENABLED)
+        if( ec->grp.id == MBEDTLS_ECP_DP_CURVE25519 )
+        {
+            return pk_write_ec_curdle_der( &c, buf, ec );
+        }
+#endif
+#if defined(MBEDTLS_ECP_DP_CURVE448_ENABLED)
+        if( ec->grp.id == MBEDTLS_ECP_DP_CURVE448 )
+        {
+            return pk_write_ec_curdle_der( &c, buf, ec );
+        }
+#endif
+
         /*
          * RFC 5915, or SEC1 Appendix C.4
          *
@@ -488,6 +546,8 @@ int mbedtls_pk_write_key_der( mbedtls_pk_context *key, unsigned char *buf, size_
 #define PEM_END_PRIVATE_KEY_RSA     "-----END RSA PRIVATE KEY-----\n"
 #define PEM_BEGIN_PRIVATE_KEY_EC    "-----BEGIN EC PRIVATE KEY-----\n"
 #define PEM_END_PRIVATE_KEY_EC      "-----END EC PRIVATE KEY-----\n"
+#define PEM_BEGIN_PRIVATE_KEY_PKCS8 "-----BEGIN PRIVATE KEY-----\n"
+#define PEM_END_PRIVATE_KEY_PKCS8   "-----END PRIVATE KEY-----\n"
 
 /*
  * Max sizes of key per types. Shown as tag + len (+ content).
@@ -621,8 +681,23 @@ int mbedtls_pk_write_key_pem( mbedtls_pk_context *key, unsigned char *buf, size_
 #if defined(MBEDTLS_ECP_C)
     if( mbedtls_pk_get_type( key ) == MBEDTLS_PK_ECKEY )
     {
-        begin = PEM_BEGIN_PRIVATE_KEY_EC;
-        end = PEM_END_PRIVATE_KEY_EC;
+        switch( mbedtls_pk_ec( *key )->grp.id )
+        {
+#if defined(MBEDTLS_ECP_DP_CURVE25519_ENABLED)
+            case MBEDTLS_ECP_DP_CURVE25519:
+#endif
+#if defined(MBEDTLS_ECP_DP_CURVE448_ENABLED)
+            case MBEDTLS_ECP_DP_CURVE448:
+#endif
+#if defined(MBEDTLS_ECP_DP_CURVE25519_ENABLED) || defined(MBEDTLS_ECP_DP_CURVE448_ENABLED)
+                begin = PEM_BEGIN_PRIVATE_KEY_PKCS8;
+                end = PEM_END_PRIVATE_KEY_PKCS8;
+                break;
+#endif
+            default:
+                begin = PEM_BEGIN_PRIVATE_KEY_EC;
+                end = PEM_END_PRIVATE_KEY_EC;
+        }
     }
     else
 #endif

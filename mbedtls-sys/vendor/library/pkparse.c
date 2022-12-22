@@ -499,6 +499,48 @@ static int pk_use_ecparams_curdle( const mbedtls_asn1_buf *params, mbedtls_ecp_g
 }
 
 /*
+ * Parse an RFC 8410 encoded private EC key
+ *
+ * CurvePrivateKey ::= OCTET STRING
+ */
+static int pk_parse_key_curdle_der( mbedtls_ecp_keypair *eck,
+                                  unsigned char *key,
+                                  size_t keylen,
+                                  const unsigned char *end )
+{
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+    size_t len;
+
+    if( ( ret = mbedtls_asn1_get_tag( &key, (key + keylen), &len, MBEDTLS_ASN1_OCTET_STRING ) ) != 0 )
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PK_KEY_INVALID_FORMAT, ret ) );
+
+    if (key + len != end)
+        return( MBEDTLS_ERR_PK_KEY_INVALID_FORMAT );
+
+    if( ( ret = mbedtls_mpi_read_binary_le( &eck->d, key, len ) ) != 0 )
+    {
+        mbedtls_ecp_keypair_free( eck );
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PK_KEY_INVALID_FORMAT, ret ) );
+    }
+
+    // reconstruct public key
+    if( ( ret = mbedtls_ecp_mul( &eck->grp, &eck->Q, &eck->d, &eck->grp.G,
+                                                      NULL, NULL ) ) != 0 )
+    {
+        mbedtls_ecp_keypair_free( eck );
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PK_KEY_INVALID_FORMAT, ret ) );
+    }
+
+    if( ( ret = mbedtls_ecp_check_privkey( &eck->grp, &eck->d ) ) != 0 )
+    {
+        mbedtls_ecp_keypair_free( eck );
+        return( ret );
+    }
+
+    return( 0 );
+}
+
+/*
  * EC public key is an EC point
  *
  * The caller is responsible for clearing the structure upon failure if
@@ -1106,11 +1148,30 @@ static int pk_parse_key_pkcs8_unencrypted_der(
 #if defined(MBEDTLS_ECP_C)
     if( pk_alg == MBEDTLS_PK_ECKEY || pk_alg == MBEDTLS_PK_ECKEY_DH )
     {
-        if( ( ret = pk_use_ecparams( &params, &mbedtls_pk_ec( *pk )->grp ) ) != 0 ||
-            ( ret = pk_parse_key_sec1_der( mbedtls_pk_ec( *pk ), p, len )  ) != 0 )
+        switch( ec_grp_id )
         {
-            mbedtls_pk_free( pk );
-            return( ret );
+#if defined(MBEDTLS_ECP_DP_CURVE25519_ENABLED)
+            case MBEDTLS_ECP_DP_CURVE25519:
+#endif
+#if defined(MBEDTLS_ECP_DP_CURVE448_ENABLED)
+            case MBEDTLS_ECP_DP_CURVE448:
+#endif
+#if defined(MBEDTLS_ECP_DP_CURVE25519_ENABLED) || defined(MBEDTLS_ECP_DP_CURVE448_ENABLED)
+                if( ( ret = pk_use_ecparams_curdle( &params, ec_grp_id, &mbedtls_pk_ec( *pk )->grp ) ) != 0 ||
+                    ( ret = pk_parse_key_curdle_der( mbedtls_pk_ec( *pk ), p, len, end )  ) != 0 )
+                {
+                    mbedtls_pk_free( pk );
+                    return( ret );
+                }
+                break;
+#endif
+            default:
+                if( ( ret = pk_use_ecparams( &params, &mbedtls_pk_ec( *pk )->grp ) ) != 0 ||
+                    ( ret = pk_parse_key_sec1_der( mbedtls_pk_ec( *pk ), p, len )  ) != 0 )
+                {
+                    mbedtls_pk_free( pk );
+                    return( ret );
+                }
         }
     } else
 #endif /* MBEDTLS_ECP_C */
