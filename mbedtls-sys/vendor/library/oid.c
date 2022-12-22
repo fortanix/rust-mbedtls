@@ -536,6 +536,39 @@ static const oid_ecp_grp_t oid_ecp_grp[] =
 FN_OID_TYPED_FROM_ASN1(oid_ecp_grp_t, grp_id, oid_ecp_grp)
 FN_OID_GET_ATTR1(mbedtls_oid_get_ec_grp, oid_ecp_grp_t, grp_id, mbedtls_ecp_group_id, grp_id)
 FN_OID_GET_OID_BY_ATTR1(mbedtls_oid_get_oid_by_ec_grp, oid_ecp_grp_t, oid_ecp_grp, mbedtls_ecp_group_id, grp_id)
+
+/*
+ * For Elliptic Curve algorithms that are directly
+ * encoded as a top level type (RFC 8410)
+ */
+typedef struct {
+    mbedtls_oid_descriptor_t    descriptor;
+    mbedtls_ecp_group_id        grp_id;
+} oid_ecp_grp_algid_t;
+
+static const oid_ecp_grp_algid_t oid_ecp_grp_algid[] =
+{
+#if defined(MBEDTLS_ECP_DP_CURVE25519_ENABLED)
+    {
+        { ADD_LEN( MBEDTLS_OID_X25519 ),           "X25519",       "X25519" },
+        MBEDTLS_ECP_DP_CURVE25519,
+    },
+#endif /* MBEDTLS_ECP_DP_CURVE25519_ENABLED */
+#if defined(MBEDTLS_ECP_DP_CURVE448_ENABLED)
+    {
+        { ADD_LEN( MBEDTLS_OID_X448 ),             "X448",         "X448" },
+        MBEDTLS_ECP_DP_CURVE448,
+    },
+#endif /* MBEDTLS_ECP_DP_CURVE448_ENABLED */
+    {
+        { NULL, 0, NULL, NULL },
+        MBEDTLS_ECP_DP_NONE,
+    },
+};
+
+FN_OID_TYPED_FROM_ASN1(oid_ecp_grp_algid_t, grp_id_algid, oid_ecp_grp_algid)
+FN_OID_GET_ATTR1(mbedtls_oid_get_ec_grp_algid, oid_ecp_grp_algid_t, grp_id_algid, mbedtls_ecp_group_id, grp_id)
+FN_OID_GET_OID_BY_ATTR1(mbedtls_oid_get_oid_by_ec_grp_algid, oid_ecp_grp_algid_t, oid_ecp_grp_algid, mbedtls_ecp_group_id, grp_id)
 #endif /* MBEDTLS_ECP_C */
 
 #if defined(MBEDTLS_CIPHER_C)

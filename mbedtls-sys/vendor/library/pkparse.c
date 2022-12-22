@@ -486,6 +486,19 @@ static int pk_use_ecparams( const mbedtls_asn1_buf *params, mbedtls_ecp_group *g
 }
 
 /*
+ * Load an RFC8410 EC key, which doesn't have any parameters
+ */
+static int pk_use_ecparams_curdle( const mbedtls_asn1_buf *params, mbedtls_ecp_group_id grp_id, mbedtls_ecp_group *grp )
+{
+    if( params->tag != 0 || params->len != 0 )
+    {
+        return( MBEDTLS_ERR_PK_KEY_INVALID_FORMAT );
+    }
+
+    return( mbedtls_ecp_group_load( grp, grp_id ) );
+}
+
+/*
  * EC public key is an EC point
  *
  * The caller is responsible for clearing the structure upon failure if
@@ -576,7 +589,8 @@ static int pk_get_rsapubkey( unsigned char **p,
  */
 static int pk_get_pk_alg( unsigned char **p,
                           const unsigned char *end,
-                          mbedtls_pk_type_t *pk_alg, mbedtls_asn1_buf *params )
+                          mbedtls_pk_type_t *pk_alg, mbedtls_asn1_buf *params,
+                          mbedtls_ecp_group_id* ec_grp_id )
 {
     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     mbedtls_asn1_buf alg_oid;
@@ -586,7 +600,13 @@ static int pk_get_pk_alg( unsigned char **p,
     if( ( ret = mbedtls_asn1_get_alg( p, end, &alg_oid, params ) ) != 0 )
         return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PK_INVALID_ALG, ret ) );
 
-    if( mbedtls_oid_get_pk_alg( &alg_oid, pk_alg ) != 0 )
+    ret = mbedtls_oid_get_pk_alg( &alg_oid, pk_alg );
+    if( ret == MBEDTLS_ERR_OID_NOT_FOUND)
+    {
+        *pk_alg = MBEDTLS_PK_ECKEY;
+        ret = mbedtls_oid_get_ec_grp_algid( &alg_oid, ec_grp_id );
+    }
+    if( ret != 0 )
         return( MBEDTLS_ERR_PK_UNKNOWN_PK_ALG );
 
     /*
@@ -614,6 +634,7 @@ int mbedtls_pk_parse_subpubkey( unsigned char **p, const unsigned char *end,
     size_t len;
     mbedtls_asn1_buf alg_params;
     mbedtls_pk_type_t pk_alg = MBEDTLS_PK_NONE;
+    mbedtls_ecp_group_id ec_grp_id = MBEDTLS_ECP_DP_NONE;
     const mbedtls_pk_info_t *pk_info;
 
     PK_VALIDATE_RET( p != NULL );
@@ -629,7 +650,7 @@ int mbedtls_pk_parse_subpubkey( unsigned char **p, const unsigned char *end,
 
     end = *p + len;
 
-    if( ( ret = pk_get_pk_alg( p, end, &pk_alg, &alg_params ) ) != 0 )
+    if( ( ret = pk_get_pk_alg( p, end, &pk_alg, &alg_params, &ec_grp_id ) ) != 0 )
         return( ret );
 
     if( ( ret = mbedtls_asn1_get_bitstring_null( p, end, &len ) ) != 0 )
@@ -654,7 +675,21 @@ int mbedtls_pk_parse_subpubkey( unsigned char **p, const unsigned char *end,
 #if defined(MBEDTLS_ECP_C)
     if( pk_alg == MBEDTLS_PK_ECKEY_DH || pk_alg == MBEDTLS_PK_ECKEY )
     {
-        ret = pk_use_ecparams( &alg_params, &mbedtls_pk_ec( *pk )->grp );
+        switch( ec_grp_id )
+        {
+#if defined(MBEDTLS_ECP_DP_CURVE25519_ENABLED)
+            case MBEDTLS_ECP_DP_CURVE25519:
+#endif
+#if defined(MBEDTLS_ECP_DP_CURVE448_ENABLED)
+            case MBEDTLS_ECP_DP_CURVE448:
+#endif
+#if defined(MBEDTLS_ECP_DP_CURVE25519_ENABLED) || defined(MBEDTLS_ECP_DP_CURVE448_ENABLED)
+                ret = pk_use_ecparams_curdle( &alg_params, ec_grp_id, &mbedtls_pk_ec( *pk )->grp );
+                break;
+#endif
+            default:
+                ret = pk_use_ecparams( &alg_params, &mbedtls_pk_ec( *pk )->grp );
+        }
         if( ret == 0 )
             ret = pk_get_ecpubkey( p, end, mbedtls_pk_ec( *pk ) );
     } else
@@ -1007,6 +1042,7 @@ static int pk_parse_key_pkcs8_unencrypted_der(
     unsigned char *p = (unsigned char *) key;
     unsigned char *end = p + keylen;
     mbedtls_pk_type_t pk_alg = MBEDTLS_PK_NONE;
+    mbedtls_ecp_group_id ec_grp_id = MBEDTLS_ECP_DP_NONE;
     const mbedtls_pk_info_t *pk_info;
 
     /*
@@ -1039,7 +1075,7 @@ static int pk_parse_key_pkcs8_unencrypted_der(
     if( version != 0 )
         return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PK_KEY_INVALID_VERSION, ret ) );
 
-    if( ( ret = pk_get_pk_alg( &p, end, &pk_alg, &params ) ) != 0 )
+    if( ( ret = pk_get_pk_alg( &p, end, &pk_alg, &params, &ec_grp_id ) ) != 0 )
     {
         return( ret );
     }

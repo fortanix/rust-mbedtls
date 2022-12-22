@@ -192,13 +192,23 @@ int mbedtls_asn1_write_algorithm_identifier( unsigned char **p, unsigned char *s
                                      const char *oid, size_t oid_len,
                                      size_t par_len )
 {
+    return( mbedtls_asn1_write_algorithm_identifier_ex(p, start, oid, oid_len, par_len, 1) );
+}
+
+int mbedtls_asn1_write_algorithm_identifier_ex( unsigned char **p, unsigned char *start,
+                                     const char *oid, size_t oid_len,
+                                     size_t par_len, int has_par )
+{
     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t len = 0;
 
-    if( par_len == 0 )
-        MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_null( p, start ) );
-    else
-        len += par_len;
+    if( has_par )
+    {
+        if( par_len == 0 )
+            MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_null( p, start ) );
+        else
+            len += par_len;
+    }
 
     MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_oid( p, start, oid, oid_len ) );
 

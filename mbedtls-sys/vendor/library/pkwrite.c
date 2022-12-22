@@ -226,7 +226,8 @@ int mbedtls_pk_write_pubkey_der( mbedtls_pk_context *key, unsigned char *buf, si
 {
     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     unsigned char *c;
-    size_t len = 0, par_len = 0, oid_len;
+    int has_par = 1;
+    size_t len = 0, par_len = 0, oid_len = 0;
     mbedtls_pk_type_t pk_type;
     const char *oid;
 
@@ -257,7 +258,22 @@ int mbedtls_pk_write_pubkey_der( mbedtls_pk_context *key, unsigned char *buf, si
 #if defined(MBEDTLS_ECP_C)
     if( pk_type == MBEDTLS_PK_ECKEY )
     {
-        MBEDTLS_ASN1_CHK_ADD( par_len, pk_write_ec_param( &c, buf, mbedtls_pk_ec( *key ) ) );
+        mbedtls_ecp_keypair *ec = mbedtls_pk_ec( *key );
+
+        ret = mbedtls_oid_get_oid_by_ec_grp_algid( ec->grp.id, &oid, &oid_len );
+
+        if( ret == 0 )
+        {
+            has_par = 0;
+        }
+        else if ( ret == MBEDTLS_ERR_OID_NOT_FOUND )
+        {
+                MBEDTLS_ASN1_CHK_ADD( par_len, pk_write_ec_param( &c, buf, ec ) );
+        }
+        else
+        {
+            return( ret );
+        }
     }
 #endif
 #if defined(MBEDTLS_USE_PSA_CRYPTO)
@@ -294,14 +310,17 @@ int mbedtls_pk_write_pubkey_der( mbedtls_pk_context *key, unsigned char *buf, si
     }
 #endif /* MBEDTLS_USE_PSA_CRYPTO */
 
-    if( ( ret = mbedtls_oid_get_oid_by_pk_alg( pk_type, &oid,
-                                               &oid_len ) ) != 0 )
+    if( oid_len == 0 )
     {
-        return( ret );
+        if( ( ret = mbedtls_oid_get_oid_by_pk_alg( pk_type, &oid,
+                                                   &oid_len ) ) != 0 )
+        {
+            return( ret );
+        }
     }
 
-    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_algorithm_identifier( &c, buf, oid, oid_len,
-                                                        par_len ) );
+    MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_algorithm_identifier_ex( &c, buf, oid, oid_len,
+                                                        par_len, has_par ) );
 
     MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_len( &c, buf, len ) );
     MBEDTLS_ASN1_CHK_ADD( len, mbedtls_asn1_write_tag( &c, buf, MBEDTLS_ASN1_CONSTRUCTED |
