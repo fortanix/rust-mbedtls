@@ -840,7 +840,7 @@ impl Pk {
     }
 
     pub fn sign_deterministic<F: Random>(
-        &mut self,
+        &self,
         md: MdType,
         hash: &[u8],
         sig: &mut [u8],
@@ -870,7 +870,7 @@ impl Pk {
             let mut ret = 0usize;
             unsafe {
                 pk_sign(
-                    &mut self.inner,
+                    &self.inner as *const _ as *mut _,
                     md.into(),
                     hash.as_ptr(),
                     hash.len(),

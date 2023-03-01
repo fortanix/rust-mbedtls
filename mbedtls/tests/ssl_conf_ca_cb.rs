@@ -60,8 +60,8 @@ mod test {
     use crate::support::keys;
     use mbedtls::x509::{Certificate};
     use mbedtls::Error;
-    use mbedtls::alloc::{List as MbedtlsList, Box as MbedtlsBox};
-    
+    use mbedtls::alloc::List as MbedtlsList;
+
     // This callback should accept any valid self-signed certificate
     fn self_signed_ca_callback(child: &MbedtlsList<Certificate>) -> TlsResult<MbedtlsList<Certificate>> {
         Ok(child.clone())
