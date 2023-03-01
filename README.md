@@ -101,7 +101,7 @@ This is a list of the Cargo features available for mbedtls-sys. Features in
                      particular the case on x86 platforms where compile-time mitigation
                      for speculative execution is required (e.g., LVI). Letting the
                      compiler insert the required lfences during C-code compilation may
-                     result in faster code than letting the compiler apply mitigations
+                     result in faster code than letting the compiler apply mitigation
                      on assembly code.
 * **padlock** Enable support for VIA padlock.
 * *pkcs11* Enable PKCS#11 support. This requires pkcs11-helper to be installed.
@@ -111,8 +111,8 @@ This is a list of the Cargo features available for mbedtls-sys. Features in
           and `strstr()`/`strlen()`/`strncpy()`/`strncmp()`/`strcmp()`/
           `snprintf()`, and `memmove()`/`memcpy()`/`memcmp()`/`memset()`, and
           `rand()`/`printf()`. For `printf()`, you can optionally use the
-          `custom_printf` feature. `rand()` is only needed for the selftests.
-          On UNIX platforms, this also enables networking, filesystems and OS
+          `custom_printf` feature. `rand()` is only needed for the self tests.
+          On UNIX platforms, this also enables networking, file systems and OS
           entropy.
 * **threading** Enable threading support. On `cfg(unix)` platforms, this uses
                 pthreads. On other platforms, you need to provide a custom
