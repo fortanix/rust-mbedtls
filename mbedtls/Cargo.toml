@@ -62,7 +62,7 @@ cc = "1.0"
 # Features are documented in the README
 default = ["std", "aesni", "time", "padlock"]
 std = ["byteorder/std", "mbedtls-sys-auto/std", "serde/std", "yasna"]
-debug = ["mbedtls-sys-auto/debug"]
+debug = []
 no_std_deps = ["core_io", "spin", "serde/alloc"]
 force_aesni_support = ["mbedtls-sys-auto/custom_has_support", "mbedtls-sys-auto/aes_alt", "aesni"]
 mpi_force_c_code = ["mbedtls-sys-auto/mpi_force_c_code"]
