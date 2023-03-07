@@ -9,7 +9,7 @@
 // needed to have common code for `mod support` in unit and integrations tests
 extern crate mbedtls;
 
-use std::io::{self, stdin, stdout, Write};
+use std::io::stdin;
 use std::net::UdpSocket;
 use std::sync::Arc;
 
@@ -40,8 +40,14 @@ fn result_main(addr: &str) -> TlsResult<()> {
 
     let mut line = String::new();
     stdin().read_line(&mut line).unwrap();
-    ctx.write_all(line.as_bytes()).unwrap();
-    io::copy(&mut ctx, &mut stdout()).unwrap();
+    ctx.send(line.as_bytes()).unwrap();
+    let mut resp = Vec::with_capacity(100);
+    let len = ctx.recv(&mut resp).unwrap();
+    if let Ok(s) = std::str::from_utf8(&resp[..len]) {
+        println!("{}", s);
+    } else {
+        eprintln!("Invalid UTF-8 received");
+    }
     Ok(())
 }
 
