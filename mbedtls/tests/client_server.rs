@@ -11,7 +11,6 @@
 // needed to have common code for `mod support` in unit and integrations tests
 extern crate mbedtls;
 
-use std::io::{Read, Write};
 use std::net::TcpStream;
 
 use mbedtls::pk::Pk;
@@ -118,9 +117,10 @@ fn client(
     };
 
     let ciphersuite = ctx.ciphersuite().unwrap();
-    ctx.write_all(format!("Client2Server {:4x}", ciphersuite).as_bytes()).unwrap();
+    let buf = format!("Client2Server {:4x}", ciphersuite);
+    assert_eq!(ctx.send(buf.as_bytes()).unwrap(), buf.len());
     let mut buf = [0u8; 13 + 4 + 1];
-    ctx.read_exact(&mut buf).unwrap();
+    assert_eq!(ctx.recv(&mut buf).unwrap(), buf.len());
     assert_eq!(&buf, format!("Server2Client {:4x}", ciphersuite).as_bytes());
     Ok(())
 }
@@ -189,9 +189,10 @@ fn server(
     };
 
     let ciphersuite = ctx.ciphersuite().unwrap();
-    ctx.write_all(format!("Server2Client {:4x}", ciphersuite).as_bytes()).unwrap();
+    let buf = format!("Server2Client {:4x}", ciphersuite);
+    assert_eq!(ctx.send(buf.as_bytes()).unwrap(), buf.len());
     let mut buf = [0u8; 13 + 1 + 4];
-    ctx.read_exact(&mut buf).unwrap();
+    assert_eq!(ctx.recv(&mut buf).unwrap(), buf.len());
 
     assert_eq!(&buf, format!("Client2Server {:4x}", ciphersuite).as_bytes());
     Ok(())
