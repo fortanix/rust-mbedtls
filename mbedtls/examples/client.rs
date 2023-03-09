@@ -27,7 +27,7 @@ use support::keys;
 fn result_main(addr: &str) -> TlsResult<()> {
     let entropy = Arc::new(entropy_new());
     let rng = Arc::new(CtrDrbg::new(entropy, None)?);
-    let cert = Arc::new(Certificate::from_pem_multiple(keys::PEM_CERT.as_bytes())?);
+    let cert = Arc::new(Certificate::from_pem_multiple(keys::ROOT_CA_CERT.as_bytes())?);
     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
     config.set_rng(rng);
     config.set_ca_list(cert, None);
