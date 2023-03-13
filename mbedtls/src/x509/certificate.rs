@@ -929,6 +929,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
     }
 
     #[test]
+    #[ignore] // Reason: expired certs
     fn verify_chain() {
         const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"),"\0");
         const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"),"\0");
