@@ -22,6 +22,8 @@ if [ $TRAVIS_RUST_VERSION = "stable" ] || [ $TRAVIS_RUST_VERSION = "beta" ] || [
     cargo test --features pkcs12_rc2
     cargo test --features force_aesni_support
     cargo test --features dsa
+    # without these, tests marked with tokio::test do not run, but report OK.
+    cargo test --features=std,threading,tokio,tokio/net,tokio/io-util,tokio/macros,tokio/rt
 
 elif [ $TRAVIS_RUST_VERSION = $CORE_IO_NIGHTLY ]; then
     cargo +$CORE_IO_NIGHTLY test --no-default-features --features core_io,rdrand,time,custom_time,custom_gmtime_r

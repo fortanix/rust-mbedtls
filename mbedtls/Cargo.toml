@@ -92,7 +92,7 @@ required-features = ["std"]
 [[test]]
 name = "async_session"
 path = "tests/async_session.rs"
-required-features = ["std", "threading", "tokio", "tokio/net", "tokio/io-util", "tokio/macros"]
+required-features = ["std", "threading", "tokio", "tokio/net", "tokio/io-util", "tokio/macros", "tokio/rt"]
 
 [[test]]
 name = "client_server"
