@@ -32,11 +32,11 @@ cfg-if = "1.0.0"
 tokio = { version = "0.3.4", optional = true }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
-rs-libc = "0.1.0"
+rs-libc = "0.2.0"
 chrono = "0.4"
 
 [dependencies.mbedtls-sys-auto]
-version = "2.26.0"
+version = "2.28.0"
 default-features = false
 features = ["custom_printf", "trusted_cert_callback", "threading"]
 path = "../mbedtls-sys"
@@ -61,7 +61,7 @@ cc = "1.0"
 # Features are documented in the README
 default = ["std", "aesni", "time", "padlock"]
 std = ["byteorder/std", "mbedtls-sys-auto/std", "serde/std", "yasna"]
-debug = ["mbedtls-sys-auto/debug"]
+debug = []
 no_std_deps = ["spin", "serde/alloc"]
 force_aesni_support = ["mbedtls-sys-auto/custom_has_support", "mbedtls-sys-auto/aes_alt", "aesni"]
 mpi_force_c_code = ["mbedtls-sys-auto/mpi_force_c_code"]
@@ -118,11 +118,3 @@ required-features = ["std", "async-rt"]
 name = "async_session"
 path = "tests/async_session.rs"
 required-features = ["async-rt"]
-
-
-[package.metadata.fortanix-sgx]
-threads = 100
-heap-size = 0x40000000
-stack-size = 0x100000
-# The following are not processed by the EDP tools but are picked up by build-enclave.sh:
-#isvprodid = 66

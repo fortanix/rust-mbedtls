@@ -1227,7 +1227,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
 
     #[test]
     fn rsa_sign_verify_pkcs1v15() {
-        let pk =
+        let mut pk =
             Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
         let data = b"SIGNATURE TEST SIGNATURE TEST SIGNATURE TEST SIGNATURE TEST SIGN";
         let mut signature = vec![0u8; (pk.len() + 7) / 8];

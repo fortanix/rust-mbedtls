@@ -14,6 +14,14 @@ use {
     std::sync::Arc,
 };
 
+#[cfg(all(feature = "std", feature = "async"))]
+use {
+    std::io::ErrorKind as IoErrorKind,
+    std::marker::Unpin,
+    std::pin::Pin,
+    std::task::{Context as TaskContext, Poll},
+};
+
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 use mbedtls_sys::*;
@@ -260,12 +268,11 @@ impl<T> Context<T> {
             client_transport_id: None,
         }
     }
-}
-
+    
     pub(crate) fn handle(&self) -> &::mbedtls_sys::ssl_context {
         self.inner.handle()
     }
-
+    
     pub(crate) fn handle_mut(&mut self) -> &mut ::mbedtls_sys::ssl_context {
         self.inner.handle_mut()
     }
@@ -551,6 +558,7 @@ impl<T: IoCallback + Write> Write for Context<T> {
         Ok(())
     }
 }
+
 //
 // Class exists only during SNI callback that is configured from Config.
 // SNI Callback must provide input whose lifetime exceeds the SNI closure to avoid memory corruptions.
