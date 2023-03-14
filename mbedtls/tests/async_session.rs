@@ -7,7 +7,6 @@
  * according to those terms. */
 
 #![cfg(not(target_env = "sgx"))]
-
 extern crate mbedtls;
 
 use std::sync::Arc;
