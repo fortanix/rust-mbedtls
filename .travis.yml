@@ -8,27 +8,32 @@ branches:
     - master
 language: rust
 os: linux
-dist: xenial
+dist: focal
 addons:
   apt:
+    sources:
+    - sourceline: "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-11 main"
+      key_url: "https://apt.llvm.org/llvm-snapshot.gpg.key"
     packages:
-    - llvm-3.8-dev
-    - libclang-3.8-dev
-    - clang-3.8
+    - clang-11
     - cmake
 rust:
    - stable
-   - beta
-   - nightly
-   - nightly-2019-07-01
-   - nightly-2019-10-28
 env:
+  jobs:
+    # Matrix build of 3 targets against Rust stable
+    - TARGET=x86_64-unknown-linux-gnu ZLIB_INSTALLED=true AES_NI_SUPPORT=true
+    - TARGET=x86_64-fortanix-unknown-sgx
   global:
     - RUST_BACKTRACE=1
     # Pinned to this particular nightly version because of core_io. This can be
     # re-pinned whenever core_io is updated to the latest nightly.
-    - CORE_IO_NIGHTLY=nightly-2019-07-01
-    - SGX_NIGHTLY=nightly-2019-10-28
-    - LLVM_CONFIG_PATH=llvm-config-3.8
+    - CORE_IO_NIGHTLY=nightly-2021-03-25
+jobs:
+  include:
+    # Test additional Rust toolchains on x86_64
+    - rust: beta
+    - rust: nightly
+    - rust: nightly-2021-03-25
 script:
   - ./ct.sh
