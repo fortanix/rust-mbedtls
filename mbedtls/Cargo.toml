@@ -30,7 +30,7 @@ num-bigint = { version = "0.2", optional = true }
 bit-vec = { version = "0.5", optional = true }
 block-modes = { version = "0.3", optional = true }
 rc2 = { version = "0.3", optional = true }
-tokio = { version = "1.15", optional = true }
+tokio = { version = "1.16.1", optional = true }
 proc-macro2 = "=1.0.24"
 quote = "=1.0.9"
 
@@ -48,6 +48,7 @@ rand = "0.4.0"
 serde_cbor = "0.6"
 hex = "0.3"
 matches = "0.1.8"
+cfg-if = "1.0.0"
 
 [build-dependencies]
 cc = "1.0"

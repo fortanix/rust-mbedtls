@@ -25,13 +25,13 @@ fn enable_self_test() {
 
     static START: Once = Once::new();
 
-    let log_f;
+    let _log_f: Option<unsafe fn(*const mbedtls_sys::types::raw_types::c_char)>;
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "std")] {
-            log_f = None;
+            _log_f = None;
         } else {
-            log_f = Some(log as _);
+            _log_f = Some(log as _);
         }
     }
 
