@@ -31,7 +31,6 @@ bit-vec = { version = "0.5", optional = true }
 block-modes = { version = "0.3", optional = true }
 rc2 = { version = "0.3", optional = true }
 tokio = { version = "0.3", optional = true }
-proc-macro2 = "=1.0.43"
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.1.0"
