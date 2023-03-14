@@ -173,7 +173,7 @@ impl Mpi {
             mpi_write_string(
                 &self.inner,
                 radix,
-                buf.as_mut_ptr() as *mut i8,
+                buf.as_mut_ptr() as *mut _,
                 buf.len(),
                 &mut olen,
             )

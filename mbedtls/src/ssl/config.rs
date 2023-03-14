@@ -23,6 +23,9 @@ use crate::ssl::context::HandshakeContext;
 use crate::ssl::ticket::TicketCallback;
 use crate::x509::{certificate, Crl, LinkedCertificate, Profile, VerifyError};
 
+#[cfg(not(feature = "std"))]
+use crate::alloc_prelude::*;
+
 extern "C" {
     fn calloc(n: usize, size: usize) -> *mut c_void;
     fn free(ptr: *mut c_void);
