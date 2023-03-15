@@ -53,11 +53,9 @@ mod private;
 
 // needs to be pub for global visiblity
 #[doc(hidden)]
-
-#[cfg(all(sys_threading_component = "custom", not(feature = "migration_mode")))]
+#[cfg(sys_threading_component = "custom")]
 pub mod threading;
 
-#[cfg(not(feature = "migration_mode"))]
 cfg_if::cfg_if! {
     if #[cfg(any(feature = "force_aesni_support", target_env = "sgx"))] {
         // needs to be pub for global visiblity
@@ -107,7 +105,6 @@ mod alloc_prelude {
     pub(crate) use rust_alloc::borrow::Cow;
 }
 
-#[cfg(not(feature = "migration_mode"))]
 cfg_if::cfg_if! {
     if #[cfg(sys_time_component = "custom")] {
         use mbedtls_sys::types::{time_t, tm};
@@ -157,7 +154,7 @@ cfg_if::cfg_if! {
 ///
 /// The caller must ensure no other MbedTLS code is running when calling this
 /// function.
-#[cfg(all(feature = "debug", not(feature = "migration_mode")))]
+#[cfg(feature = "debug")]
 pub unsafe fn set_global_debug_threshold(threshold: i32) {
     mbedtls_sys::debug_set_threshold(threshold);
 }

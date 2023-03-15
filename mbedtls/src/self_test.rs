@@ -40,8 +40,6 @@ cfg_if::cfg_if! {
         }
     }
 }
-
-#[cfg(not(feature = "migration_mode"))]
 cfg_if::cfg_if! {
     if #[cfg(any(not(feature = "std"), target_env = "sgx"))] {
         #[allow(non_upper_case_globals)]
@@ -68,7 +66,6 @@ cfg_if::cfg_if! {
 /// The caller needs to ensure this function is not called while any other
 /// function in this module is called.
 #[allow(unused)]
-#[cfg(not(feature = "migration_mode"))]
 pub unsafe fn enable(rand: fn() -> c_int, log: Option<unsafe fn(*const c_char)>) {
     #[cfg(any(not(feature = "std"), target_env = "sgx"))] {
         rand_f = Some(rand);
@@ -82,7 +79,6 @@ pub unsafe fn enable(rand: fn() -> c_int, log: Option<unsafe fn(*const c_char)>)
 ///
 /// The caller needs to ensure this function is not called while any other
 /// function in this module is called.
-#[cfg(not(feature = "migration_mode"))]
 pub unsafe fn disable() {
     #[cfg(any(not(feature = "std"), target_env = "sgx"))] {
         rand_f = None;
