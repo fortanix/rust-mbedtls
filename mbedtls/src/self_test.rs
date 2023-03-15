@@ -25,7 +25,7 @@ cfg_if::cfg_if! {
         // needs to be pub for global visiblity
         #[doc(hidden)]
         #[no_mangle]
-        pub unsafe extern "C" fn mbedtls8_log(msg: *const std::os::raw::c_char) {
+        pub unsafe extern "C" fn mbedtls_log(msg: *const std::os::raw::c_char) {
             print!("{}", std::ffi::CStr::from_ptr(msg).to_string_lossy());
         }
     } else {
@@ -35,7 +35,7 @@ cfg_if::cfg_if! {
         // needs to be pub for global visiblity
         #[doc(hidden)]
         #[no_mangle]
-        pub unsafe extern "C" fn mbedtls8_log(msg: *const c_char) {
+        pub unsafe extern "C" fn mbedtls_log(msg: *const c_char) {
             log_f.expect("Called self-test log without enabling self-test")(msg)
         }
     }
