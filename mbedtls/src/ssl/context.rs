@@ -20,14 +20,13 @@ use {
     std::marker::Unpin,
     std::pin::Pin,
     std::task::{Context as TaskContext, Poll},
+    tokio::io::{AsyncRead, AsyncWrite, ReadBuf},
+    crate::ssl::async_utils::IoAdapter,
 };
 
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 use mbedtls_sys::*;
-
-#[cfg(all(feature = "std", feature = "async"))]
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
@@ -36,8 +35,6 @@ use crate::error::{Error, Result, IntoResult};
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
 use crate::ssl::config::{Config, Version, AuthMode};
-#[cfg(all(feature = "std", feature = "async"))]
-use crate::ssl::async_utils::IoAdapter;
 use crate::x509::{Certificate, Crl, VerifyError};
 
 pub trait IoCallback {
@@ -199,7 +196,7 @@ define!(
     struct HandshakeContext {
         handshake_ca_cert: Option<Arc<MbedtlsList<Certificate>>>,
         handshake_crl: Option<Arc<Crl>>,
-        
+
         handshake_cert: Vec<Arc<MbedtlsList<Certificate>>>,
         handshake_pk: Vec<Arc<Pk>>,
     };
@@ -213,10 +210,10 @@ define!(
 pub struct Context<T> {
     // Base structure used in SNI callback where we cannot determine the io type.
     inner: HandshakeContext,
-    
+
     // config is used read-only for multiple contexts and is immutable once configured.
-    config: Arc<Config>, 
-    
+    config: Arc<Config>,
+
     // Must be held in heap and pointer to it as pointer is sent to MbedSSL and can't be re-allocated.
     io: Option<Box<T>>,
 
@@ -240,14 +237,10 @@ impl<'a, T> Into<*mut ssl_context> for &'a mut Context<T> {
     }
 }
 
-#[cfg(all(feature = "std", feature = "async"))]
-pub type AsyncContext<T> = Context<IoAdapter<T>>;
-
-
 impl<T> Context<T> {
     pub fn new(config: Arc<Config>) -> Self {
         let mut inner = ssl_context::default();
-        
+
         unsafe {
             ssl_init(&mut inner);
             ssl_setup(&mut inner, (&*config).into());
@@ -258,7 +251,7 @@ impl<T> Context<T> {
                 inner,
                 handshake_ca_cert: None,
                 handshake_crl: None,
-                
+
                 handshake_cert: vec![],
                 handshake_pk: vec![],
             },
@@ -268,11 +261,11 @@ impl<T> Context<T> {
             client_transport_id: None,
         }
     }
-    
+
     pub(crate) fn handle(&self) -> &::mbedtls_sys::ssl_context {
         self.inner.handle()
     }
-    
+
     pub(crate) fn handle_mut(&mut self) -> &mut ::mbedtls_sys::ssl_context {
         self.inner.handle_mut()
     }
@@ -385,7 +378,7 @@ impl<T> Context<T> {
     pub fn config(&self) -> &Arc<Config> {
         &self.config
     }
-    
+
     pub fn close(&mut self) {
         unsafe {
             ssl_close_notify(self.into());
@@ -393,15 +386,15 @@ impl<T> Context<T> {
             self.io = None;
         }
     }
-    
+
     pub fn io(&self) -> Option<&T> {
         self.io.as_ref().map(|v| &**v)
     }
-    
+
     pub fn io_mut(&mut self) -> Option<&mut T> {
         self.io.as_mut().map(|v| &mut **v)
     }
-    
+
     /// Return the minor number of the negotiated TLS version
     pub fn minor_version(&self) -> i32 {
         self.handle().minor_ver
@@ -433,7 +426,7 @@ impl<T> Context<T> {
 
 
     // Session specific functions
-    
+
     /// Return the 16-bit ciphersuite identifier.
     /// All assigned ciphersuites are listed by the IANA in
     /// <https://www.iana.org/assignments/tls-parameters/tls-parameters.txt>
@@ -441,7 +434,7 @@ impl<T> Context<T> {
         if self.handle().session.is_null() {
             return Err(Error::SslBadInputData);
         }
-        
+
         Ok(unsafe { self.handle().session.as_ref().unwrap().ciphersuite as u16 })
     }
 
@@ -578,12 +571,12 @@ impl HandshakeContext {
         self.handshake_ca_cert = None;
         self.handshake_crl = None;
     }
-    
+
     pub fn set_authmode(&mut self, am: AuthMode) -> Result<()> {
         if self.inner.handshake as *const _ == ::core::ptr::null() {
             return Err(Error::SslBadInputData);
         }
-        
+
         unsafe { ssl_set_hs_authmode(self.into(), am as i32) }
         Ok(())
     }
@@ -636,6 +629,9 @@ impl HandshakeContext {
         Ok(())
     }
 }
+
+#[cfg(all(feature = "std", feature = "async"))]
+pub type AsyncContext<T> = Context<IoAdapter<T>>;
 
 #[cfg(all(feature = "std", feature = "async"))]
 pub trait IoAsyncCallback {
@@ -700,7 +696,7 @@ impl<T> std::future::Future for HandshakeFuture<'_, T> {
     fn poll(mut self: Pin<&mut Self>, ctx: &mut TaskContext) -> std::task::Poll<Self::Output> {
         self.0.io_mut().ok_or(Error::NetInvalidContext)?
                        .ecx.set(ctx);
-        
+
         let result = match self.0.handshake() {
             Err(Error::SslWantRead) |
             Err(Error::SslWantWrite) => {
@@ -709,9 +705,9 @@ impl<T> std::future::Future for HandshakeFuture<'_, T> {
             Err(e) => Poll::Ready(Err(e)),
             Ok(()) => Poll::Ready(Ok(()))
         };
-        
+
         self.0.io_mut().map(|v| v.ecx.clear());
-        
+
         result
     }
 }
@@ -741,7 +737,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin + 'static> AsyncContext<T> {
             );
 
             self.io = Some(io);
-            self.inner.reset_handshake();            
+            self.inner.reset_handshake();
         }
 
         HandshakeFuture(self).await
@@ -762,7 +758,7 @@ impl<T: AsyncRead> AsyncRead for Context<IoAdapter<T>> {
 
         self.io_mut().ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?
                      .ecx.set(cx);
-        
+
         let result = match unsafe { ssl_read((&mut *self).into(), buf.initialize_unfilled().as_mut_ptr(), buf.initialize_unfilled().len()).into_result() } {
             Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(())),
             Err(Error::SslWantRead) => Poll::Pending,
@@ -798,10 +794,10 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for Context<IoAdapter<T>> {
             io.write_tracker.adjust_buf(buf)
         }?;
 
-        
+
         self.io_mut().ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?
                      .ecx.set(cx);
-        
+
         let result = match unsafe { ssl_write((&mut *self).into(), buf.as_ptr(), buf.len()).into_result() } {
             Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
             Err(Error::SslWantWrite) => Poll::Pending,
@@ -868,7 +864,7 @@ mod tests {
 
     use crate::ssl::context::{HandshakeContext, Context};
     use crate::tests::TestTrait;
-    
+
     #[test]
     fn handshakecontext_sync() {
         assert!(!TestTrait::<dyn Sync, HandshakeContext>::new().impls_trait(), "HandshakeContext must be !Sync");
@@ -884,7 +880,7 @@ mod tests {
             unimplemented!()
         }
     }
-    
+
     #[cfg(feature = "std")]
     impl Write for NonSendStream {
         fn write(&mut self, _: &[u8]) -> IoResult<usize> {
@@ -906,7 +902,7 @@ mod tests {
             unimplemented!()
         }
     }
-    
+
     #[cfg(feature = "std")]
     impl Write for SendStream {
         fn write(&mut self, _: &[u8]) -> IoResult<usize> {

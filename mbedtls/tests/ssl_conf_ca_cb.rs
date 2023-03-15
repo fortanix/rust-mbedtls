@@ -18,7 +18,7 @@ use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::{Config, Context};
-use mbedtls::x509::{Certificate};
+use mbedtls::x509::Certificate;
 use mbedtls::Result as TlsResult;
 use mbedtls::ssl::config::CaCallback;
 
@@ -58,7 +58,6 @@ mod test {
     use std::thread;
     use crate::support::net::create_tcp_pair;
     use crate::support::keys;
-    use mbedtls::x509::Certificate;
     use mbedtls::Error;
     use mbedtls::alloc::List as MbedtlsList;
     
