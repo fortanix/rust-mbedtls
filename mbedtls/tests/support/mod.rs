@@ -9,6 +9,7 @@
 #![allow(dead_code)]
 pub mod entropy;
 pub mod keys;
+#[cfg(unix)]
 #[cfg(sys_std_component = "net")]
 pub mod net;
 pub mod rand;

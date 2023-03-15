@@ -41,9 +41,9 @@ pub use crate::ecp::EcGroup;
 pub use dhparam::Dhm;
 
 // SHA-256("Fortanix")[:4]
-const CUSTOM_PK_TYPE: pk_type_t = 0x8b205408 as pk_type_t;
+const CUSTOM_PK_TYPE: pk_type_t = 0x8b205408u32 as pk_type_t;
 
-const RAW_RSA_DECRYPT : i32 = 1040451858;
+const RAW_RSA_DECRYPT: i32 = 1040451858;
 
 define!(
     #[c_ty(pk_type_t)]
@@ -116,7 +116,7 @@ unsafe extern "C" fn free_custom_pk_ctx(p: *mut c_void) {
     let _ = Box::from_raw(p as *mut CustomPkContext);
 }
 
-extern "C" fn custom_pk_can_do(_t: u32) -> i32 {
+unsafe extern "C" fn custom_pk_can_do(_t: pk_type_t) -> types::raw_types::c_int {
     0
 }
 

@@ -88,12 +88,13 @@ impl super::BuildConfig {
         }
 
         let mut cc = cc::Build::new();
-        cc.include(&self.mbedtls_include)
-        .flag(&format!(
-            "-DMBEDTLS_CONFIG_FILE=\"{}\"",
-            self.config_h.to_str().expect("config.h UTF-8 error")
-        ));
-
+        if cc.get_compiler().is_like_msvc() {
+            cc.flag("--driver-mode=cl");
+        }
+        cc.include(&self.mbedtls_include).define(
+            "MBEDTLS_CONFIG_FILE",
+            Some(format!(r#""{}""#, self.config_h.to_str().expect("config.h UTF-8 error")).as_str()),
+        );
         for cflag in &self.cflags {
             cc.flag(cflag);
         }
@@ -125,6 +126,7 @@ impl super::BuildConfig {
             .allowlist_var("^(?i)mbedtls_.*")
             .allowlist_recursively(false)
             .blocklist_type("^mbedtls_time_t$")
+            .blocklist_item("^(?i)mbedtls_.*vsnprintf")
             .use_core()
             .ctypes_prefix("::types::raw_types")
             .parse_callbacks(Box::new(MbedtlsParseCallbacks))
@@ -135,7 +137,6 @@ impl super::BuildConfig {
             .derive_default(true)
             .prepend_enum_name(false)
             .translate_enum_integer_types(true)
-            .rustfmt_bindings(false)
             .raw_line("#![allow(dead_code, deref_nullptr, non_snake_case, non_camel_case_types, non_upper_case_globals, invalid_value)]")
             .generate()
             .expect("bindgen error")
