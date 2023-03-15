@@ -147,6 +147,29 @@ impl Md {
             Ok(olen)
         }
     }
+
+    pub fn hkdf(md: Type, salt: &[u8], ikm: &[u8], info: &[u8], key: &mut [u8]) -> Result<()> {
+        let md: MdInfo = match md.into() {
+            Some(md) => md,
+            None => return Err(Error::MdBadInputData),
+        };
+
+        unsafe {
+            hkdf(
+                md.inner,
+                salt.as_ptr(),
+                salt.len(),
+                ikm.as_ptr(),
+                ikm.len(),
+                info.as_ptr(),
+                info.len(),
+                key.as_mut_ptr(),
+                key.len(),
+            )
+            .into_result()?;
+            Ok(())
+        }
+    }
 }
 
 pub fn pbkdf2_hmac(
