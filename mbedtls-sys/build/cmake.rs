@@ -19,7 +19,7 @@ impl super::BuildConfig {
         .define("ENABLE_TESTING", "OFF")
         // Prefer unix-style over Apple-style Python3 on macOS, required for the Github Actions CI
         .define("Python3_FIND_FRAMEWORK", "LAST")
-        .build_target("lib");
+        .build_target("install");
         for cflag in &self.cflags {
             cmk.cflag(cflag);
         }
@@ -42,16 +42,7 @@ impl super::BuildConfig {
 
         let mut dst = cmk.build();
 
-        dst.push("build");
-        dst.push("library");
-        println!(
-            "cargo:rustc-link-search=native={}",
-            dst.to_str().expect("link-search UTF-8 error")
-        );
-
-        assert!(dst.pop());
-        dst.push("crypto");
-        dst.push("library");
+        dst.push("lib");
         println!(
             "cargo:rustc-link-search=native={}",
             dst.to_str().expect("link-search UTF-8 error")

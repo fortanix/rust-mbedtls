@@ -76,7 +76,7 @@ pub mod raw_types {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 extern crate libc;
 
 #[cfg(std_component = "fs")]

@@ -38,7 +38,7 @@ pub use crate::ecp::EcGroup;
 
 pub use dhparam::Dhm;
 
-const RAW_RSA_DECRYPT : i32 = 1040451858;
+const RAW_RSA_DECRYPT: i32 = 1040451858;
 
 define!(
     #[c_ty(pk_type_t)]

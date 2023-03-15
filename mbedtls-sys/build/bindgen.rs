@@ -72,12 +72,13 @@ impl super::BuildConfig {
         header.push_str("#include <psa/crypto.h>\n");
 
         let mut cc = cc::Build::new();
-        cc.include(&self.mbedtls_include)
-        .flag(&format!(
-            "-DMBEDTLS_CONFIG_FILE=\"{}\"",
-            self.config_h.to_str().expect("config.h UTF-8 error")
-        ));
-
+        if cc.get_compiler().is_like_msvc() {
+            cc.flag("--driver-mode=cl");
+        }
+        cc.include(&self.mbedtls_include).define(
+            "MBEDTLS_CONFIG_FILE",
+            Some(format!(r#""{}""#, self.config_h.to_str().expect("config.h UTF-8 error")).as_str()),
+        );
         for cflag in &self.cflags {
             cc.flag(cflag);
         }
