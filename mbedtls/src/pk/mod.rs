@@ -799,7 +799,7 @@ impl Pk {
     ///
     /// On success, returns the actual number of bytes written to `sig`.
     pub fn sign<F: Random>(
-        &self,
+        &mut self,
         md: MdType,
         hash: &[u8],
         sig: &mut [u8],
@@ -826,7 +826,7 @@ impl Pk {
         let mut ret = 0usize;
         unsafe {
             pk_sign(
-                &self.inner as *const _ as *mut _,
+                &mut self.inner,
                 md.into(),
                 hash.as_ptr(),
                 hash.len(),
@@ -895,14 +895,15 @@ impl Pk {
         }
     }
 
-    pub fn verify(&self, md: MdType, hash: &[u8], sig: &[u8]) -> Result<()> {
+    pub fn verify(&mut self, md: MdType, hash: &[u8], sig: &[u8]) -> Result<()> {
+        // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to auto-detect size and cause an invalid write.
         if hash.len() == 0 || sig.len() == 0 {
             return Err(Error::PkBadInputData)
         }
         
         unsafe {
             pk_verify(
-                &self.inner as *const _ as *mut _,
+                &mut self.inner,
                 md.into(),
                 hash.as_ptr(),
                 hash.len(),

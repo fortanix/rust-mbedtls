@@ -44,7 +44,7 @@ wvkbR/h/+CNU1mMPdGoooNsldBtbNKgoAIsirMI/kk+q+9TTP4HqZpVt/qor/fz1
 
 #[test]
 fn sign_verify() {
-    let k = Pk::from_private_key(TEST_KEY_PEM.as_bytes(), None).unwrap();
+    let mut k = Pk::from_private_key(TEST_KEY_PEM.as_bytes(), None).unwrap();
 
     let data = b"SIGNATURE TEST SIGNATURE TEST SI";
     let mut signature1 = [0u8; ECDSA_MAX_LEN];
@@ -67,7 +67,7 @@ fn sign_verify() {
 
 #[test]
 fn verify_failure() {
-    let k = Pk::from_private_key(TEST_KEY_PEM.as_bytes(), None).unwrap();
+    let mut k = Pk::from_private_key(TEST_KEY_PEM.as_bytes(), None).unwrap();
 
     let data = b"SIGNATURE TEST SIGNATURE TEST SI";
     let mut signature = [0u8; ECDSA_MAX_LEN];
@@ -150,7 +150,7 @@ fn sign_verify_rfc6979_sig() {
 
 #[test]
 fn buffer_too_small() {
-    let k = Pk::from_private_key(TEST_KEY_PEM.as_bytes(), None).unwrap();
+    let mut k = Pk::from_private_key(TEST_KEY_PEM.as_bytes(), None).unwrap();
 
     let data = b"SIGNATURE TEST SIGNATURE TEST SI";
     let mut signature = [0u8; ECDSA_MAX_LEN - 1];

@@ -21,7 +21,7 @@ const EXPONENT: u32 = 0x10001;
 
 #[test]
 fn sign_verify() {
-    let k = Pk::generate_rsa(&mut test_rng(), RSA_BITS, EXPONENT).unwrap();
+    let mut k = Pk::generate_rsa(&mut test_rng(), RSA_BITS, EXPONENT).unwrap();
 
     let data = b"SIGNATURE TEST SIGNATURE TEST SI";
     let mut signature = [0u8; RSA_BITS as usize / 8];
@@ -36,7 +36,7 @@ fn sign_verify() {
 
 #[test]
 fn buffer_too_small() {
-    let k = Pk::generate_rsa(&mut test_rng(), RSA_BITS, EXPONENT).unwrap();
+    let mut k = Pk::generate_rsa(&mut test_rng(), RSA_BITS, EXPONENT).unwrap();
 
     let data = b"SIGNATURE TEST SIGNATURE TEST SI";
     let mut signature = [0u8; RSA_BITS as usize / 8 - 1];
