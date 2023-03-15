@@ -10,7 +10,6 @@
 extern crate mbedtls;
 
 use std::net::TcpStream;
-use std::thread;
 
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
@@ -83,8 +82,10 @@ fn server(mut conn: TcpStream, alpn_list: Option<&[&str]>, expected: Expected<'_
     Ok(())
 }
 
+#[cfg(unix)]
 #[test]
 fn alpn() {
+    use std::thread;
     #[derive(Clone)]
     struct TestConfig {
         client_list: Option<&'static [&'static str]>,
@@ -119,8 +120,10 @@ fn alpn() {
     }
 }
 
+#[cfg(unix)]
 #[test]
 fn nothing_in_common() {
+    use std::thread;
     let (c, s) = support::net::create_tcp_pair().unwrap();
     let c = thread::spawn(move || client(c, Some(&["a1\0", "a2\0"]), Expected::FailedHandshake(Error::SslFatalAlertMessage)).unwrap());
     let s = thread::spawn(move || server(s, Some(&["b1\0", "b2\0"]), Expected::FailedHandshake(Error::SslBadHsClientHello)).unwrap());

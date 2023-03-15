@@ -940,17 +940,19 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         let mut c_int2 = Certificate::from_pem(C_INT2.as_bytes()).unwrap();
         let mut c_root = Certificate::from_pem(C_ROOT.as_bytes()).unwrap();
 
+        let mut err_str = String::new();
         {
             let mut chain = List::from(&mut c_leaf);
             chain.push_back(&mut c_int1);
 
             // incomplete chain
-            let err = LinkedCertificate::verify((&mut chain).into(), &mut c_root, None).unwrap_err();
-            assert_eq!(err, Error::X509CertVerifyFailed);
+            let res = LinkedCertificate::verify((&mut chain).into(), &mut c_root, Some(&mut err_str));
+            assert_eq!(res, Err(Error::X509CertVerifyFailed), "{}", err_str);
 
             // try again after fixing the chain
             chain.push_back(&mut c_int2);
-            LinkedCertificate::verify((&mut chain).into(), &mut c_root, None).unwrap();
+            let res = LinkedCertificate::verify((&mut chain).into(), &mut c_root, Some(&mut err_str));
+            assert_eq!(res, Ok(()), "{}", err_str);
         }
 
         #[cfg(feature = "std")]
