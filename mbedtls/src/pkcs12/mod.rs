@@ -20,7 +20,7 @@ use crate::alloc_prelude::*;
 use core::result::Result as StdResult;
 
 #[cfg(feature = "pkcs12_rc2")]
-extern crate block_modes;
+extern crate cbc;
 #[cfg(feature = "pkcs12_rc2")]
 extern crate rc2;
 
@@ -605,17 +605,17 @@ fn decrypt_3des(ciphertext: &[u8], key: &[u8], iv: &[u8]) -> Pkcs12Result<Vec<u8
 
 #[cfg(feature = "pkcs12_rc2")]
 fn decrypt_rc2(ciphertext: &[u8], key: &[u8], iv: &[u8]) -> Pkcs12Result<Vec<u8>> {
-    use block_modes::BlockMode;
+    use rc2::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
 
-    let cipher =
-        block_modes::Cbc::<rc2::Rc2, block_modes::block_padding::Pkcs7>::new_var(&key, &iv)
+    let cipher = 
+        cbc::Decryptor::<rc2::Rc2>::new_from_slices(key, iv)
             .map_err(|e| Pkcs12Error::Custom(format!("{:?}", e)))?;
 
     let mut pt = ciphertext.to_vec();
     let pt = cipher
-        .decrypt(&mut pt)
+        .decrypt_padded_mut::<Pkcs7>(&mut pt)
         .map_err(|e| Pkcs12Error::Custom(format!("{:?}", e)))?;
-    return Ok(pt.to_owned());
+    Ok(pt.to_owned())
 }
 
 #[cfg(not(feature = "pkcs12_rc2"))]
