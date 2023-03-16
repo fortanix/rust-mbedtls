@@ -603,7 +603,7 @@ fn decrypt_3des(ciphertext: &[u8], key: &[u8], iv: &[u8]) -> Pkcs12Result<Vec<u8
 fn decrypt_rc2(ciphertext: &[u8], key: &[u8], iv: &[u8]) -> Pkcs12Result<Vec<u8>> {
     use rc2::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
 
-    let cipher = 
+    let cipher =
         cbc::Decryptor::<rc2::Rc2>::new_from_slices(key, iv)
             .map_err(|e| Pkcs12Error::Custom(format!("{:?}", e)))?;
 
