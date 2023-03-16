@@ -44,7 +44,6 @@ pub struct SavedRawCipher {
 #[derive(Serialize, Deserialize)]
 enum AlgorithmContext {
     Aes(Bytes<aes_context>),
-    Aria(Bytes<aria_context>),
     Des(Bytes<des_context>),
     Des3(Bytes<des3_context>),
     Gcm {
@@ -89,28 +88,19 @@ unsafe fn serialize_raw_cipher(mut cipher_context: cipher_context_t)
     let algorithm_ctx = match (cipher_id, cipher_mode) {
         (CIPHER_ID_AES, MODE_CBC)
         | (CIPHER_ID_AES, MODE_CTR)
-        | (CIPHER_ID_AES, MODE_OFB)
         | (CIPHER_ID_AES, MODE_CFB)
         | (CIPHER_ID_AES, MODE_ECB) => {
             let mut aes_context = *(cipher_context.cipher_ctx as *const aes_context);
             aes_context.rk = ::core::ptr::null_mut();
             AlgorithmContext::Aes(Bytes(aes_context))
         }
-        (CIPHER_ID_ARIA, MODE_CBC)
-        | (CIPHER_ID_ARIA, MODE_CTR)
-        | (CIPHER_ID_ARIA, MODE_CFB)
-        | (CIPHER_ID_ARIA, MODE_ECB) => {
-            AlgorithmContext::Aria(Bytes(*(cipher_context.cipher_ctx as *const aria_context)))
-        }
         (CIPHER_ID_DES, MODE_CBC)
         | (CIPHER_ID_DES, MODE_CTR)
-        | (CIPHER_ID_DES, MODE_OFB)
         | (CIPHER_ID_DES, MODE_CFB) => {
             AlgorithmContext::Des(Bytes(*(cipher_context.cipher_ctx as *const des_context)))
         }
         (CIPHER_ID_3DES, MODE_CBC)
         | (CIPHER_ID_3DES, MODE_CTR)
-        | (CIPHER_ID_3DES, MODE_OFB)
         | (CIPHER_ID_3DES, MODE_CFB) => AlgorithmContext::Des3(Bytes(
             *(cipher_context.cipher_ctx as *const des3_context),
         )),
@@ -217,9 +207,6 @@ unsafe fn deserialize_raw_cipher(raw: SavedRawCipher, padding: raw::CipherPaddin
             // We don't adjust for the padding needed on VIA Padlock (see definition of
             // mbedtls_aes_context in the mbedTLS source).
             (*ret_aes_ctx).rk = &mut (*ret_aes_ctx).buf[0];
-        }
-        (CIPHER_ID_ARIA, AlgorithmContext::Aria(Bytes(aria_ctx))) => {
-            *(cipher_context.cipher_ctx as *mut aria_context) = aria_ctx
         }
         (CIPHER_ID_DES, AlgorithmContext::Des(Bytes(des_ctx))) => {
             *(cipher_context.cipher_ctx as *mut des_context) = des_ctx
@@ -334,7 +321,6 @@ impl<'de, T: BytesSerde> Deserialize<'de> for Bytes<T> {
 
 unsafe impl BytesSerde for cipher_context_t {}
 unsafe impl BytesSerde for aes_context {}
-unsafe impl BytesSerde for aria_context {}
 unsafe impl BytesSerde for des_context {}
 unsafe impl BytesSerde for des3_context {}
 unsafe impl BytesSerde for gcm_context {}

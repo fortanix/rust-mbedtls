@@ -6,6 +6,11 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+extern crate mbedtls;
+extern crate mbedtls_sys;
+extern crate serde_cbor;
+// extern crate rustc_serialize;
+
 use mbedtls::cipher;
 use mbedtls::cipher::raw::{CipherId, CipherMode, CipherPadding};
 use mbedtls::cipher::{Cipher, Decryption, Encryption, Fresh, Authenticated, Traditional};

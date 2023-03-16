@@ -30,11 +30,9 @@ impl Features {
 
         // deprecated, needed for backcompat
         let have_custom_threading = self.have_feature("custom_threading");
-        let have_custom_gmtime_r = self.have_feature("custom_gmtime_r");
+        let mut have_custom_gmtime_r = self.have_feature("custom_gmtime_r");
 
-        if !self.have_feature("std") ||
-            env_have_target_cfg("env", "sgx") ||
-            env_have_target_cfg("os", "none") {
+        if !self.have_feature("std") || env_have_target_cfg("env", "sgx") || env_have_target_cfg("os", "none") {
             self.with_feature("c_compiler").unwrap().insert("freestanding");
         }
         if let Some(components) = self.with_feature("threading") {
@@ -45,16 +43,21 @@ impl Features {
             }
         }
         if let Some(components) = self.with_feature("std") {
-            if env_have_target_cfg("family", "unix") {
+            if env_have_target_cfg("family", "unix") || env_have_target_cfg("family", "windows") {
                 components.insert("net");
                 components.insert("fs");
                 components.insert("entropy");
             }
         }
         if let Some(components) = self.with_feature("time") {
-            if !have_custom_gmtime_r && env_have_target_cfg("family", "unix") {
-                components.insert("libc");
-            } else {
+            if !have_custom_gmtime_r {
+                if env_have_target_cfg("family", "unix") || env_have_target_cfg("family", "windows") {
+                    components.insert("libc");
+                } else {
+                    have_custom_gmtime_r = true;
+                }
+            }
+            if have_custom_gmtime_r {
                 components.insert("custom");
             }
         }
@@ -64,10 +67,17 @@ impl Features {
                 println!(r#"cargo:rustc-cfg={}_component="{}""#, feature, component);
             }
         }
-        println!("cargo:platform-components={}",
-            self.platform_components.iter().flat_map(|(feature, components)| {
-                components.iter().map(move |component| format!(r#"{}_component={}"#, feature, component))
-            } ).collect::<Vec<_>>().join(",")
+        println!(
+            "cargo:platform-components={}",
+            self.platform_components
+                .iter()
+                .flat_map(|(feature, components)| {
+                    components
+                        .iter()
+                        .map(move |component| format!(r#"{}_component={}"#, feature, component))
+                })
+                .collect::<Vec<_>>()
+                .join(",")
         );
     }
 
@@ -80,7 +90,9 @@ impl Features {
     }
 
     pub fn have_platform_component(&self, feature: &'static str, component: &'static str) -> bool {
-        self.platform_components.get(feature).map_or(false, |feat| feat.contains(component))
+        self.platform_components
+            .get(feature)
+            .map_or(false, |feat| feat.contains(component))
     }
 
     pub fn have_feature(&self, feature: &'static str) -> bool {

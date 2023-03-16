@@ -6,11 +6,11 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use bindgen;
-
 use std::fmt::Write as _;
 use std::fs::{self, File};
 use std::io::Write;
+
+use bindgen;
 
 use crate::headers;
 
@@ -19,14 +19,19 @@ struct MbedtlsParseCallbacks;
 
 impl bindgen::callbacks::ParseCallbacks for MbedtlsParseCallbacks {
     fn item_name(&self, original_item_name: &str) -> Option<String> {
-        Some(original_item_name.trim_start_matches("mbedtls_").trim_start_matches("MBEDTLS_").to_owned())
+        Some(
+            original_item_name
+                .trim_start_matches("mbedtls_")
+                .trim_start_matches("MBEDTLS_")
+                .to_owned(),
+        )
     }
 
     fn enum_variant_name(
         &self,
         _enum_name: Option<&str>,
         original_variant_name: &str,
-        _variant_value: bindgen::callbacks::EnumVariantValue
+        _variant_value: bindgen::callbacks::EnumVariantValue,
     ) -> Option<String> {
         self.item_name(original_variant_name)
     }
@@ -39,7 +44,11 @@ impl bindgen::callbacks::ParseCallbacks for MbedtlsParseCallbacks {
         }
     }
 
-    fn blocklisted_type_implements_trait(&self, _name: &str, derive_trait: bindgen::callbacks::DeriveTrait) -> Option<bindgen::callbacks::ImplementsTrait> {
+    fn blocklisted_type_implements_trait(
+        &self,
+        _name: &str,
+        derive_trait: bindgen::callbacks::DeriveTrait,
+    ) -> Option<bindgen::callbacks::ImplementsTrait> {
         if derive_trait == bindgen::callbacks::DeriveTrait::Default {
             Some(bindgen::callbacks::ImplementsTrait::Manually)
         } else {
@@ -53,7 +62,7 @@ impl bindgen::callbacks::ParseCallbacks for MbedtlsParseCallbacks {
 fn generate_deprecated_union_accessors(bindings: &str) -> String {
     #[derive(Default)]
     struct UnionImplBuilder {
-        impls: String
+        impls: String,
     }
 
     impl<'ast> syn::visit::Visit<'ast> for UnionImplBuilder {
@@ -61,16 +70,21 @@ fn generate_deprecated_union_accessors(bindings: &str) -> String {
             let union_name = &i.ident;
             let field_name = i.fields.named.iter().map(|field| field.ident.as_ref().unwrap());
             let field_type = i.fields.named.iter().map(|field| &field.ty);
-            write!(self.impls, "{}", quote::quote! {
-                impl #union_name {
-                    #(
-                        #[deprecated]
-                        pub unsafe fn #field_name(&mut self) -> *mut #field_type {
-                            &mut self.#field_name
-                        }
-                    )*
+            write!(
+                self.impls,
+                "{}",
+                quote::quote! {
+                    impl #union_name {
+                        #(
+                            #[deprecated]
+                            pub unsafe fn #field_name(&mut self) -> *mut #field_type {
+                                &mut self.#field_name
+                            }
+                        )*
+                    }
                 }
-            }).unwrap();
+            )
+            .unwrap();
         }
     }
 
@@ -88,12 +102,13 @@ impl super::BuildConfig {
         }
 
         let mut cc = cc::Build::new();
-        cc.include(&self.mbedtls_include)
-        .flag(&format!(
-            "-DMBEDTLS_CONFIG_FILE=\"{}\"",
-            self.config_h.to_str().expect("config.h UTF-8 error")
-        ));
-
+        if cc.get_compiler().is_like_msvc() {
+            cc.flag("--driver-mode=cl");
+        }
+        cc.include(&self.mbedtls_include).define(
+            "MBEDTLS_CONFIG_FILE",
+            Some(format!(r#""{}""#, self.config_h.to_str().expect("config.h UTF-8 error")).as_str()),
+        );
         for cflag in &self.cflags {
             cc.flag(cflag);
         }
@@ -106,10 +121,7 @@ impl super::BuildConfig {
             match output {
                 Ok(sysroot) => {
                     let path = std::str::from_utf8(&sysroot.stdout).expect("Malformed sysroot");
-                    let trimmed_path = path
-                        .strip_suffix("\r\n")
-                        .or(path.strip_suffix("\n"))
-                        .unwrap_or(&path);
+                    let trimmed_path = path.strip_suffix("\r\n").or(path.strip_suffix("\n")).unwrap_or(&path);
                     cc.flag(&format!("--sysroot={}", trimmed_path));
                 }
                 _ => {} // skip toolchains without a configured sysroot
@@ -125,6 +137,8 @@ impl super::BuildConfig {
             .allowlist_var("^(?i)mbedtls_.*")
             .allowlist_recursively(false)
             .blocklist_type("^mbedtls_time_t$")
+            .blocklist_function("^mbedtls_platform_set_vsnprintf$")
+            .blocklist_item("^mbedtls_vsnprintf$")
             .use_core()
             .ctypes_prefix("::types::raw_types")
             .parse_callbacks(Box::new(MbedtlsParseCallbacks))
@@ -150,7 +164,8 @@ impl super::BuildConfig {
                 f.write_all(union_impls.as_bytes())?;
                 f.write_all(b"use crate::types::*;\n")?; // for FILE, time_t, etc.
                 Ok(())
-            }).expect("bindings.rs I/O error");
+            })
+            .expect("bindings.rs I/O error");
 
         let mod_bindings = self.out_dir.join("mod-bindings.rs");
         fs::write(mod_bindings, b"mod bindings;\n").expect("mod-bindings.rs I/O error");

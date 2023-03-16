@@ -19,6 +19,11 @@ use crate::alloc_prelude::*;
 
 use core::result::Result as StdResult;
 
+#[cfg(feature = "pkcs12_rc2")]
+extern crate block_modes;
+#[cfg(feature = "pkcs12_rc2")]
+extern crate rc2;
+
 use core::fmt;
 
 #[cfg(feature = "std")]
@@ -31,10 +36,9 @@ use yasna::{ASN1Result, BERDecodable, BERReader, BERReaderSeq, Tag};
 
 use crate::cipher::raw::{CipherId, CipherMode};
 use crate::cipher::{Cipher, Decryption, Fresh, Traditional};
-use crate::hash::{pbkdf_pkcs12, Hmac, MdInfo, Type as MdType};
+use crate::hash::{pbkdf_pkcs12, Md, MdInfo, Type as MdType};
 use crate::pk::Pk;
 use crate::x509::Certificate;
-use crate::alloc::{Box as MbedtlsBox};
 use crate::Error as MbedtlsError;
 
 // Constants for various object identifiers used in PKCS12:
@@ -352,7 +356,6 @@ impl BERDecodable for EncryptedData {
 
 // EncryptedContentInfo from PKCS7 see RFC 2315 section 10.1
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 struct EncryptedContentInfo {
     content_type: ObjectIdentifier,
     encryption_algo: AlgorithmIdentifier,
@@ -455,7 +458,6 @@ enum Pkcs12BagSet {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 struct SafeBag {
     bag_id: ObjectIdentifier,
     bag_value: Pkcs12BagSet,
@@ -742,7 +744,7 @@ impl Pfx {
 
             let mut computed_hmac = vec![0u8; md_info.size()];
 
-            let hmac_len = Hmac::hmac(md, &hmac_key, &self.raw_data, &mut computed_hmac)?;
+            let hmac_len = Md::hmac(md, &hmac_key, &self.raw_data, &mut computed_hmac)?;
 
             // FIXME const time compare
             if computed_hmac[0..hmac_len] != stored_mac[..] {
@@ -834,7 +836,7 @@ impl Pfx {
     /// of "friendly names" which are associated with said certificate.
     /// Some or all of the certificates stored in a Pfx may be encrypted in which case
     /// decrypt must be called to access them.
-    pub fn certificates<'a>(&'a self) -> impl Iterator<Item=(Result<MbedtlsBox<Certificate>, crate::Error>, Vec<String>)> + 'a {
+    pub fn certificates<'a>(&'a self) -> impl Iterator<Item=(Result<Certificate, crate::Error>, Vec<String>)> + 'a {
         self.authsafe_decrypted_contents()
             .filter_map(|sb| if let Pkcs12BagSet::Cert(CertBag(Some(cert))) = &sb.bag_value {
                 Some((Certificate::from_der(cert), sb.friendly_name()))

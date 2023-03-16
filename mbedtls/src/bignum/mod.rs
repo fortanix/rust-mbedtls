@@ -16,7 +16,6 @@ use core::cmp::Ordering;
 use core::fmt::{Binary, Debug, Display, Formatter, Octal, Result as FmtResult, UpperHex};
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
 use core::ops::{Shl, ShlAssign, Shr, ShrAssign};
-use crate::rng::Random;
 
 pub use mbedtls_sys::mpi_sint;
 
@@ -174,7 +173,7 @@ impl Mpi {
             mpi_write_string(
                 &self.inner,
                 radix,
-                buf.as_mut_ptr() as *mut _,
+                buf.as_mut_ptr() as *mut i8,
                 buf.len(),
                 &mut olen,
             )
@@ -407,23 +406,6 @@ impl Mpi {
         .into_result()?;
 
         Ok(r)
-    }
-
-    /// The Miller-Rabin primality test with k rounds. Returns
-    /// `MpiNotAcceptable` if self is definitely not prime. If no error is
-    /// returned, self is prime with a probability of 1 - 1/2^{2k}. See
-    /// mbedtls_mpi_is_prime.
-    pub fn is_probably_prime<F: Random>(&self, k: u32, rng: &mut F) -> Result<()> {
-        unsafe {
-            mpi_is_prime_ext(
-                &self.inner,
-                k as i32,
-                Some(F::call),
-                rng.data_ptr(),
-            )
-            .into_result()?;
-        }
-        Ok(())
     }
 }
 
@@ -786,3 +768,4 @@ impl ShrAssign<usize> for Mpi {
 // mbedtls_mpi_sub_abs
 // mbedtls_mpi_mod_int
 // mbedtls_mpi_gcd
+// mbedtls_mpi_is_prime

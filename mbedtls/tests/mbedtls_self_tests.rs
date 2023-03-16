@@ -6,7 +6,10 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-#[cfg(not(feature = "std"))]
+extern crate mbedtls;
+extern crate mbedtls_sys;
+
+#[cfg(any(not(feature = "std"), target_env = "sgx"))]
 unsafe fn log(msg: *const mbedtls_sys::types::raw_types::c_char) {
     print!("{}", std::ffi::CStr::from_ptr(msg).to_string_lossy());
 }
@@ -22,19 +25,9 @@ fn enable_self_test() {
 
     static START: Once = Once::new();
 
-    let log_f;
-
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "std")] {
-            log_f = None;
-        } else {
-            log_f = Some(log as _);
-        }
-    }
-
     START.call_once(|| {
         // safe because synchronized
-        unsafe { mbedtls::self_test::enable(rand, log_f) };
+        unsafe { mbedtls::self_test::enable(rand, log) };
     });
 }
 
@@ -59,7 +52,6 @@ macro_rules! tests {
 tests! {
     fn aes,
     fn arc4,
-    fn aria,
     fn base64,
     fn camellia,
     fn ccm,

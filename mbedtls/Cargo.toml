@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.9.0"
+version = "0.7.1"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -19,24 +19,24 @@ keywords = ["MbedTLS","mbed","TLS","SSL","cryptography"]
 
 [dependencies]
 bitflags = "1"
+chrono = { version = "0.4", optional = true }
 core_io = { version = "0.1", features = ["collections"], optional = true }
 spin = { version = "0.4.0", default-features = false, optional = true }
-serde = { version = "1.0.7", default-features = false, features = ["alloc"] }
+serde = { version = "1.0.7", default-features = false }
 serde_derive = "1.0.7"
-byteorder = { version = "1.0.0", default-features = false }
+byteorder = "1.0.0"
 yasna = { version = "0.2", optional = true, features = ["num-bigint", "bit-vec"] }
 num-bigint = { version = "0.2", optional = true }
 bit-vec = { version = "0.5", optional = true }
 block-modes = { version = "0.3", optional = true }
 rc2 = { version = "0.3", optional = true }
-cfg-if = "1.0.0"
+tokio = { version = "1.15", optional = true }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
-rs-libc = "0.2.0"
-chrono = "0.4"
+rs-libc = "0.1.0"
 
 [dependencies.mbedtls-sys-auto]
-version = "2.25.0"
+version = "2.25.2"
 default-features = false
 features = ["custom_printf", "trusted_cert_callback", "threading"]
 path = "../mbedtls-sys"
@@ -47,57 +47,89 @@ rand = "0.4.0"
 serde_cbor = "0.6"
 hex = "0.3"
 matches = "0.1.8"
-hyper = { version = "0.10.16", default-features = false }
 
 [build-dependencies]
 cc = "1.0"
 
 [features]
 # Features are documented in the README
-default = ["std", "aesni", "time", "padlock"]
-std = ["byteorder/std", "mbedtls-sys-auto/std", "serde/std", "yasna"]
-debug = ["mbedtls-sys-auto/debug"]
-no_std_deps = ["core_io", "spin", "serde/alloc"]
-force_aesni_support = ["mbedtls-sys-auto/custom_has_support", "mbedtls-sys-auto/aes_alt", "aesni"]
+default = ["std", "aesni", "time", "padlock", "legacy_protocols", "use_libc"]
+std = ["mbedtls-sys-auto/std", "serde/std", "yasna"]
+threading = []
+pthread = ["threading","std","mbedtls-sys-auto/pthread"]
+spin_threading = ["threading","spin","mbedtls-sys-auto/custom_threading"]
+sgx = ["std", "rust_threading", "rdrand", "force_aesni_support"]
+rust_threading = ["threading", "mbedtls-sys-auto/custom_threading", "std"]
+force_aesni_support = ["mbedtls-sys-auto/custom_has_support","mbedtls-sys-auto/aes_alt","aesni"]
 mpi_force_c_code = ["mbedtls-sys-auto/mpi_force_c_code"]
 rdrand = []
+use_libc = ["mbedtls-sys-auto/libc"]
+custom_gmtime_r = ["mbedtls-sys-auto/custom_gmtime_r", "chrono"]
+custom_time = ["mbedtls-sys-auto/custom_time", "chrono"]
 aesni = ["mbedtls-sys-auto/aesni"]
 zlib = ["mbedtls-sys-auto/zlib"]
 time = ["mbedtls-sys-auto/time"]
 padlock = ["mbedtls-sys-auto/padlock"]
+legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "block-modes"]
-legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
 
 [[example]]
 name = "client"
-required-features = ["std"]
-
-[[example]]
-name = "client_dtls"
-required-features = ["std"]
-
-[[example]]
-name = "client_psk"
+path = "examples/client.rs"
 required-features = ["std"]
 
 [[example]]
 name = "server"
+path = "examples/server.rs"
 required-features = ["std"]
+
+[[test]]
+name = "alpn"
+path = "tests/alpn.rs"
+required-features = ["std"]
+
+[[test]]
+name = "async_session"
+path = "tests/async_session.rs"
+required-features = ["std", "threading", "tokio", "tokio/net", "tokio/io-util", "tokio/macros"]
 
 [[test]]
 name = "client_server"
+path = "tests/client_server.rs"
 required-features = ["std"]
 
 [[test]]
+name = "ec"
+path = "tests/ec.rs"
+
+[[test]]
+name = "pbkdf"
+path = "tests/pbkdf.rs"
+
+[[test]]
+name = "mbedtls_self_tests"
+path = "tests/mbedtls_self_tests.rs"
+
+[[test]]
+name = "bignum"
+path = "tests/bignum.rs"
+
+[[test]]
+name = "rsa"
+path = "tests/rsa.rs"
+
+[[test]]
+name = "save_restore"
+path = "tests/save_restore.rs"
+
+[[test]]
 name = "ssl_conf_ca_cb"
+path = "tests/ssl_conf_ca_cb.rs"
 required-features = ["std"]
 
 [[test]]
 name = "ssl_conf_verify"
-required-features = ["std"]
-
-[[test]]
-name = "hyper"
+path = "tests/ssl_conf_verify.rs"
 required-features = ["std"]

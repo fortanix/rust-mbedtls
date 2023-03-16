@@ -17,19 +17,18 @@ pub mod profile;
 // write_crt
 // write_csr
 
-use crate::error::Error;
-use crate::private::UnsafeFrom;
+use mbedtls_sys::types::raw_types::c_uint;
+use mbedtls_sys::*;
+
 #[doc(inline)]
-pub use self::certificate::Certificate;
+pub use self::certificate::{Certificate, LinkedCertificate};
 pub use self::crl::Crl;
 #[doc(inline)]
 pub use self::csr::Csr;
 #[doc(inline)]
 pub use self::profile::Profile;
-
-use mbedtls_sys::*;
-use mbedtls_sys::types::raw_types::{c_int, c_uint, c_void};
 bitflags! {
+    // #[doc(inline)]
     pub struct KeyUsage: c_uint {
         const DIGITAL_SIGNATURE  = X509_KU_DIGITAL_SIGNATURE as c_uint;
         const NON_REPUDIATION    = X509_KU_NON_REPUDIATION as c_uint;
@@ -44,6 +43,7 @@ bitflags! {
 }
 
 bitflags! {
+    // #[doc(inline)]
     pub struct VerifyError: u32 {
         const CERT_BAD_KEY       = X509_BADCERT_BAD_KEY as u32;
         const CERT_BAD_MD        = X509_BADCERT_BAD_MD as u32;
@@ -89,10 +89,10 @@ impl VerifyError {
                         $v.push($msg);
                     }
                 )*
-            }}
+            }};
         }
         let mut v = Vec::new();
-        map!{
+        map! {
             self, v,
             CERT_BAD_KEY       -> "The certificate is signed with an unacceptable key (eg bad curve, RSA too short).",
             CERT_BAD_MD        -> "The certificate is signed with an unacceptable hash.",
@@ -116,39 +116,6 @@ impl VerifyError {
             CRL_NOT_TRUSTED    -> "The CRL is not correctly signed by the trusted CA.",
         }
         v
-    }
-}
-
-callback!(VerifyCallback: Fn(&Certificate, i32, &mut VerifyError) -> Result<(), Error>);
-
-pub(crate) unsafe extern "C" fn verify_callback<F>(
-    closure: *mut c_void,
-    crt: *mut x509_crt,
-    depth: c_int,
-    flags: *mut u32,
-) -> c_int
-where
-    F: VerifyCallback + 'static,
-{
-    if crt.is_null() || closure.is_null() || flags.is_null() {
-        return ::mbedtls_sys::ERR_X509_BAD_INPUT_DATA;
-    }
-
-    let cb = &*(closure as *const F);
-    let crt: &mut Certificate = UnsafeFrom::from(crt).expect("valid certificate");
-
-    let mut verify_error = match VerifyError::from_bits(*flags) {
-        Some(ve) => ve,
-        // This can only happen if mbedtls is setting flags in VerifyError that are
-        // missing from our definition.
-        None => return ::mbedtls_sys::ERR_X509_BAD_INPUT_DATA,
-    };
-
-    let res = cb(crt, depth, &mut verify_error);
-    *flags = verify_error.bits();
-    match res {
-        Ok(()) => 0,
-        Err(e) => e.to_int(),
     }
 }
 
@@ -193,15 +160,7 @@ impl fmt::Write for TimeWriter {
 
 impl Time {
     pub fn new(year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) -> Option<Time> {
-        if year < 10000
-            && month >= 1
-            && month <= 12
-            && day >= 1
-            && day <= 31
-            && hour < 24
-            && minute < 60
-            && second < 60
-        {
+        if year < 10000 && month >= 1 && month <= 12 && day >= 1 && day <= 31 && hour < 24 && minute < 60 && second < 60 {
             Some(Time {
                 year: year,
                 month: month,
@@ -216,10 +175,7 @@ impl Time {
     }
 
     fn to_x509_time(&self) -> [u8; 15] {
-        let mut writer = TimeWriter {
-            buf: [0; 15],
-            idx: 0,
-        };
+        let mut writer = TimeWriter { buf: [0; 15], idx: 0 };
         write!(
             writer,
             "{:04}{:02}{:02}{:02}{:02}{:02}",

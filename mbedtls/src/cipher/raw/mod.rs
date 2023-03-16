@@ -23,7 +23,6 @@ define!(
         Camellia = CIPHER_ID_CAMELLIA,
         Blowfish = CIPHER_ID_BLOWFISH,
         Arc4 = CIPHER_ID_ARC4,
-        Aria = CIPHER_ID_ARIA,
     }
 );
 
@@ -38,7 +37,6 @@ impl From<cipher_id_t> for CipherId {
             CIPHER_ID_CAMELLIA => CipherId::Camellia,
             CIPHER_ID_BLOWFISH => CipherId::Blowfish,
             CIPHER_ID_ARC4 => CipherId::Arc4,
-            CIPHER_ID_ARIA => CipherId::Aria,
             // This should be replaced with TryFrom once it is stable.
             _ => panic!("Invalid cipher_id_t"),
         }
@@ -382,66 +380,6 @@ impl Cipher {
                 plain_len,
                 &mut plain_len,
                 tag_len,
-            )
-            .into_result()?
-        };
-
-        Ok(plain_len)
-    }
-
-    pub fn encrypt_auth_inplace(
-        &mut self,
-        ad: &[u8],
-        data: &mut [u8],
-        tag: &mut [u8],
-    ) -> Result<usize> {
-
-        let iv = self.inner.iv;
-        let iv_len = self.inner.iv_size;
-        let mut olen = data.len();
-        unsafe {
-            cipher_auth_encrypt(
-                &mut self.inner,
-                iv.as_ptr(),
-                iv_len,
-                ad.as_ptr(),
-                ad.len(),
-                data.as_ptr(),
-                data.len(),
-                data.as_mut_ptr(),
-                &mut olen,
-                tag.as_mut_ptr(),
-                tag.len(),
-            )
-            .into_result()?
-        };
-
-        Ok(olen)
-    }
-
-    pub fn decrypt_auth_inplace(
-        &mut self,
-        ad: &[u8],
-        data: &mut [u8],
-        tag: &[u8],
-    ) -> Result<usize> {
-
-        let iv = self.inner.iv;
-        let iv_len = self.inner.iv_size;
-        let mut plain_len = data.len();
-        unsafe {
-            cipher_auth_decrypt(
-                &mut self.inner,
-                iv.as_ptr(),
-                iv_len,
-                ad.as_ptr(),
-                ad.len(),
-                data.as_ptr(),
-                data.len(),
-                data.as_mut_ptr(),
-                &mut plain_len,
-                tag.as_ptr(),
-                tag.len(),
             )
             .into_result()?
         };

@@ -8,7 +8,6 @@
 
 #![allow(dead_code)]
 
-// needed to have common code for `mod support` in unit and integrations tests
 extern crate mbedtls;
 
 use std::net::TcpStream;
@@ -17,14 +16,13 @@ use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::{Config, Context};
-use mbedtls::x509::{Certificate, VerifyError};
+use mbedtls::x509::{Certificate, LinkedCertificate, VerifyError};
 use mbedtls::Error;
 use mbedtls::Result as TlsResult;
 
 mod support;
 use support::entropy::entropy_new;
 use support::keys;
-use std::sync::Arc;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum Test {
@@ -32,31 +30,27 @@ enum Test {
     CallbackError,
 }
 
-fn client(conn: TcpStream, test: Test) -> TlsResult<()> {
-    let entropy = entropy_new();
-    let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
-    let cert = Arc::new(Certificate::from_pem_multiple(keys::PEM_CERT.as_bytes())?);
-
-    let verify_test = test.clone();
-    let verify_callback = move |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
-        match verify_test {
+fn client(mut conn: TcpStream, test: Test) -> TlsResult<()> {
+    let mut entropy = entropy_new();
+    let mut rng = CtrDrbg::new(&mut entropy, None)?;
+    let mut cert = Certificate::from_pem(keys::PEM_CERT)?;
+    let verify_callback =
+        &mut |_: &mut LinkedCertificate, _, verify_flags: &mut VerifyError| match test {
             Test::CallbackSetVerifyFlags => {
                 *verify_flags |= VerifyError::CERT_OTHER;
                 Ok(())
             }
             Test::CallbackError => Err(Error::Asn1InvalidData),
-        }
-    };
-    
+        };
     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
-    config.set_rng(rng);
+    config.set_rng(Some(&mut rng));
     config.set_verify_callback(verify_callback);
-    config.set_ca_list(cert, None);
-    let mut ctx = Context::new(Arc::new(config));
+    config.set_ca_list(Some(&mut *cert), None);
+    let mut ctx = Context::new(&config)?;
 
     match (
         test,
-        ctx.establish(conn, None)
+        ctx.establish(&mut conn, None)
             .err()
             .expect("should have failed"),
     ) {
@@ -73,17 +67,17 @@ fn client(conn: TcpStream, test: Test) -> TlsResult<()> {
     Ok(())
 }
 
-fn server(conn: TcpStream) -> TlsResult<()> {
-    let entropy = entropy_new();
-    let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
-    let cert = Arc::new(Certificate::from_pem_multiple(keys::PEM_CERT.as_bytes())?);
-    let key = Arc::new(Pk::from_private_key(keys::PEM_KEY.as_bytes(), None)?);
+fn server(mut conn: TcpStream) -> TlsResult<()> {
+    let mut entropy = entropy_new();
+    let mut rng = CtrDrbg::new(&mut entropy, None)?;
+    let mut cert = Certificate::from_pem(keys::PEM_CERT)?;
+    let mut key = Pk::from_private_key(keys::PEM_KEY, None)?;
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
-    config.set_rng(rng);
-    config.push_cert(cert, key)?;
-    let mut ctx = Context::new(Arc::new(config));
+    config.set_rng(Some(&mut rng));
+    config.push_cert(&mut *cert, &mut key)?;
+    let mut ctx = Context::new(&config)?;
 
-    let _ = ctx.establish(conn, None);
+    let _ = ctx.establish(&mut conn, None);
     Ok(())
 }
 

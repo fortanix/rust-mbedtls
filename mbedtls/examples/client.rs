@@ -6,12 +6,10 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-// needed to have common code for `mod support` in unit and integrations tests
 extern crate mbedtls;
 
 use std::io::{self, stdin, stdout, Write};
 use std::net::TcpStream;
-use std::sync::Arc;
 
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
@@ -25,21 +23,21 @@ use support::entropy::entropy_new;
 use support::keys;
 
 fn result_main(addr: &str) -> TlsResult<()> {
-    let entropy = Arc::new(entropy_new());
-    let rng = Arc::new(CtrDrbg::new(entropy, None)?);
-    let cert = Arc::new(Certificate::from_pem_multiple(keys::PEM_CERT.as_bytes())?);
+    let mut entropy = entropy_new();
+    let mut rng = CtrDrbg::new(&mut entropy, None)?;
+    let mut cert = Certificate::from_pem(keys::ROOT_CA_CERT)?;
     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
-    config.set_rng(rng);
-    config.set_ca_list(cert, None);
-    let mut ctx = Context::new(Arc::new(config));
+    config.set_rng(Some(&mut rng));
+    config.set_ca_list(Some(&mut *cert), None);
+    let mut ctx = Context::new(&config)?;
 
-    let conn = TcpStream::connect(addr).unwrap();
-    ctx.establish(conn, None)?;
+    let mut conn = TcpStream::connect(addr).unwrap();
+    let mut session = ctx.establish(&mut conn, None)?;
 
     let mut line = String::new();
     stdin().read_line(&mut line).unwrap();
-    ctx.write_all(line.as_bytes()).unwrap();
-    io::copy(&mut ctx, &mut stdout()).unwrap();
+    session.write_all(line.as_bytes()).unwrap();
+    io::copy(&mut session, &mut stdout()).unwrap();
     Ok(())
 }
 

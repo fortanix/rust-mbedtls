@@ -8,6 +8,12 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#ifdef _WIN32
+#define alloca _alloca
+#include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 
 extern void mbedtls_log(const char* msg);
 
@@ -22,7 +28,8 @@ extern int mbedtls_printf(const char *fmt, ...) {
        return -1;
 
     n++;
-    char p[n];
+   //  char p[n];
+    char *p = alloca(n);
 
     va_start(ap,fmt);
     n=vsnprintf(p,n,fmt,ap);

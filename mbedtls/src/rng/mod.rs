@@ -8,30 +8,30 @@
 
 pub mod ctr_drbg;
 pub mod hmac_drbg;
-#[cfg(sys_std_component = "entropy")]
+#[cfg(all(feature = "std", not(target_env = "sgx")))]
 pub mod os_entropy;
-#[cfg(any(feature = "rdrand", target_env = "sgx"))]
+#[cfg(feature = "rdrand")]
 mod rdrand;
 
 #[doc(inline)]
 pub use self::ctr_drbg::CtrDrbg;
 #[doc(inline)]
 pub use self::hmac_drbg::HmacDrbg;
-#[cfg(sys_std_component = "entropy")]
+#[cfg(all(feature = "std", not(target_env = "sgx")))]
 #[doc(inline)]
 pub use self::os_entropy::OsEntropy;
-#[cfg(any(feature = "rdrand", target_env = "sgx"))]
+#[cfg(feature = "rdrand")]
 pub use self::rdrand::{Entropy as Rdseed, Nrbg as Rdrand};
 
 use crate::error::{Result, IntoResult};
 use mbedtls_sys::types::raw_types::{c_int, c_uchar};
 use mbedtls_sys::types::size_t;
 
-callback!(EntropyCallbackMut,EntropyCallback(data: *mut c_uchar, len: size_t) -> c_int);
-callback!(RngCallbackMut,RngCallback(data: *mut c_uchar, len: size_t) -> c_int);
+callback!(EntropyCallback:Sync(data: *mut c_uchar, len: size_t) -> c_int);
+callback!(RngCallback:Sync(data: *mut c_uchar, len: size_t) -> c_int);
 
 pub trait Random: RngCallback {
-    fn random(&mut self, data: &mut [u8]) -> Result<()> where Self: Sized {
+    fn random(&mut self, data: &mut [u8]) -> Result<()> {
         unsafe { Self::call(self.data_ptr(), data.as_mut_ptr(), data.len()) }.into_result()?;
         Ok(())
     }

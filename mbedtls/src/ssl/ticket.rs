@@ -6,20 +6,13 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-#[cfg(feature = "std")]
-use std::sync::Arc;
-
-use mbedtls_sys::*;
-use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
-use mbedtls_sys::types::size_t;
-
-#[cfg(not(feature = "std"))]
-use crate::alloc_prelude::*;
 use crate::cipher::raw::CipherType;
 use crate::error::{IntoResult, Result};
-use crate::rng::RngCallback;
+use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
+use mbedtls_sys::types::size_t;
+use mbedtls_sys::*;
 
-pub trait TicketCallback: Sync {
+pub trait TicketCallback {
     unsafe extern "C" fn call_write(
         p_ticket: *mut c_void,
         session: *const ssl_session,
@@ -27,57 +20,46 @@ pub trait TicketCallback: Sync {
         end: *const c_uchar,
         tlen: *mut size_t,
         lifetime: *mut u32,
-    ) -> c_int where Self: Sized;
+    ) -> c_int;
     unsafe extern "C" fn call_parse(
         p_ticket: *mut c_void,
         session: *mut ssl_session,
         buf: *mut c_uchar,
         len: size_t,
-    ) -> c_int where Self: Sized;
+    ) -> c_int;
 
-    fn data_ptr(&self) -> *mut c_void;
+    fn data_ptr(&mut self) -> *mut c_void;
 }
-
 
 define!(
     #[c_ty(ssl_ticket_context)]
-    #[repr(C)]
-    struct TicketContext {
-        // We set rng from constructur, we never read it directly. It is only used to ensure rng lives as long as we need.
-        #[allow(dead_code)]
-        rng: Arc<dyn RngCallback + Send + 'static>,
-    };
+    struct TicketContext<'rng>;
+    const init: fn() -> Self = ssl_ticket_init;
     const drop: fn(&mut Self) = ssl_ticket_free;
-    impl<'a> Into<ptr> {}
 );
 
-unsafe impl Sync for TicketContext {}
-
-impl TicketContext {
-    pub fn new<T: RngCallback + Send + 'static>(
-        rng: Arc<T>,
+impl<'rng> TicketContext<'rng> {
+    pub fn new<F: crate::rng::Random>(
+        rng: &'rng mut F,
         cipher: CipherType,
         lifetime: u32,
-    ) -> Result<TicketContext> {
-
-        let mut ret = TicketContext { inner: ssl_ticket_context::default(), rng };
-
+    ) -> Result<TicketContext<'rng>> {
+        let mut ret = Self::init();
         unsafe {
-            ssl_ticket_init(&mut ret.inner);
             ssl_ticket_setup(
                 &mut ret.inner,
-                Some(T::call),
-                ret.rng.data_ptr(),
+                Some(F::call),
+                rng.data_ptr(),
                 cipher.into(),
                 lifetime,
-            ).into_result()?;
+            )
         }
-
-        Ok(ret)
+        .into_result()
+        .map(|_| ret)
     }
 }
 
-impl TicketCallback for TicketContext {
+impl<'rng> TicketCallback for TicketContext<'rng> {
     unsafe extern "C" fn call_write(
         p_ticket: *mut c_void,
         session: *const ssl_session,
@@ -98,7 +80,7 @@ impl TicketCallback for TicketContext {
         ssl_ticket_parse(p_ticket, session, buf, len)
     }
 
-    fn data_ptr(&self) -> *mut c_void {
-        self.handle() as *const _ as *mut _
+    fn data_ptr(&mut self) -> *mut c_void {
+        &mut self.inner as *mut _ as *mut _
     }
 }

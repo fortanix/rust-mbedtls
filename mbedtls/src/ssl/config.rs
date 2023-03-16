@@ -6,30 +6,27 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-#[cfg(feature = "std")]
-use std::sync::Arc;
-#[cfg(feature = "std")]
-use std::borrow::Cow;
-
+use core::marker::PhantomData;
+use core::ptr;
 use core::slice::from_raw_parts;
 
-use mbedtls_sys::*;
-use mbedtls_sys::types::raw_types::*;
+use mbedtls_sys::types::raw_types::{c_char, c_int, c_uchar, c_uint, c_void};
 use mbedtls_sys::types::size_t;
+use mbedtls_sys::*;
 
-
-use crate::alloc::{List as MbedtlsList};
-#[cfg(not(feature = "std"))]
-use crate::alloc_prelude::*;
-use crate::error::{Error, Result, IntoResult};
-use crate::pk::Pk;
+use crate::error::{Error, IntoResult, Result};
+use core::result::Result as StdResult;
 use crate::pk::dhparam::Dhm;
+use crate::pk::Pk;
 use crate::private::UnsafeFrom;
-use crate::rng::RngCallback;
-use crate::ssl::cookie::CookieCallback;
 use crate::ssl::context::HandshakeContext;
 use crate::ssl::ticket::TicketCallback;
-use crate::x509::{self, Certificate, Crl, Profile, VerifyCallback};
+use crate::x509::{certificate, Crl, LinkedCertificate, Profile, VerifyError};
+
+extern "C" {
+    fn calloc(n: usize, size: usize) -> *mut c_void;
+    fn free(ptr: *mut c_void);
+}
 
 #[allow(non_camel_case_types)]
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Copy, Clone)]
@@ -88,121 +85,53 @@ define!(
     }
 );
 
-define!(
-    #[c_ty(c_int)]
-    enum Renegotiation {
-        Enabled = SSL_RENEGOTIATION_ENABLED,
-        Disabled = SSL_RENEGOTIATION_DISABLED,
-    }
-);
+callback!(DbgCallback:Sync(level: c_int, file: *const c_char, line: c_int, message: *const c_char) -> ());
 
-#[cfg(feature = "std")]
-callback!(DbgCallback: Fn(i32, Cow<'_, str>, i32, Cow<'_, str>) -> ());
-callback!(SniCallback: Fn(&mut HandshakeContext, &[u8]) -> Result<()>);
-callback!(CaCallback: Fn(&MbedtlsList<Certificate>) -> Result<MbedtlsList<Certificate>>);
-
-
-#[repr(transparent)]
-pub struct NullTerminatedStrList {
-    c: Vec<*mut c_char>,
+pub struct NullTerminatedStrList<'s> {
+    c: Box<[*const u8]>,
+    r: PhantomData<&'s ()>,
 }
 
-unsafe impl Send for NullTerminatedStrList {}
-unsafe impl Sync for NullTerminatedStrList {}
+unsafe impl<'s> Send for NullTerminatedStrList<'s> {}
+unsafe impl<'s> Sync for NullTerminatedStrList<'s> {}
 
-impl NullTerminatedStrList {
-    #[cfg(feature = "std")]
-    pub fn new(list: &[&str]) -> Result<Self> {
-        let mut ret = NullTerminatedStrList { c: Vec::with_capacity(list.len() + 1) };
-
-        for item in list {
-            ret.c.push(::std::ffi::CString::new(*item).map_err(|_| Error::SslBadInputData)?.into_raw());
+impl<'s> NullTerminatedStrList<'s> {
+    pub fn new(list: &[&'s str]) -> Self {
+        let mut c = Vec::with_capacity(list.len() + 1);
+        for s in list {
+            c.push(s.as_ptr());
         }
-        
-        ret.c.push(core::ptr::null_mut()); 
-        Ok(ret)
+        c.push(ptr::null());
+        NullTerminatedStrList {
+            c: c.into_boxed_slice(),
+            r: PhantomData,
+        }
     }
 
-    pub fn as_ptr(&self) -> *const *const c_char {
-        self.c.as_ptr() as *const _
-    }
-}
-
-#[cfg(feature = "std")]
-impl Drop for NullTerminatedStrList {
-    fn drop(&mut self) {
-        for i in self.c.iter() {
-            unsafe {
-                if !(*i).is_null() {
-                    let _ = ::std::ffi::CString::from_raw(*i);
-                }
-            }
-        }
+    pub fn as_ptr(&self) -> *const *const u8 {
+        self.c.as_ptr()
     }
 }
 
 define!(
     #[c_ty(ssl_config)]
-    #[repr(C)]
-    struct Config {
-        // Holding reference counters against any structures that ssl_config might hold pointer to.
-        // This allows caller to share structure on multiple configs if needed.
-        own_cert: Vec<Arc<MbedtlsList<Certificate>>>,
-        own_pk: Vec<Arc<Pk>>,
-    
-        ca_cert: Option<Arc<MbedtlsList<Certificate>>>,
-        crl: Option<Arc<Crl>>,
-        
-        rng: Option<Arc<dyn RngCallback + 'static>>,
-        
-        ciphersuites: Vec<Arc<Vec<c_int>>>,
-        curves: Option<Arc<Vec<ecp_group_id>>>,
-        protocols: Option<Arc<NullTerminatedStrList>>,
-        
-        verify_callback: Option<Arc<dyn VerifyCallback + 'static>>,
-        #[cfg(feature = "std")]
-        dbg_callback: Option<Arc<dyn DbgCallback + 'static>>,
-        sni_callback: Option<Arc<dyn SniCallback + 'static>>,
-        ticket_callback: Option<Arc<dyn TicketCallback + 'static>>,
-        ca_callback: Option<Arc<dyn CaCallback + 'static>>,
-        dtls_cookies: Option<Arc<dyn CookieCallback + 'static>>,
-    };
+    struct Config<'c>;
+    const init: fn() -> Self = ssl_config_init;
     const drop: fn(&mut Self) = ssl_config_free;
-    impl<'a> Into<ptr> {}
+    impl<'q> Into<ptr> {}
+    impl<'q> UnsafeFrom<ptr> {}
 );
 
-unsafe impl Sync for Config {}
+#[cfg(feature = "threading")]
+unsafe impl<'c> Sync for Config<'c> {}
 
-impl Config {
+impl<'c> Config<'c> {
     pub fn new(e: Endpoint, t: Transport, p: Preset) -> Self {
-        let mut inner = ssl_config::default();
-
+        let mut c = Config::init();
         unsafe {
-            // This is just a memset to 0.
-            ssl_config_init(&mut inner);
-
-            // Set default values - after this point we will need ssl_config_free to be called.
-            ssl_config_defaults(&mut inner, e as c_int, t as c_int, p as c_int);
-        };
-
-        Config {
-            inner,
-            own_cert: vec![],
-            own_pk: vec![],
-            ca_cert: None,
-            crl: None,
-            rng: None,
-            ciphersuites: vec![],
-            curves: None,
-            protocols: None,
-            verify_callback: None,
-            #[cfg(feature = "std")]
-            dbg_callback: None,
-            sni_callback: None,
-            ticket_callback: None,
-            ca_callback: None,
-            dtls_cookies: None,
+            ssl_config_defaults(&mut c.inner, e.into(), t.into(), p.into());
         }
+        c
     }
 
     // need bitfield support getter!(endpoint() -> Endpoint = field endpoint);
@@ -218,42 +147,21 @@ impl Config {
         assert!(list.last() == Some(&T::default()));
     }
 
-    pub fn set_ciphersuites(&mut self, list: Arc<Vec<c_int>>) {
-        Self::check_c_list(&list);
-
-        unsafe { ssl_conf_ciphersuites(self.into(), list.as_ptr()) }
-        self.ciphersuites.push(list);
+    pub fn set_ciphersuites(&mut self, list: &'c [c_int]) {
+        Self::check_c_list(list);
+        unsafe { ssl_conf_ciphersuites(&mut self.inner, list.as_ptr()) }
     }
 
-    /// Set the supported Application Layer Protocols.
-    pub fn set_alpn_protocols(&mut self, protocols: Arc<NullTerminatedStrList>) -> Result<()> {
-        unsafe {
-            ssl_conf_alpn_protocols(&mut self.inner, protocols.as_ptr() as *mut _)
-                .into_result()
-                .map(|_| ())?;
-        }
-
-        self.protocols = Some(protocols);
-        Ok(())
-    }
-    
-    pub fn set_ciphersuites_for_version(&mut self, list: Arc<Vec<c_int>>, major: c_int, minor: c_int) {
-        Self::check_c_list(&list);
-        unsafe { ssl_conf_ciphersuites_for_version(self.into(), list.as_ptr(), major, minor) }
-        self.ciphersuites.push(list);
+    pub fn set_ciphersuites_for_version(&mut self, list: &'c [c_int], major: c_int, minor: c_int) {
+        Self::check_c_list(list);
+        unsafe { ssl_conf_ciphersuites_for_version(&mut self.inner, list.as_ptr(), major, minor) }
     }
 
-    pub fn set_curves(&mut self, list: Arc<Vec<ecp_group_id>>) {
-        Self::check_c_list(&list);
-        unsafe { ssl_conf_curves(self.into(), list.as_ptr()) }
-        self.curves = Some(list);
+    pub fn set_curves(&mut self, list: &'c [ecp_group_id]) {
+        Self::check_c_list(list);
+        unsafe { ssl_conf_curves(&mut self.inner, list.as_ptr()) }
     }
 
-    pub fn set_rng<T: RngCallback + 'static>(&mut self, rng: Arc<T>) {
-        unsafe { ssl_conf_rng(self.into(), Some(T::call), rng.data_ptr()) };
-        self.rng = Some(rng);
-    }
-    
     pub fn set_min_version(&mut self, version: Version) -> Result<()> {
         let minor = match version {
             Version::Ssl3 => 0,
@@ -263,7 +171,7 @@ impl Config {
             _ => { return Err(Error::SslBadHsProtocolVersion); }
         };
 
-        unsafe { ssl_conf_min_version(self.into(), 3, minor) };
+        unsafe { ssl_conf_min_version(&mut self.inner, 3, minor) };
         Ok(())
     }
 
@@ -275,59 +183,68 @@ impl Config {
             Version::Tls1_2 => 3,
             _ => { return Err(Error::SslBadHsProtocolVersion); }
         };
-        unsafe { ssl_conf_max_version(self.into(), 3, minor) };
+        unsafe { ssl_conf_max_version(&mut self.inner, 3, minor) };
         Ok(())
     }
 
-    // Profile as implemented in profile.rs can only point to global variables from mbedtls which would have 'static lifetime
-    setter!(set_cert_profile(p: &'static Profile) = ssl_conf_cert_profile);
+    setter!(set_cert_profile(p: &'c Profile) = ssl_conf_cert_profile);
 
     /// Takes both DER and PEM forms of FFDH parameters in `DHParams` format.
     ///
     /// When calling on PEM-encoded data, `params` must be NULL-terminated
-    pub fn set_dh_params(&mut self, dhm: &Dhm) -> Result<()> {
+    pub fn set_dh_params(&mut self, params: &[u8]) -> Result<()> {
+        let mut ctx = Dhm::from_params(params)?;
         unsafe {
-            // This copies the dhm parameters and does not store any pointer to it
-            ssl_conf_dh_param_ctx(self.into(), dhm.inner_ffi_mut())
+            ssl_conf_dh_param_ctx(&mut self.inner, (&mut ctx).into())
                 .into_result()
-                .map(|_| ())?;
-        }
-        Ok(())
-    }
-
-    pub fn set_ca_list(&mut self, ca_cert: Arc<MbedtlsList<Certificate>>, crl: Option<Arc<Crl>>) {
-        // This will override internal pointers to what we provide.
-        
-        unsafe { ssl_conf_ca_chain(self.into(), ca_cert.inner_ffi_mut(), crl.as_ref().map(|crl| crl.inner_ffi_mut()).unwrap_or(::core::ptr::null_mut())); }
-
-        self.ca_cert = Some(ca_cert);
-        self.crl = crl;        
-    }
-
-    pub fn push_cert(&mut self, own_cert: Arc<MbedtlsList<Certificate>>, own_pk: Arc<Pk>) -> Result<()> {
-        // Need to ensure own_cert/pk_key outlive the config.
-        self.own_cert.push(own_cert.clone());
-        self.own_pk.push(own_pk.clone());
-
-        // This will append pointers to our certificates inside mbedtls
-        unsafe { ssl_conf_own_cert(self.into(), own_cert.inner_ffi_mut(), own_pk.inner_ffi_mut())
-                 .into_result()
-                 .map(|_| ())
+                .map(|_| ())
         }
     }
-    
+
+    pub fn set_ca_list<C: Into<&'c mut LinkedCertificate>>(
+        &mut self,
+        list: Option<C>,
+        crl: Option<&'c mut Crl>,
+    ) {
+        unsafe {
+            ssl_conf_ca_chain(
+                &mut self.inner,
+                list.map(Into::into)
+                    .map(Into::into)
+                    .unwrap_or(::core::ptr::null_mut()),
+                crl.map(Into::into).unwrap_or(::core::ptr::null_mut()),
+            )
+        }
+    }
+
+    pub fn push_cert<C: Into<&'c mut LinkedCertificate>>(
+        &mut self,
+        chain: C,
+        key: &'c mut Pk,
+    ) -> Result<()> {
+        unsafe {
+            ssl_conf_own_cert(&mut self.inner, chain.into().into(), key.into())
+                .into_result()
+                .map(|_| ())
+        }
+    }
+
+    pub fn certs(&'c self) -> KeyCertIter<'c> {
+        KeyCertIter {
+            key_cert: unsafe { UnsafeFrom::from(self.inner.key_cert as *const _) },
+        }
+    }
+
     /// Server only: configure callback to use for generating/interpreting session tickets.
-    pub fn set_session_tickets_callback<T: TicketCallback + 'static>(&mut self, cb: Arc<T>) {
+    pub fn set_session_tickets_callback<F: TicketCallback>(&mut self, cb: &'c mut F) {
         unsafe {
             ssl_conf_session_tickets_cb(
-                self.into(),
-                Some(T::call_write),
-                Some(T::call_parse),
+                &mut self.inner,
+                Some(F::call_write),
+                Some(F::call_parse),
                 cb.data_ptr(),
             )
         };
-
-        self.ticket_callback = Some(cb);
     }
 
     setter!(
@@ -335,149 +252,200 @@ impl Config {
         set_session_tickets(u: UseSessionTickets) = ssl_conf_session_tickets
     );
 
-    setter!(set_renegotiation(u: Renegotiation) = ssl_conf_renegotiation);
-
     setter!(
         /// Client only: minimal FFDH group size
         set_ffdh_min_bitlen(bitlen: c_uint) = ssl_conf_dhm_min_bitlen
     );
-    
-    pub fn set_sni_callback<F>(&mut self, cb: F)
-    where
-        F: SniCallback + 'static,
-    {
-        unsafe extern "C" fn sni_callback<F>(
+
+    // TODO: The lifetime restrictions on HandshakeContext here are too strict.
+    // Once we need something else, we might fix it.
+    pub fn set_sni_callback<F: FnMut(&mut HandshakeContext, &[u8]) -> StdResult<(), ()>>(
+        &mut self,
+        cb: &'c mut F,
+    ) {
+        unsafe extern "C" fn sni_callback<
+            F: FnMut(&mut HandshakeContext, &[u8]) -> StdResult<(), ()>,
+        >(
             closure: *mut c_void,
             ctx: *mut ssl_context,
             name: *const c_uchar,
             name_len: size_t,
-        ) -> c_int
-        where
-            F: Fn(&mut HandshakeContext, &[u8]) -> Result<()> + 'static,
-        {
-            // This is called from:
-            //
-            // mbedtls/src/ssl/context.rs           - establish
-            // mbedtls-sys/vendor/library/ssl_tls.c - mbedtls_ssl_handshake
-            // mbedtls-sys/vendor/library/ssl_tls.c - mbedtls_ssl_handshake_step
-            // mbedtls-sys/vendor/library/ssl_srv.c - mbedtls_ssl_handshake_server_step
-            // mbedtls-sys/vendor/library/ssl_srv.c - ssl_parse_client_hello
-            // mbedtls-sys/vendor/library/ssl_srv.c - ssl_parse_servername_ext
-            //
-            // As such:
-            // - The ssl_context is a rust 'Context' structure that we have a mutable reference to via 'establish'
-            // - We can pointer cast to it to allow storing additional objects.
-            //
+        ) -> c_int {
             let cb = &mut *(closure as *mut F);
-            let ctx = UnsafeFrom::from(ctx).unwrap();
-            
+            let mut ctx = UnsafeFrom::from(ctx).expect("valid context");
             let name = from_raw_parts(name, name_len);
-            match cb(ctx, name) {
+            match cb(&mut ctx, name) {
                 Ok(()) => 0,
-                Err(_) => -1,
+                Err(()) => -1,
             }
         }
 
-        
-        self.sni_callback = Some(Arc::new(cb));
-        unsafe { ssl_conf_sni(self.into(), Some(sni_callback::<F>), &**self.sni_callback.as_mut().unwrap() as *const _ as *mut c_void) }
+        unsafe { ssl_conf_sni(&mut self.inner, Some(sni_callback::<F>), cb as *mut F as _) }
     }
 
     // The docs for mbedtls_x509_crt_verify say "The [callback] should return 0 for anything but a
     // fatal error.", so verify callbacks should return Ok(()) for anything but a fatal error.
     // Report verification errors by updating the flags in VerifyError.
-    pub fn set_verify_callback<F>(&mut self, cb: F)
+    pub fn set_verify_callback<F>(&mut self, cb: &'c mut F)
     where
-        F: VerifyCallback + 'static,
+        F: FnMut(&mut LinkedCertificate, i32, &mut VerifyError) -> Result<()>,
     {
-        self.verify_callback = Some(Arc::new(cb));
-        unsafe { ssl_conf_verify(self.into(), Some(x509::verify_callback::<F>), &**self.verify_callback.as_ref().unwrap() as *const _ as *mut c_void) }
+        unsafe extern "C" fn verify_callback<F>(
+            closure: *mut c_void,
+            crt: *mut x509_crt,
+            depth: c_int,
+            flags: *mut u32,
+        ) -> c_int
+        where
+            F: FnMut(&mut LinkedCertificate, i32, &mut VerifyError) -> Result<()>,
+        {
+            let cb = &mut *(closure as *mut F);
+            let crt: &mut LinkedCertificate =
+                UnsafeFrom::from(crt).expect("valid certificate");
+            let mut verify_error = match VerifyError::from_bits(*flags) {
+                Some(ve) => ve,
+                // This can only happen if mbedtls is setting flags in VerifyError that are
+                // missing from our definition.
+                None => return ::mbedtls_sys::ERR_X509_BAD_INPUT_DATA,
+            };
+            let res = cb(crt, depth, &mut verify_error);
+            *flags = verify_error.bits();
+            match res {
+                Ok(()) => 0,
+                Err(e) => e.to_int(),
+            }
+        }
+
+        unsafe {
+            ssl_conf_verify(
+                &mut self.inner,
+                Some(verify_callback::<F>),
+                cb as *mut F as _,
+            )
+        }
     }
 
-    pub fn set_ca_callback<F>(&mut self, cb: F)
-    where
-        F: CaCallback + 'static,
+    pub fn set_ca_callback<F>(&mut self, cb: &'c mut F)
+        where
+            F: FnMut(&LinkedCertificate, &mut ForeignOwnedCertListBuilder) -> Result<()>,
     {
         unsafe extern "C" fn ca_callback<F>(
             closure: *mut c_void,
             child: *const x509_crt,
             candidate_cas: *mut *mut x509_crt
         ) -> c_int
-        where
-            F: CaCallback + 'static,
+            where
+                F: FnMut(&LinkedCertificate, &mut ForeignOwnedCertListBuilder) -> Result<()>,
         {
-            if child.is_null() || closure.is_null() || candidate_cas.is_null() {
-                return ::mbedtls_sys::ERR_X509_BAD_INPUT_DATA;
-            }
-
             let cb = &mut *(closure as *mut F);
-            let crt: &MbedtlsList<Certificate> = UnsafeFrom::from(&child as *const *const x509_crt).expect("valid certificate");
-            match cb(&crt) {
-                Ok(list) => {
-                    // This does not leak due to mbedtls taking ownership from us and freeing the certificates itself. (logic is in: mbedtls-sys/vendor/library/x509_crt.c:2904)
-                    *candidate_cas = list.into_raw();
+            let child: &LinkedCertificate = UnsafeFrom::from(child).expect("valid child certificate");
+            let mut cert_builder = ForeignOwnedCertListBuilder::new();
+            match cb(child, &mut cert_builder) {
+                Ok(()) => {
+                    *candidate_cas = cert_builder.to_x509_crt_ptr();
                     0
                 },
                 Err(e) => e.to_int(),
             }
         }
 
-        self.ca_callback = Some(Arc::new(cb));
-        unsafe { ssl_conf_ca_cb( self.into(), Some(ca_callback::<F>), &**self.ca_callback.as_mut().unwrap() as *const _ as *mut c_void) }
-    }
-
-    #[cfg(feature = "std")]
-    pub fn set_dbg_callback<F>(&mut self, cb: F)
-    where
-        F: DbgCallback + 'static,
-    {
-        #[allow(dead_code)]
-        unsafe extern "C" fn dbg_callback<F>(
-            closure: *mut c_void,
-            level: c_int,
-            file: *const c_char,
-            line: c_int,
-            message: *const c_char
-        ) -> ()
-        where
-            F: DbgCallback + 'static,
-        {
-            let cb = &mut *(closure as *mut F);
-
-            let file = match file.is_null() {
-                false => std::ffi::CStr::from_ptr(file).to_string_lossy(),
-                true => Cow::from(""),
-            };
-            
-            let message = match message.is_null() {
-                false => std::ffi::CStr::from_ptr(message).to_string_lossy(),
-                true => Cow::from(""),
-            };
-            
-            cb(level, file, line, message);
-        }
-
-        self.dbg_callback = Some(Arc::new(cb));
-        unsafe { ssl_conf_dbg(self.into(), Some(dbg_callback::<F>), &**self.dbg_callback.as_mut().unwrap() as *const _ as *mut c_void) }
-    }
-
-    /// Sets the PSK and the PSK-Identity
-    ///
-    /// Only a single entry is supported at the moment. If another one was set before, it will be
-    /// overridden.
-    pub fn set_psk(&mut self, psk: &[u8], psk_identity: &str) -> Result<()> {
         unsafe {
-            // This allocates and copies the buffers and does not store any pointer to them
-            ssl_conf_psk(self.into(), psk.as_ptr(), psk.len(), psk_identity.as_ptr(), psk_identity.len())
+            ssl_conf_ca_cb(
+                &mut self.inner,
+                Some(ca_callback::<F>),
+                cb as *mut F as _,
+            )
+        }
+    }
+
+    /// Set the supported Application Layer Protocols.
+    ///
+    /// Each protocol name in the list must also be terminated with a null character (`\0`).
+    pub fn set_alpn_protocols(&mut self, protocols: &'c NullTerminatedStrList<'c>) -> Result<()> {
+        unsafe {
+            ssl_conf_alpn_protocols(&mut self.inner, protocols.as_ptr() as *mut _)
                 .into_result()
                 .map(|_| ())
         }
     }
+}
 
-    /// Sets the cookie context and callbacks which are required for DTLS servers
-    pub fn set_dtls_cookies<T: CookieCallback + 'static>(&mut self, dtls_cookies: Arc<T>) {
-        unsafe { ssl_conf_dtls_cookies(self.into(), Some(T::cookie_write), Some(T::cookie_check), dtls_cookies.data_ptr()) };
-        self.dtls_cookies = Some(dtls_cookies);
+/// Builds a linked list of x509_crt instances, all of which are owned by mbedtls. That is, the
+/// memory for these certificates has been allocated by mbedtls, on the C heap. This is needed for
+/// situations in which an mbedtls function takes ownership of a list of certs. The problem with
+/// handing such functions a "normal" cert list such as certificate::LinkedCertificate or
+/// certificate::List, is that those lists (at least partly) consist of memory allocated on the
+/// rust-side and hence cannot be freed on the c-side.
+pub struct ForeignOwnedCertListBuilder {
+    cert_list: *mut x509_crt,
+}
+
+impl ForeignOwnedCertListBuilder {
+    pub(crate) fn new() -> Self {
+        let cert_list = unsafe { calloc(1, core::mem::size_of::<x509_crt>()) } as *mut x509_crt;
+        if cert_list == ::core::ptr::null_mut() {
+            panic!("Out of memory");
+        }
+        unsafe { ::mbedtls_sys::x509_crt_init(cert_list); }
+
+        Self {
+            cert_list
+        }
+    }
+
+    pub fn push_back(&mut self, cert: &LinkedCertificate) {
+        self.try_push_back(cert.as_der()).expect("cert is a valid DER-encoded certificate");
+    }
+
+    pub fn try_push_back(&mut self, cert: &[u8]) -> Result<()> {
+        // x509_crt_parse_der will allocate memory for the cert on the C heap
+        unsafe { x509_crt_parse_der(self.cert_list, cert.as_ptr(), cert.len()) }.into_result()?;
+        Ok(())
+    }
+
+    // The memory pointed to by the return value is managed by mbedtls. If the return value is
+    // dropped without handing it to an mbedtls-function that takes ownership of it, that memory
+    // will be leaked.
+    pub(crate) fn to_x509_crt_ptr(mut self) -> *mut x509_crt {
+        let res = self.cert_list;
+        self.cert_list = ::core::ptr::null_mut();
+        res
+    }
+}
+
+impl Drop for ForeignOwnedCertListBuilder {
+    fn drop(&mut self) {
+        unsafe {
+            ::mbedtls_sys::x509_crt_free(self.cert_list);
+            free(self.cert_list as *mut c_void);
+        }
+    }
+}
+
+setter_callback!(Config<'c>::set_rng(f: crate::rng::Random) = ssl_conf_rng);
+setter_callback!(Config<'c>::set_dbg(f: DbgCallback) = ssl_conf_dbg);
+
+define!(
+    #[c_ty(ssl_key_cert)]
+    struct KeyCert;
+    impl<'a> UnsafeFrom<ptr> {}
+);
+
+pub struct KeyCertIter<'a> {
+    key_cert: Option<&'a KeyCert>,
+}
+
+impl<'a> Iterator for KeyCertIter<'a> {
+    type Item = (certificate::Iter<'a>, &'a Pk);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.key_cert.take().map(|key_cert| unsafe {
+            self.key_cert = UnsafeFrom::from(key_cert.inner.next as *const _);
+            (
+                UnsafeFrom::from(key_cert.inner.cert as *const _).expect("not null"),
+                UnsafeFrom::from(key_cert.inner.key as *const _).expect("not null"),
+            )
+        })
     }
 }
 
@@ -488,6 +456,7 @@ impl Config {
 // ssl_conf_dtls_badmac_limit
 // ssl_conf_handshake_timeout
 // ssl_conf_session_cache
+// ssl_conf_psk
 // ssl_conf_psk_cb
 // ssl_conf_sig_hashes
 // ssl_conf_alpn_protocols

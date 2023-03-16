@@ -6,18 +6,17 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-cfg_if::cfg_if! {
-    if #[cfg(any(feature = "rdrand", target_env = "sgx"))] {
-        pub fn entropy_new() -> crate::mbedtls::rng::Rdseed {
-            crate::mbedtls::rng::Rdseed
-        }
-    } else if #[cfg(feature = "std")] {
-        pub fn entropy_new() -> crate::mbedtls::rng::OsEntropy {
-            crate::mbedtls::rng::OsEntropy::new()
-        }
-    } else {
-        pub fn entropy_new() -> ! {
-            panic!("Unable to run test without entropy source")
-        }
-    }
+#[cfg(all(feature = "std", not(feature = "rdrand")))]
+pub fn entropy_new<'a>() -> crate::mbedtls::rng::OsEntropy<'a> {
+    crate::mbedtls::rng::OsEntropy::new()
+}
+
+#[cfg(feature = "rdrand")]
+pub fn entropy_new() -> crate::mbedtls::rng::Rdseed {
+    crate::mbedtls::rng::Rdseed
+}
+
+#[cfg(all(not(feature = "std"), not(feature = "rdrand")))]
+pub fn entropy_new() -> _UNABLE_TO_RUN_TEST_WITHOUT_ENTROPY_SOURCE_ {
+    panic!("Unable to run test without entropy source")
 }

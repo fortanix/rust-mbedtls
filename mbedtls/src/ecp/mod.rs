@@ -79,13 +79,6 @@ impl EcGroup {
         Ok(ret)
     }
 
-    /// Initialize an EcGroup with custom group parameters.
-    ///
-    /// HAZMAT: This function DOES NOT perform a full check on parameters
-    /// against all known attacks. The caller MUST make sure that parameters are
-    /// trusted. Failing to comply with this requirement may result in the use
-    /// of INSECURE curves. Prefer [EcGroup::new] with known curves listed in
-    /// [EcGroupId].
     pub fn from_parameters(
         p: Mpi,
         a: Mpi,
@@ -103,16 +96,15 @@ impl EcGroup {
         let zero = Mpi::new(0)?;
 
         // basic bounds checking
-        if &a < &zero
+        if &a <= &zero
             || &a >= &p
-            || &b < &zero
+            || &b <= &zero
             || &b >= &p
-            || &g_x < &zero
+            || &g_x <= &zero
             || &g_x >= &p
-            || &g_y < &zero
+            || &g_y <= &zero
             || &g_y >= &p
             || &order <= &zero
-            || (&a == &zero && &b == &zero)
         {
             return Err(Error::EcpBadInputData);
         }
@@ -199,8 +191,6 @@ impl EcGroup {
         match self.group_id()? {
             EcGroupId::Curve25519 => Ok(8),
             EcGroupId::Curve448 => Ok(4),
-            // Requires a point-counting algorithm such as SEA.
-            EcGroupId::None => Err(Error::EcpFeatureUnavailable),
             _ => Ok(1),
         }
     }
@@ -463,8 +453,6 @@ mod tests {
         assert!(secp256r1 == copy); //can't use assert_eq as EcGroup doesn't impl Debug
     }
 
-    // FIXME: very slow on SGX https://github.com/fortanix/rust-mbedtls/issues/134
-    #[cfg_attr(target_env = "sgx", ignore)]
     #[test]
     fn test_ec_compressed_points() {
         let groups = [
@@ -765,155 +753,5 @@ mod tests {
 
         let pt3 = pt1.clone();
         assert_eq!(pt2.eq(&pt3).unwrap(), true);
-    }
-
-    #[cfg(feature = "std")]
-    struct Params<'a> {
-        p:   &'a str,
-        a:   &'a str,
-        b:   &'a str,
-        g_x: &'a str,
-        g_y: &'a str,
-        n:   &'a str,
-    }
-
-    #[cfg(feature = "std")]
-    impl Into<super::Result<EcGroup>> for Params<'_> {
-        fn into(self) -> super::Result<EcGroup> {
-            use std::str::FromStr;
-            EcGroup::from_parameters(
-                Mpi::from_str(self.p)?,
-                Mpi::from_str(self.a)?,
-                Mpi::from_str(self.b)?,
-                Mpi::from_str(self.g_x)?,
-                Mpi::from_str(self.g_y)?,
-                Mpi::from_str(self.n)?,
-            )
-        }
-    }
-
-    #[test]
-    #[cfg(feature = "std")]
-    fn pathological_parameters() {
-        // y² = x³ mod 7 (note  a == b == 0)
-        let singular: super::Result<_> = Params {
-            p:   "0x07",
-            a:   "0x00",
-            b:   "0x00",
-            g_x: "0x01",
-            g_y: "0x02",
-            n:   "0x0b",
-        }.into();
-        assert!(singular.is_err());
-    }
-
-    #[test]
-    #[cfg(feature = "std")]
-    fn bad_generators() {
-        // y² = x³ + x + 6 (mod 7) with bad generator (1, 2) and prime order 11
-        let small_curve: super::Result<_> = Params {
-            p:   "0x07",
-            a:   "0x01",
-            b:   "0x06",
-            g_x: "0x01",
-            g_y: "0x02",
-            n:   "0x0b",
-        }.into();
-        assert!(small_curve.is_err());
-
-        // y² = x³ + x + 6 (mod 7) with bad generator (0, 0) and prime order 11
-        let small_curve_zero_gen: super::Result<_> = Params {
-            p:   "0x07",
-            a:   "0x01",
-            b:   "0x06",
-            g_x: "0x00",
-            g_y: "0x00",
-            n:   "0x0b",
-        }.into();
-        assert!(small_curve_zero_gen.is_err());
-    }
-
-    #[test]
-    #[cfg(feature = "std")]
-    fn unknown_cofactor() {
-        // y² = x³ + x + 6 (mod 7)  with generator (1, 6) and prime order 11
-        let small_curve: super::Result<_> = Params {
-            p:   "0x07",
-            a:   "0x01",
-            b:   "0x06",
-            g_x: "0x01",
-            g_y: "0x06",
-            n:   "0x0b",
-        }.into();
-        assert!(small_curve.unwrap().cofactor().is_err());
-    }
-
-    #[test]
-    #[cfg(feature = "std")]
-    fn zero_params_curves() {
-        use super::Result;
-        // Barreto-Naehrig 254, note a = 0
-        let bn254: Result<_> = Params {
-            p:   "0x2523648240000001BA344D80000000086121000000000013A700000000000013",
-            a:   "0x0000000000000000000000000000000000000000000000000000000000000000",
-            b:   "0x0000000000000000000000000000000000000000000000000000000000000002",
-            g_x: "0x2523648240000001BA344D80000000086121000000000013A700000000000012",
-            g_y: "0x0000000000000000000000000000000000000000000000000000000000000001",
-            n:   "0x2523648240000001BA344D8000000007FF9F800000000010A10000000000000D",
-        }.into();
-        assert!(bn254.is_ok());
-
-        // Prescribed embedded degree of 12, BLS12-381
-        let bls12_381: Result<_> = Params {
-            p:   "0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab",
-            a:   "0x00",
-            b:   "0x04",
-            g_x: "0x17F1D3A73197D7942695638C4FA9AC0FC3688C4F9774B905A14E3A3F171BAC586C55E83FF97A1AEFFB3AF00ADB22C6BB",
-            g_y: "0x08B3F481E3AAA0F1A09E30ED741D8AE4FCF5E095D5D00AF600DB18CB2C04B3EDD03CC744A2888AE40CAA232946C5E7E1",
-            n:   "0x73EDA753299D7D483339D80809A1D80553BDA402FFFE5BFEFFFFFFFF00000001",
-        }.into();
-        assert!(bls12_381.is_ok());
-
-        // Fp256BN
-        let fp256_bn: Result<_> = Params {
-            p:   "0xfffffffffffcf0cd46e5f25eee71a49f0cdc65fb12980a82d3292ddbaed33013",
-            a:   "0x00",
-            b:   "0x03",
-            g_x: "0x01",
-            g_y: "0x02",
-            n:   "0xfffffffffffcf0cd46e5f25eee71a49e0cdc65fb1299921af62d536cd10b500d",
-        }.into();
-        assert!(fp256_bn.is_ok());
-
-        // id-GostR3410-2001-CryptoPro-C-ParamSet, note g_x = 0
-        let gost_r3410: Result<_> = Params {
-            p:   "0x9b9f605f5a858107ab1ec85e6b41c8aacf846e86789051d37998f7b9022d759b",
-            a:   "0x9b9f605f5a858107ab1ec85e6b41c8aacf846e86789051d37998f7b9022d7598",
-            b:   "0x805a",
-            g_x: "0x00",
-            g_y: "0x41ece55743711a8c3cbf3783cd08c0ee4d4dc440d4641a8f366e550dfdb3bb67",
-            n:   "0x9b9f605f5a858107ab1ec85e6b41c8aa582ca3511eddfb74f02f3a6598980bb9",
-        }.into();
-        assert!(gost_r3410.is_ok());
-
-        // secp256k1 (Bitcoin), note a = 0
-        let my_secp256k1: Result<EcGroup> = Params {
-            p:   "0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
-            a:   "0x0000000000000000000000000000000000000000000000000000000000000000",
-            b:   "0x0000000000000000000000000000000000000000000000000000000000000007",
-            g_x: "0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-            g_y: "0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-            n:   "0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
-        }.into();
-        assert!(my_secp256k1.is_ok());
-        let my_secp256k1 = my_secp256k1.unwrap();
-
-        // We compare against the known SecP256K1
-        let secp256k1 = EcGroup::new(EcGroupId::SecP256K1).unwrap();
-        assert!(my_secp256k1.p()         == secp256k1.p());
-        assert!(my_secp256k1.a()         == secp256k1.a());
-        assert!(my_secp256k1.b()         == secp256k1.b());
-        assert!(my_secp256k1.generator() == secp256k1.generator());
-        assert!(my_secp256k1.order()     == secp256k1.order());
     }
 }
