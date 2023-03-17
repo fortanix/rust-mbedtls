@@ -565,7 +565,7 @@ impl<T: IoCallback + Write> Write for Context<T> {
 // - no reasonable way to obtain a storage within the sni callback tied to the handshake or to the rust Context. (without resorting to a unscalable map or pointer magic that mbedtls may invalidate)
 //
 impl HandshakeContext {
-    pub fn reset_handshake(&mut self) {
+    fn reset_handshake(&mut self) {
         self.handshake_cert.clear();
         self.handshake_pk.clear();
         self.handshake_ca_cert = None;

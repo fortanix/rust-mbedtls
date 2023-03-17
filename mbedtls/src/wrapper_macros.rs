@@ -61,10 +61,6 @@ macro_rules! define {
         define_struct!(define $(#[$m])* struct $name $(lifetime $l)* inner $inner members $($($(#[$mm])* $member: $member_type,)*)*);
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
     };
-    { #[c_custom_ty($inner:ident)] $(#[$m:meta])* struct $name:ident$(<$l:tt>)* $({ $($(#[$mm:meta])* $member:ident: $member_type:ty,)* })?; $($defs:tt)* } => {
-        define_struct!(define_custom $(#[$m])* struct $name $(lifetime $l)* inner $inner members $($($(#[$mm])* $member: $member_type,)*)*);
-        define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
-    };
     // Do not use UnsafeFrom with 'c_box_ty'. That is currently not supported as its not needed anywhere, support may be added in the future if needed anywhere.
     { #[c_box_ty($inner:ident)] $(#[$m:meta])* struct $name:ident$(<$l:tt>)* $({ $($(#[$mm:meta])* $member:ident: $member_type:ty,)* })?; $($defs:tt)* } => {
         define_struct!(define_box $(#[$m])* struct $name $(lifetime $l)* inner $inner members $($($(#[$mm])* $member: $member_type,)*)*);

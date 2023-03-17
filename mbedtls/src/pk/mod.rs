@@ -211,8 +211,8 @@ define!(
 //       And the key is a const parameter to mbedtls_pk_write_pubkey - ../../../mbedtls-sys/vendor/crypto/library/pkwrite.c:158
 //
 // - Const access with additional notes due to call stacks involved.
-//   ecdsa_sign_wrap: ../../../mbedtls-sys/vendor/crypto/library/pk_wrap.c:657
 //
+//   ecdsa_sign_wrap: ../../../mbedtls-sys/vendor/crypto/library/pk_wrap.c:657
 //       mbedtls_ecdsa_write_signature ../../../mbedtls-sys/vendor/crypto/library/ecdsa.c:688
 //           mbedtls_ecdsa_write_signature_restartable ../../../mbedtls-sys/vendor/crypto/library/ecdsa.c:640
 //               MBEDTLS_ECDSA_DETERMINISTIC is not defined.
