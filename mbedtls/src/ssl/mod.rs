@@ -12,7 +12,7 @@ pub mod config;
 pub mod context;
 pub mod ticket;
 
-#[cfg(all(feature = "std", feature = "tokio"))]
+#[cfg(all(feature = "std", feature = "async"))]
 #[doc(inline)]
 pub use self::async_session::{AsyncSession, IoAdapter};
 #[doc(inline)]

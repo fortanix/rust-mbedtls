@@ -379,7 +379,7 @@ impl<'a> Drop for MidHandshake<'a> {
     }
 }
 
-#[cfg(all(feature = "std", feature = "tokio"))]
+#[cfg(all(feature = "std", feature = "async"))]
 impl<'a> Session<'a> {
     // This is unsafe because if it returns something other than Ok or
     // WouldBlock, then it's the caller's responsibility to ensure the session

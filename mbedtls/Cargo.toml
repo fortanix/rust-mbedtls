@@ -76,6 +76,8 @@ legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "cbc"]
+async = ["std", "threading", "tokio","tokio/net","tokio/io-util", "tokio/macros"]
+async-rt = [ "async", "tokio/rt"]
 
 [[example]]
 name = "client"
@@ -95,7 +97,7 @@ required-features = ["std"]
 [[test]]
 name = "async_session"
 path = "tests/async_session.rs"
-required-features = ["std", "threading", "tokio", "tokio/net", "tokio/io-util", "tokio/macros", "tokio/rt"]
+required-features = ["async-rt"]
 
 [[test]]
 name = "client_server"
