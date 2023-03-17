@@ -43,7 +43,7 @@ quote = "1.0.9"
 # * memmove/memcpy/memcmp/memset
 # * rand/printf (used only for self tests. optionally use custom_printf)
 default = ["std", "threading", "zlib", "time", "aesni", "padlock", "legacy_protocols"]
-std = [] # deprecated automatic enabling of debug, can be removed on major version bump
+std = []
 custom_printf = []
 custom_has_support = []
 aes_alt = []

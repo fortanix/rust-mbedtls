@@ -14,8 +14,6 @@ use std::rc::Rc;
 use std::task::{Context as TaskContext, Poll};
 
 
-#[cfg(not(feature = "std"))]
-use core_io::{Error as IoError, Result as IoResult, ErrorKind as IoErrorKind};
 #[cfg(feature = "std")]
 use std::io::{Error as IoError, Result as IoResult, ErrorKind as IoErrorKind};
 
