@@ -6,7 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-#![cfg(all(feature = "std", feature = "tokio"))]
+#![cfg(all(feature = "std", feature = "async"))]
 
 use std::cell::Cell;
 use std::future::Future;

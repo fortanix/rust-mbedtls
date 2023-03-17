@@ -10,7 +10,7 @@
 #![allow(unused_doc_comments)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(all(not(feature = "std"), not(feature = "core_io")))]
+#[cfg(all(not(feature = "std"), not(feature = "core-io")))]
 const ERROR: _MUST_USE_EITHER_STD_OR_CORE_IO_ = ();
 
 #[cfg(not(feature = "std"))]

@@ -12,7 +12,7 @@ use std::io::{Error as IoError, Result as IoResult};
 use std::net::TcpStream;
 use std::os::unix::io::FromRawFd;
 
-#[cfg(feature = "tokio")]
+#[cfg(feature = "async")]
 use tokio::net;
 
 pub fn create_tcp_pair() -> IoResult<(TcpStream, TcpStream)> {
@@ -32,7 +32,7 @@ pub fn create_tcp_pair() -> IoResult<(TcpStream, TcpStream)> {
     }
 }
 
-#[cfg(feature = "tokio")]
+#[cfg(feature = "async")]
 pub fn create_tcp_pair_async() -> IoResult<(net::TcpStream, net::TcpStream)> {
     let (c, s) = create_tcp_pair()?;
     c.set_nonblocking(true)?;
