@@ -48,8 +48,6 @@ serde_cbor = "0.6"
 hex = "0.3"
 matches = "0.1.8"
 hyper = { version = "0.10.16", default-features = false }
-hyper13 = { package = "hyper", version = "0.13", default-features = false, features = ["stream"] }
-tokio-02 = { package = "tokio", version = "0.2", default-features = false }
 async-stream = "0.3.0"
 futures = "0.3"
 tracing = "0.1"
@@ -108,10 +106,6 @@ required-features = ["std"]
 [[test]]
 name = "hyper"
 required-features = ["std"]
-
-[[test]]
-name = "hyper13"
-required-features = ["std", "async-rt"]
 
 [[test]]
 name = "async_session"
