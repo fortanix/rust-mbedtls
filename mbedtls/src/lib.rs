@@ -43,7 +43,7 @@ mod wrapper_macros;
 #[cfg(feature="pkcs12_rc2")]
 extern crate rc2;
 #[cfg(feature="pkcs12_rc2")]
-extern crate block_modes;
+extern crate cbc;
 
 // ==============
 //      API
