@@ -47,9 +47,6 @@ if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" 
         cargo +$TRAVIS_RUST_VERSION test --no-run --target=$TARGET
     fi
 
-elif [ $TRAVIS_RUST_VERSION = $CORE_IO_NIGHTLY ]; then
-    cargo +$CORE_IO_NIGHTLY test --no-default-features --features no_std_deps,rdrand,time
-    cargo +$CORE_IO_NIGHTLY test --no-default-features --features no_std_deps,rdrand
 else
     echo "Unknown version $TRAVIS_RUST_VERSION"
     exit 1
