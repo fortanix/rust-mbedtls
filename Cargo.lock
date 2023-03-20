@@ -344,8 +344,6 @@ dependencies = [
  "matches",
  "mbedtls-sys-auto",
  "num-bigint",
- "proc-macro2",
- "quote",
  "rand",
  "rc2",
  "rs-libc",
