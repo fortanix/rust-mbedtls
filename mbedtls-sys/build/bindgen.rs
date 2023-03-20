@@ -117,9 +117,9 @@ impl super::BuildConfig {
             };
         }
 
-        if crate::features::env_have_target_cfg("env", "sgx") && !compiler.is_like_clang() {
-            panic!("Only clang is supported as C compiler for SGX");
-        }
+        // if crate::features::env_have_target_cfg("env", "sgx") && !compiler.is_like_clang() {
+        //     panic!("Only clang is supported as C compiler for SGX");
+        // }
 
         let bindings = bindgen::builder()
             .enable_function_attribute_detection()
