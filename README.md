@@ -22,6 +22,12 @@ This is a list of the Cargo features available for mbedtls. Features in
             enabled automatically.
 * *core_io* On no_std, you must enable this feature. It will supply the I/O
             Read and Write traits.
+            **Note**: You need to add following into `Cargo.toml` to correctly compile
+            code with old toolchain (`nightly-2021-03-25`) that support `core-io` feature
+    ```toml
+    proc-macro2 = { version = ">=1.0.24, <1.0.40" }
+    quote = { version = "=1.0.10" }
+    ```
 * *debug* Enable debug printing to stdout. You need to configure the debug
           threshold at runtime.
 * dsa Enable support for DSA signatures
