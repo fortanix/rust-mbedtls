@@ -44,9 +44,11 @@ if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" 
             cargo test --features force_aesni_support --target $TARGET
         fi
 
-        # no_std tests
-        cargo test --no-default-features --features no_std_deps,rdrand,time --target $TARGET
-        cargo test --no-default-features --features no_std_deps,rdrand --target $TARGET
+        # no_std tests only be able to run on x86 platform
+        if [ "$TARGET" == "x86_64-fortanix-unknown-sgx" ]; then
+            cargo test --no-default-features --features no_std_deps,rdrand,time --target $TARGET
+            cargo test --no-default-features --features no_std_deps,rdrand --target $TARGET
+        fi
     else
         cargo +$TRAVIS_RUST_VERSION test --no-run --target=$TARGET
     fi
