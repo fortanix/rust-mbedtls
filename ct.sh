@@ -43,6 +43,10 @@ if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" 
         if [ -n "$AES_NI_SUPPORT" ]; then
             cargo test --features force_aesni_support --target $TARGET
         fi
+
+        # no_std tests
+        cargo test --no-default-features --features no_std_deps,rdrand,time --target $TARGET
+        cargo test --no-default-features --features no_std_deps,rdrand --target $TARGET
     else
         cargo +$TRAVIS_RUST_VERSION test --no-run --target=$TARGET
     fi
