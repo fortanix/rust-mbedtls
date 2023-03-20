@@ -17,7 +17,7 @@ impl super::BuildConfig {
         ))
         .define("ENABLE_PROGRAMS", "OFF")
         .define("ENABLE_TESTING", "OFF")
-        .build_target("lib");
+        .build_target("install");
         for cflag in &self.cflags {
             cmk.cflag(cflag);
         }
@@ -28,16 +28,7 @@ impl super::BuildConfig {
 
         let mut dst = cmk.build();
 
-        dst.push("build");
-        dst.push("library");
-        println!(
-            "cargo:rustc-link-search=native={}",
-            dst.to_str().expect("link-search UTF-8 error")
-        );
-
-        assert!(dst.pop());
-        dst.push("crypto");
-        dst.push("library");
+        dst.push("lib");
         println!(
             "cargo:rustc-link-search=native={}",
             dst.to_str().expect("link-search UTF-8 error")
