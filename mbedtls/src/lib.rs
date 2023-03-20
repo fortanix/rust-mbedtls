@@ -119,8 +119,10 @@ mod alloc_prelude {
     pub(crate) use alloc::vec::Vec;
 }
 
-#[cfg(all(feature="time", any(feature="custom_gmtime_r", feature="custom_time")))]
-use mbedtls_sys::types::{time_t, tm};
+#[cfg(all(feature = "time", any(feature = "custom_gmtime_r", feature = "custom_time")))]
+use mbedtls_sys::types::time_t;
+#[cfg(all(feature = "time", feature = "custom_gmtime_r"))]
+use mbedtls_sys::types::tm;
 
 #[cfg(any(feature = "custom_gmtime_r", feature = "custom_time"))]
 extern crate chrono;
