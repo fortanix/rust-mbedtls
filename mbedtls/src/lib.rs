@@ -40,10 +40,10 @@ extern crate rs_libc;
 #[macro_use]
 mod wrapper_macros;
 
-#[cfg(feature="pkcs12_rc2")]
-extern crate rc2;
-#[cfg(feature="pkcs12_rc2")]
+#[cfg(feature = "pkcs12_rc2")]
 extern crate cbc;
+#[cfg(feature = "pkcs12_rc2")]
+extern crate rc2;
 
 // ==============
 //      API
@@ -119,8 +119,10 @@ mod alloc_prelude {
     pub(crate) use alloc::vec::Vec;
 }
 
-#[cfg(all(feature="time", any(feature="custom_gmtime_r", feature="custom_time")))]
-use mbedtls_sys::types::{time_t, tm};
+#[cfg(all(feature = "time", any(feature = "custom_gmtime_r", feature = "custom_time")))]
+use mbedtls_sys::types::time_t;
+#[cfg(all(feature = "time", feature = "custom_gmtime_r"))]
+use mbedtls_sys::types::tm;
 
 #[cfg(any(feature = "custom_gmtime_r", feature = "custom_time"))]
 extern crate chrono;
