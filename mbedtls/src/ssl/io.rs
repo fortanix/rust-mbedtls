@@ -132,7 +132,7 @@ impl<IO: Read + Write> IoCallback<Stream> for IO {
 }
 
 #[cfg(feature = "std")]
-/// A `UdpSocket` on which `connect` was succesfully called.
+/// A `UdpSocket` on which `connect` was successfully called.
 ///
 /// Construct this type using `ConnectedUdpSocket::connect`.
 pub struct ConnectedUdpSocket {
