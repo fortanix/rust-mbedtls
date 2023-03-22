@@ -107,3 +107,9 @@ required-features = ["std"]
 [[test]]
 name = "hyper"
 required-features = ["std"]
+
+
+[[test]]
+name = "async_session"
+path = "tests/async_session.rs"
+required-features = ["async-rt"]
