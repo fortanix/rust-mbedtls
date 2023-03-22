@@ -52,6 +52,7 @@ define!(
 
 define!(
     #[c_ty(c_int)]
+    #[derive(PartialEq, Eq)]
     enum Transport {
         /// TLS
         Stream = SSL_TRANSPORT_STREAM,

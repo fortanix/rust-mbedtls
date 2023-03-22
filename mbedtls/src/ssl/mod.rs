@@ -10,6 +10,7 @@ pub mod ciphersuites;
 pub mod config;
 pub mod context;
 pub mod cookie;
+pub mod io;
 pub mod ticket;
 
 #[doc(inline)]
@@ -20,5 +21,7 @@ pub use self::config::{Config, Version, UseSessionTickets};
 pub use self::context::Context;
 #[doc(inline)]
 pub use self::cookie::CookieContext;
+#[doc(inline)]
+pub use self::io::Io;
 #[doc(inline)]
 pub use self::ticket::TicketContext;
