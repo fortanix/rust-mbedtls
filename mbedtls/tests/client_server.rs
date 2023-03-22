@@ -11,65 +11,68 @@
 // needed to have common code for `mod support` in unit and integrations tests
 extern crate mbedtls;
 
+use std::io::{Read, Write};
 use std::net::TcpStream;
 
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
-use mbedtls::ssl::context::{ConnectedUdpSocket, IoCallback, Timer};
-use mbedtls::ssl::{Config, Context, CookieContext, Version};
+use mbedtls::ssl::context::Timer;
+use mbedtls::ssl::io::{ConnectedUdpSocket, IoCallback};
+use mbedtls::ssl::{Config, Context, CookieContext, Io, Version};
 use mbedtls::x509::{Certificate, VerifyError};
 use mbedtls::Error;
 use mbedtls::Result as TlsResult;
 use std::sync::Arc;
 
-use mbedtls_sys::types::raw_types::*;
-use mbedtls_sys::types::size_t;
-
 mod support;
 use support::entropy::entropy_new;
 use support::keys;
 
-/// Simple type to unify TCP and UDP connections, to support both TLS and DTLS
-enum Connection {
-    Tcp(TcpStream),
-    Udp(ConnectedUdpSocket),
+trait TransportType: Sized {
+    fn get_transport_type() -> Transport;
+
+    fn recv(ctx: &mut Context<Self>, buf: &mut [u8]) -> TlsResult<usize>;
+    fn send(ctx: &mut Context<Self>, buf: &[u8]) -> TlsResult<usize>;
 }
 
-impl IoCallback for Connection {
-    unsafe extern "C" fn call_recv(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
-        let conn = &mut *(user_data as *mut Connection);
-        match conn {
-            Connection::Tcp(c) => TcpStream::call_recv(c.data_ptr(), data, len),
-            Connection::Udp(c) => ConnectedUdpSocket::call_recv(c.data_ptr(), data, len),
-        }
+impl TransportType for TcpStream {
+    fn get_transport_type() -> Transport {
+        Transport::Stream
     }
 
-    unsafe extern "C" fn call_send(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int {
-        let conn = &mut *(user_data as *mut Connection);
-        match conn {
-            Connection::Tcp(c) => TcpStream::call_send(c.data_ptr(), data, len),
-            Connection::Udp(c) => ConnectedUdpSocket::call_send(c.data_ptr(), data, len),
-        }
+    fn recv(ctx: &mut Context<Self>, buf: &mut [u8]) -> TlsResult<usize> {
+        ctx.read(buf).map_err(|_| Error::NetRecvFailed)
     }
 
-    fn data_ptr(&mut self) -> *mut c_void {
-        self as *mut Connection as *mut c_void
+    fn send(ctx: &mut Context<Self>, buf: &[u8]) -> TlsResult<usize> {
+        ctx.write(buf).map_err(|_| Error::NetSendFailed)
     }
 }
 
-fn client(
-    conn: Connection,
+impl TransportType for ConnectedUdpSocket {
+    fn get_transport_type() -> Transport {
+        Transport::Datagram
+    }
+
+    fn recv(ctx: &mut Context<Self>, buf: &mut [u8]) -> TlsResult<usize> {
+        Io::recv(ctx, buf)
+    }
+
+    fn send(ctx: &mut Context<Self>, buf: &[u8]) -> TlsResult<usize> {
+        Io::send(ctx, buf)
+    }
+}
+
+fn client<C: IoCallback<T> + TransportType, T>(
+    conn: C,
     min_version: Version,
     max_version: Version,
     exp_version: Option<Version>,
     use_psk: bool) -> TlsResult<()> {
     let entropy = Arc::new(entropy_new());
     let rng = Arc::new(CtrDrbg::new(entropy, None)?);
-    let mut config = match conn {
-        Connection::Tcp(_) => Config::new(Endpoint::Client, Transport::Stream, Preset::Default),
-        Connection::Udp(_) => Config::new(Endpoint::Client, Transport::Datagram, Preset::Default),
-    };
+    let mut config = Config::new(Endpoint::Client, C::get_transport_type(), Preset::Default);
     config.set_rng(rng);
     config.set_min_version(min_version)?;
     config.set_max_version(max_version)?;
@@ -98,7 +101,7 @@ fn client(
     let mut ctx = Context::new(Arc::new(config));
 
     // For DTLS, timers are required to support retransmissions
-    if let Connection::Udp(_) = conn {
+    if C::get_transport_type() == Transport::Datagram {
         ctx.set_timer_callback(Box::new(Timer::new()));
     }
 
@@ -118,15 +121,15 @@ fn client(
 
     let ciphersuite = ctx.ciphersuite().unwrap();
     let buf = format!("Client2Server {:4x}", ciphersuite);
-    assert_eq!(ctx.send(buf.as_bytes()).unwrap(), buf.len());
+    assert_eq!(<C as TransportType>::send(&mut ctx, buf.as_bytes()).unwrap(), buf.len());
     let mut buf = [0u8; 13 + 4 + 1];
-    assert_eq!(ctx.recv(&mut buf).unwrap(), buf.len());
+    assert_eq!(<C as TransportType>::recv(&mut ctx, &mut buf).unwrap(), buf.len());
     assert_eq!(&buf, format!("Server2Client {:4x}", ciphersuite).as_bytes());
     Ok(())
 }
 
-fn server(
-    conn: Connection,
+fn server<C: IoCallback<T> + TransportType, T>(
+    conn: C,
     min_version: Version,
     max_version: Version,
     exp_version: Option<Version>,
@@ -134,16 +137,12 @@ fn server(
 ) -> TlsResult<()> {
     let entropy = entropy_new();
     let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
-    let mut config = match conn {
-        Connection::Tcp(_) => Config::new(Endpoint::Server, Transport::Stream, Preset::Default),
-        Connection::Udp(_) => {
-            let mut config = Config::new(Endpoint::Server, Transport::Datagram, Preset::Default);
-            // For DTLS, we need a cookie context to work against DoS attacks
-            let cookies = CookieContext::new(rng.clone())?;
-            config.set_dtls_cookies(Arc::new(cookies));
-            config
-        }
-    };
+    let mut config = Config::new(Endpoint::Server, C::get_transport_type(), Preset::Default);
+    if C::get_transport_type() == Transport::Datagram {
+        // For DTLS, we need a cookie context to work against DoS attacks
+        let cookies = CookieContext::new(rng.clone())?;
+        config.set_dtls_cookies(Arc::new(cookies));
+    }
     config.set_rng(rng);
     config.set_min_version(min_version)?;
     config.set_max_version(max_version)?;
@@ -156,7 +155,7 @@ fn server(
     }
     let mut ctx = Context::new(Arc::new(config));
 
-    let res = if let Connection::Udp(_) = conn {
+    let res = if C::get_transport_type() == Transport::Datagram {
         // For DTLS, timers are required to support retransmissions and the DTLS server needs a client
         // ID to create individual cookies per client
         ctx.set_timer_callback(Box::new(Timer::new()));
@@ -190,9 +189,9 @@ fn server(
 
     let ciphersuite = ctx.ciphersuite().unwrap();
     let buf = format!("Server2Client {:4x}", ciphersuite);
-    assert_eq!(ctx.send(buf.as_bytes()).unwrap(), buf.len());
+    assert_eq!(<C as TransportType>::send(&mut ctx, buf.as_bytes()).unwrap(), buf.len());
     let mut buf = [0u8; 13 + 1 + 4];
-    assert_eq!(ctx.recv(&mut buf).unwrap(), buf.len());
+    assert_eq!(<C as TransportType>::recv(&mut ctx, &mut buf).unwrap(), buf.len());
 
     assert_eq!(&buf, format!("Client2Server {:4x}", ciphersuite).as_bytes());
     Ok(())
@@ -206,7 +205,7 @@ mod test {
     fn client_server_test() {
         use mbedtls::ssl::Version;
         use std::net::UdpSocket;
-        use mbedtls::ssl::context::ConnectedUdpSocket;
+        use mbedtls::ssl::io::ConnectedUdpSocket;
 
         #[derive(Copy,Clone)]
         struct TestConfig {
@@ -248,8 +247,8 @@ mod test {
             // TLS tests using certificates
 
             let (c, s) = crate::support::net::create_tcp_pair().unwrap();
-            let c = thread::spawn(move || super::client(super::Connection::Tcp(c), min_c, max_c, exp_ver, false).unwrap());
-            let s = thread::spawn(move || super::server(super::Connection::Tcp(s), min_s, max_s, exp_ver, false).unwrap());
+            let c = thread::spawn(move || super::client(c, min_c, max_c, exp_ver, false).unwrap());
+            let s = thread::spawn(move || super::server(s, min_s, max_s, exp_ver, false).unwrap());
 
             c.join().unwrap();
             s.join().unwrap();
@@ -257,8 +256,8 @@ mod test {
             // TLS tests using PSK
 
             let (c, s) = crate::support::net::create_tcp_pair().unwrap();
-            let c = thread::spawn(move || super::client(super::Connection::Tcp(c), min_c, max_c, exp_ver, true).unwrap());
-            let s = thread::spawn(move || super::server(super::Connection::Tcp(s), min_s, max_s, exp_ver, true).unwrap());
+            let c = thread::spawn(move || super::client(c, min_c, max_c, exp_ver, true).unwrap());
+            let s = thread::spawn(move || super::server(s, min_s, max_s, exp_ver, true).unwrap());
 
             c.join().unwrap();
             s.join().unwrap();
@@ -272,10 +271,10 @@ mod test {
 
             let s = UdpSocket::bind("127.0.0.1:12340").expect("could not bind UdpSocket");
             let s = ConnectedUdpSocket::connect(s, "127.0.0.1:12341").expect("could not connect UdpSocket");
-            let s = thread::spawn(move || super::server(super::Connection::Udp(s), min_s, max_s, exp_ver, false).unwrap());
+            let s = thread::spawn(move || super::server(s, min_s, max_s, exp_ver, false).unwrap());
             let c = UdpSocket::bind("127.0.0.1:12341").expect("could not bind UdpSocket");
             let c = ConnectedUdpSocket::connect(c, "127.0.0.1:12340").expect("could not connect UdpSocket");
-            let c = thread::spawn(move || super::client(super::Connection::Udp(c), min_c, max_c, exp_ver, false).unwrap());
+            let c = thread::spawn(move || super::client(c, min_c, max_c, exp_ver, false).unwrap());
 
             s.join().unwrap();
             c.join().unwrap();
@@ -289,10 +288,10 @@ mod test {
 
             let s = UdpSocket::bind("127.0.0.1:12340").expect("could not bind UdpSocket");
             let s = ConnectedUdpSocket::connect(s, "127.0.0.1:12341").expect("could not connect UdpSocket");
-            let s = thread::spawn(move || super::server(super::Connection::Udp(s), min_s, max_s, exp_ver, true).unwrap());
+            let s = thread::spawn(move || super::server(s, min_s, max_s, exp_ver, true).unwrap());
             let c = UdpSocket::bind("127.0.0.1:12341").expect("could not bind UdpSocket");
             let c = ConnectedUdpSocket::connect(c, "127.0.0.1:12340").expect("could not connect UdpSocket");
-            let c = thread::spawn(move || super::client(super::Connection::Udp(c), min_c, max_c, exp_ver, true).unwrap());
+            let c = thread::spawn(move || super::client(c, min_c, max_c, exp_ver, true).unwrap());
 
             s.join().unwrap();
             c.join().unwrap();

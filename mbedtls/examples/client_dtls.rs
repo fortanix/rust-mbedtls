@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
-use mbedtls::ssl::{Config, Context};
+use mbedtls::ssl::{Config, Context, Io};
 use mbedtls::x509::Certificate;
 use mbedtls::Result as TlsResult;
 
@@ -35,7 +35,7 @@ fn result_main(addr: &str) -> TlsResult<()> {
     ctx.set_timer_callback(Box::new(mbedtls::ssl::context::Timer::new()));
 
     let sock = UdpSocket::bind("localhost:12345").unwrap();
-    let sock = mbedtls::ssl::context::ConnectedUdpSocket::connect(sock, addr).unwrap();
+    let sock = mbedtls::ssl::io::ConnectedUdpSocket::connect(sock, addr).unwrap();
     ctx.establish(sock, None).unwrap();
 
     let mut line = String::new();
