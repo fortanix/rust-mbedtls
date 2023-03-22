@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.9.0"
+version = "0.9.1"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -29,6 +29,7 @@ bit-vec = { version = "0.5", optional = true }
 cbc = { version = "0.1.2", optional = true }
 rc2 = { version = "0.8.1", optional = true }
 cfg-if = "1.0.0"
+tokio = { version = "1.16.1", optional = true }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.2.0"
@@ -51,6 +52,9 @@ serde_cbor = "0.6"
 hex = "0.3"
 matches = "0.1.8"
 hyper = { version = "0.10.16", default-features = false }
+async-stream = "0.3.0"
+futures = "0.3"
+tracing = "0.1"
 
 [build-dependencies]
 cc = "1.0"
@@ -72,6 +76,8 @@ dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "cbc"]
 legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
+async = ["std", "tokio","tokio/net","tokio/io-util", "tokio/macros"]
+async-rt = ["async", "tokio/rt", "tokio/sync", "tokio/rt-multi-thread"]
 
 [[example]]
 name = "client"
@@ -104,3 +110,9 @@ required-features = ["std"]
 [[test]]
 name = "hyper"
 required-features = ["std"]
+
+
+[[test]]
+name = "async_session"
+path = "tests/async_session.rs"
+required-features = ["async-rt"]

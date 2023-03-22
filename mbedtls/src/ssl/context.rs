@@ -16,7 +16,7 @@ use mbedtls_sys::*;
 
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
-use crate::alloc::{List as MbedtlsList};
+use crate::alloc::List as MbedtlsList;
 use crate::error::{Error, Result, IntoResult};
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
@@ -124,6 +124,9 @@ pub struct Context<T> {
     /// be stored in [`Context`] first so that it can be set after the `ssl_session_reset` in the
     /// [`establish`](Context::establish) call.
     client_transport_id: Option<Vec<u8>>,
+
+    #[cfg(all(feature = "std", feature = "async"))]
+    pub(super) write_tracker: super::async_io::WriteTracker,
 }
 
 impl<'a, T> Into<*const ssl_context> for &'a Context<T> {
@@ -160,6 +163,8 @@ impl<T> Context<T> {
             io: None,
             timer_callback: None,
             client_transport_id: None,
+            #[cfg(all(feature = "std", feature = "async"))]
+            write_tracker: super::async_io::WriteTracker::new(),
         }
     }
 
@@ -172,35 +177,83 @@ impl<T> Context<T> {
     }
 }
 
+/// # Safety
+/// `io` must live as long as `ctx` or the next time bio is set/cleared.
+unsafe fn set_bio_raw<IoType, T: IoCallbackUnsafe<IoType>>(ctx: *mut ssl_context, io: &mut T) {
+    ssl_set_bio(
+        ctx,
+        io as *mut T as *mut c_void,
+        Some(T::call_send),
+        Some(T::call_recv),
+        None,
+    );
+}
+
+/// This function provides a way to apply async context to bio before running 
+/// any logic.
+/// Note: `bio` is a concept in common TLS implementation which refers to basic IO.
+/// openssl and mbedtls both use this concept.
+/// Ref: https://stackoverflow.com/questions/51672133/what-are-openssl-bios-how-do-they-work-how-are-bios-used-in-openssl
+#[cfg(all(feature = "std", feature = "async"))]
+impl<T> Context<T>  {
+    pub(super) fn with_bio_async<'cx, R, IoType>(&mut self, cx: &mut std::task::Context<'cx>, f: impl FnOnce(&mut Self) -> R) -> Option<R> where for<'c> (&'c mut std::task::Context<'cx>, &'c mut T): IoCallbackUnsafe<IoType> {
+        let ret;
+
+        struct BioGuard<'a, T> {
+            context: &'a mut Context<T>,
+        }
+        
+        impl<'a, T> Drop for BioGuard<'a, T> {
+            fn drop(&mut self) {
+                self.context.clear_bio();
+            }
+        }
+        // SAFETY: In the call to `set_bio_raw`, `user_data` must live as long
+        // as `ctx`, or until the bio is cleared from `ctx`. The bio is cleared
+        // at the end of this block ensured by the drop guard: [`BioGuard`]
+        unsafe {
+            // Points to `self.inner`, so safe to borrow at the same time as `self.io`
+            let ctx = self.into();
+            let mut user_data = (cx, &mut**self.io.as_mut()?);
+            set_bio_raw(ctx, &mut user_data);
+
+            let guard = BioGuard { context: self };
+
+            ret = f(guard.context);
+        }
+
+        Some(ret)
+    }
+}
+
 impl<T> Context<T> {
     /// Establish a TLS session on the given `io`.
     ///
-    /// Upon succesful return, the context can be communicated with using the
+    /// Upon successful return, the context can be communicated with using the
     /// `std::io::Read` and `std::io::Write` traits if `io` implements those as
     /// well, and using the `mbedtls::ssl::io::Io` trait otherwise.
     pub fn establish<IoType>(&mut self, io: T, hostname: Option<&str>) -> Result<()> where T: IoCallbackUnsafe<IoType> {
+        // SAFETY: In the call to `set_bio_raw`, `self.io` must live as long as
+        // `self`, or until the bio is cleared from `ctx`. It lives as long as
+        // `self` since it is stored in self and never cleared.
         unsafe {
-            let mut io = Box::new(io);
+            self.prepare_handshake(io, hostname)?;
+            set_bio_raw(self.into(), &mut**self.io.as_mut().unwrap());
+        }
+        self.handshake()
+    }
+
+    pub(super) fn prepare_handshake(&mut self, io: T, hostname: Option<&str>) -> Result<()> {
+        unsafe {
             ssl_session_reset(self.into()).into_result()?;
             self.set_hostname(hostname)?;
             if let Some(client_id) = self.client_transport_id.take() {
                 self.set_client_transport_id(&client_id)?;
             }
-
-            let ptr = &mut *io as *mut _ as *mut c_void;
-            ssl_set_bio(
-                self.into(),
-                ptr,
-                Some(T::call_send),
-                Some(T::call_recv),
-                None,
-            );
-
-            self.io = Some(io);
+            self.io = Some(Box::new(io));
             self.inner.reset_handshake();
+            Ok(())
         }
-
-        self.handshake()
     }
 }
 
@@ -212,7 +265,7 @@ impl<T> Context<T> {
     ///
     /// This should only be used directly if the handshake could not be completed successfully in
     /// `establish`, i.e.:
-    /// - If using nonblocking operation and `establish` failed with [`Error::SslWantRead`] or
+    /// - If using non-blocking operation and `establish` failed with [`Error::SslWantRead`] or
     /// [`Error::SslWantWrite`]
     /// - If running a DTLS server and it answers the first `ClientHello` (without cookie) with a
     /// `HelloVerifyRequest`, i.e. `establish` failed with [`Error::SslHelloVerifyRequired`]
@@ -284,15 +337,32 @@ impl<T> Context<T> {
     pub fn config(&self) -> &Arc<Config> {
         &self.config
     }
-    
-    pub fn close(&mut self) {
+
+    pub(super) fn close_notify(&mut self) -> Result<()> {
         unsafe {
-            ssl_close_notify(self.into());
+            ssl_close_notify(self.into()).into_result().map(|_| ())
+        }
+    }
+
+    pub fn close(&mut self) {
+        let _ = self.close_notify();
+        self.drop_io();
+    }
+
+    pub(super) fn clear_bio(&mut self) {
+        // It is safe to set the bio to null using the `ssl_set_bio` function. If the bio
+        // is null, mbedtls can handle this case and will return an error if you attempt
+        // to continue using SSL after calling this function.
+        unsafe {
             ssl_set_bio(self.into(), ::core::ptr::null_mut(), None, None, None);
-            self.io = None;
         }
     }
     
+    pub(super) fn drop_io(&mut self) {
+        self.clear_bio();
+        self.io = None;
+    }
+
     pub fn io(&self) -> Option<&T> {
         self.io.as_ref().map(|v| &**v)
     }
@@ -425,7 +495,7 @@ impl<T> Drop for Context<T> {
 //
 // Class exists only during SNI callback that is configured from Config.
 // SNI Callback must provide input whose lifetime exceeds the SNI closure to avoid memory corruptions.
-// That can be achieved easily by storing certificate chains/crls inside the closure for the lifetime of the closure.
+// That can be achieved easily by storing certificate chains/CRLs inside the closure for the lifetime of the closure.
 //
 // That is due to SNI being held by an Arc inside Config.
 // Config lives longer then Context. Context lives longer then Handshake.
@@ -509,7 +579,7 @@ mod tests {
     use crate::tests::TestTrait;
     
     #[test]
-    fn handshakecontext_sync() {
+    fn handshake_context_sync() {
         assert!(!TestTrait::<dyn Sync, HandshakeContext>::new().impls_trait(), "HandshakeContext must be !Sync");
     }
 

@@ -26,3 +26,14 @@ pub fn create_tcp_pair() -> IoResult<(TcpStream, TcpStream)> {
         }
     }
 }
+
+#[cfg(feature = "tokio")]
+pub fn create_tcp_pair_async() -> IoResult<(tokio::net::TcpStream, tokio::net::TcpStream)> {
+    let (c, s) = create_tcp_pair()?;
+    c.set_nonblocking(true)?;
+    s.set_nonblocking(true)?;
+    Ok((
+        tokio::net::TcpStream::from_std(c)?,
+        tokio::net::TcpStream::from_std(s)?,
+    ))
+}
