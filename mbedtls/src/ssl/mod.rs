@@ -11,6 +11,7 @@ pub mod config;
 pub mod context;
 pub mod cookie;
 pub mod io;
+pub mod async_io;
 pub mod ticket;
 
 #[doc(inline)]

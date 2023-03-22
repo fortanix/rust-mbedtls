@@ -12,3 +12,5 @@ pub mod keys;
 #[cfg(sys_std_component = "net")]
 pub mod net;
 pub mod rand;
+#[cfg(all(feature = "std", feature = "async"))]
+pub mod custom_write_all;
