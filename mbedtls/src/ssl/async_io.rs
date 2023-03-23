@@ -12,7 +12,7 @@ use crate::{
     error::{Error, Result},
     ssl::{
         context::Context,
-        io::{IoCallback, IoCallbackUnsafe},
+        io::IoCallback,
     },
 };
 use async_trait::async_trait;
@@ -263,14 +263,4 @@ impl AsyncIo for ConnectedAsyncUdpSocket {
     }
 }
 
-// todo: this impl should be wrong, might need to create a impl of Future on Context::recv & Context::send to handle return from inner callback
-#[async_trait]
-impl<T: IoCallbackUnsafe<AnyAsyncIo> + Send> AsyncIo for Context<AsyncIoAdapter<T>> {
-    async fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
-        Context::recv(self, buf)
-    }
-
-    async fn send(&mut self, buf: &[u8]) -> Result<usize> {
-        Context::send(self, buf)
-    }
-}
+// TODO: AsyncIo impl for Context<AsyncIoAdapter<T>>

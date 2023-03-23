@@ -24,33 +24,12 @@ use mbedtls::Error;
 use mbedtls::Result as TlsResult;
 
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio::net::TcpStream;
 
 mod support;
 use support::entropy::entropy_new;
 use support::keys;
 
-// todo: implement following to have an unified interface for TCP and UDP
-// trait TransportType: Sized {
-//     fn get_transport_type() -> Transport;
-
-//     fn recv(ctx: &mut Context<Self>, buf: &mut [u8]) -> TlsResult<usize>;
-//     fn send(ctx: &mut Context<Self>, buf: &[u8]) -> TlsResult<usize>;
-// }
-
-// impl TransportType for TcpStream {
-//     fn get_transport_type() -> Transport {
-//         Transport::Stream
-//     }
-
-//     fn recv(ctx: &mut Context<Self>, buf: &mut [u8]) -> TlsResult<usize> {
-//         ctx.read(buf).map_err(|_| Error::NetRecvFailed)
-//     }
-
-//     fn send(ctx: &mut Context<Self>, buf: &[u8]) -> TlsResult<usize> {
-//         ctx.write(buf).map_err(|_| Error::NetSendFailed)
-//     }
-// }
+// TODO: Add unified interface for TCP and UDP like `TransportType` in `client_server.rs`
 
 async fn client<C: AsyncRead + AsyncWrite + Unpin + 'static, T>(
     conn: C,
