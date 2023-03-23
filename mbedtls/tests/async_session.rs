@@ -17,29 +17,21 @@ use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::async_io::AsyncIoAdapter;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
-use mbedtls::ssl::io::IoCallback;
 use mbedtls::ssl::{Config, Context, Version};
 use mbedtls::x509::{Certificate, VerifyError};
 use mbedtls::Error;
 use mbedtls::Result as TlsResult;
 
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 mod support;
 use support::entropy::entropy_new;
 use support::keys;
+use tokio::net::TcpStream;
 
 // TODO: Add unified interface for TCP and UDP like `TransportType` in `client_server.rs`
 
-async fn client<C: AsyncRead + AsyncWrite + Unpin + 'static, T>(
-    conn: C,
-    min_version: Version,
-    max_version: Version,
-    exp_version: Option<Version>,
-) -> TlsResult<()>
-where
-    AsyncIoAdapter<C>: IoCallback<T>,
-{
+async fn client(conn: TcpStream, min_version: Version, max_version: Version, exp_version: Option<Version>) -> TlsResult<()> {
     let entropy = Arc::new(entropy_new());
     let rng = Arc::new(CtrDrbg::new(entropy, None)?);
     let cacert = Arc::new(Certificate::from_pem_multiple(keys::ROOT_CA_CERT.as_bytes())?);
@@ -55,7 +47,8 @@ where
             };
 
             verify_flags.remove(VerifyError::CERT_EXPIRED); //we check the flags at the end,
-                                                            //so removing this flag here prevents the connections from failing with VerifyError
+                                                            //so removing this flag here prevents the connections from failing with
+                                                            // VerifyError
             Ok(())
         };
         let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
@@ -93,15 +86,7 @@ where
     Ok(())
 }
 
-async fn server<C: AsyncRead + AsyncWrite + Unpin + 'static, T>(
-    conn: C,
-    min_version: Version,
-    max_version: Version,
-    exp_version: Option<Version>,
-) -> TlsResult<()>
-where
-    AsyncIoAdapter<C>: IoCallback<T>,
-{
+async fn server(conn: TcpStream, min_version: Version, max_version: Version, exp_version: Option<Version>) -> TlsResult<()> {
     let entropy = entropy_new();
     let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
     let cert = Arc::new(Certificate::from_pem_multiple(keys::EXPIRED_CERT.as_bytes())?);
@@ -142,11 +127,9 @@ where
     Ok(())
 }
 
-async fn with_client<C, F, R, T>(conn: C, f: F) -> R
+async fn with_client<F, R>(conn: TcpStream, f: F) -> R
 where
-    F: FnOnce(Context<AsyncIoAdapter<C>>) -> Pin<Box<dyn Future<Output = R> + Send>>,
-    C: AsyncRead + AsyncWrite + Unpin + 'static,
-    AsyncIoAdapter<C>: IoCallback<T>,
+    F: FnOnce(Context<AsyncIoAdapter<TcpStream>>) -> Pin<Box<dyn Future<Output = R> + Send>>,
 {
     let entropy = Arc::new(entropy_new());
     let rng = Arc::new(CtrDrbg::new(entropy, None).unwrap());
@@ -168,11 +151,9 @@ where
     f(ctx).await
 }
 
-async fn with_server<C, F, R, T>(conn: C, f: F) -> R
+async fn with_server<F, R>(conn: TcpStream, f: F) -> R
 where
-    F: FnOnce(Context<AsyncIoAdapter<C>>) -> Pin<Box<dyn Future<Output = R> + Send>>,
-    C: AsyncRead + AsyncWrite + Unpin + 'static,
-    AsyncIoAdapter<C>: IoCallback<T>,
+    F: FnOnce(Context<AsyncIoAdapter<TcpStream>>) -> Pin<Box<dyn Future<Output = R> + Send>>,
 {
     let entropy = Arc::new(entropy_new());
     let rng = Arc::new(CtrDrbg::new(entropy, None).unwrap());
