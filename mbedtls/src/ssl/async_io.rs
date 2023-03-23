@@ -8,6 +8,14 @@
 
 #![cfg(all(feature = "std", feature = "async"))]
 
+use crate::{
+    error::{Error, Result},
+    ssl::{
+        context::Context,
+        io::{IoCallback, IoCallbackUnsafe},
+    },
+};
+use async_trait::async_trait;
 use std::{
     cell::Cell,
     future::Future,
@@ -18,19 +26,10 @@ use std::{
     result::Result as StdResult,
     task::{Context as TaskContext, Poll},
 };
-use async_trait::async_trait;
 use tokio::{
     io::{AsyncRead, AsyncWrite, ReadBuf},
     net::UdpSocket,
 };
-use crate::{
-    error::{Error, Result},
-    ssl::{
-        context::Context,
-        io::{IoCallback, IoCallbackUnsafe},
-    },
-};
-
 
 #[derive(Clone)]
 pub struct ErasedContext(Rc<Cell<*mut ()>>);
@@ -113,9 +112,9 @@ impl WriteTracker {
                     return Ok(buf);
                 }
                 Err(IoError::new(
-                     IoErrorKind::Other,
-                     "mbedtls expects the same data if the previous call to poll_write() returned Poll::Pending"
-                 ))
+                    IoErrorKind::Other,
+                    "mbedtls expects the same data if the previous call to poll_write() returned Poll::Pending",
+                ))
             }
         }
     }
@@ -155,8 +154,6 @@ impl<S> AsyncIoAdapter<S> {
 }
 
 pub type AsyncContext<T> = Context<AsyncIoAdapter<T>>;
-
-
 
 /// Marker type for an IO implementation that doesn't implement `tokio::io:: AsyncRead`
 /// and `tokio::io:: AsyncWrite`.
@@ -200,7 +197,7 @@ impl<IO: AsyncIo> IoCallback<AnyAsyncIo> for AsyncIoAdapter<IO> {
     }
 }
 
-impl<IO: AsyncRead + AsyncWrite + std::marker::Unpin> IoCallback<AsyncStream> for AsyncIoAdapter<IO> {
+impl<IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCallback<AsyncStream> for AsyncIoAdapter<IO> {
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
         if let Some(cx) = unsafe { self.ecx.get() } {
             let mut buf = ReadBuf::new(buf);
@@ -239,9 +236,7 @@ pub struct ConnectedAsyncUdpSocket {
 impl ConnectedAsyncUdpSocket {
     pub async fn connect<A: tokio::net::ToSocketAddrs>(socket: UdpSocket, addr: A) -> StdResult<Self, (IoError, UdpSocket)> {
         match socket.connect(addr).await {
-            Ok(_) => Ok(ConnectedAsyncUdpSocket {
-                socket,
-            }),
+            Ok(_) => Ok(ConnectedAsyncUdpSocket { socket }),
             Err(e) => Err((e, socket)),
         }
     }

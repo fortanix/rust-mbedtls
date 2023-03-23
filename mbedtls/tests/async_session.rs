@@ -9,21 +9,21 @@
 #![cfg(not(target_env = "sgx"))]
 extern crate mbedtls;
 
-use std::sync::Arc;
-use std::pin::Pin;
 use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
 
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
-use mbedtls::ssl::config::{Endpoint, Preset, Transport};
-use mbedtls::ssl::{Config, Context, Version};
-use mbedtls::ssl::io::IoCallback;
 use mbedtls::ssl::async_io::AsyncIoAdapter;
+use mbedtls::ssl::config::{Endpoint, Preset, Transport};
+use mbedtls::ssl::io::IoCallback;
+use mbedtls::ssl::{Config, Context, Version};
 use mbedtls::x509::{Certificate, VerifyError};
 use mbedtls::Error;
 use mbedtls::Result as TlsResult;
 
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 mod support;
@@ -52,12 +52,15 @@ use support::keys;
 //     }
 // }
 
-async fn client<C: IoCallback<T>, T>(
+async fn client<C: AsyncRead + AsyncWrite + Unpin + 'static, T>(
     conn: C,
     min_version: Version,
     max_version: Version,
-    exp_version: Option<Version>) -> TlsResult<()> {
-    
+    exp_version: Option<Version>,
+) -> TlsResult<()>
+where
+    AsyncIoAdapter<C>: IoCallback<T>,
+{
     let entropy = Arc::new(entropy_new());
     let rng = Arc::new(CtrDrbg::new(entropy, None)?);
     let cacert = Arc::new(Certificate::from_pem_multiple(keys::ROOT_CA_CERT.as_bytes())?);
@@ -66,15 +69,14 @@ async fn client<C: IoCallback<T>, T>(
     let expected_flags = expected_flags | VerifyError::CERT_EXPIRED;
     {
         let verify_callback = move |crt: &Certificate, depth: i32, verify_flags: &mut VerifyError| {
-
             match (crt.subject().unwrap().as_str(), depth, &verify_flags) {
                 ("CN=RootCA", 1, _) => (),
                 (keys::EXPIRED_CERT_SUBJECT, 0, flags) => assert_eq!(**flags, expected_flags),
                 _ => assert!(false),
             };
-            
+
             verify_flags.remove(VerifyError::CERT_EXPIRED); //we check the flags at the end,
-            //so removing this flag here prevents the connections from failing with VerifyError
+                                                            //so removing this flag here prevents the connections from failing with VerifyError
             Ok(())
         };
         let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
@@ -91,8 +93,10 @@ async fn client<C: IoCallback<T>, T>(
             }
             Err(e) => {
                 match e {
-                    Error::SslBadHsProtocolVersion => {assert!(exp_version.is_none())},
-                    Error::SslFatalAlertMessage => {},
+                    Error::SslBadHsProtocolVersion => {
+                        assert!(exp_version.is_none())
+                    }
+                    Error::SslFatalAlertMessage => {}
                     e => panic!("Unexpected error {}", e),
                 };
                 return Ok(());
@@ -100,8 +104,7 @@ async fn client<C: IoCallback<T>, T>(
         };
 
         let ciphersuite = ctx.ciphersuite().unwrap();
-        ctx
-            .write_all(format!("Client2Server {:4x}", ciphersuite).as_bytes())
+        ctx.write_all(format!("Client2Server {:4x}", ciphersuite).as_bytes())
             .await
             .unwrap();
         let mut buf = [0u8; 13 + 4 + 1];
@@ -111,12 +114,15 @@ async fn client<C: IoCallback<T>, T>(
     Ok(())
 }
 
-async fn server<C: IoCallback<T>, T>(
+async fn server<C: AsyncRead + AsyncWrite + Unpin + 'static, T>(
     conn: C,
     min_version: Version,
     max_version: Version,
     exp_version: Option<Version>,
-) -> TlsResult<()> {
+) -> TlsResult<()>
+where
+    AsyncIoAdapter<C>: IoCallback<T>,
+{
     let entropy = entropy_new();
     let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
     let cert = Arc::new(Certificate::from_pem_multiple(keys::EXPIRED_CERT.as_bytes())?);
@@ -135,8 +141,10 @@ async fn server<C: IoCallback<T>, T>(
         Err(e) => {
             match e {
                 // client just closes connection instead of sending alert
-                Error::NetSendFailed => {assert!(exp_version.is_none())},
-                Error::SslBadHsProtocolVersion => {},
+                Error::NetSendFailed => {
+                    assert!(exp_version.is_none())
+                }
+                Error::SslBadHsProtocolVersion => {}
                 e => panic!("Unexpected error {}", e),
             };
             return Ok(());
@@ -145,8 +153,7 @@ async fn server<C: IoCallback<T>, T>(
 
     //assert_eq!(ctx.get_alpn_protocol().unwrap().unwrap(), None);
     let ciphersuite = ctx.ciphersuite().unwrap();
-    ctx
-        .write_all(format!("Server2Client {:4x}", ciphersuite).as_bytes())
+    ctx.write_all(format!("Server2Client {:4x}", ciphersuite).as_bytes())
         .await
         .unwrap();
     let mut buf = [0u8; 13 + 1 + 4];
@@ -156,58 +163,62 @@ async fn server<C: IoCallback<T>, T>(
     Ok(())
 }
 
-// async fn with_client<F, R>(conn: TcpStream, f: F) -> R
-// where
-//     F: FnOnce(Context<AsyncIoAdapter<TcpStream>>) -> Pin<Box<dyn Future<Output = R> + Send>>,
-// {
-//     let entropy = Arc::new(entropy_new());
-//     let rng = Arc::new(CtrDrbg::new(entropy, None).unwrap());
-//     let cacert = Arc::new(Certificate::from_pem_multiple(keys::ROOT_CA_CERT.as_bytes()).unwrap());
-    
-//     let verify_callback = move |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
-//         verify_flags.remove(VerifyError::CERT_EXPIRED);
-//         Ok(())
-//     };
+async fn with_client<C, F, R, T>(conn: C, f: F) -> R
+where
+    F: FnOnce(Context<AsyncIoAdapter<C>>) -> Pin<Box<dyn Future<Output = R> + Send>>,
+    C: AsyncRead + AsyncWrite + Unpin + 'static,
+    AsyncIoAdapter<C>: IoCallback<T>,
+{
+    let entropy = Arc::new(entropy_new());
+    let rng = Arc::new(CtrDrbg::new(entropy, None).unwrap());
+    let cacert = Arc::new(Certificate::from_pem_multiple(keys::ROOT_CA_CERT.as_bytes()).unwrap());
 
-//     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
-//     config.set_rng(rng);
-//     config.set_verify_callback(verify_callback);
-//     config.set_ca_list(cacert, None);
-    
-//     let mut ctx = Context::new(Arc::new(config));
-//     ctx.establish_async(conn, None).await.unwrap();
+    let verify_callback = move |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
+        verify_flags.remove(VerifyError::CERT_EXPIRED);
+        Ok(())
+    };
 
-//     f(ctx).await
-// }
+    let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
+    config.set_rng(rng);
+    config.set_verify_callback(verify_callback);
+    config.set_ca_list(cacert, None);
 
-// async fn with_server<F, R>(conn: TcpStream, f: F) -> R
-// where
-//     F: FnOnce(Context<AsyncIoAdapter<TcpStream>>) -> Pin<Box<dyn Future<Output = R> + Send>>,
-// {
-//     let entropy = Arc::new(entropy_new());
-//     let rng = Arc::new(CtrDrbg::new(entropy, None).unwrap());
-//     let cert = Arc::new(Certificate::from_pem_multiple(keys::EXPIRED_CERT.as_bytes()).unwrap());
-//     let key = Arc::new(Pk::from_private_key(keys::EXPIRED_KEY.as_bytes(), None).unwrap());
+    let mut ctx = Context::new(Arc::new(config));
+    ctx.establish_async(conn, None).await.unwrap();
 
-//     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
-//     config.set_rng(rng);
-//     config.push_cert(cert, key).unwrap();
-//     let mut ctx = Context::new(Arc::new(config));
+    f(ctx).await
+}
 
-//     ctx.establish_async(conn, None).await.unwrap();
+async fn with_server<C, F, R, T>(conn: C, f: F) -> R
+where
+    F: FnOnce(Context<AsyncIoAdapter<C>>) -> Pin<Box<dyn Future<Output = R> + Send>>,
+    C: AsyncRead + AsyncWrite + Unpin + 'static,
+    AsyncIoAdapter<C>: IoCallback<T>,
+{
+    let entropy = Arc::new(entropy_new());
+    let rng = Arc::new(CtrDrbg::new(entropy, None).unwrap());
+    let cert = Arc::new(Certificate::from_pem_multiple(keys::EXPIRED_CERT.as_bytes()).unwrap());
+    let key = Arc::new(Pk::from_private_key(keys::EXPIRED_KEY.as_bytes(), None).unwrap());
 
-//     f(ctx).await
-// }
+    let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
+    config.set_rng(rng);
+    config.push_cert(cert, key).unwrap();
+    let mut ctx = Context::new(Arc::new(config));
+
+    ctx.establish_async(conn, None).await.unwrap();
+
+    f(ctx).await
+}
 
 #[cfg(unix)]
 mod test {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    
+
     #[tokio::test]
     async fn asyncsession_client_server_test() {
         use mbedtls::ssl::Version;
 
-        #[derive(Copy,Clone)]
+        #[derive(Copy, Clone)]
         struct TestConfig {
             min_c: Version,
             max_c: Version,
@@ -218,19 +229,67 @@ mod test {
 
         impl TestConfig {
             pub fn new(min_c: Version, max_c: Version, min_s: Version, max_s: Version, exp_ver: Option<Version>) -> Self {
-                TestConfig { min_c, max_c, min_s, max_s, exp_ver }
+                TestConfig {
+                    min_c,
+                    max_c,
+                    min_s,
+                    max_s,
+                    exp_ver,
+                }
             }
         }
 
         let test_configs = [
-            TestConfig::new(Version::Ssl3, Version::Ssl3, Version::Ssl3, Version::Ssl3, Some(Version::Ssl3)),
-            TestConfig::new(Version::Ssl3, Version::Tls1_2, Version::Ssl3, Version::Ssl3, Some(Version::Ssl3)),
-            TestConfig::new(Version::Tls1_0, Version::Tls1_0, Version::Tls1_0, Version::Tls1_0, Some(Version::Tls1_0)),
-            TestConfig::new(Version::Tls1_1, Version::Tls1_1, Version::Tls1_1, Version::Tls1_1, Some(Version::Tls1_1)),
-            TestConfig::new(Version::Tls1_2, Version::Tls1_2, Version::Tls1_2, Version::Tls1_2, Some(Version::Tls1_2)),
-            TestConfig::new(Version::Tls1_0, Version::Tls1_2, Version::Tls1_0, Version::Tls1_2, Some(Version::Tls1_2)),
-            TestConfig::new(Version::Tls1_2, Version::Tls1_2, Version::Tls1_0, Version::Tls1_2, Some(Version::Tls1_2)),
-            TestConfig::new(Version::Tls1_0, Version::Tls1_1, Version::Tls1_2, Version::Tls1_2, None)
+            TestConfig::new(
+                Version::Ssl3,
+                Version::Ssl3,
+                Version::Ssl3,
+                Version::Ssl3,
+                Some(Version::Ssl3),
+            ),
+            TestConfig::new(
+                Version::Ssl3,
+                Version::Tls1_2,
+                Version::Ssl3,
+                Version::Ssl3,
+                Some(Version::Ssl3),
+            ),
+            TestConfig::new(
+                Version::Tls1_0,
+                Version::Tls1_0,
+                Version::Tls1_0,
+                Version::Tls1_0,
+                Some(Version::Tls1_0),
+            ),
+            TestConfig::new(
+                Version::Tls1_1,
+                Version::Tls1_1,
+                Version::Tls1_1,
+                Version::Tls1_1,
+                Some(Version::Tls1_1),
+            ),
+            TestConfig::new(
+                Version::Tls1_2,
+                Version::Tls1_2,
+                Version::Tls1_2,
+                Version::Tls1_2,
+                Some(Version::Tls1_2),
+            ),
+            TestConfig::new(
+                Version::Tls1_0,
+                Version::Tls1_2,
+                Version::Tls1_0,
+                Version::Tls1_2,
+                Some(Version::Tls1_2),
+            ),
+            TestConfig::new(
+                Version::Tls1_2,
+                Version::Tls1_2,
+                Version::Tls1_0,
+                Version::Tls1_2,
+                Some(Version::Tls1_2),
+            ),
+            TestConfig::new(Version::Tls1_0, Version::Tls1_1, Version::Tls1_2, Version::Tls1_2, None),
         ];
 
         for config in &test_configs {
@@ -253,64 +312,72 @@ mod test {
         }
     }
 
-    // #[tokio::test]
-    // async fn asyncsession_shutdown1() {
-    //     let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
+    #[tokio::test]
+    async fn asyncsession_shutdown1() {
+        let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
 
-    //     let c = tokio::spawn(super::with_client(c, |mut session| Box::pin(async move {
-    //         session.shutdown().await.unwrap();
-    //     })));
+        let c = tokio::spawn(super::with_client(c, |mut session| {
+            Box::pin(async move {
+                session.shutdown().await.unwrap();
+            })
+        }));
 
-    //     let s = tokio::spawn(super::with_server(s, |mut session| Box::pin(async move {
-    //         let mut buf = [0u8; 1];
-    //         match session.read(&mut buf).await {
-    //             Ok(0) | Err(_) => {}
-    //             _ => panic!("expected no data"),
-    //         }
-    //     })));
+        let s = tokio::spawn(super::with_server(s, |mut session| {
+            Box::pin(async move {
+                let mut buf = [0u8; 1];
+                match session.read(&mut buf).await {
+                    Ok(0) | Err(_) => {}
+                    _ => panic!("expected no data"),
+                }
+            })
+        }));
 
-    //     c.await.unwrap();
-    //     s.await.unwrap();
-    // }
+        c.await.unwrap();
+        s.await.unwrap();
+    }
 
-    // #[tokio::test]
-    // async fn asyncsession_shutdown2() {
-    //     let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
+    #[tokio::test]
+    async fn asyncsession_shutdown2() {
+        let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
 
-    //     let c = tokio::spawn(super::with_client(c, |mut session| Box::pin(async move {
-    //         let mut buf = [0u8; 5];
-    //         session.read_exact(&mut buf).await.unwrap();
-    //         assert_eq!(&buf, b"hello");
-    //         match session.read(&mut buf).await {
-    //             Ok(0) | Err(_) => {}
-    //             _ => panic!("expected no data"),
-    //         }
-    //     })));
+        let c = tokio::spawn(super::with_client(c, |mut session| {
+            Box::pin(async move {
+                let mut buf = [0u8; 5];
+                session.read_exact(&mut buf).await.unwrap();
+                assert_eq!(&buf, b"hello");
+                match session.read(&mut buf).await {
+                    Ok(0) | Err(_) => {}
+                    _ => panic!("expected no data"),
+                }
+            })
+        }));
 
-    //     let s = tokio::spawn(super::with_server(s, |mut session| Box::pin(async move {
-    //         session.write_all(b"hello").await.unwrap();
-    //         session.shutdown().await.unwrap();
-    //     })));
+        let s = tokio::spawn(super::with_server(s, |mut session| {
+            Box::pin(async move {
+                session.write_all(b"hello").await.unwrap();
+                session.shutdown().await.unwrap();
+            })
+        }));
 
-    //     c.await.unwrap();
-    //     s.await.unwrap();
-    // }
+        c.await.unwrap();
+        s.await.unwrap();
+    }
 
-    // #[tokio::test]
-    // async fn asyncsession_shutdown3() {
-    //     let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
+    #[tokio::test]
+    async fn asyncsession_shutdown3() {
+        let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
 
-    //     let c = tokio::spawn(super::with_client(c, |mut session| Box::pin(async move {
-    //         session.shutdown().await
-    //     })));
+        let c = tokio::spawn(super::with_client(c, |mut session| {
+            Box::pin(async move { session.shutdown().await })
+        }));
 
-    //     let s = tokio::spawn(super::with_server(s, |mut session| Box::pin(async move {
-    //         session.shutdown().await
-    //     })));
+        let s = tokio::spawn(super::with_server(s, |mut session| {
+            Box::pin(async move { session.shutdown().await })
+        }));
 
-    //     match (c.await.unwrap(), s.await.unwrap()) {
-    //         (Err(_), Err(_)) => panic!("at least one should succeed"),
-    //         _ => {}
-    //     }
-    // }
+        match (c.await.unwrap(), s.await.unwrap()) {
+            (Err(_), Err(_)) => panic!("at least one should succeed"),
+            _ => {}
+        }
+    }
 }
