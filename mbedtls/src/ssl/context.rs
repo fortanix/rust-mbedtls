@@ -222,7 +222,7 @@ impl<T> Context<T> {
         self.handshake()
     }
 
-    pub(super) fn prepare_handshake<IoType>(&mut self, io: T, hostname: Option<&str>) -> Result<()> where T: IoCallbackUnsafe<IoType> {
+    pub(super) fn prepare_handshake(&mut self, io: T, hostname: Option<&str>) -> Result<()> {
         unsafe {
             ssl_session_reset(self.into()).into_result()?;
             self.set_hostname(hostname)?;

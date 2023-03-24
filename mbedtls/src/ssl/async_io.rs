@@ -113,11 +113,15 @@ pub struct AsyncIoAdapter<S> {
 }
 
 impl<S> AsyncIoAdapter<S> {
-    fn new(io: S) -> Self {
+    pub fn new(io: S) -> Self {
         Self {
             inner: io,
             write_tracker: WriteTracker::new(),
         }
+    }
+
+    pub fn handle(&self) -> &S {
+        &self.inner
     }
 }
 
@@ -137,35 +141,23 @@ pub trait AsyncIo {
     async fn send(&mut self, buf: &[u8]) -> Result<usize>;
 }
 
-/*
-impl<IO: AsyncIo> IoCallback<AnyAsyncIo> for AsyncIoAdapter<IO> {
+impl<'a, 'b, 'c, IO: AsyncIo> IoCallback<AnyAsyncIo> for (&'a mut TaskContext<'b>, &'c mut IO) {
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
-        if let Some(cx) = unsafe { self.ecx.get() } {
-            let mut pinned_future = Box::pin(AsyncIo::recv(&mut self.inner, buf));
-            match pinned_future.as_mut().poll(cx) {
-                Poll::Ready(Ok(n)) => Ok(n),
-                Poll::Ready(Err(_)) => Err(Error::NetRecvFailed),
-                Poll::Pending => Err(Error::SslWantRead),
-            }
-        } else {
-            Err(Error::NetRecvFailed)
+        match self.1.recv(buf).as_mut().poll(self.0) {
+            Poll::Ready(Ok(n)) => Ok(n),
+            Poll::Ready(Err(_)) => Err(Error::NetRecvFailed),
+            Poll::Pending => Err(Error::SslWantRead),
         }
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<usize> {
-        if let Some(cx) = unsafe { self.ecx.get() } {
-            let mut pinned_future = Box::pin(AsyncIo::send(&mut self.inner, buf));
-            match pinned_future.as_mut().poll(cx) {
-                Poll::Ready(Ok(n)) => Ok(n),
-                Poll::Ready(Err(_)) => Err(Error::NetSendFailed),
-                Poll::Pending => Err(Error::SslWantWrite),
-            }
-        } else {
-            Err(Error::NetSendFailed)
+        match self.1.send(buf).as_mut().poll(self.0) {
+            Poll::Ready(Ok(n)) => Ok(n),
+            Poll::Ready(Err(_)) => Err(Error::NetSendFailed),
+            Poll::Pending => Err(Error::SslWantWrite),
         }
     }
 }
-*/
 
 impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCallback<AsyncStream> for (&'a mut TaskContext<'b>, &'c mut IO) {
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
@@ -191,7 +183,7 @@ impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCa
 struct HandshakeFuture<'a, T>(&'a mut AsyncIoAdapter<Context<T>>);
 
 impl<T> Future for HandshakeFuture<'_, T> where
-    for<'c, 'cx> (&'c mut std::task::Context<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream> {
+    for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream> {
     type Output = Result<()>;
     fn poll(mut self: Pin<&mut Self>, ctx: &mut TaskContext) -> std::task::Poll<Self::Output> {
         self.0.inner.with_bio_async(ctx, |sslctx| {
@@ -211,19 +203,19 @@ impl<T: Unpin + AsyncRead + AsyncWrite + 'static> AsyncIoAdapter<Context<T>> {
         hostname: Option<&str>,
     ) -> IoResult<AsyncIoAdapter<Context<T>>>
     where
-        T: IoCallbackUnsafe<IoType>,
+        for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<IoType>,
     {
-        let mut context = AsyncIoAdapter::new(Context::new(config));
-        context
+        let mut async_io = AsyncIoAdapter::new(Context::new(config));
+        async_io
             .establish_async(io, hostname)
             .await
             .map_err(|e| crate::private::error_to_io_error(e))?;
-        Ok(context)
+        Ok(async_io)
     }
 
     pub async fn establish_async<IoType>(&mut self, io: T, hostname: Option<&str>) -> Result<()>
     where
-        T: IoCallbackUnsafe<IoType>,
+        for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<IoType>,
     {
         self.inner.prepare_handshake(io, hostname)?;
 
@@ -233,7 +225,7 @@ impl<T: Unpin + AsyncRead + AsyncWrite + 'static> AsyncIoAdapter<Context<T>> {
 
 impl<T: AsyncRead> AsyncRead for AsyncIoAdapter<Context<T>>
 where
-    for<'c, 'cx> (&'c mut std::task::Context<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
+    for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
 {
     fn poll_read(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>> {
         if self.inner.handle().session.is_null() {
@@ -256,7 +248,7 @@ where
 
 impl<T: AsyncWrite + Unpin> AsyncWrite for AsyncIoAdapter<Context<T>>
 where
-    for<'c, 'cx> (&'c mut std::task::Context<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
+    for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
 {
     fn poll_write(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
         if self.inner.handle().session.is_null() {

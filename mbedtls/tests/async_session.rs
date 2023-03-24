@@ -57,11 +57,11 @@ async fn client(conn: TcpStream, min_version: Version, max_version: Version, exp
         config.set_ca_list(cacert, None);
         config.set_min_version(min_version)?;
         config.set_max_version(max_version)?;
-        let mut ctx = Context::new(Arc::new(config));
+        let mut async_io_adapter = AsyncIoAdapter::new(Context::new(Arc::new(config)));
 
-        match ctx.establish_async(conn, None).await {
+        match async_io_adapter.establish_async(conn, None).await {
             Ok(()) => {
-                assert_eq!(ctx.version(), exp_version.unwrap());
+                assert_eq!(async_io_adapter.handle().version(), exp_version.unwrap());
             }
             Err(e) => {
                 match e {
@@ -75,12 +75,12 @@ async fn client(conn: TcpStream, min_version: Version, max_version: Version, exp
             }
         };
 
-        let ciphersuite = ctx.ciphersuite().unwrap();
-        ctx.write_all(format!("Client2Server {:4x}", ciphersuite).as_bytes())
+        let ciphersuite = async_io_adapter.handle().ciphersuite().unwrap();
+        async_io_adapter.write_all(format!("Client2Server {:4x}", ciphersuite).as_bytes())
             .await
             .unwrap();
         let mut buf = [0u8; 13 + 4 + 1];
-        ctx.read_exact(&mut buf).await.unwrap();
+        async_io_adapter.read_exact(&mut buf).await.unwrap();
         assert_eq!(&buf, format!("Server2Client {:4x}", ciphersuite).as_bytes());
     } // drop verify_callback, releasing borrow of verify_args
     Ok(())
@@ -96,11 +96,11 @@ async fn server(conn: TcpStream, min_version: Version, max_version: Version, exp
     config.set_min_version(min_version)?;
     config.set_max_version(max_version)?;
     config.push_cert(cert, key)?;
-    let mut ctx = Context::new(Arc::new(config));
+    let mut async_io_adapter = AsyncIoAdapter::new(Context::new(Arc::new(config)));
 
-    match ctx.establish_async(conn, None).await {
+    match async_io_adapter.establish_async(conn, None).await {
         Ok(()) => {
-            assert_eq!(ctx.version(), exp_version.unwrap());
+            assert_eq!(async_io_adapter.handle().version(), exp_version.unwrap());
         }
         Err(e) => {
             match e {
@@ -116,12 +116,12 @@ async fn server(conn: TcpStream, min_version: Version, max_version: Version, exp
     };
 
     //assert_eq!(ctx.get_alpn_protocol().unwrap().unwrap(), None);
-    let ciphersuite = ctx.ciphersuite().unwrap();
-    ctx.write_all(format!("Server2Client {:4x}", ciphersuite).as_bytes())
+    let ciphersuite = async_io_adapter.handle().ciphersuite().unwrap();
+    async_io_adapter.write_all(format!("Server2Client {:4x}", ciphersuite).as_bytes())
         .await
         .unwrap();
     let mut buf = [0u8; 13 + 1 + 4];
-    ctx.read_exact(&mut buf).await.unwrap();
+    async_io_adapter.read_exact(&mut buf).await.unwrap();
 
     assert_eq!(&buf, format!("Client2Server {:4x}", ciphersuite).as_bytes());
     Ok(())
@@ -129,7 +129,7 @@ async fn server(conn: TcpStream, min_version: Version, max_version: Version, exp
 
 async fn with_client<F, R>(conn: TcpStream, f: F) -> R
 where
-    F: FnOnce(Context<AsyncIoAdapter<TcpStream>>) -> Pin<Box<dyn Future<Output = R> + Send>>,
+    F: FnOnce(AsyncIoAdapter<Context<TcpStream>>) -> Pin<Box<dyn Future<Output = R> + Send>>,
 {
     let entropy = Arc::new(entropy_new());
     let rng = Arc::new(CtrDrbg::new(entropy, None).unwrap());
@@ -144,16 +144,16 @@ where
     config.set_rng(rng);
     config.set_verify_callback(verify_callback);
     config.set_ca_list(cacert, None);
+    let mut async_io_adapter = AsyncIoAdapter::new(Context::new(Arc::new(config)));
 
-    let mut ctx = Context::new(Arc::new(config));
-    ctx.establish_async(conn, None).await.unwrap();
+    async_io_adapter.establish_async(conn, None).await.unwrap();
 
-    f(ctx).await
+    f(async_io_adapter).await
 }
 
 async fn with_server<F, R>(conn: TcpStream, f: F) -> R
 where
-    F: FnOnce(Context<AsyncIoAdapter<TcpStream>>) -> Pin<Box<dyn Future<Output = R> + Send>>,
+    F: FnOnce(AsyncIoAdapter<Context<TcpStream>>) -> Pin<Box<dyn Future<Output = R> + Send>>,
 {
     let entropy = Arc::new(entropy_new());
     let rng = Arc::new(CtrDrbg::new(entropy, None).unwrap());
@@ -163,11 +163,11 @@ where
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(rng);
     config.push_cert(cert, key).unwrap();
-    let mut ctx = Context::new(Arc::new(config));
+    let mut async_io_adapter = AsyncIoAdapter::new(Context::new(Arc::new(config)));
 
-    ctx.establish_async(conn, None).await.unwrap();
+    async_io_adapter.establish_async(conn, None).await.unwrap();
 
-    f(ctx).await
+    f(async_io_adapter).await
 }
 
 #[cfg(unix)]
