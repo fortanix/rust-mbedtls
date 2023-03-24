@@ -125,8 +125,6 @@ impl<S> AsyncIoAdapter<S> {
     }
 }
 
-pub type AsyncContext<T> = Context<AsyncIoAdapter<T>>;
-
 /// Marker type for an IO implementation that doesn't implement
 /// `tokio::io::AsyncRead` and `tokio::io::AsyncWrite`.
 pub enum AnyAsyncIo {}
@@ -192,7 +190,7 @@ where
     fn poll(mut self: Pin<&mut Self>, ctx: &mut TaskContext) -> std::task::Poll<Self::Output> {
         self.0
             .inner
-            .with_bio_async(ctx, |sslctx| match sslctx.handshake() {
+            .with_bio_async(ctx, |ssl_ctx| match ssl_ctx.handshake() {
                 Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Poll::Pending,
                 Err(e) => Poll::Ready(Err(e)),
                 Ok(()) => Poll::Ready(Ok(())),
@@ -238,7 +236,7 @@ where
         }
 
         self.inner
-            .with_bio_async(cx, |sslctx| match sslctx.recv(buf.initialize_unfilled()) {
+            .with_bio_async(cx, |ssl_ctx| match ssl_ctx.recv(buf.initialize_unfilled()) {
                 Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(())),
                 Err(Error::SslWantRead) => Poll::Pending,
                 Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
@@ -263,9 +261,9 @@ where
         let AsyncIoAdapter { inner, write_tracker } = &mut *self;
 
         let result = inner
-            .with_bio_async(cx, |sslctx| {
+            .with_bio_async(cx, |ssl_ctx| {
                 write_tracker.adjust_buf(buf);
-                match sslctx.send(buf) {
+                match ssl_ctx.send(buf) {
                     Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
                     Err(Error::SslWantWrite) => Poll::Pending,
                     Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
