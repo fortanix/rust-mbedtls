@@ -172,6 +172,39 @@ impl<T> Context<T> {
     }
 }
 
+/// # Safety
+/// `io` must live as long as `ctx` or the next time bio is set/cleared.
+unsafe fn set_bio_raw<IoType, T: IoCallbackUnsafe<IoType>>(ctx: *mut ssl_context, io: &mut T) {
+    ssl_set_bio(
+        ctx,
+        io as *mut T as *mut c_void,
+        Some(T::call_send),
+        Some(T::call_recv),
+        None,
+    );
+}
+
+impl<T> Context<T>  {
+    pub(super) fn with_bio_async<'cx, R, IoType>(&mut self, cx: &mut std::task::Context<'cx>, f: impl FnOnce(&mut Self) -> R) -> Option<R> where for<'c> (&'c mut std::task::Context<'cx>, &'c mut T): IoCallbackUnsafe<IoType> {
+        let ret;
+
+        // SAFETY: In the call to `set_bio_raw`, `user_data` must live as long
+        // as `ctx`, or until the bio is cleared from `ctx`. The bio is cleared
+        // at the end of this block.
+        unsafe {
+            let ctx = self.into();
+            let mut user_data = (cx, &mut**self.io.as_mut()?);
+            set_bio_raw(ctx, &mut user_data);
+
+            ret = f(self);
+
+            self.clear_bio();
+        }
+
+        Some(ret)
+    }
+}
+
 impl<T> Context<T> {
     /// Establish a TLS session on the given `io`.
     ///
@@ -179,27 +212,24 @@ impl<T> Context<T> {
     /// `std::io::Read` and `std::io::Write` traits if `io` implements those as
     /// well, and using the `mbedtls::ssl::io::Io` trait otherwise.
     pub fn establish<IoType>(&mut self, io: T, hostname: Option<&str>) -> Result<()> where T: IoCallbackUnsafe<IoType> {
-        self.prepare_handshake(io, hostname)?;
+        // SAFETY: In the call to `set_bio_raw`, `self.io` must live as long as
+        // `self`, or until the bio is cleared from `ctx`. It lives as long as
+        // `self` since it is stored in self and never cleared.
+        unsafe {
+            self.prepare_handshake(io, hostname)?;
+            set_bio_raw(self.into(), &mut**self.io.as_mut().unwrap());
+        }
         self.handshake()
     }
 
     pub(super) fn prepare_handshake<IoType>(&mut self, io: T, hostname: Option<&str>) -> Result<()> where T: IoCallbackUnsafe<IoType> {
         unsafe {
-            let mut io = Box::new(io);
             ssl_session_reset(self.into()).into_result()?;
             self.set_hostname(hostname)?;
             if let Some(client_id) = self.client_transport_id.take() {
                 self.set_client_transport_id(&client_id)?;
             }
-            let ptr = &mut *io as *mut _ as *mut c_void;
-            ssl_set_bio(
-                self.into(),
-                ptr,
-                Some(T::call_send),
-                Some(T::call_recv),
-                None,
-            );
-            self.io = Some(io);
+            self.io = Some(Box::new(io));
             self.inner.reset_handshake();
             Ok(())
         }
@@ -286,21 +316,29 @@ impl<T> Context<T> {
     pub fn config(&self) -> &Arc<Config> {
         &self.config
     }
-    
-    pub fn close(&mut self) {
+
+    pub(super) fn close_notify(&mut self) -> Result<()> {
         unsafe {
-            ssl_close_notify(self.into());
-            self.reset_bio();
+            ssl_close_notify(self.into()).into_result().map(|_| ())
         }
     }
 
-    pub(super) fn reset_bio(&mut self) {
+    pub fn close(&mut self) {
+        let _ = self.close_notify();
+        self.drop_io();
+    }
+
+    pub(super) fn clear_bio(&mut self) {
         unsafe {
             ssl_set_bio(self.into(), ::core::ptr::null_mut(), None, None, None);
         }
-        self.io = None;
     }
     
+    pub(super) fn drop_io(&mut self) {
+        self.clear_bio();
+        self.io = None;
+    }
+
     pub fn io(&self) -> Option<&T> {
         self.io.as_ref().map(|v| &**v)
     }
