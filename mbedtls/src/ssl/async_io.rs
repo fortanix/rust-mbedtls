@@ -142,13 +142,13 @@ impl WriteTracker {
 }
 
 pub struct AsyncIoAdapter<S> {
-    pub inner: S,
-    pub ecx: ErasedContext,
-    pub write_tracker: WriteTracker,
+    inner: S,
+    ecx: ErasedContext,
+    write_tracker: WriteTracker,
 }
 
 impl<S> AsyncIoAdapter<S> {
-    pub fn new(io: S) -> Self {
+    fn new(io: S) -> Self {
         Self {
             inner: io,
             ecx: ErasedContext::new(),
