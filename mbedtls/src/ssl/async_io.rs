@@ -49,7 +49,7 @@ struct DigestAndLen {
 }
 
 impl WriteTracker {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         WriteTracker { pending: None }
     }
 
@@ -101,27 +101,6 @@ impl WriteTracker {
                 self.pending = None;
             }
         }
-    }
-}
-
-/// This is a adapter used to wrap the [`Context`] to provider async IO on it.
-/// Main reason we need this is, we need a [`WriteTracker`] to ensure the async
-/// IO logic works correctly with `mbedtls`
-pub struct AsyncIoAdapter<S> {
-    context: S,
-    write_tracker: WriteTracker,
-}
-
-impl<S> AsyncIoAdapter<S> {
-    pub fn new(context: S) -> Self {
-        Self {
-            context,
-            write_tracker: WriteTracker::new(),
-        }
-    }
-
-    pub fn handle(&self) -> &S {
-        &self.context
     }
 }
 
@@ -180,7 +159,7 @@ impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCa
     }
 }
 
-struct HandshakeFuture<'a, T>(&'a mut AsyncIoAdapter<Context<T>>);
+struct HandshakeFuture<'a, T>(&'a mut Context<T>);
 
 impl<T> Future for HandshakeFuture<'_, T>
 where
@@ -189,7 +168,6 @@ where
     type Output = Result<()>;
     fn poll(mut self: Pin<&mut Self>, ctx: &mut TaskContext) -> std::task::Poll<Self::Output> {
         self.0
-            .context
             .with_bio_async(ctx, |ssl_ctx| match ssl_ctx.handshake() {
                 Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Poll::Pending,
                 Err(e) => Poll::Ready(Err(e)),
@@ -199,70 +177,62 @@ where
     }
 }
 
-impl<T: Unpin + AsyncRead + AsyncWrite + 'static> AsyncIoAdapter<Context<T>> {
-    pub async fn accept_async<IoType>(
-        config: Arc<Config>,
-        io: T,
-        hostname: Option<&str>,
-    ) -> IoResult<AsyncIoAdapter<Context<T>>>
+impl<T: Unpin + AsyncRead + AsyncWrite + 'static> Context<T> {
+    pub async fn accept_async<IoType>(config: Arc<Config>, io: T, hostname: Option<&str>) -> IoResult<Context<T>>
     where
         for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<IoType>,
     {
-        let mut async_io = AsyncIoAdapter::new(Context::new(config));
-        async_io
-            .establish_async(io, hostname)
+        let mut ctx = Context::new(config);
+        ctx.establish_async(io, hostname)
             .await
             .map_err(|e| crate::private::error_to_io_error(e))?;
-        Ok(async_io)
+        Ok(ctx)
     }
 
     pub async fn establish_async<IoType>(&mut self, io: T, hostname: Option<&str>) -> Result<()>
     where
         for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<IoType>,
     {
-        self.context.prepare_handshake(io, hostname)?;
+        self.prepare_handshake(io, hostname)?;
 
         HandshakeFuture(self).await
     }
 }
 
-impl<T: AsyncRead> AsyncRead for AsyncIoAdapter<Context<T>>
+impl<T: AsyncRead> AsyncRead for Context<T>
 where
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
 {
     fn poll_read(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>> {
-        if self.context.handle().session.is_null() {
+        if self.handle().session.is_null() {
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
-        self.context
-            .with_bio_async(cx, |ssl_ctx| match ssl_ctx.recv(buf.initialize_unfilled()) {
-                Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(())),
-                Err(Error::SslWantRead) => Poll::Pending,
-                Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
-                Ok(i) => {
-                    buf.advance(i);
-                    Poll::Ready(Ok(()))
-                }
-            })
-            .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetRecvFailed))))
+        self.with_bio_async(cx, |ssl_ctx| match ssl_ctx.recv(buf.initialize_unfilled()) {
+            Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(())),
+            Err(Error::SslWantRead) => Poll::Pending,
+            Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
+            Ok(i) => {
+                buf.advance(i);
+                Poll::Ready(Ok(()))
+            }
+        })
+        .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetRecvFailed))))
     }
 }
 
-impl<T: AsyncWrite + Unpin> AsyncWrite for AsyncIoAdapter<Context<T>>
+impl<T: AsyncWrite + Unpin> AsyncWrite for Context<T>
 where
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
 {
     fn poll_write(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
-        if self.context.handle().session.is_null() {
+        if self.handle().session.is_null() {
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
-        let AsyncIoAdapter { context: inner, write_tracker } = &mut *self;
-
-        let result = inner
+        let result = self
             .with_bio_async(cx, |ssl_ctx| {
-                write_tracker.adjust_buf(buf)?;
+                ssl_ctx.write_tracker.adjust_buf(buf)?;
                 match ssl_ctx.send(buf) {
                     Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
                     Err(Error::SslWantWrite) => Poll::Pending,
@@ -272,7 +242,7 @@ where
             })
             .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetSendFailed))));
 
-        write_tracker.post_write(buf, &result);
+        self.write_tracker.post_write(buf, &result);
 
         cx.waker().clone().wake();
 
@@ -283,7 +253,6 @@ where
         // We can only flush the actual IO here.
         // To flush mbedtls we need writes with the same buffer until complete.
         let io = &mut self
-            .context
             .io_mut()
             .ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?;
         let stream = Pin::new(io);
@@ -291,22 +260,21 @@ where
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
-        if self.context.handle().session.is_null() {
+        if self.handle().session.is_null() {
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
         match self
-            .context
             .with_bio_async(cx, Context::close_notify)
             .unwrap_or(Err(Error::NetSendFailed))
         {
             Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Poll::Pending,
             Err(e) => {
-                self.context.drop_io();
+                self.drop_io();
                 Poll::Ready(Err(crate::private::error_to_io_error(e)))
             }
             Ok(()) => {
-                self.context.drop_io();
+                self.drop_io();
                 Poll::Ready(Ok(()))
             }
         }
