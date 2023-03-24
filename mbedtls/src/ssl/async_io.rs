@@ -26,13 +26,11 @@ use std::{
     pin::Pin,
     ptr::null_mut,
     rc::Rc,
-    result::Result as StdResult,
     sync::Arc,
     task::{Context as TaskContext, Poll},
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite, ReadBuf},
-    net::UdpSocket,
 };
 
 #[derive(Clone)]
@@ -227,43 +225,6 @@ impl<IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCallback<Async
         } else {
             Err(Error::NetSendFailed)
         }
-    }
-}
-
-/// A `tokio::net::UdpSocket` on which `connect` was successfully called.
-///
-/// Construct this type using `ConnectedAsyncUdpSocket::connect`.
-pub struct ConnectedAsyncUdpSocket {
-    socket: UdpSocket,
-}
-
-impl ConnectedAsyncUdpSocket {
-    pub async fn connect<A: tokio::net::ToSocketAddrs>(socket: UdpSocket, addr: A) -> StdResult<Self, (IoError, UdpSocket)> {
-        match socket.connect(addr).await {
-            Ok(_) => Ok(ConnectedAsyncUdpSocket { socket }),
-            Err(e) => Err((e, socket)),
-        }
-    }
-
-    pub fn into_socket(self) -> UdpSocket {
-        self.socket
-    }
-}
-
-#[async_trait]
-impl AsyncIo for ConnectedAsyncUdpSocket {
-    async fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
-        let socket = &mut self.socket;
-        match socket.recv(buf).await {
-            Ok(i) => Ok(i),
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Err(Error::SslWantRead),
-            Err(_) => Err(Error::NetRecvFailed),
-        }
-    }
-
-    async fn send(&mut self, buf: &[u8]) -> Result<usize> {
-        let socket = &mut self.socket;
-        socket.send(buf).await.map_err(|_| Error::NetSendFailed)
     }
 }
 
