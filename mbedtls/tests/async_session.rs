@@ -29,7 +29,8 @@ use support::entropy::entropy_new;
 use support::keys;
 use tokio::net::TcpStream;
 
-// TODO: Add unified interface for TCP and UDP like `TransportType` in `client_server.rs`
+// TODO: Add unified interface for TCP and UDP like `TransportType` in
+// `client_server.rs`
 
 async fn client(conn: TcpStream, min_version: Version, max_version: Version, exp_version: Option<Version>) -> TlsResult<()> {
     let entropy = Arc::new(entropy_new());
@@ -76,7 +77,8 @@ async fn client(conn: TcpStream, min_version: Version, max_version: Version, exp
         };
 
         let ciphersuite = async_io_adapter.handle().ciphersuite().unwrap();
-        async_io_adapter.write_all(format!("Client2Server {:4x}", ciphersuite).as_bytes())
+        async_io_adapter
+            .write_all(format!("Client2Server {:4x}", ciphersuite).as_bytes())
             .await
             .unwrap();
         let mut buf = [0u8; 13 + 4 + 1];
@@ -117,7 +119,8 @@ async fn server(conn: TcpStream, min_version: Version, max_version: Version, exp
 
     //assert_eq!(ctx.get_alpn_protocol().unwrap().unwrap(), None);
     let ciphersuite = async_io_adapter.handle().ciphersuite().unwrap();
-    async_io_adapter.write_all(format!("Server2Client {:4x}", ciphersuite).as_bytes())
+    async_io_adapter
+        .write_all(format!("Server2Client {:4x}", ciphersuite).as_bytes())
         .await
         .unwrap();
     let mut buf = [0u8; 13 + 1 + 4];

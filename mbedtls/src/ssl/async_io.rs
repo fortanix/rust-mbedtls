@@ -127,12 +127,12 @@ impl<S> AsyncIoAdapter<S> {
 
 pub type AsyncContext<T> = Context<AsyncIoAdapter<T>>;
 
-/// Marker type for an IO implementation that doesn't implement `tokio::io::
-/// AsyncRead` and `tokio::io:: AsyncWrite`.
+/// Marker type for an IO implementation that doesn't implement
+/// `tokio::io::AsyncRead` and `tokio::io::AsyncWrite`.
 pub enum AnyAsyncIo {}
 #[cfg(feature = "std")]
-/// Marker type for an IO implementation that implements both `tokio::io::
-/// AsyncRead` and `tokio::io:: AsyncWrite`.
+/// Marker type for an IO implementation that implements both
+/// `tokio::io::AsyncRead` and `tokio::io::AsyncWrite`.
 pub enum AsyncStream {}
 
 #[async_trait]
@@ -159,7 +159,9 @@ impl<'a, 'b, 'c, IO: AsyncIo> IoCallback<AnyAsyncIo> for (&'a mut TaskContext<'b
     }
 }
 
-impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCallback<AsyncStream> for (&'a mut TaskContext<'b>, &'c mut IO) {
+impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCallback<AsyncStream>
+    for (&'a mut TaskContext<'b>, &'c mut IO)
+{
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
         let mut buf = ReadBuf::new(buf);
         let io = Pin::new(&mut self.1);
@@ -182,17 +184,20 @@ impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCa
 
 struct HandshakeFuture<'a, T>(&'a mut AsyncIoAdapter<Context<T>>);
 
-impl<T> Future for HandshakeFuture<'_, T> where
-    for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream> {
+impl<T> Future for HandshakeFuture<'_, T>
+where
+    for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
+{
     type Output = Result<()>;
     fn poll(mut self: Pin<&mut Self>, ctx: &mut TaskContext) -> std::task::Poll<Self::Output> {
-        self.0.inner.with_bio_async(ctx, |sslctx| {
-            match sslctx.handshake() {
+        self.0
+            .inner
+            .with_bio_async(ctx, |sslctx| match sslctx.handshake() {
                 Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Poll::Pending,
                 Err(e) => Poll::Ready(Err(e)),
                 Ok(()) => Poll::Ready(Ok(())),
-            }
-        }).unwrap_or(Poll::Ready(Err(Error::NetSendFailed)))
+            })
+            .unwrap_or(Poll::Ready(Err(Error::NetSendFailed)))
     }
 }
 
@@ -232,8 +237,8 @@ where
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
-        self.inner.with_bio_async(cx, |sslctx| {
-            match sslctx.recv(buf.initialize_unfilled()) {
+        self.inner
+            .with_bio_async(cx, |sslctx| match sslctx.recv(buf.initialize_unfilled()) {
                 Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(())),
                 Err(Error::SslWantRead) => Poll::Pending,
                 Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
@@ -241,8 +246,8 @@ where
                     buf.advance(i);
                     Poll::Ready(Ok(()))
                 }
-            }
-        }).unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetRecvFailed))))
+            })
+            .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetRecvFailed))))
     }
 }
 
@@ -255,17 +260,19 @@ where
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
-        let AsyncIoAdapter { inner, write_tracker } = &mut*self;
+        let AsyncIoAdapter { inner, write_tracker } = &mut *self;
 
-        let result = inner.with_bio_async(cx, |sslctx| {
-            write_tracker.adjust_buf(buf);
-            match sslctx.send(buf) {
-                Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
-                Err(Error::SslWantWrite) => Poll::Pending,
-                Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
-                Ok(i) => Poll::Ready(Ok(i)),
-            }
-        }).unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetSendFailed))));
+        let result = inner
+            .with_bio_async(cx, |sslctx| {
+                write_tracker.adjust_buf(buf);
+                match sslctx.send(buf) {
+                    Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
+                    Err(Error::SslWantWrite) => Poll::Pending,
+                    Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
+                    Ok(i) => Poll::Ready(Ok(i)),
+                }
+            })
+            .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetSendFailed))));
 
         write_tracker.post_write(buf, &result);
 
@@ -290,7 +297,11 @@ where
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
-        match self.inner.with_bio_async(cx, Context::close_notify).unwrap_or(Err(Error::NetSendFailed)) {
+        match self
+            .inner
+            .with_bio_async(cx, Context::close_notify)
+            .unwrap_or(Err(Error::NetSendFailed))
+        {
             Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Poll::Pending,
             Err(e) => {
                 self.inner.drop_io();
