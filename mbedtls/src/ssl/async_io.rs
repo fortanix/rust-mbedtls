@@ -108,20 +108,20 @@ impl WriteTracker {
 /// Main reason we need this is, we need a [`WriteTracker`] to ensure the async
 /// IO logic works correctly with `mbedtls`
 pub struct AsyncIoAdapter<S> {
-    inner: S,
+    context: S,
     write_tracker: WriteTracker,
 }
 
 impl<S> AsyncIoAdapter<S> {
-    pub fn new(io: S) -> Self {
+    pub fn new(context: S) -> Self {
         Self {
-            inner: io,
+            context,
             write_tracker: WriteTracker::new(),
         }
     }
 
     pub fn handle(&self) -> &S {
-        &self.inner
+        &self.context
     }
 }
 
@@ -189,7 +189,7 @@ where
     type Output = Result<()>;
     fn poll(mut self: Pin<&mut Self>, ctx: &mut TaskContext) -> std::task::Poll<Self::Output> {
         self.0
-            .inner
+            .context
             .with_bio_async(ctx, |ssl_ctx| match ssl_ctx.handshake() {
                 Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Poll::Pending,
                 Err(e) => Poll::Ready(Err(e)),
@@ -220,7 +220,7 @@ impl<T: Unpin + AsyncRead + AsyncWrite + 'static> AsyncIoAdapter<Context<T>> {
     where
         for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<IoType>,
     {
-        self.inner.prepare_handshake(io, hostname)?;
+        self.context.prepare_handshake(io, hostname)?;
 
         HandshakeFuture(self).await
     }
@@ -231,11 +231,11 @@ where
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
 {
     fn poll_read(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>> {
-        if self.inner.handle().session.is_null() {
+        if self.context.handle().session.is_null() {
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
-        self.inner
+        self.context
             .with_bio_async(cx, |ssl_ctx| match ssl_ctx.recv(buf.initialize_unfilled()) {
                 Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(())),
                 Err(Error::SslWantRead) => Poll::Pending,
@@ -254,11 +254,11 @@ where
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
 {
     fn poll_write(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
-        if self.inner.handle().session.is_null() {
+        if self.context.handle().session.is_null() {
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
-        let AsyncIoAdapter { inner, write_tracker } = &mut *self;
+        let AsyncIoAdapter { context: inner, write_tracker } = &mut *self;
 
         let result = inner
             .with_bio_async(cx, |ssl_ctx| {
@@ -283,7 +283,7 @@ where
         // We can only flush the actual IO here.
         // To flush mbedtls we need writes with the same buffer until complete.
         let io = &mut self
-            .inner
+            .context
             .io_mut()
             .ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?;
         let stream = Pin::new(io);
@@ -291,22 +291,22 @@ where
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
-        if self.inner.handle().session.is_null() {
+        if self.context.handle().session.is_null() {
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
         match self
-            .inner
+            .context
             .with_bio_async(cx, Context::close_notify)
             .unwrap_or(Err(Error::NetSendFailed))
         {
             Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Poll::Pending,
             Err(e) => {
-                self.inner.drop_io();
+                self.context.drop_io();
                 Poll::Ready(Err(crate::private::error_to_io_error(e)))
             }
             Ok(()) => {
-                self.inner.drop_io();
+                self.context.drop_io();
                 Poll::Ready(Ok(()))
             }
         }
