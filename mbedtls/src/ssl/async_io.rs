@@ -7,12 +7,9 @@
  * according to those terms. */
 
 #![cfg(all(feature = "std", feature = "async"))]
-#![allow(unused)]
-
-use mbedtls_sys::ssl_close_notify;
 
 use crate::{
-    error::{Error, IntoResult, Result},
+    error::{Error, Result},
     ssl::{
         context::Context,
         io::{IoCallback, IoCallbackUnsafe},
@@ -107,6 +104,9 @@ impl WriteTracker {
     }
 }
 
+/// This is a adapter used to wrap the [`Context`] to provider async IO on it.
+/// Main reason we need this is, we need a [`WriteTracker`] to ensure the async
+/// IO logic works correctly with `mbedtls`
 pub struct AsyncIoAdapter<S> {
     inner: S,
     write_tracker: WriteTracker,
@@ -262,7 +262,7 @@ where
 
         let result = inner
             .with_bio_async(cx, |ssl_ctx| {
-                write_tracker.adjust_buf(buf);
+                write_tracker.adjust_buf(buf)?;
                 match ssl_ctx.send(buf) {
                     Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
                     Err(Error::SslWantWrite) => Poll::Pending,
