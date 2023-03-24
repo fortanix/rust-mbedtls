@@ -8,7 +8,7 @@
 
 #![cfg(all(feature = "std", feature = "async"))]
 
-use mbedtls_sys::{ssl_close_notify};
+use mbedtls_sys::ssl_close_notify;
 
 use crate::{
     error::{Error, IntoResult, Result},
@@ -29,10 +29,12 @@ use std::{
     sync::Arc,
     task::{Context as TaskContext, Poll},
 };
-use tokio::{
-    io::{AsyncRead, AsyncWrite, ReadBuf},
-};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
+
+/// This type is a wrapper for arbitrary [`std::task::Context`]. It's used with
+/// [`AsyncIoAdapter`] to pass the context of current async task into [`IoCallback`]
+/// so that async context could be access in the callback inside the `mbedtls` 
 #[derive(Clone)]
 pub struct ErasedContext(Rc<Cell<*mut ()>>);
 
@@ -43,17 +45,22 @@ impl ErasedContext {
         Self(Rc::new(Cell::new(null_mut())))
     }
 
+    /// This is unsafe because there is no guarantee of the concrete type of
+    /// [`TaskContext`] got from the arbitrary raw pointer. So you need to ensure
+    /// the type of [`TaskContext`] you want get from [`ErasedContext::get`] is
+    /// equals to what you have passed to [`ErasedContext::set`]
     pub unsafe fn get(&self) -> Option<&mut TaskContext<'_>> {
         let ptr = self.0.get();
         if ptr.is_null() {
             None
         } else {
-            Some(&mut *(ptr as *mut _))
+            Some(std::mem::transmute(ptr))
         }
     }
 
     pub fn set(&self, cx: &mut TaskContext<'_>) {
-        self.0.set(cx as *mut _ as *mut ());
+        let ptr: *mut () = unsafe { std::mem::transmute(cx) };
+        self.0.set(ptr);
     }
 
     pub fn clear(&self) {
@@ -323,11 +330,6 @@ where
             io.ecx.set(cx);
             io.write_tracker.adjust_buf(buf)
         }?;
-
-        self.io_mut()
-            .ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?
-            .ecx
-            .set(cx);
 
         let result = match self.send(buf) {
             Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
