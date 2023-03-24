@@ -38,7 +38,7 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 //
 // Reference:
 // https://tls.mbed.org/api/ssl_8h.html#a5bbda87d484de82df730758b475f32e5
-pub struct WriteTracker {
+pub(super) struct WriteTracker {
     pending: Option<Box<DigestAndLen>>,
 }
 
@@ -62,7 +62,7 @@ impl WriteTracker {
         out
     }
 
-    pub fn adjust_buf<'a>(&self, buf: &'a [u8]) -> IoResult<&'a [u8]> {
+    fn adjust_buf<'a>(&self, buf: &'a [u8]) -> IoResult<&'a [u8]> {
         match self.pending.as_ref() {
             None => Ok(buf),
             Some(pending) => {
@@ -86,7 +86,7 @@ impl WriteTracker {
         }
     }
 
-    pub fn post_write(&mut self, buf: &[u8], res: &Poll<IoResult<usize>>) {
+    fn post_write(&mut self, buf: &[u8], res: &Poll<IoResult<usize>>) {
         match res {
             &Poll::Pending => {
                 if self.pending.is_none() {
