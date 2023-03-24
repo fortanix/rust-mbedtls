@@ -189,6 +189,7 @@ unsafe fn set_bio_raw<IoType, T: IoCallbackUnsafe<IoType>>(ctx: *mut ssl_context
     );
 }
 
+#[cfg(all(feature = "std", feature = "async"))]
 impl<T> Context<T>  {
     pub(super) fn with_bio_async<'cx, R, IoType>(&mut self, cx: &mut std::task::Context<'cx>, f: impl FnOnce(&mut Self) -> R) -> Option<R> where for<'c> (&'c mut std::task::Context<'cx>, &'c mut T): IoCallbackUnsafe<IoType> {
         let ret;
