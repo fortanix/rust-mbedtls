@@ -214,7 +214,7 @@ impl<T> Context<T>  {
 impl<T> Context<T> {
     /// Establish a TLS session on the given `io`.
     ///
-    /// Upon succesful return, the context can be communicated with using the
+    /// Upon successful return, the context can be communicated with using the
     /// `std::io::Read` and `std::io::Write` traits if `io` implements those as
     /// well, and using the `mbedtls::ssl::io::Io` trait otherwise.
     pub fn establish<IoType>(&mut self, io: T, hostname: Option<&str>) -> Result<()> where T: IoCallbackUnsafe<IoType> {
@@ -250,7 +250,7 @@ impl<T> Context<T> {
     ///
     /// This should only be used directly if the handshake could not be completed successfully in
     /// `establish`, i.e.:
-    /// - If using nonblocking operation and `establish` failed with [`Error::SslWantRead`] or
+    /// - If using non-blocking operation and `establish` failed with [`Error::SslWantRead`] or
     /// [`Error::SslWantWrite`]
     /// - If running a DTLS server and it answers the first `ClientHello` (without cookie) with a
     /// `HelloVerifyRequest`, i.e. `establish` failed with [`Error::SslHelloVerifyRequired`]
@@ -299,7 +299,7 @@ impl<T> Context<T> {
     }
 
     #[cfg(feature = "std")]
-    pub fn set_hostname(&mut self, hostname: Option<&str>) -> Result<()> {
+    fn set_hostname(&mut self, hostname: Option<&str>) -> Result<()> {
         if let Some(s) = hostname {
             let cstr = ::std::ffi::CString::new(s).map_err(|_| Error::SslBadInputData)?;
             unsafe {
@@ -477,7 +477,7 @@ impl<T> Drop for Context<T> {
 //
 // Class exists only during SNI callback that is configured from Config.
 // SNI Callback must provide input whose lifetime exceeds the SNI closure to avoid memory corruptions.
-// That can be achieved easily by storing certificate chains/crls inside the closure for the lifetime of the closure.
+// That can be achieved easily by storing certificate chains/CRLs inside the closure for the lifetime of the closure.
 //
 // That is due to SNI being held by an Arc inside Config.
 // Config lives longer then Context. Context lives longer then Handshake.
@@ -561,7 +561,7 @@ mod tests {
     use crate::tests::TestTrait;
     
     #[test]
-    fn handshakecontext_sync() {
+    fn handshake_context_sync() {
         assert!(!TestTrait::<dyn Sync, HandshakeContext>::new().impls_trait(), "HandshakeContext must be !Sync");
     }
 
