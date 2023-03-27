@@ -13,7 +13,6 @@ use crate::{
     ssl::{
         context::Context,
         io::{IoCallback, IoCallbackUnsafe},
-        Config,
     },
 };
 use async_trait::async_trait;
@@ -21,7 +20,6 @@ use std::{
     future::Future,
     io::{Error as IoError, ErrorKind as IoErrorKind, Result as IoResult},
     pin::Pin,
-    sync::Arc,
     task::{Context as TaskContext, Poll},
 };
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
@@ -159,41 +157,29 @@ impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCa
     }
 }
 
-struct HandshakeFuture<'a, T>(&'a mut Context<T>);
-
-impl<T> Future for HandshakeFuture<'_, T>
-where
-    for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
-{
-    type Output = Result<()>;
-    fn poll(mut self: Pin<&mut Self>, ctx: &mut TaskContext) -> std::task::Poll<Self::Output> {
-        self.0
-            .with_bio_async(ctx, |ssl_ctx| match ssl_ctx.handshake() {
-                Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Poll::Pending,
-                Err(e) => Poll::Ready(Err(e)),
-                Ok(()) => Poll::Ready(Ok(())),
-            })
-            .unwrap_or(Poll::Ready(Err(Error::NetSendFailed)))
-    }
-}
-
 impl<T: Unpin + AsyncRead + AsyncWrite + 'static> Context<T> {
-    pub async fn accept_async<IoType>(config: Arc<Config>, io: T, hostname: Option<&str>) -> IoResult<Context<T>>
-    where
-        for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<IoType>,
-    {
-        let mut ctx = Context::new(config);
-        ctx.establish_async(io, hostname)
-            .await
-            .map_err(|e| crate::private::error_to_io_error(e))?;
-        Ok(ctx)
-    }
-
     pub async fn establish_async<IoType>(&mut self, io: T, hostname: Option<&str>) -> Result<()>
     where
         for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<IoType>,
     {
         self.prepare_handshake(io, hostname)?;
+
+        struct HandshakeFuture<'a, T>(&'a mut Context<T>);
+        impl<T> Future for HandshakeFuture<'_, T>
+        where
+            for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
+        {
+            type Output = Result<()>;
+            fn poll(mut self: Pin<&mut Self>, ctx: &mut TaskContext) -> std::task::Poll<Self::Output> {
+                self.0
+                    .with_bio_async(ctx, |ssl_ctx| match ssl_ctx.handshake() {
+                        Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Poll::Pending,
+                        Err(e) => Poll::Ready(Err(e)),
+                        Ok(()) => Poll::Ready(Ok(())),
+                    })
+                    .unwrap_or(Poll::Ready(Err(Error::NetSendFailed)))
+            }
+        }
 
         HandshakeFuture(self).await
     }

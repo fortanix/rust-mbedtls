@@ -194,17 +194,26 @@ impl<T> Context<T>  {
     pub(super) fn with_bio_async<'cx, R, IoType>(&mut self, cx: &mut std::task::Context<'cx>, f: impl FnOnce(&mut Self) -> R) -> Option<R> where for<'c> (&'c mut std::task::Context<'cx>, &'c mut T): IoCallbackUnsafe<IoType> {
         let ret;
 
+        struct BioGuard<'a, T> {
+            context: &'a mut Context<T>,
+        }
+        
+        impl<'a, T> Drop for BioGuard<'a, T> {
+            fn drop(&mut self) {
+                self.context.clear_bio();
+            }
+        }
         // SAFETY: In the call to `set_bio_raw`, `user_data` must live as long
         // as `ctx`, or until the bio is cleared from `ctx`. The bio is cleared
-        // at the end of this block.
+        // at the end of this block ensured by the drop gard: [`BioGuard`]
         unsafe {
             let ctx = self.into();
             let mut user_data = (cx, &mut**self.io.as_mut()?);
             set_bio_raw(ctx, &mut user_data);
 
-            ret = f(self);
+            let guard = BioGuard { context: self };
 
-            self.clear_bio();
+            ret = f(guard.context);
         }
 
         Some(ret)
