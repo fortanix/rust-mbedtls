@@ -15,13 +15,18 @@ use crate::{
         io::{IoCallback, IoCallbackUnsafe},
     },
 };
+use core::marker::PhantomData;
 use std::{
     future::Future,
     io::{Error as IoError, ErrorKind as IoErrorKind, Result as IoResult},
     pin::Pin,
+    result::Result as StdResult,
     task::{Context as TaskContext, Poll},
 };
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::{
+    io::{AsyncRead, AsyncWrite, ReadBuf},
+    net::UdpSocket,
+};
 
 /// mbedtls_ssl_write() has some weird semantics w.r.t non-blocking I/O:
 ///
@@ -140,31 +145,39 @@ impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCa
     }
 }
 
-impl<T: Unpin + AsyncRead + AsyncWrite + 'static> Context<T> {
+struct HandshakeFuture<'a, T, IoType>(&'a mut Context<T>, &'a PhantomData<IoType>);
+
+impl<T, IoType> Future for HandshakeFuture<'_, T, IoType>
+where
+    for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<IoType>,
+{
+    type Output = Result<()>;
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut TaskContext) -> std::task::Poll<Self::Output> {
+        self.0
+            .with_bio_async(ctx, |ssl_ctx| match ssl_ctx.handshake() {
+                Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Poll::Pending,
+                Err(e) => Poll::Ready(Err(e)),
+                Ok(()) => Poll::Ready(Ok(())),
+            })
+            .unwrap_or(Poll::Ready(Err(Error::NetSendFailed)))
+    }
+}
+
+impl<T: Unpin + 'static> Context<T> {
     pub async fn establish_async<IoType>(&mut self, io: T, hostname: Option<&str>) -> Result<()>
     where
         for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<IoType>,
     {
         self.prepare_handshake(io, hostname)?;
 
-        struct HandshakeFuture<'a, T>(&'a mut Context<T>);
-        impl<T> Future for HandshakeFuture<'_, T>
-        where
-            for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
-        {
-            type Output = Result<()>;
-            fn poll(mut self: Pin<&mut Self>, ctx: &mut TaskContext) -> std::task::Poll<Self::Output> {
-                self.0
-                    .with_bio_async(ctx, |ssl_ctx| match ssl_ctx.handshake() {
-                        Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Poll::Pending,
-                        Err(e) => Poll::Ready(Err(e)),
-                        Ok(()) => Poll::Ready(Ok(())),
-                    })
-                    .unwrap_or(Poll::Ready(Err(Error::NetSendFailed)))
-            }
-        }
+        self.handshake_async::<IoType>().await
+    }
 
-        HandshakeFuture(self).await
+    pub async fn handshake_async<IoType>(&mut self) -> Result<()>
+    where
+        for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<IoType>,
+    {
+        HandshakeFuture(self, &PhantomData::<IoType>).await
     }
 }
 
@@ -250,4 +263,42 @@ where
     }
 }
 
-// TODO: AsyncIo impl for tokio::net::UdpSocket
+/// A `tokio::net::UdpSocket` on which `connect` was successfully called.
+///
+/// Construct this type using `ConnectedAsyncUdpSocket::connect`.
+pub struct ConnectedAsyncUdpSocket {
+    socket: UdpSocket,
+}
+
+impl ConnectedAsyncUdpSocket {
+    pub async fn connect<A: tokio::net::ToSocketAddrs>(socket: UdpSocket, addr: A) -> StdResult<Self, (IoError, UdpSocket)> {
+        match socket.connect(addr).await {
+            Ok(_) => Ok(ConnectedAsyncUdpSocket { socket }),
+            Err(e) => Err((e, socket)),
+        }
+    }
+
+    pub fn into_socket(self) -> UdpSocket {
+        self.socket
+    }
+}
+
+impl AsyncRead for ConnectedAsyncUdpSocket {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>> {
+        self.socket.poll_recv(cx, buf)
+    }
+}
+
+impl AsyncWrite for ConnectedAsyncUdpSocket {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<StdResult<usize, IoError>> {
+        self.socket.poll_send(cx, buf)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut TaskContext<'_>) -> Poll<StdResult<(), IoError>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut TaskContext<'_>) -> Poll<StdResult<(), IoError>> {
+        Poll::Ready(Ok(()))
+    }
+}

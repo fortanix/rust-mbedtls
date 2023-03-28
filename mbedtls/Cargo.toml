@@ -30,6 +30,7 @@ cbc = { version = "0.1.2", optional = true }
 rc2 = { version = "0.8.1", optional = true }
 cfg-if = "1.0.0"
 tokio = { version = "1.16.1", optional = true }
+async-trait = { version = "0.1.68", optional = true }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.2.0"
@@ -73,7 +74,7 @@ pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "cbc"]
 legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
 async = ["std", "tokio","tokio/net","tokio/io-util", "tokio/macros"]
-async-rt = ["async", "tokio/rt", "tokio/sync", "tokio/rt-multi-thread"]
+async-rt = ["async","async-trait", "tokio/rt", "tokio/sync", "tokio/rt-multi-thread"]
 
 [[example]]
 name = "client"
