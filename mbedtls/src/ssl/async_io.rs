@@ -15,7 +15,6 @@ use crate::{
         io::{IoCallback, IoCallbackUnsafe},
     },
 };
-use async_trait::async_trait;
 use std::{
     future::Future,
     io::{Error as IoError, ErrorKind as IoErrorKind, Result as IoResult},
@@ -24,18 +23,18 @@ use std::{
 };
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-// mbedtls_ssl_write() has some weird semantics w.r.t non-blocking I/O:
-//
-// > When this function returns MBEDTLS_ERR_SSL_WANT_WRITE/READ, it must be
-// > called later **with the same arguments**, until it returns a value greater
-// > than or equal to 0. When the function returns MBEDTLS_ERR_SSL_WANT_WRITE
-// > there may be some partial data in the output buffer, however this is not
-// > yet sent.
-//
-// WriteTracker is used to ensure we pass the same data in that scenario.
-//
-// Reference:
-// https://tls.mbed.org/api/ssl_8h.html#a5bbda87d484de82df730758b475f32e5
+/// mbedtls_ssl_write() has some weird semantics w.r.t non-blocking I/O:
+///
+/// > When this function returns MBEDTLS_ERR_SSL_WANT_WRITE/READ, it must be
+/// > called later **with the same arguments**, until it returns a value greater
+/// > than or equal to 0. When the function returns MBEDTLS_ERR_SSL_WANT_WRITE
+/// > there may be some partial data in the output buffer, however this is not
+/// > yet sent.
+///
+/// WriteTracker is used to ensure we pass the same data in that scenario.
+///
+/// Reference:
+/// https://github.com/Mbed-TLS/mbedtls/blob/981743de6fcdbe672e482b6fd724d31d0a0d2476/include/mbedtls/ssl.h#L4137-L4141
 pub(super) struct WriteTracker {
     pending: Option<Box<DigestAndLen>>,
 }
@@ -102,37 +101,21 @@ impl WriteTracker {
     }
 }
 
-/// Marker type for an IO implementation that doesn't implement
-/// `tokio::io::AsyncRead` and `tokio::io::AsyncWrite`.
-pub enum AnyAsyncIo {}
-#[cfg(feature = "std")]
 /// Marker type for an IO implementation that implements both
 /// `tokio::io::AsyncRead` and `tokio::io::AsyncWrite`.
 pub enum AsyncStream {}
 
-#[async_trait]
-pub trait AsyncIo {
-    async fn recv(&mut self, buf: &mut [u8]) -> Result<usize>;
-    async fn send(&mut self, buf: &[u8]) -> Result<usize>;
-}
+// TODO: Add enum `AnyAsyncIo` as marker type for an IO implementation that
+// doesn't implement `tokio::io::AsyncRead` and `tokio::io::AsyncWrite`.
 
-impl<'a, 'b, 'c, IO: AsyncIo> IoCallback<AnyAsyncIo> for (&'a mut TaskContext<'b>, &'c mut IO) {
-    fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
-        match self.1.recv(buf).as_mut().poll(self.0) {
-            Poll::Ready(Ok(n)) => Ok(n),
-            Poll::Ready(Err(_)) => Err(Error::NetRecvFailed),
-            Poll::Pending => Err(Error::SslWantRead),
-        }
-    }
-
-    fn send(&mut self, buf: &[u8]) -> Result<usize> {
-        match self.1.send(buf).as_mut().poll(self.0) {
-            Poll::Ready(Ok(n)) => Ok(n),
-            Poll::Ready(Err(_)) => Err(Error::NetSendFailed),
-            Poll::Pending => Err(Error::SslWantWrite),
-        }
-    }
-}
+// TODO: Add `AsyncIo` trait for async IO that that doesn't implement
+// `tokio::io::AsyncRead` and `tokio::io::AsyncWrite`. For example:
+//     pub trait AsyncIo {
+//        async fn recv(&mut self, buf: &mut [u8]) -> Result<usize>;
+//         async fn send(&mut self, buf: &[u8]) -> Result<usize>;
+//     }
+// Could implement by using `async-trait` crate or
+// #![feature(async_fn_in_trait)] or Associated Types
 
 impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCallback<AsyncStream>
     for (&'a mut TaskContext<'b>, &'c mut IO)
@@ -267,4 +250,4 @@ where
     }
 }
 
-// TODO: AsyncIo impl for Context<AsyncIoAdapter<T>>
+// TODO: AsyncIo impl for tokio::net::UdpSocket
