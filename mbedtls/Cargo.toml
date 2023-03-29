@@ -30,8 +30,7 @@ cbc = { version = "0.1.2", optional = true }
 rc2 = { version = "0.8.1", optional = true }
 cfg-if = "1.0.0"
 tokio = { version = "1.16.1", optional = true }
-async-trait = { version = "0.1.68", optional = true }
-futures = "0.3"
+async-trait = { version = "0.1", optional = true }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.2.0"
@@ -52,6 +51,7 @@ matches = "0.1.8"
 hyper = { version = "0.10.16", default-features = false }
 async-stream = "0.3.0"
 tracing = "0.1"
+futures = "0.3"
 
 [build-dependencies]
 cc = "1.0"
