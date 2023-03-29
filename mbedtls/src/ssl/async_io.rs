@@ -147,10 +147,10 @@ pub trait AsyncIo {
 #[async_trait]
 impl<T: AsyncSend + AsyncRecv + Unpin + ?Sized + Send> AsyncIo for T {
     async fn recv(&mut self, buf: &mut [u8]) -> IoResult<usize> {
-        poll_fn(move |cx| {
+        poll_fn(|cx| {
             let mut buf = ReadBuf::new(buf);
             match Pin::new(&mut *self).poll_recv(cx, &mut buf) {
-                Poll::Ready(t) => t,
+                Poll::Ready(res) => res,
                 Poll::Pending => return Poll::Pending,
             }?;
             Poll::Ready(Ok(buf.filled().len()))
@@ -243,7 +243,7 @@ where
     }
 }
 
-impl<T: Unpin> Context<T> {
+impl<T> Context<T> {
     pub async fn establish_async<IoType>(&mut self, io: T, hostname: Option<&str>) -> Result<()>
     where
         for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<IoType>,
