@@ -9,7 +9,6 @@
 #![cfg(not(target_env = "sgx"))]
 extern crate mbedtls;
 
-use async_trait::async_trait;
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::async_io::ConnectedAsyncUdpSocket;
@@ -24,48 +23,27 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, AsyncRead, AsyncWrite};
 
 mod support;
 use support::entropy::entropy_new;
 use support::keys;
 use tokio::net::TcpStream;
 
-#[async_trait]
 trait TransportType: Sized {
     fn get_transport_type() -> Transport;
 
-    async fn recv(ctx: &mut Context<Self>, buf: &mut [u8]) -> TlsResult<usize>;
-    async fn send(ctx: &mut Context<Self>, buf: &[u8]) -> TlsResult<usize>;
 }
 
-#[async_trait]
 impl TransportType for TcpStream {
     fn get_transport_type() -> Transport {
         Transport::Stream
     }
-
-    async fn recv(ctx: &mut Context<Self>, buf: &mut [u8]) -> TlsResult<usize> {
-        ctx.read(buf).await.map_err(|_| Error::NetRecvFailed)
-    }
-
-    async fn send(ctx: &mut Context<Self>, buf: &[u8]) -> TlsResult<usize> {
-        ctx.write(buf).await.map_err(|_| Error::NetSendFailed)
-    }
 }
 
-#[async_trait]
 impl TransportType for ConnectedAsyncUdpSocket {
     fn get_transport_type() -> Transport {
         Transport::Datagram
-    }
-
-    async fn recv(ctx: &mut Context<Self>, buf: &mut [u8]) -> TlsResult<usize> {
-        ctx.read(buf).await.map_err(|_| Error::NetRecvFailed)
-    }
-
-    async fn send(ctx: &mut Context<Self>, buf: &[u8]) -> TlsResult<usize> {
-        ctx.write(buf).await.map_err(|_| Error::NetSendFailed)
     }
 }
 
@@ -78,7 +56,7 @@ async fn client<C, T>(
     use_psk: bool,
 ) -> TlsResult<()>
 where
-    C: TransportType + Unpin + 'static,
+    C: TransportType + Unpin + 'static + AsyncRead + AsyncWrite,
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut C): IoCallback<T>,
 {
     let entropy = Arc::new(entropy_new());
@@ -135,9 +113,9 @@ where
 
     let ciphersuite = ctx.ciphersuite().unwrap();
     let buf = format!("Client2Server {:4x}", ciphersuite);
-    assert_eq!(<C as TransportType>::send(&mut ctx, buf.as_bytes()).await.unwrap(), buf.len());
+    assert_eq!(ctx.write(buf.as_bytes()).await.unwrap(), buf.len());
     let mut buf = [0u8; 13 + 4 + 1];
-    assert_eq!(<C as TransportType>::recv(&mut ctx, &mut buf).await.unwrap(), buf.len());
+    assert_eq!(ctx.read(&mut buf).await.unwrap(), buf.len());
     assert_eq!(&buf, format!("Server2Client {:4x}", ciphersuite).as_bytes());
     Ok(())
 }
@@ -150,7 +128,7 @@ async fn server<C, T>(
     use_psk: bool,
 ) -> TlsResult<()> 
 where
-    C: TransportType + Unpin + 'static,
+    C: TransportType + Unpin + 'static + AsyncRead + AsyncWrite,
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut C): IoCallback<T>,
 {
     let entropy = entropy_new();
@@ -207,9 +185,9 @@ where
 
     let ciphersuite = ctx.ciphersuite().unwrap();
     let buf = format!("Server2Client {:4x}", ciphersuite);
-    assert_eq!(<C as TransportType>::send(&mut ctx, buf.as_bytes()).await.unwrap(), buf.len());
+    assert_eq!(ctx.write(buf.as_bytes()).await.unwrap(), buf.len());
     let mut buf = [0u8; 13 + 1 + 4];
-    assert_eq!(<C as TransportType>::recv(&mut ctx, &mut buf).await.unwrap(), buf.len());
+    assert_eq!(ctx.read(&mut buf).await.unwrap(), buf.len());
 
     assert_eq!(&buf, format!("Client2Server {:4x}", ciphersuite).as_bytes());
     Ok(())
