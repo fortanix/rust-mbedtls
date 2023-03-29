@@ -43,6 +43,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-trait"
+version = "0.1.68"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9ccdd8f2a161be9bd5c023df56f1b2a0bd1d83872ae53b71a84a12c9bf6e842"
+dependencies = [
+ "proc-macro2 1.0.54",
+ "quote 1.0.26",
+ "syn 2.0.11",
+]
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -500,6 +511,7 @@ name = "mbedtls"
 version = "0.9.0"
 dependencies = [
  "async-stream",
+ "async-trait",
  "bit-vec",
  "bitflags",
  "byteorder",
@@ -884,6 +896,17 @@ dependencies = [
  "proc-macro2 1.0.54",
  "quote 1.0.26",
  "unicode-xid 0.2.1",
+]
+
+[[package]]
+name = "syn"
+version = "2.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21e3787bb71465627110e7d87ed4faaa36c1f61042ee67badb9e2ef173accc40"
+dependencies = [
+ "proc-macro2 1.0.54",
+ "quote 1.0.26",
+ "unicode-ident",
 ]
 
 [[package]]
