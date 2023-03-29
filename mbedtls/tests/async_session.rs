@@ -12,7 +12,7 @@ extern crate mbedtls;
 use async_trait::async_trait;
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
-use mbedtls::ssl::async_io::ConnectedAsyncUdpSocket;
+use mbedtls::ssl::async_io::{AsyncIo, ConnectedAsyncUdpSocket};
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::context::Timer;
 use mbedtls::ssl::io::IoCallback;
@@ -61,11 +61,11 @@ impl TransportType for ConnectedAsyncUdpSocket {
     }
 
     async fn recv(ctx: &mut Context<Self>, buf: &mut [u8]) -> TlsResult<usize> {
-        ctx.read(buf).await.map_err(|_| Error::NetRecvFailed)
+        AsyncIo::recv(ctx, buf).await.map_err(|_| Error::NetRecvFailed)
     }
 
     async fn send(ctx: &mut Context<Self>, buf: &[u8]) -> TlsResult<usize> {
-        ctx.write(buf).await.map_err(|_| Error::NetSendFailed)
+        AsyncIo::send(ctx, buf).await.map_err(|_| Error::NetSendFailed)
     }
 }
 
