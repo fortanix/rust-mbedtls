@@ -130,7 +130,7 @@ pub enum AnyAsyncIo {}
 /// Implementors represent a socket or file descriptor that can be read from or
 /// written to.
 ///
-/// By implementing [`AsyncSend`] and [`AsyncRecv`] you can wrap any type of
+/// By implementing [`AsyncIo`] you can wrap any type of
 /// [`AsyncIo`] with [`Context<T>::establish_async`] to protect that
 /// communication channel with (D)TLS. That [`Context`] then also implements
 /// [`AsyncIo`] so you can use it interchangeably.
@@ -145,84 +145,59 @@ pub trait AsyncIo {
 }
 
 #[async_trait]
-impl<T: AsyncSend + AsyncRecv + Unpin + ?Sized + Send> AsyncIo for T {
+impl<T: AsyncIo + Send> AsyncIo for Context<T> {
     async fn recv(&mut self, buf: &mut [u8]) -> IoResult<usize> {
-        poll_fn(|cx| {
-            let mut buf = ReadBuf::new(buf);
-            match Pin::new(&mut *self).poll_recv(cx, &mut buf) {
-                Poll::Ready(res) => res,
-                Poll::Pending => return Poll::Pending,
-            }?;
-            Poll::Ready(Ok(buf.filled().len()))
-        })
-        .await
+        self.io_mut()
+            .ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?
+            .recv(buf)
+            .await
     }
 
     async fn send(&mut self, buf: &[u8]) -> IoResult<usize> {
-        poll_fn(|cx| Pin::new(&mut *self).poll_send(cx, buf)).await
+        self.io_mut()
+            .ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?
+            .send(buf)
+            .await
     }
-}
-
-/// Send bytes to a source.
-///
-/// This trait is simpler analogous to the [`tokio::io::AsyncWrite`] trait but
-/// much simpler. Since this is for any IO which may not has state of connection
-/// or has concept of stream so it does not require the func
-/// [`tokio::io::AsyncWrite::poll_flush`] and
-/// [`tokio::io::AsyncWrite::poll_shutdown`] in [`tokio::io::AsyncWrite`].
-pub trait AsyncSend {
-    fn poll_send(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<StdResult<usize, IoError>>;
-}
-
-impl<T: ?Sized + AsyncSend + Unpin> AsyncSend for &mut T {
-    fn poll_send(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<StdResult<usize, IoError>> {
-        Pin::new(&mut **self).poll_send(cx, buf)
-    }
-}
-
-/// Receive bytes from a source.
-///
-/// This trait is analogous to the [`tokio::io::AsyncRead`] trait but much
-/// simpler.
-pub trait AsyncRecv {
-    fn poll_recv(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>>;
-}
-
-impl<T: ?Sized + AsyncRecv + Unpin> AsyncRecv for &mut T {
-    fn poll_recv(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>> {
-        Pin::new(&mut **self).poll_recv(cx, buf)
-    }
-}
-
-macro_rules! async_callback_func_impl {
-    ($recv_func:ident, $send_func:ident) => {
-        fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
-            let mut buf = ReadBuf::new(buf);
-            let io = Pin::new(&mut self.1);
-            match io.$recv_func(self.0, &mut buf) {
-                Poll::Ready(Ok(_)) => Ok(buf.filled().len()),
-                Poll::Ready(Err(_)) => Err(Error::NetRecvFailed),
-                Poll::Pending => Err(Error::SslWantRead),
-            }
-        }
-
-        fn send(&mut self, buf: &[u8]) -> Result<usize> {
-            let io = Pin::new(&mut self.1);
-            match io.$send_func(self.0, buf) {
-                Poll::Ready(Ok(n)) => Ok(n),
-                Poll::Ready(Err(_)) => Err(Error::NetSendFailed),
-                Poll::Pending => Err(Error::SslWantWrite),
-            }
-        }
-    };
 }
 
 impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + Unpin> IoCallback<AsyncStream> for (&'a mut TaskContext<'b>, &'c mut IO) {
-    async_callback_func_impl! {poll_read,poll_write}
+    fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let mut buf = ReadBuf::new(buf);
+        let io = Pin::new(&mut self.1);
+        match io.poll_read(self.0, &mut buf) {
+            Poll::Ready(Ok(_)) => Ok(buf.filled().len()),
+            Poll::Ready(Err(_)) => Err(Error::NetRecvFailed),
+            Poll::Pending => Err(Error::SslWantRead),
+        }
+    }
+
+    fn send(&mut self, buf: &[u8]) -> Result<usize> {
+        let io = Pin::new(&mut self.1);
+        match io.poll_write(self.0, buf) {
+            Poll::Ready(Ok(n)) => Ok(n),
+            Poll::Ready(Err(_)) => Err(Error::NetSendFailed),
+            Poll::Pending => Err(Error::SslWantWrite),
+        }
+    }
 }
 
-impl<'a, 'b, 'c, IO: AsyncRecv + AsyncSend + Unpin> IoCallback<AnyAsyncIo> for (&'a mut TaskContext<'b>, &'c mut IO) {
-    async_callback_func_impl! {poll_recv,poll_send}
+impl<'a, 'b, 'c, IO: AsyncIo> IoCallback<AnyAsyncIo> for (&'a mut TaskContext<'b>, &'c mut IO) {
+    fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
+        match Pin::new(&mut self.1.recv(buf)).poll(self.0) {
+            Poll::Ready(Ok(n)) => Ok(n),
+            Poll::Ready(Err(_)) => Err(Error::NetRecvFailed),
+            Poll::Pending => Err(Error::SslWantRead),
+        }
+    }
+
+    fn send(&mut self, buf: &[u8]) -> Result<usize> {
+        match Pin::new(&mut self.1.send(buf)).poll(self.0) {
+            Poll::Ready(Ok(n)) => Ok(n),
+            Poll::Ready(Err(_)) => Err(Error::NetSendFailed),
+            Poll::Pending => Err(Error::SslWantWrite),
+        }
+    }
 }
 
 struct HandshakeFuture<'a, T, IoType>(&'a mut Context<T>, &'a PhantomData<IoType>);
@@ -261,67 +236,55 @@ impl<T> Context<T> {
     }
 }
 
-macro_rules! async_recv_func_impl {
-    ($func_name:ident) => {
-        fn $func_name(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>> {
-            if self.handle().session.is_null() {
-                return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
-            }
-
-            self.with_bio_async(cx, |ssl_ctx| match ssl_ctx.recv(buf.initialize_unfilled()) {
-                Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(())),
-                Err(Error::SslWantRead) => Poll::Pending,
-                Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
-                Ok(i) => {
-                    buf.advance(i);
-                    Poll::Ready(Ok(()))
-                }
-            })
-            .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetRecvFailed))))
-        }
-    };
-}
-
-macro_rules! async_send_func_impl {
-    ($func_name:ident) => {
-        fn $func_name(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
-            if self.handle().session.is_null() {
-                return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
-            }
-
-            let result = self
-                .with_bio_async(cx, |ssl_ctx| {
-                    ssl_ctx.write_tracker.adjust_buf(buf)?;
-                    match ssl_ctx.send(buf) {
-                        Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
-                        Err(Error::SslWantWrite) => Poll::Pending,
-                        Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
-                        Ok(i) => Poll::Ready(Ok(i)),
-                    }
-                })
-                .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetSendFailed))));
-
-            self.write_tracker.post_write(buf, &result);
-
-            cx.waker().clone().wake();
-
-            result
-        }
-    };
-}
-
 impl<T: AsyncRead> AsyncRead for Context<T>
 where
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
 {
-    async_recv_func_impl! {poll_read}
+    fn poll_read(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>> {
+        if self.handle().session.is_null() {
+            return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
+        }
+
+        self.with_bio_async(cx, |ssl_ctx| match ssl_ctx.recv(buf.initialize_unfilled()) {
+            Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(())),
+            Err(Error::SslWantRead) => Poll::Pending,
+            Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
+            Ok(i) => {
+                buf.advance(i);
+                Poll::Ready(Ok(()))
+            }
+        })
+        .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetRecvFailed))))
+    }
 }
 
 impl<T: AsyncWrite + Unpin> AsyncWrite for Context<T>
 where
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
 {
-    async_send_func_impl! {poll_write}
+    fn poll_write(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
+        if self.handle().session.is_null() {
+            return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
+        }
+
+        let result = self
+            .with_bio_async(cx, |ssl_ctx| {
+                ssl_ctx.write_tracker.adjust_buf(buf)?;
+                match ssl_ctx.send(buf) {
+                    Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
+                    Err(Error::SslWantWrite) => Poll::Pending,
+                    Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
+                    Ok(i) => Poll::Ready(Ok(i)),
+                }
+            })
+            .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetSendFailed))));
+
+        self.write_tracker.post_write(buf, &result);
+
+        cx.waker().clone().wake();
+
+        result
+    }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
         // We can only flush the actual IO here.
@@ -355,20 +318,6 @@ where
     }
 }
 
-impl<T: AsyncRecv> AsyncRecv for Context<T>
-where
-    for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AnyAsyncIo>,
-{
-    async_recv_func_impl! {poll_recv}
-}
-
-impl<T: AsyncSend> AsyncSend for Context<T>
-where
-    for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AnyAsyncIo>,
-{
-    async_send_func_impl! {poll_send}
-}
-
 /// A wrapper of [`tokio::net::UdpSocket`] on which
 /// [`tokio::net::UdpSocket::connect`] was successfully called.
 ///
@@ -390,14 +339,21 @@ impl ConnectedAsyncUdpSocket {
     }
 }
 
-impl AsyncRecv for ConnectedAsyncUdpSocket {
-    fn poll_recv(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>> {
-        self.socket.poll_recv(cx, buf)
+#[async_trait]
+impl AsyncIo for ConnectedAsyncUdpSocket {
+    async fn recv(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+        poll_fn(|cx| {
+            let mut buf = ReadBuf::new(buf);
+            match self.socket.poll_recv(cx, &mut buf) {
+                Poll::Ready(res) => res,
+                Poll::Pending => return Poll::Pending,
+            }?;
+            Poll::Ready(Ok(buf.filled().len()))
+        })
+        .await
     }
-}
 
-impl AsyncSend for ConnectedAsyncUdpSocket {
-    fn poll_send(self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<StdResult<usize, IoError>> {
-        self.socket.poll_send(cx, buf)
+    async fn send(&mut self, buf: &[u8]) -> IoResult<usize> {
+        poll_fn(|cx| self.socket.poll_send(cx, buf)).await
     }
 }
