@@ -329,7 +329,7 @@ pub struct ConnectedAsyncUdpSocket {
 impl ConnectedAsyncUdpSocket {
     pub async fn connect<A: tokio::net::ToSocketAddrs>(socket: UdpSocket, addr: A) -> StdResult<Self, (IoError, UdpSocket)> {
         match socket.connect(addr).await {
-            Ok(_) => Ok(ConnectedAsyncUdpSocket { socket }),
+            Ok(()) => Ok(ConnectedAsyncUdpSocket { socket }),
             Err(e) => Err((e, socket)),
         }
     }
