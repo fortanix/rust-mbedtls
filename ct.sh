@@ -44,7 +44,7 @@ if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" 
             cargo test --features force_aesni_support --target $TARGET
         fi
 
-        # no_std tests only be able to run on x86 platform
+        # no_std tests only are able to run on x86 platform
         if [ "$TARGET" == "x86_64-unknown-linux-gnu" ]; then
             cargo test --no-default-features --features no_std_deps,rdrand,time --target $TARGET
             cargo test --no-default-features --features no_std_deps,rdrand --target $TARGET
