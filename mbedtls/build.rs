@@ -9,7 +9,23 @@
 use std::collections::{HashMap, HashSet};
 use std::env;
 
+/// Return the crate hash that Cargo will be passing to `rustc -C metadata=`.
+// If there's a panic in this code block, that means Cargo's way of running the
+// build script has changed, and this code should be updated to handle the new
+// case.
+fn get_compilation_metadata_hash() -> String {
+    let out_dir: std::path::PathBuf = std::env::var_os("OUT_DIR").unwrap().into();
+    let mut out_dir_it = out_dir.iter().rev();
+    assert_eq!(out_dir_it.next().unwrap(), "out");
+    let crate_ = out_dir_it.next().unwrap().to_string_lossy();
+    assert!(crate_.starts_with("mbedtls-"));
+    crate_[8..].to_owned()
+}
+
 fn main() {
+    let metadata_hash = get_compilation_metadata_hash();
+    println!("cargo:rustc-env=RUST_MBEDTLS_METADATA_HASH={}", metadata_hash);
+
     let env_components = env::var("DEP_MBEDTLS_PLATFORM_COMPONENTS").unwrap();
     let mut sys_platform_components = HashMap::<_, HashSet<_>>::new();
     for mut kv in env_components.split(",").map(|component| component.splitn(2, "=")) {
@@ -24,6 +40,7 @@ fn main() {
     let config_file = format!(r#""{}""#, env::var("DEP_MBEDTLS_CONFIG_H").unwrap());
     b.define("MBEDTLS_CONFIG_FILE",
              Some(config_file.as_str()));
+    b.define("RUST_MBEDTLS_METADATA_HASH", Some(metadata_hash.as_str()));
     
     b.file("src/mbedtls_malloc.c");
     b.file("src/rust_printf.c");

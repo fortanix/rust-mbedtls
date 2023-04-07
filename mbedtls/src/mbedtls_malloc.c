@@ -21,11 +21,15 @@
 #define mbedtls_free      free
 #endif
 
-extern void *forward_mbedtls_calloc( size_t n, size_t size ) {
+// Use several macros to get the preprocessor to actually replace RUST_MBEDTLS_METADATA_HASH
+#define append_macro_inner(a, b) a##_##b
+#define append_macro(a, b) append_macro_inner(a, b)
+#define APPEND_METADATA_HASH(f) append_macro(f, RUST_MBEDTLS_METADATA_HASH)
+
+extern void *APPEND_METADATA_HASH(forward_mbedtls_calloc)( size_t n, size_t size ) {
     return mbedtls_calloc(n, size);
 }
 
-extern void forward_mbedtls_free( void *ptr ) {
+extern void APPEND_METADATA_HASH(forward_mbedtls_free)( void *ptr ) {
     mbedtls_free(ptr);
 }
-
