@@ -15,7 +15,10 @@ use core::mem::ManuallyDrop;
 use mbedtls_sys::types::raw_types::c_void;
 
 extern "C" {
-    pub(crate) fn forward_mbedtls_free(n: *mut mbedtls_sys::types::raw_types::c_void);
+    #[link_name = concat!("\u{1}forward_mbedtls_free_", env!("RUST_MBEDTLS_METADATA_HASH"))]
+    pub(crate) fn mbedtls_free(n: *mut mbedtls_sys::types::raw_types::c_void);
+    #[link_name = concat!("\u{1}forward_mbedtls_calloc_", env!("RUST_MBEDTLS_METADATA_HASH"))]
+    pub(crate) fn mbedtls_calloc(n: mbedtls_sys::types::size_t, size: mbedtls_sys::types::size_t) -> *mut mbedtls_sys::types::raw_types::c_void;
 }
 
 #[repr(transparent)]
@@ -53,7 +56,7 @@ impl<T> Drop for Box<T> {
     fn drop(&mut self) {
         unsafe {
             drop_in_place(self.inner.as_ptr());
-            forward_mbedtls_free(self.inner.as_ptr() as *mut c_void)
+            mbedtls_free(self.inner.as_ptr() as *mut c_void)
         }
     }
 }
