@@ -28,14 +28,10 @@ env:
     - TARGET=x86_64-fortanix-unknown-sgx
   global:
     - RUST_BACKTRACE=1
-    # Pinned to this particular nightly version because of core_io. This can be
-    # re-pinned whenever core_io is updated to the latest nightly.
-    - CORE_IO_NIGHTLY=nightly-2021-03-25
 jobs:
   include:
     # Test additional Rust toolchains on x86_64
     - rust: beta
     - rust: nightly
-    - rust: nightly-2021-03-25
 script:
   - ./ct.sh
