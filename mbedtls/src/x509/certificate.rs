@@ -13,7 +13,7 @@ use core::ptr::NonNull;
 use mbedtls_sys::*;
 use mbedtls_sys::types::raw_types::{c_char, c_void};
 
-use crate::alloc::{List as MbedtlsList, Box as MbedtlsBox};
+use crate::alloc::{List as MbedtlsList, Box as MbedtlsBox, mbedtls_calloc};
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 use crate::error::{Error, IntoResult, Result};
@@ -22,10 +22,6 @@ use crate::pk::Pk;
 use crate::private::UnsafeFrom;
 use crate::rng::Random;
 use crate::x509::{self, Time, VerifyCallback};
-
-extern "C" {
-    pub(crate) fn forward_mbedtls_calloc(n: mbedtls_sys::types::size_t, size: mbedtls_sys::types::size_t) -> *mut mbedtls_sys::types::raw_types::c_void;
-}
 
 #[cfg(feature = "std")]
 use yasna::{BERDecodable, BERReader, ASN1Result, ASN1Error, ASN1ErrorKind, models::ObjectIdentifier};
@@ -499,7 +495,7 @@ impl<'a> Builder<'a> {
 impl MbedtlsBox<Certificate> {
     fn init() -> Result<Self> {
         unsafe {
-            let inner = forward_mbedtls_calloc(1, core::mem::size_of::<x509_crt>()) as *mut x509_crt;
+            let inner = mbedtls_calloc(1, core::mem::size_of::<x509_crt>()) as *mut x509_crt;
 
             // If alignment is wrong it means someone pushed their own allocator to mbedtls and that is not functioning correctly.
             assert_eq!(inner.align_offset(core::mem::align_of::<x509_crt>()), 0);
