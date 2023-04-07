@@ -45,7 +45,7 @@ if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" 
         fi
 
         # no_std tests only be able to run on x86 platform
-        if [ "$TARGET" == "x86_64-fortanix-unknown-sgx" ]; then
+        if [ "$TARGET" == "x86_64-unknown-linux-gnu" ]; then
             cargo test --no-default-features --features no_std_deps,rdrand,time --target $TARGET
             cargo test --no-default-features --features no_std_deps,rdrand --target $TARGET
         fi
