@@ -49,7 +49,4 @@ fn main() {
             .flag("-ffreestanding");
     }
     b.compile("librust-mbedtls.a");
-    println!("cargo:rustc-link-lib=static=mbedtls");
-    println!("cargo:rustc-link-lib=static=mbedx509");
-    println!("cargo:rustc-link-lib=static=mbedcrypto");
 }

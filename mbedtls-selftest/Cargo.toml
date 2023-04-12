@@ -9,7 +9,7 @@ links = "mbedtls-selftest-support"
 [dependencies.mbedtls-sys-auto]
 version = "2.28.0"
 default-features = false
-features = ["custom_printf", "trusted_cert_callback", "threading"]
+features = ["custom_printf"]
 path = "../mbedtls-sys"
 
 [build-dependencies]
@@ -19,6 +19,4 @@ cc = "1.0"
 cfg-if = "1.0.0"
 
 [features]
-# Features are documented in the README
-default = ["std"]
 std = ["mbedtls-sys-auto/std"]

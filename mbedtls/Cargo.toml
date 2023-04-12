@@ -42,7 +42,6 @@ path = "../mbedtls-sys"
 
 [dependencies.mbedtls-selftest]
 version = "0.1"
-default-features = false
 path = "../mbedtls-selftest"
 
 [dev-dependencies]
