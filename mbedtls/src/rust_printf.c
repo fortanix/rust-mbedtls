@@ -9,7 +9,12 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-extern void mbedtls_log(const char* msg);
+// Use several macros to get the preprocessor to actually replace RUST_MBEDTLS_METADATA_HASH
+#define append_macro_inner(a, b) a##_##b
+#define append_macro(a, b) append_macro_inner(a, b)
+#define APPEND_METADATA_HASH(f) append_macro(f, RUST_MBEDTLS_METADATA_HASH)
+
+extern void APPEND_METADATA_HASH(mbedtls_log)(const char* msg);
 
 extern int mbedtls_printf(const char *fmt, ...) {
     va_list ap;
@@ -31,7 +36,7 @@ extern int mbedtls_printf(const char *fmt, ...) {
     if (n<0)
        return -1;
 
-    mbedtls_log(p);
+    APPEND_METADATA_HASH(mbedtls_log)(p);
 
     return n;
 }

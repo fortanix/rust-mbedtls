@@ -24,7 +24,7 @@ cfg_if::cfg_if! {
     if #[cfg(feature = "std")] {
         // needs to be pub for global visiblity
         #[doc(hidden)]
-        #[no_mangle]
+        #[export_name = concat!("\u{1}mbedtls_log_", env!("RUST_MBEDTLS_METADATA_HASH"))]
         pub unsafe extern "C" fn mbedtls_log(msg: *const std::os::raw::c_char) {
             print!("{}", std::ffi::CStr::from_ptr(msg).to_string_lossy());
         }
@@ -34,7 +34,7 @@ cfg_if::cfg_if! {
 
         // needs to be pub for global visiblity
         #[doc(hidden)]
-        #[no_mangle]
+        #[export_name = concat!("\u{1}mbedtls_log_", env!("RUST_MBEDTLS_METADATA_HASH"))]
         pub unsafe extern "C" fn mbedtls_log(msg: *const c_char) {
             log_f.expect("Called self-test log without enabling self-test")(msg)
         }
