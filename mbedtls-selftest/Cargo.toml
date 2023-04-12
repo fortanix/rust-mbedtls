@@ -1,0 +1,24 @@
+[package]
+name = "mbedtls-selftest"
+version = "0.1.0"
+edition = "2018"
+links = "mbedtls-selftest-support"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+
+[dependencies.mbedtls-sys-auto]
+version = "2.28.0"
+default-features = false
+features = ["custom_printf", "trusted_cert_callback", "threading"]
+path = "../mbedtls-sys"
+
+[build-dependencies]
+cc = "1.0"
+
+[dependencies]
+cfg-if = "1.0.0"
+
+[features]
+# Features are documented in the README
+default = ["std"]
+std = ["mbedtls-sys-auto/std"]
