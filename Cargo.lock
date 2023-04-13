@@ -387,6 +387,7 @@ dependencies = [
  "hyper",
  "libc",
  "matches",
+ "mbedtls-selftest",
  "mbedtls-sys-auto",
  "num-bigint",
  "rand",
@@ -397,6 +398,15 @@ dependencies = [
  "serde_derive",
  "spin",
  "yasna",
+]
+
+[[package]]
+name = "mbedtls-selftest"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "cfg-if 1.0.0",
+ "mbedtls-sys-auto",
 ]
 
 [[package]]
