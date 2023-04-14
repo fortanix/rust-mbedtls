@@ -38,11 +38,9 @@ chrono = "0.4"
 version = "2.25.0"
 default-features = false
 features = ["trusted_cert_callback", "threading"]
-path = "../mbedtls-sys"
 
 [dependencies.mbedtls-selftest]
 version = "0.1"
-path = "../mbedtls-selftest"
 
 [dev-dependencies]
 libc = "0.2.0"
