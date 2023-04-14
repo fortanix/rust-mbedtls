@@ -10,7 +10,6 @@ links = "mbedtls-selftest-support"
 version = "2.25.0"
 default-features = false
 features = ["custom_printf"]
-path = "../mbedtls-sys"
 
 [build-dependencies]
 cc = "1.0"
