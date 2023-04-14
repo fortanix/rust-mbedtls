@@ -1,3 +1,10 @@
 [workspace]
-members = ["mbedtls", "mbedtls-sys", "mbedtls-selftest"]
+members = ["mbedtls"]
 resolver = "2"
+
+
+[patch.crates-io]
+# following patch are added to make CI works
+# TODO: remove following patch after new versions of following crates are published to crates.io
+mbedtls-sys-auto = { git = "https://github.com/fortanix/rust-mbedtls.git", branch = "master" }
+mbedtls-selftest = { git = "https://github.com/fortanix/rust-mbedtls.git", branch = "master" }
