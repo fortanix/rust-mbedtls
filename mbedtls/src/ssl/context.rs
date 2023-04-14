@@ -124,9 +124,6 @@ pub struct Context<T> {
     /// be stored in [`Context`] first so that it can be set after the `ssl_session_reset` in the
     /// [`establish`](Context::establish) call.
     client_transport_id: Option<Vec<u8>>,
-
-    #[cfg(all(feature = "std", feature = "async"))]
-    pub(super) write_tracker: super::async_io::WriteTracker,
 }
 
 impl<'a, T> Into<*const ssl_context> for &'a Context<T> {
@@ -163,8 +160,6 @@ impl<T> Context<T> {
             io: None,
             timer_callback: None,
             client_transport_id: None,
-            #[cfg(all(feature = "std", feature = "async"))]
-            write_tracker: super::async_io::WriteTracker::new(),
         }
     }
 
@@ -228,6 +223,37 @@ impl<T> Context<T>  {
     #[cfg(feature = "async-test")]
     pub fn enable_write_tracker(&mut self, state: bool) {
         self.write_tracker.enabled = state;
+    }
+
+    // If there is pending data prepared in an earlier call to `mbedtls_ssl_write()` in c-mbedtls's buffer, this function try to flush them first by calling `mbedtls_ssl_flush_output`.
+    // Then call `mbedtls_ssl_write()` as normal if all pending data has been flushed out.
+    // It handles error as normal because in case of getting `SslWantWrite` from `mbedtls_ssl_write()` or `mbedtls_ssl_flush_output()`, this function just need to be called again.
+    // Ref: https://github.com/Mbed-TLS/mbedtls/issues/4183
+    pub(super) fn async_write(&mut self, buf: &[u8]) -> Result<usize> {
+        unsafe {
+            let inner: *mut ssl_context = self.into();
+            if (*inner).out_left > 0 {
+                match self.flush_output() {
+                    Ok(()) => {
+                        // if data prepared in an earlier call to `mbedtls_ssl_write()` is all flushed then continue to write new data
+                        if (*inner).out_left == 0 {
+                            // when calling `send()` here, already ensure that `ssl_context.out_left` == 0
+
+                            self.send(buf)
+                        } else {
+                            // data prepared in an earlier call has not been flushed out
+                            // return `SslWantWrite` to caller to indicate call this function again later
+                            Err(Error::SslWantWrite)
+                        }
+                    },
+                    Err(e) => Err(e),
+                }
+            } else {
+                // when calling `send()` here, already ensure that `ssl_context.out_left` == 0
+                self.send(buf)
+            }
+            
+        }
     }
 }
 
@@ -316,7 +342,6 @@ impl<T> Context<T> {
             ssl_flush_output(self.into()).into_result_discard()
         }
     }
-
 
     #[cfg(not(feature = "std"))]
     fn set_hostname(&mut self, hostname: Option<&str>) -> Result<()> {

@@ -23,105 +23,6 @@ use std::{
 };
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-/// mbedtls_ssl_write() has some weird semantics w.r.t non-blocking I/O:
-///
-/// > When this function returns MBEDTLS_ERR_SSL_WANT_WRITE/READ, it must be
-/// > called later **with the same arguments**, until it returns a value greater
-/// > than or equal to 0. When the function returns MBEDTLS_ERR_SSL_WANT_WRITE
-/// > there may be some partial data in the output buffer, however this is not
-/// > yet sent.
-///
-/// WriteTracker is used to ensure we pass the same data in that scenario.
-///
-/// Reference:
-/// https://github.com/Mbed-TLS/mbedtls/blob/981743de6fcdbe672e482b6fd724d31d0a0d2476/include/mbedtls/ssl.h#L4137-L4141
-pub(super) struct WriteTracker {
-    pending: Option<Box<Option<DigestAndLen>>>,
-    #[cfg(feature = "async-test")]
-    pub(crate) enabled: bool,
-}
-
-struct DigestAndLen {
-    #[cfg(debug_assertions)]
-    digest: [u8; 20], // SHA-1
-    len: usize,
-}
-
-pub static WRITE_TRACKER_ERROR_MSG: &'static str =
-    "mbedtls expects the same data if the previous call to poll_write() returned Poll::Pending";
-
-impl WriteTracker {
-    pub(super) fn new() -> Self {
-        WriteTracker {
-            pending: None,
-            #[cfg(feature = "async-test")]
-            enabled: true,
-        }
-    }
-
-    fn pending(&mut self) -> &mut Option<DigestAndLen> {
-        self.pending.get_or_insert_with(|| Box::new(None))
-    }
-
-    #[cfg(debug_assertions)]
-    fn digest(buf: &[u8]) -> [u8; 20] {
-        use crate::hash::{Md, Type};
-        let mut out = [0u8; 20];
-        let res = Md::hash(Type::Sha1, buf, &mut out[..]);
-        assert_eq!(res, Ok(out.len()));
-        out
-    }
-
-    fn adjust_buf<'a>(&self, buf: &'a [u8]) -> IoResult<&'a [u8]> {
-        #[cfg(feature = "async-test")]
-        if !self.enabled {
-            return Ok(buf);
-        }
-        match self.pending.as_ref() {
-            None => Ok(buf),
-            Some(pending) => {
-                match **pending {
-                    None => Ok(buf),
-                    Some(ref pending) => {
-                        if pending.len <= buf.len() {
-                            let buf = &buf[..pending.len];
-                            // We only do this check in debug mode since it's an expensive check.
-                            #[cfg(debug_assertions)]
-                            if Self::digest(buf) == pending.digest {
-                                return Ok(buf);
-                            }
-                            #[cfg(not(debug_assertions))]
-                            return Ok(buf);
-                        }
-                        Err(IoError::new(IoErrorKind::Other, WRITE_TRACKER_ERROR_MSG))
-                    }
-                }
-            }
-        }
-    }
-
-    fn post_write(&mut self, buf: &[u8], res: &Poll<IoResult<usize>>) {
-        #[cfg(feature = "async-test")]
-        if !self.enabled {
-            return;
-        }
-        match res {
-            &Poll::Pending => {
-                if let empty_pending @ None = self.pending() {
-                    *empty_pending = Some(DigestAndLen {
-                        #[cfg(debug_assertions)]
-                        digest: Self::digest(buf),
-                        len: buf.len(),
-                    });
-                }
-            }
-            _ => {
-                *self.pending() = None;
-            }
-        }
-    }
-}
-
 /// Marker type for an IO implementation that implements both
 /// `tokio::io::AsyncRead` and `tokio::io::AsyncWrite`.
 pub enum AsyncStream {}
@@ -145,7 +46,7 @@ impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCa
         let mut buf = ReadBuf::new(buf);
         let io = Pin::new(&mut self.1);
         match io.poll_read(self.0, &mut buf) {
-            Poll::Ready(Ok(_)) => Ok(buf.filled().len()),
+            Poll::Ready(Ok(())) => Ok(buf.filled().len()),
             Poll::Ready(Err(_)) => Err(Error::NetRecvFailed),
             Poll::Pending => Err(Error::SslWantRead),
         }
@@ -154,8 +55,17 @@ impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCa
     fn send(&mut self, buf: &[u8]) -> Result<usize> {
         let io = Pin::new(&mut self.1);
         match io.poll_write(self.0, buf) {
+            // Need to handle 0 return especially because:
+            // A return value of 0 typically means that the underlying object is no longer able to accept bytes and will likely
+            // not be able to in the future as well, or that the buffer provided is empty.
+            //
+            // This is important because:
+            // c-mbedtls assumes: the callback must return the number of bytes sent if any, or a non-zero error code.
+            //
+            // Ref: https://docs.rs/tokio/latest/tokio/io/trait.AsyncWrite.html#tymethod.poll_write
+            // Ref: https://github.com/fortanix/rust-mbedtls/blob/master/mbedtls-sys/vendor/include/mbedtls/ssl.h#L572-L591
+            Poll::Ready(Err(_)) | Poll::Ready(Ok(0)) => Err(Error::NetSendFailed),
             Poll::Ready(Ok(n)) => Ok(n),
-            Poll::Ready(Err(_)) => Err(Error::NetSendFailed),
             Poll::Pending => Err(Error::SslWantWrite),
         }
     }
@@ -221,18 +131,13 @@ where
         }
 
         let result = self
-            .with_bio_async(cx, |ssl_ctx| {
-                let buf = ssl_ctx.write_tracker.adjust_buf(buf)?;
-                match ssl_ctx.send(buf) {
-                    Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
-                    Err(Error::SslWantWrite) => Poll::Pending,
-                    Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
-                    Ok(i) => Poll::Ready(Ok(i)),
-                }
+            .with_bio_async(cx, |ssl_ctx| match ssl_ctx.async_write(buf) {
+                Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
+                Err(Error::SslWantWrite) => Poll::Pending,
+                Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
+                Ok(i) => Poll::Ready(Ok(i)),
             })
             .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetSendFailed))));
-
-        self.write_tracker.post_write(buf, &result);
 
         cx.waker().clone().wake();
 
