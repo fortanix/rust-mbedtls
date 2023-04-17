@@ -231,12 +231,18 @@ impl<T> Context<T>  {
     // Returned value `Ok(n)` always means n bytes of data has been sent into c-mbedtls's buffer (some of them might be sent out through underlying IO)
     pub(super) fn async_write(&mut self, buf: &[u8]) -> Result<usize> {
         // keep looping until we get an error or `out_left` is 0
-        while self.handle().out_left > 0 {
-            match self.flush_output() {
-                Ok(()) => {},
-                Err(e) => { return Err(e); },
-            }
-        }
+        let _original_left = self.handle().out_left;
+        // if self.handle().out_left > 0 {
+        //     let before = self.handle().out_left;
+        //     match self.flush_output() {
+        //         Ok(()) => {
+        //             let flushed = before - self.handle().out_left;
+        //             eprintln!("flush, after: {}, before: {},", self.handle().out_left, before);
+        //             return Ok(flushed);
+        //         },
+        //         Err(e) => { return Err(e); },
+        //     }
+        // }
         // when calling `send()` here, already ensured that `ssl_context.out_left` == 0
         match self.send(buf) {
             // Although got `Error::SslWantWrite` means underlying IO is blocked, but some of `buf` is still saved into c-mbedtls's
@@ -245,7 +251,18 @@ impl<T> Context<T>  {
             // - `out_left` was 0 prior to above call 
             // - in current implementation `Error::SslWantWrite` is only return by function [`IoCallback<AsyncStream>::send`], 
             // So in this case no data is written into underlying IO, which means `out_left` == size of data buffered
-            Err(Error::SslWantWrite) => Ok(self.handle().out_left),
+            // Err(Error::SslWantWrite) if self.handle().out_left > 0 => {
+            //     loop {
+            //         let before = self.handle().out_left;
+            //         match self.flush_output() {
+            //             Ok(flushed) => {
+            //                 eprintln!("flushed {}, after: {}, before: {},",flushed, self.handle().out_left, before);
+            //                 return Ok(flushed);
+            //             },
+            //             Err(e) => return Err(e),
+            //         }
+            //     }
+            // },
             ret @ _ => ret,
         }
     }
@@ -330,10 +347,10 @@ impl<T> Context<T> {
         }
     }
 
-    pub(super) fn flush_output(&mut self) -> Result<()> {
+    pub(super) fn flush_output(&mut self) -> Result<usize> {
         unsafe {
             // non-negative return value just means `ssl_flush_output` is succeed
-            ssl_flush_output(self.into()).into_result_discard()
+            ssl_flush_output(self.into()).into_result().map(|r| r as usize)
         }
     }
 
