@@ -234,13 +234,18 @@ where
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
-        // We can only flush the actual IO here.
-        // To flush mbedtls we need writes with the same buffer until complete.
-        let io = &mut self
-            .io_mut()
-            .ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?;
-        let stream = Pin::new(io);
-        stream.poll_flush(cx)
+        if self.handle().session.is_null() {
+            return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
+        }
+
+        match self
+            .with_bio_async(cx, Context::flush_output)
+            .unwrap_or(Err(Error::NetSendFailed))
+        {
+            Err(Error::SslWantWrite) => Poll::Pending,
+            Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
+            Ok(()) => Poll::Ready(Ok(())),
+        }
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {

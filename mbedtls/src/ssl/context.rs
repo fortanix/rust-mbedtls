@@ -299,11 +299,19 @@ impl<T> Context<T> {
     }
 
     fn inner_handshake(&mut self) -> Result<()> {
+        self.flush_output()?;
         unsafe {
-            ssl_flush_output(self.into()).into_result()?;
             ssl_handshake(self.into()).into_result_discard()
         }
     }
+
+    pub(super) fn flush_output(&mut self) -> Result<()> {
+        unsafe {
+            // non-negative return value just means `ssl_flush_output` is succeed
+            ssl_flush_output(self.into()).into_result_discard()
+        }
+    }
+
 
     #[cfg(not(feature = "std"))]
     fn set_hostname(&mut self, hostname: Option<&str>) -> Result<()> {
