@@ -50,6 +50,10 @@ impl WriteTracker {
         WriteTracker { pending: None }
     }
 
+    fn pending(&mut self) -> &mut Option<DigestAndLen> {
+        self.pending.get_or_insert_with(|| Box::new(None))
+    }
+
     #[cfg(debug_assertions)]
     fn digest(buf: &[u8]) -> [u8; 20] {
         use crate::hash::{Md, Type};
@@ -90,27 +94,14 @@ impl WriteTracker {
     fn post_write(&mut self, buf: &[u8], res: &Poll<IoResult<usize>>) {
         match res {
             &Poll::Pending => {
-                match self.pending.as_mut() {
-                    Some(pending) => {
-                        **pending = Some(DigestAndLen {
-                            #[cfg(debug_assertions)]
-                            digest: Self::digest(buf),
-                            len: buf.len(),
-                        })
-                    },
-                    None => {
-                        self.pending = Some(Box::new(Some(DigestAndLen {
-                            #[cfg(debug_assertions)]
-                            digest: Self::digest(buf),
-                            len: buf.len(),
-                        })));
-                    },
-                }
+                *self.pending() = Some(DigestAndLen {
+                    #[cfg(debug_assertions)]
+                    digest: Self::digest(buf),
+                    len: buf.len(),
+                })
             }
             _ => {
-                if let Some(pending) = self.pending.as_mut() {
-                    **pending = None;
-                }
+                *self.pending() = None;
             }
         }
     }
