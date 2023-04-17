@@ -344,25 +344,14 @@ mod test {
 
     #[tokio::test]
     async fn test_write_tracker() {
-        let (c, s) = crate::support::net::create_tcp_stream_pair_loopback_async();
-
-        // create a big truck of data to write&read, so that OS's Tcp buffer will be full filled so that
-        // block appears during `mbedtls_ssl_write`
+        // create a big truck of data to write&read, so that OS's Tcp buffer will be
+        // full filled so that block appears during `mbedtls_ssl_write`
         const BUFFER_SIZE: usize = 3 * 1024 * 1024;
-        fn random_data() -> Vec<u8> {
-            use rand::Rng;
-            let mut rng = rand::thread_rng();
-            let mut data: Vec<u8> = Vec::with_capacity(BUFFER_SIZE);
-        
-            for _ in 0..BUFFER_SIZE {
-                data.push(rng.gen_range(0,255));
-            }
-        
-            data
-        }
-        let expected_data = random_data();
+        let expected_data = random_data(BUFFER_SIZE);
         let data_to_write = expected_data.clone();
         assert_eq!(expected_data, data_to_write);
+
+        let (c, s) = crate::support::net::create_tcp_stream_pair_loopback_async();
         let c = tokio::spawn(super::with_client(c, |mut session| {
             Box::pin(async move {
                 eprintln!("client write_all {} bytes", BUFFER_SIZE);
@@ -384,7 +373,6 @@ mod test {
                     Err(e) => {
                         session.shutdown().await.unwrap();
                         panic!("Unexpected error {:?}", e);
-                        // return;
                     }
                 }
             })
@@ -392,5 +380,17 @@ mod test {
 
         c.await.unwrap();
         s.await.unwrap();
+    }
+
+    fn random_data(sz: usize) -> Vec<u8> {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let mut data: Vec<u8> = Vec::with_capacity(sz);
+
+        for _ in 0..sz {
+            data.push(rng.gen_range(0, 255));
+        }
+
+        data
     }
 }

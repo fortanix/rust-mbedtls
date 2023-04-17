@@ -90,7 +90,6 @@ impl WriteTracker {
         }
     }
 
-    
     fn post_write(&mut self, buf: &[u8], res: &Poll<IoResult<usize>>) {
         match res {
             &Poll::Pending => {
