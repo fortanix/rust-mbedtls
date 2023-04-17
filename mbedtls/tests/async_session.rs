@@ -176,7 +176,7 @@ mod test {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[tokio::test]
-    async fn asyncsession_client_server_test() {
+    async fn async_session_client_server_test() {
         use mbedtls::ssl::Version;
 
         #[derive(Copy, Clone)]
@@ -274,7 +274,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn asyncsession_shutdown1() {
+    async fn async_session_shutdown1() {
         let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
 
         let c = tokio::spawn(super::with_client(c, |mut session| {
@@ -298,7 +298,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn asyncsession_shutdown2() {
+    async fn async_session_shutdown2() {
         let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
 
         let c = tokio::spawn(super::with_client(c, |mut session| {
@@ -325,7 +325,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn asyncsession_shutdown3() {
+    async fn async_session_shutdown3() {
         let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
 
         let c = tokio::spawn(super::with_client(c, |mut session| {
@@ -340,5 +340,57 @@ mod test {
             (Err(_), Err(_)) => panic!("at least one should succeed"),
             _ => {}
         }
+    }
+
+    #[tokio::test]
+    async fn test_write_tracker() {
+        let (c, s) = crate::support::net::create_tcp_stream_pair_loopback_async();
+
+        // create a big truck of data to write&read, so that OS's Tcp buffer will be full filled so that
+        // block appears during `mbedtls_ssl_write`
+        const BUFFER_SIZE: usize = 3 * 1024 * 1024;
+        fn random_data() -> Vec<u8> {
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            let mut data: Vec<u8> = Vec::with_capacity(BUFFER_SIZE);
+        
+            for _ in 0..BUFFER_SIZE {
+                data.push(rng.gen_range(0,255));
+            }
+        
+            data
+        }
+        let expected_data = random_data();
+        let data_to_write = expected_data.clone();
+        assert_eq!(expected_data, data_to_write);
+        let c = tokio::spawn(super::with_client(c, |mut session| {
+            Box::pin(async move {
+                eprintln!("client write_all {} bytes", BUFFER_SIZE);
+                session.write_all(&data_to_write).await.unwrap();
+                session.shutdown().await.unwrap();
+            })
+        }));
+
+        let s = tokio::spawn(super::with_server(s, |mut session| {
+            Box::pin(async move {
+                let mut buf = vec![0; BUFFER_SIZE];
+                match session.read_exact(&mut buf).await {
+                    Ok(n) => {
+                        eprintln!("server read {}", n);
+                        assert_eq!(n, BUFFER_SIZE, "wrong length");
+                        assert!(&buf[..] == &expected_data[..], "wrong read data");
+                        return;
+                    }
+                    Err(e) => {
+                        session.shutdown().await.unwrap();
+                        panic!("Unexpected error {:?}", e);
+                        // return;
+                    }
+                }
+            })
+        }));
+
+        c.await.unwrap();
+        s.await.unwrap();
     }
 }
