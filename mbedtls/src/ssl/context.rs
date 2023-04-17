@@ -225,34 +225,28 @@ impl<T> Context<T>  {
         self.write_tracker.enabled = state;
     }
 
-    // If there is pending data prepared in an earlier call to `mbedtls_ssl_write()` in c-mbedtls's buffer, this function try to flush them first by calling `mbedtls_ssl_flush_output`.
-    // Then call `mbedtls_ssl_write()` as normal if all pending data has been flushed out.
-    // It handles error as normal because in case of getting `SslWantWrite` from `mbedtls_ssl_write()` or `mbedtls_ssl_flush_output()`, this function just need to be called again.
-    // Ref: https://github.com/Mbed-TLS/mbedtls/issues/4183
+    // This function is created to handle the ood behavior of `mbedtls_ssl_write()` only for TLS use cases
+    // Please check this https://github.com/Mbed-TLS/mbedtls/issues/4183 to learn more about how `mbedtls_ssl_write()` works in c-mbedtls 2.28
+    // This function ultimately ensure the semitics:
+    // Returned value `Ok(n)` always means n bytes of data has been sent into c-mbedtls's buffer (some of them might be sent out through underlying IO)
     pub(super) fn async_write(&mut self, buf: &[u8]) -> Result<usize> {
-        unsafe {
-            let inner: *mut ssl_context = self.into();
-            if (*inner).out_left > 0 {
-                match self.flush_output() {
-                    Ok(()) => {
-                        // if data prepared in an earlier call to `mbedtls_ssl_write()` is all flushed then continue to write new data
-                        if (*inner).out_left == 0 {
-                            // when calling `send()` here, already ensure that `ssl_context.out_left` == 0
-
-                            self.send(buf)
-                        } else {
-                            // data prepared in an earlier call has not been flushed out
-                            // return `SslWantWrite` to caller to indicate call this function again later
-                            Err(Error::SslWantWrite)
-                        }
-                    },
-                    Err(e) => Err(e),
-                }
-            } else {
-                // when calling `send()` here, already ensure that `ssl_context.out_left` == 0
-                self.send(buf)
+        // keep looping until we get an error or `out_left` is 0
+        while self.handle().out_left > 0 {
+            match self.flush_output() {
+                Ok(()) => {},
+                Err(e) => { return Err(e); },
             }
-            
+        }
+        // when calling `send()` here, already ensured that `ssl_context.out_left` == 0
+        match self.send(buf) {
+            // Although got `Error::SslWantWrite` means underlying IO is blocked, but some of `buf` is still saved into c-mbedtls's
+            // buffer, so we need to return size of bytes that has been buffered
+            // Since we know:
+            // - `out_left` was 0 prior to above call 
+            // - in current implementation `Error::SslWantWrite` is only return by function [`IoCallback<AsyncStream>::send`], 
+            // So in this case no data is written into underlying IO, which means `out_left` == size of data buffered
+            Err(Error::SslWantWrite) => Ok(self.handle().out_left),
+            ret @ _ => ret,
         }
     }
 }
