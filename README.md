@@ -143,9 +143,14 @@ Instructions for updating to new MbedTLS source code releases in `mbedtls-sys/`:
 
 # mbedtls-selftest
 
-This Rust crate is designed for separating self-test code that needs to export Rust functions and define C functions to be used by C `mbedtls`. By separating this code, different versions of Rust `mbedtls` crates can be used within a single crate, which helps to solve link name conflict errors.
+This Rust crate is designed for separating self-test code that needs to export Rust
+functions and define C functions to be used by C `mbedtls`. By separating this code,
+different versions of Rust `mbedtls` crates can be used within a single crate, which
+helps to solve link name conflict errors.
 
-**Note**: Although multiple versions of Rust `mbedtls` crates can be used within a single crate, only one `mbedtls-selftest` and one `mbedtls-sys-auto` crate can be used since they are built as native libraries.
+**Note**: Although multiple versions of Rust `mbedtls` crates can be used within a
+single crate, only one `mbedtls-selftest` and one `mbedtls-sys-auto` crate can be
+used since they are built as native libraries.
 
 # Contributing
 
