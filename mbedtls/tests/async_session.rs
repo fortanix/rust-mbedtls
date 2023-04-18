@@ -429,7 +429,7 @@ mod test {
         s.await.unwrap();
     }
 
-    /// Async write should fail when `poll_write` is getting a increasing buffer when meet `Poll::Pending`
+    /// Without write tracker, async write  should fail when `poll_write` is getting a increasing buffer when meet `Poll::Pending`
     #[tokio::test]
     async fn test_write_tracker_should_fail_1() {
         // create a big truck of data to write&read, so that OS's Tcp buffer will be
@@ -470,7 +470,7 @@ mod test {
         s.await.unwrap();
     }
 
-    /// Write tracker should throw error when `poll_write` is getting a increasing buffer when meet `Poll::Pending`
+    /// Write tracker should throw error when `poll_write` is getting a decreasing buffer when meet `Poll::Pending`
     #[tokio::test]
     async fn test_write_tracker_should_fail_2() {
         // create a big truck of data to write&read, so that OS's Tcp buffer will be
