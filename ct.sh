@@ -33,7 +33,9 @@ if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" 
         cargo test --features pkcs12 --target $TARGET
         cargo test --features pkcs12_rc2 --target $TARGET
         cargo test --features dsa --target $TARGET
-        cargo test --test async_session --features=async-rt,async-test --target $TARGET
+        cargo test --test async_session --features=async-rt --target $TARGET
+        cargo test --test async_session --features=async-rt,zlib --target $TARGET
+        cargo test --test async_session --features=async-rt,legacy_protocols --target $TARGET
 
         # If zlib is installed, test the zlib feature
         if [ -n "$ZLIB_INSTALLED" ]; then

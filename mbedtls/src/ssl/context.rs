@@ -220,11 +220,6 @@ impl<T> Context<T>  {
         Some(ret)
     }
 
-    #[cfg(feature = "async-test")]
-    pub fn enable_write_tracker(&mut self, state: bool) {
-        self.write_tracker.enabled = state;
-    }
-
     // This function is created to handle the ood behavior of `mbedtls_ssl_write()` only for TLS use cases
     // Please check this https://github.com/Mbed-TLS/mbedtls/issues/4183 to learn more about how `mbedtls_ssl_write()` works in c-mbedtls 2.28
     // This function ultimately ensure the semitics:
@@ -241,11 +236,7 @@ impl<T> Context<T>  {
         match self.send(buf) {
             // Although got `Error::SslWantWrite` means underlying IO is blocked, but some of `buf` is still saved into c-mbedtls's
             // buffer, so we need to return size of bytes that has been buffered
-            // Since we know:
-            // - `out_left` was 0 prior to above call 
-            // - in current implementation `Error::SslWantWrite` is only return by function [`IoCallback<AsyncStream>::send`], 
-            // So in this case no data is written into underlying IO, which means `out_left` == size of data buffered
-            Err(Error::SslWantWrite) => Ok(self.handle().out_left),
+            Err(Error::SslWantWrite) => Ok(std::cmp::min(unsafe { ssl_get_max_out_record_payload((&*self).into()).into_result()? as usize }, buf.len())),
             ret @ _ => ret,
         }
     }
