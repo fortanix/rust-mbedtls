@@ -227,6 +227,7 @@ impl<T> Context<T>  {
     pub(super) fn async_write(&mut self, buf: &[u8]) -> Result<usize> {
         let max_len = unsafe { ssl_get_max_out_record_payload((&*self).into()).into_result()? as usize };
         #[cfg(feature = "zlib")]
+        // todo: this number is found during debug, change name or size after we found the actual reason for this
         static RESERVE_SIZE: usize = 10;
         #[cfg(feature = "zlib")]
         let buf = &buf[..std::cmp::min(max_len - RESERVE_SIZE, buf.len())];
