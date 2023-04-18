@@ -174,6 +174,7 @@ where
 #[cfg(unix)]
 mod test {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use mbedtls::ssl::async_io::WRITE_TRACKER_ERROR_MSG;
 
     #[tokio::test]
     async fn async_session_client_server_test() {
@@ -341,9 +342,10 @@ mod test {
             _ => {}
         }
     }
-
+    
+    /// Write tracker should ok when use normal functions
     #[tokio::test]
-    async fn test_write_tracker_should_ok() {
+    async fn test_write_tracker_should_ok_1() {
         // create a big truck of data to write&read, so that OS's Tcp buffer will be
         // full filled so that block appears during `mbedtls_ssl_write`
         let buffer_size: usize =  3 * 1024 * 1024;
@@ -355,9 +357,9 @@ mod test {
         let c = tokio::spawn(super::with_client(c, move |mut session| {
             Box::pin(async move {
                 session.enable_write_tracker(enable_tracker);
-                eprintln!("client write_all {} bytes", buffer_size);
+                println!("client write_all {} bytes", buffer_size);
                 // use a custom write all, which always use different length when calling `poll_write` 
-                crate::support::write_all::write_all(&mut session, &data_to_write).await.unwrap();
+                session.write_all(&data_to_write).await.unwrap();
                 session.shutdown().await.unwrap();
             })
         }));
@@ -384,8 +386,52 @@ mod test {
         s.await.unwrap();
     }
 
+    /// Write tracker should ok when `poll_write` is getting a increasing buffer when meet `Poll::Pending`
     #[tokio::test]
-    async fn test_write_tracker_should_fail() {
+    async fn test_write_tracker_should_ok_2() {
+        // create a big truck of data to write&read, so that OS's Tcp buffer will be
+        // full filled so that block appears during `mbedtls_ssl_write`
+        let buffer_size: usize =  3 * 1024 * 1024;
+        let enable_tracker = true;
+        let expected_data = random_data(buffer_size);
+        let data_to_write = expected_data.clone();
+        assert_eq!(expected_data, data_to_write);
+        let (c, s) = crate::support::net::create_tcp_stream_pair_loopback_async();
+        let c = tokio::spawn(super::with_client(c, move |mut session| {
+            Box::pin(async move {
+                session.enable_write_tracker(enable_tracker);
+                println!("client write_all {} bytes", buffer_size);
+                // use a custom write all, which always use different length when calling `poll_write` 
+                crate::support::write_all::write_all(&mut session, &data_to_write, 1).await.unwrap();
+                session.shutdown().await.unwrap();
+            })
+        }));
+
+        let s = tokio::spawn(super::with_server(s, move |mut session| {
+            Box::pin(async move {
+                let mut buf = vec![0; buffer_size];
+                match session.read_exact(&mut buf).await {
+                    Ok(n) => {
+                        eprintln!("server read {}", n);
+                        assert_eq!(n, buffer_size, "wrong length");
+                        assert!(&buf[..] == &expected_data[..], "wrong read data");
+                        return;
+                    }
+                    Err(e) => {
+                        session.shutdown().await.unwrap();
+                        panic!("Unexpected error {:?}", e);
+                    }
+                }
+            })
+        }));
+
+        c.await.unwrap();
+        s.await.unwrap();
+    }
+
+    /// Async write should fail when `poll_write` is getting a increasing buffer when meet `Poll::Pending`
+    #[tokio::test]
+    async fn test_write_tracker_should_fail_1() {
         // create a big truck of data to write&read, so that OS's Tcp buffer will be
         // full filled so that block appears during `mbedtls_ssl_write`
         let buffer_size: usize =  3 * 1024 * 1024;
@@ -397,9 +443,54 @@ mod test {
         let c = tokio::spawn(super::with_client(c, move |mut session| {
             Box::pin(async move {
                 session.enable_write_tracker(enable_tracker);
-                eprintln!("client write_all {} bytes", buffer_size);
+                println!("client write_all {} bytes", buffer_size);
                 // use a custom write all, which always use different length when calling `poll_write` 
-                crate::support::write_all::write_all(&mut session, &data_to_write).await.unwrap();
+                crate::support::write_all::write_all(&mut session, &data_to_write, 1).await.unwrap();
+                session.shutdown().await.unwrap();
+            })
+        }));
+
+        let s = tokio::spawn(super::with_server(s, move |mut session| {
+            Box::pin(async move {
+                let mut buf = vec![0; buffer_size];
+                match session.read_exact(&mut buf).await {
+                    Ok(_) => {
+                        panic!("should not succeed to read");
+                    }
+                    Err(e) => {
+                        session.shutdown().await.unwrap();
+                        assert_eq!(e.kind(), std::io::ErrorKind::UnexpectedEof);
+                        return;
+                    }
+                }
+            })
+        }));
+
+        c.await.unwrap();
+        s.await.unwrap();
+    }
+
+    /// Write tracker should throw error when `poll_write` is getting a increasing buffer when meet `Poll::Pending`
+    #[tokio::test]
+    async fn test_write_tracker_should_fail_2() {
+        // create a big truck of data to write&read, so that OS's Tcp buffer will be
+        // full filled so that block appears during `mbedtls_ssl_write`
+        let buffer_size: usize =  3 * 1024 * 1024;
+        let enable_tracker = true;
+        let expected_data = random_data(buffer_size);
+        let data_to_write = expected_data.clone();
+        assert_eq!(expected_data, data_to_write);
+        let (c, s) = crate::support::net::create_tcp_stream_pair_loopback_async();
+        let c = tokio::spawn(super::with_client(c, move |mut session| {
+            Box::pin(async move {
+                session.enable_write_tracker(enable_tracker);
+                println!("client write_all {} bytes", buffer_size);
+                // use a custom write all, which always use different length when calling `poll_write` 
+                let ret = crate::support::write_all::write_all(&mut session, &data_to_write, -1).await;
+                assert!(ret.is_err());
+                let ref err = ret.unwrap_err();
+                assert_eq!(err.kind(), std::io::ErrorKind::Other);
+                assert!(err.to_string().contains(WRITE_TRACKER_ERROR_MSG));
                 session.shutdown().await.unwrap();
             })
         }));

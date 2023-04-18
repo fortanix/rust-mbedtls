@@ -47,6 +47,9 @@ struct DigestAndLen {
     len: usize,
 }
 
+pub static WRITE_TRACKER_ERROR_MSG: &'static str =
+    "mbedtls expects the same data if the previous call to poll_write() returned Poll::Pending";
+
 impl WriteTracker {
     pub(super) fn new() -> Self {
         WriteTracker {
@@ -90,10 +93,7 @@ impl WriteTracker {
                             #[cfg(not(debug_assertions))]
                             return Ok(buf);
                         }
-                        Err(IoError::new(
-                            IoErrorKind::Other,
-                            "mbedtls expects the same data if the previous call to poll_write() returned Poll::Pending",
-                        ))
+                        Err(IoError::new(IoErrorKind::Other, WRITE_TRACKER_ERROR_MSG))
                     }
                 }
             }
