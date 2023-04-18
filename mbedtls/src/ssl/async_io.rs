@@ -37,7 +37,7 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 /// https://github.com/Mbed-TLS/mbedtls/blob/981743de6fcdbe672e482b6fd724d31d0a0d2476/include/mbedtls/ssl.h#L4137-L4141
 pub(super) struct WriteTracker {
     pending: Option<Box<Option<DigestAndLen>>>,
-    #[cfg(feature = "test")]
+    #[cfg(feature = "async-test")]
     pub(crate) enabled: bool,
 }
 
@@ -51,7 +51,7 @@ impl WriteTracker {
     pub(super) fn new() -> Self {
         WriteTracker {
             pending: None,
-            #[cfg(feature = "test")]
+            #[cfg(feature = "async-test")]
             enabled: true,
         }
     }
@@ -70,7 +70,7 @@ impl WriteTracker {
     }
 
     fn adjust_buf<'a>(&self, buf: &'a [u8]) -> IoResult<&'a [u8]> {
-        #[cfg(feature = "test")]
+        #[cfg(feature = "async-test")]
         if !self.enabled {
             return Ok(buf);
         }
@@ -101,7 +101,7 @@ impl WriteTracker {
     }
 
     fn post_write(&mut self, buf: &[u8], res: &Poll<IoResult<usize>>) {
-        #[cfg(feature = "test")]
+        #[cfg(feature = "async-test")]
         if !self.enabled {
             return;
         }

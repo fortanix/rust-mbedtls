@@ -373,7 +373,7 @@ mod test {
                         return;
                     }
                     Err(e) => {
-                        let ret = session.shutdown().await;
+                        session.shutdown().await.unwrap();
                         panic!("Unexpected error {:?}", e);
                     }
                 }
@@ -408,7 +408,7 @@ mod test {
             Box::pin(async move {
                 let mut buf = vec![0; buffer_size];
                 match session.read_exact(&mut buf).await {
-                    Ok(n) => {
+                    Ok(_) => {
                         panic!("should not succeed to read");
                     }
                     Err(e) => {

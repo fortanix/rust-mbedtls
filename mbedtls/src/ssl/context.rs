@@ -225,7 +225,7 @@ impl<T> Context<T>  {
         Some(ret)
     }
 
-    #[cfg(feature = "test")]
+    #[cfg(feature = "async-test")]
     pub fn enable_write_tracker(&mut self, state: bool) {
         self.write_tracker.enabled = state;
     }

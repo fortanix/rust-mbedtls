@@ -79,7 +79,7 @@ pkcs12_rc2 = ["pkcs12", "rc2", "cbc"]
 legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
 async = ["std", "tokio","tokio/net","tokio/io-util", "tokio/macros"]
 async-rt = ["async", "tokio/rt", "tokio/sync", "tokio/rt-multi-thread"]
-test = []
+async-test = []
 
 [[example]]
 name = "client"
@@ -117,4 +117,4 @@ required-features = ["std"]
 [[test]]
 name = "async_session"
 path = "tests/async_session.rs"
-required-features = ["async-rt", "test"]
+required-features = ["async-rt", "async-test"]
