@@ -225,6 +225,12 @@ impl<T> Context<T>  {
     // This function ultimately ensure the semitics:
     // Returned value `Ok(n)` always means n bytes of data has been sent into c-mbedtls's buffer (some of them might be sent out through underlying IO)
     pub(super) fn async_write(&mut self, buf: &[u8]) -> Result<usize> {
+        let max_len = unsafe { ssl_get_max_out_record_payload((&*self).into()).into_result()? as usize };
+        #[cfg(feature = "zlib")]
+        static RESERVE_SIZE: usize = 10;
+        #[cfg(feature = "zlib")]
+        let buf = &buf[..std::cmp::min(max_len - RESERVE_SIZE, buf.len())];
+        
         // keep looping until we get an error or `out_left` is 0
         while self.handle().out_left > 0 {
             match self.flush_output() {
@@ -236,7 +242,7 @@ impl<T> Context<T>  {
         match self.send(buf) {
             // Although got `Error::SslWantWrite` means underlying IO is blocked, but some of `buf` is still saved into c-mbedtls's
             // buffer, so we need to return size of bytes that has been buffered
-            Err(Error::SslWantWrite) => Ok(std::cmp::min(unsafe { ssl_get_max_out_record_payload((&*self).into()).into_result()? as usize }, buf.len())),
+            Err(Error::SslWantWrite) => Ok(std::cmp::min(max_len, buf.len())),
             ret @ _ => ret,
         }
     }
