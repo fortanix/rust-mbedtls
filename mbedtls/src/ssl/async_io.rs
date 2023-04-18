@@ -155,7 +155,7 @@ where
         {
             Err(Error::SslWantWrite) => Poll::Pending,
             Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
-            Ok(_) => Poll::Ready(Ok(())),
+            Ok(()) => Poll::Ready(Ok(())),
         }
     }
 
