@@ -224,6 +224,11 @@ impl<T> Context<T>  {
 
         Some(ret)
     }
+
+    #[cfg(feature = "test")]
+    pub fn enable_write_tracker(&mut self, state: bool) {
+        self.write_tracker.enabled = state;
+    }
 }
 
 impl<T> Context<T> {

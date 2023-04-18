@@ -37,6 +37,8 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 /// https://github.com/Mbed-TLS/mbedtls/blob/981743de6fcdbe672e482b6fd724d31d0a0d2476/include/mbedtls/ssl.h#L4137-L4141
 pub(super) struct WriteTracker {
     pending: Option<Box<Option<DigestAndLen>>>,
+    #[cfg(feature = "test")]
+    pub(crate) enabled: bool,
 }
 
 struct DigestAndLen {
@@ -47,7 +49,11 @@ struct DigestAndLen {
 
 impl WriteTracker {
     pub(super) fn new() -> Self {
-        WriteTracker { pending: None }
+        WriteTracker {
+            pending: None,
+            #[cfg(feature = "test")]
+            enabled: true,
+        }
     }
 
     fn pending(&mut self) -> &mut Option<DigestAndLen> {
@@ -64,6 +70,10 @@ impl WriteTracker {
     }
 
     fn adjust_buf<'a>(&self, buf: &'a [u8]) -> IoResult<&'a [u8]> {
+        #[cfg(feature = "test")]
+        if !self.enabled {
+            return Ok(buf);
+        }
         match self.pending.as_ref() {
             None => Ok(buf),
             Some(pending) => {
@@ -91,13 +101,19 @@ impl WriteTracker {
     }
 
     fn post_write(&mut self, buf: &[u8], res: &Poll<IoResult<usize>>) {
+        #[cfg(feature = "test")]
+        if !self.enabled {
+            return;
+        }
         match res {
             &Poll::Pending => {
-                *self.pending() = Some(DigestAndLen {
-                    #[cfg(debug_assertions)]
-                    digest: Self::digest(buf),
-                    len: buf.len(),
-                })
+                if let empty_pending @ None = self.pending() {
+                    *empty_pending = Some(DigestAndLen {
+                        #[cfg(debug_assertions)]
+                        digest: Self::digest(buf),
+                        len: buf.len(),
+                    });
+                }
             }
             _ => {
                 *self.pending() = None;

@@ -343,36 +343,78 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_write_tracker() {
+    async fn test_write_tracker_should_ok() {
         // create a big truck of data to write&read, so that OS's Tcp buffer will be
         // full filled so that block appears during `mbedtls_ssl_write`
-        const BUFFER_SIZE: usize = 3 * 1024 * 1024;
-        let expected_data = random_data(BUFFER_SIZE);
+        let buffer_size: usize =  3 * 1024 * 1024;
+        let enable_tracker = true;
+        let expected_data = random_data(buffer_size);
         let data_to_write = expected_data.clone();
         assert_eq!(expected_data, data_to_write);
-
         let (c, s) = crate::support::net::create_tcp_stream_pair_loopback_async();
-        let c = tokio::spawn(super::with_client(c, |mut session| {
+        let c = tokio::spawn(super::with_client(c, move |mut session| {
             Box::pin(async move {
-                eprintln!("client write_all {} bytes", BUFFER_SIZE);
-                session.write_all(&data_to_write).await.unwrap();
+                session.enable_write_tracker(enable_tracker);
+                eprintln!("client write_all {} bytes", buffer_size);
+                // use a custom write all, which always use different length when calling `poll_write` 
+                crate::support::write_all::write_all(&mut session, &data_to_write).await.unwrap();
                 session.shutdown().await.unwrap();
             })
         }));
 
-        let s = tokio::spawn(super::with_server(s, |mut session| {
+        let s = tokio::spawn(super::with_server(s, move |mut session| {
             Box::pin(async move {
-                let mut buf = vec![0; BUFFER_SIZE];
+                let mut buf = vec![0; buffer_size];
                 match session.read_exact(&mut buf).await {
                     Ok(n) => {
                         eprintln!("server read {}", n);
-                        assert_eq!(n, BUFFER_SIZE, "wrong length");
+                        assert_eq!(n, buffer_size, "wrong length");
                         assert!(&buf[..] == &expected_data[..], "wrong read data");
                         return;
                     }
                     Err(e) => {
-                        session.shutdown().await.unwrap();
+                        let ret = session.shutdown().await;
                         panic!("Unexpected error {:?}", e);
+                    }
+                }
+            })
+        }));
+
+        c.await.unwrap();
+        s.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_write_tracker_should_fail() {
+        // create a big truck of data to write&read, so that OS's Tcp buffer will be
+        // full filled so that block appears during `mbedtls_ssl_write`
+        let buffer_size: usize =  3 * 1024 * 1024;
+        let enable_tracker = false;
+        let expected_data = random_data(buffer_size);
+        let data_to_write = expected_data.clone();
+        assert_eq!(expected_data, data_to_write);
+        let (c, s) = crate::support::net::create_tcp_stream_pair_loopback_async();
+        let c = tokio::spawn(super::with_client(c, move |mut session| {
+            Box::pin(async move {
+                session.enable_write_tracker(enable_tracker);
+                eprintln!("client write_all {} bytes", buffer_size);
+                // use a custom write all, which always use different length when calling `poll_write` 
+                crate::support::write_all::write_all(&mut session, &data_to_write).await.unwrap();
+                session.shutdown().await.unwrap();
+            })
+        }));
+
+        let s = tokio::spawn(super::with_server(s, move |mut session| {
+            Box::pin(async move {
+                let mut buf = vec![0; buffer_size];
+                match session.read_exact(&mut buf).await {
+                    Ok(n) => {
+                        panic!("should not succeed to read");
+                    }
+                    Err(e) => {
+                        session.shutdown().await.unwrap();
+                        assert_eq!(e.kind(), std::io::ErrorKind::UnexpectedEof);
+                        return;
                     }
                 }
             })

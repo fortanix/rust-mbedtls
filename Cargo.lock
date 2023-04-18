@@ -515,6 +515,7 @@ dependencies = [
  "mbedtls-selftest",
  "mbedtls-sys-auto",
  "num-bigint",
+ "pin-project-lite",
  "rand",
  "rc2",
  "rs-libc",
