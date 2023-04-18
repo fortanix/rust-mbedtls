@@ -26,7 +26,7 @@ pub fn create_tcp_pair() -> IoResult<(TcpStream, TcpStream)> {
     }
 }
 
-fn create_tcp_stream_pair_loopback() -> (TcpStream, TcpStream) {
+pub fn create_tcp_stream_pair_loopback() -> (TcpStream, TcpStream) {
     // Create a TcpListener on the loopback address.
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let listener_addr = listener.local_addr().unwrap();

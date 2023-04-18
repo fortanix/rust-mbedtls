@@ -45,3 +45,15 @@ impl crate::mbedtls::rng::RngCallback for TestRandom {
 pub fn test_rng() -> TestRandom {
     TestRandom(XorShiftRng::new_unseeded())
 }
+
+/// Testing only helper function to create a buffer with random content
+pub fn random_data(sz: usize) -> Vec<u8> {
+    let mut rng = rand::thread_rng();
+    let mut data: Vec<u8> = Vec::with_capacity(sz);
+
+    for _ in 0..sz {
+        data.push(rng.gen_range(0, 255));
+    }
+
+    data
+}

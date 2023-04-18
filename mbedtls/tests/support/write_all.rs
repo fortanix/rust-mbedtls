@@ -31,7 +31,7 @@ pub(crate) fn write_all<'a, W>(writer: &'a mut W, buf: &'a [u8], buffer_change_p
 where
     W: AsyncWrite + Unpin + ?Sized,
 {
-    let min_len = 1000;
+    let min_len = 8 * 1024;
     assert!(buf.len() > min_len, "Please provide a buffer with length > {}", min_len);
     WriteAll {
         writer,

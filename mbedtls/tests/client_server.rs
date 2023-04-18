@@ -197,6 +197,49 @@ fn server<C: IoCallback<T> + TransportType, T>(
     Ok(())
 }
 
+fn with_client<F, R>(conn: TcpStream, f: F) -> R
+where
+    F: FnOnce(Context<TcpStream>) -> R,
+{
+    let entropy = Arc::new(entropy_new());
+    let rng = Arc::new(CtrDrbg::new(entropy, None).unwrap());
+    let cacert = Arc::new(Certificate::from_pem_multiple(keys::ROOT_CA_CERT.as_bytes()).unwrap());
+
+    let verify_callback = move |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
+        verify_flags.remove(VerifyError::CERT_EXPIRED);
+        Ok(())
+    };
+
+    let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
+    config.set_rng(rng);
+    config.set_verify_callback(verify_callback);
+    config.set_ca_list(cacert, None);
+    let mut context = Context::new(Arc::new(config));
+
+    context.establish(conn, None).unwrap();
+
+    f(context)
+}
+
+fn with_server<F, R>(conn: TcpStream, f: F) -> R
+where
+    F: FnOnce(Context<TcpStream>) -> R,
+{
+    let entropy = Arc::new(entropy_new());
+    let rng = Arc::new(CtrDrbg::new(entropy, None).unwrap());
+    let cert = Arc::new(Certificate::from_pem_multiple(keys::EXPIRED_CERT.as_bytes()).unwrap());
+    let key = Arc::new(Pk::from_private_key(keys::EXPIRED_KEY.as_bytes(), None).unwrap());
+
+    let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
+    config.set_rng(rng);
+    config.push_cert(cert, key).unwrap();
+    let mut context = Context::new(Arc::new(config));
+
+    context.establish(conn, None).unwrap();
+
+    f(context)
+}
+
 #[cfg(unix)]
 mod test {
     use std::thread;
@@ -296,5 +339,76 @@ mod test {
             s.join().unwrap();
             c.join().unwrap();
         }
+    }
+    
+    #[cfg(not(feature = "zlib"))]
+    #[test]
+    fn write_large_buffer_should_ok() {
+        use std::io::{Read, Write};
+        
+        // create a big truck of data to write&read, so that OS's Tcp buffer will be
+        // full filled so that block appears during `mbedtls_ssl_write`
+        let buffer_size: usize =  3 * 1024 * 1024;
+        let expected_data = crate::support::rand::random_data(buffer_size);
+        let data_to_write = expected_data.clone();
+        assert_eq!(expected_data, data_to_write);
+        let (c, s) = crate::support::net::create_tcp_stream_pair_loopback();
+        let c = thread::spawn(move || super::with_client(c, move |mut session| {
+            let ret = session.write_all(&data_to_write);
+            assert!(ret.is_ok());
+        }));
+
+        let s = thread::spawn(move || super::with_server(s, move |mut session| {
+            let mut buf = vec![0; buffer_size];
+            match session.read_exact(&mut buf) {
+                Ok(()) => {
+                    assert!(&buf[..] == &expected_data[..], "wrong read data");
+                }
+                Err(e) => {
+                    panic!("Unexpected error {:?}", e);
+                }
+            }
+        }));
+
+        c.join().unwrap();
+        s.join().unwrap();
+    }
+
+    /// when turn on `zlib` feature, c-mbedtls could not record buffer with
+    /// size > MBEDTLS_SSL_OUT_CONTENT_LEN (default: 16 * 1024)
+    /// Ref: mbedtls-sys/vendor/library/ssl_msg.c#L646-L653
+    #[cfg(feature = "zlib")]
+    #[test]
+    fn write_large_buffer_should_fail_with_zlib() {
+        use std::io::{Read, Write};
+        // create a big truck of data to write&read, so that OS's Tcp buffer will be
+        // full filled so that block appears during `mbedtls_ssl_write`
+        let buffer_size: usize =  3 * 1024 * 1024;
+        let expected_data = crate::support::rand::random_data(buffer_size);
+        let data_to_write = expected_data.clone();
+        assert_eq!(expected_data, data_to_write);
+        let (c, s) = crate::support::net::create_tcp_stream_pair_loopback();
+        let c = thread::spawn(move || super::with_client(c, move |mut session| {
+            let ret = session.write_all(&data_to_write);
+            assert!(ret.is_err());
+            let ref err = ret.unwrap_err();
+            assert_eq!(err.kind(), std::io::ErrorKind::Other);
+            assert!(err.to_string().contains("SslBadInputData"));
+        }));
+
+        let s = thread::spawn(move || super::with_server(s, move |mut session| {
+            let mut buf = vec![0; buffer_size];
+            match session.read_exact(&mut buf) {
+                Ok(()) => {
+                    panic!("should return error");
+                }
+                Err(e) => {
+                    assert_eq!(e.kind(), std::io::ErrorKind::UnexpectedEof);
+                }
+            }
+        }));
+
+        c.join().unwrap();
+        s.join().unwrap();
     }
 }

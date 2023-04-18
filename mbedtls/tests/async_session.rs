@@ -342,20 +342,18 @@ mod test {
         }
     }
     
-    /// should ok when use normal functions
+    // #[cfg(not(feature = "zlib"))]
     #[tokio::test]
-    async fn test_write_tracker_should_ok_1() {
+    async fn write_large_buffer_ok() {
         // create a big truck of data to write&read, so that OS's Tcp buffer will be
         // full filled so that block appears during `mbedtls_ssl_write`
         let buffer_size: usize =  3 * 1024 * 1024;
-        let expected_data = random_data(buffer_size);
+        let expected_data = crate::support::rand::random_data(buffer_size);
         let data_to_write = expected_data.clone();
         assert_eq!(expected_data, data_to_write);
         let (c, s) = crate::support::net::create_tcp_stream_pair_loopback_async();
         let c = tokio::spawn(super::with_client(c, move |mut session| {
             Box::pin(async move {
-                println!("client write_all {} bytes", buffer_size);
-                // use a custom write all, which always use different length when calling `poll_write` 
                 session.write_all(&data_to_write).await.unwrap();
                 session.shutdown().await.unwrap();
             })
@@ -366,7 +364,6 @@ mod test {
                 let mut buf = vec![0; buffer_size];
                 match session.read_exact(&mut buf).await {
                     Ok(n) => {
-                        eprintln!("server read {}", n);
                         assert_eq!(n, buffer_size, "wrong length");
                         assert!(&buf[..] == &expected_data[..], "wrong read data");
                         return;
@@ -383,19 +380,19 @@ mod test {
         s.await.unwrap();
     }
 
-    /// should ok when `poll_write` is getting an unchanging buffer when meet `Poll::Pending`
+    /// write large buffer should ok when `poll_write` is getting an unchanging buffer when meet `Poll::Pending`
+    #[cfg(not(feature = "zlib"))]
     #[tokio::test]
-    async fn test_write_tracker_should_ok_2() {
+    async fn write_large_buffer_ok_with_unchanging_buffer() {
         // create a big truck of data to write&read, so that OS's Tcp buffer will be
         // full filled so that block appears during `mbedtls_ssl_write`
         let buffer_size: usize =  3 * 1024 * 1024;
-        let expected_data = random_data(buffer_size);
+        let expected_data = crate::support::rand::random_data(buffer_size);
         let data_to_write = expected_data.clone();
         assert_eq!(expected_data, data_to_write);
         let (c, s) = crate::support::net::create_tcp_stream_pair_loopback_async();
         let c = tokio::spawn(super::with_client(c, move |mut session| {
             Box::pin(async move {
-                println!("client write_all {} bytes", buffer_size);
                 // use a custom write all, which always use different length when calling `poll_write` 
                 crate::support::write_all::write_all(&mut session, &data_to_write, 1).await.unwrap();
                 session.shutdown().await.unwrap();
@@ -407,7 +404,6 @@ mod test {
                 let mut buf = vec![0; buffer_size];
                 match session.read_exact(&mut buf).await {
                     Ok(n) => {
-                        eprintln!("server read {}", n);
                         assert_eq!(n, buffer_size, "wrong length");
                         assert!(&buf[..] == &expected_data[..], "wrong read data");
                         return;
@@ -424,19 +420,19 @@ mod test {
         s.await.unwrap();
     }
 
-    /// should ok when `poll_write` is getting a increasing buffer when meet `Poll::Pending`
+    /// write large buffer should ok when `poll_write` is getting a increasing buffer when meet `Poll::Pending`
+    #[cfg(not(feature = "zlib"))]
     #[tokio::test]
-    async fn test_write_tracker_should_ok_3() {
+    async fn write_large_buffer_ok_with_changing_buffer_1() {
         // create a big truck of data to write&read, so that OS's Tcp buffer will be
         // full filled so that block appears during `mbedtls_ssl_write`
         let buffer_size: usize =  3 * 1024 * 1024;
-        let expected_data = random_data(buffer_size);
+        let expected_data = crate::support::rand::random_data(buffer_size);
         let data_to_write = expected_data.clone();
         assert_eq!(expected_data, data_to_write);
         let (c, s) = crate::support::net::create_tcp_stream_pair_loopback_async();
         let c = tokio::spawn(super::with_client(c, move |mut session| {
             Box::pin(async move {
-                println!("client write_all {} bytes", buffer_size);
                 // use a custom write all, which always use different length when calling `poll_write` 
                 crate::support::write_all::write_all(&mut session, &data_to_write, 1).await.unwrap();
                 session.shutdown().await.unwrap();
@@ -448,7 +444,6 @@ mod test {
                 let mut buf = vec![0; buffer_size];
                 match session.read_exact(&mut buf).await {
                     Ok(n) => {
-                        eprintln!("server read {}", n);
                         assert_eq!(n, buffer_size, "wrong length");
                         assert!(&buf[..] == &expected_data[..], "wrong read data");
                         return;
@@ -465,19 +460,19 @@ mod test {
         s.await.unwrap();
     }
 
-    /// should ok when `poll_write` is getting a decreasing buffer when meet `Poll::Pending`
+    /// write large buffer should ok when `poll_write` is getting a decreasing buffer when meet `Poll::Pending`
+    #[cfg(not(feature = "zlib"))]
     #[tokio::test]
-    async fn test_write_tracker_should_ok_4() {
+    async fn write_large_buffer_ok_with_changing_buffer_2() {
         // create a big truck of data to write&read, so that OS's Tcp buffer will be
         // full filled so that block appears during `mbedtls_ssl_write`
         let buffer_size: usize =  3 * 1024 * 1024;
-        let expected_data = random_data(buffer_size);
+        let expected_data = crate::support::rand::random_data(buffer_size);
         let data_to_write = expected_data.clone();
         assert_eq!(expected_data, data_to_write);
         let (c, s) = crate::support::net::create_tcp_stream_pair_loopback_async();
         let c = tokio::spawn(super::with_client(c, move |mut session| {
             Box::pin(async move {
-                println!("client write_all {} bytes", buffer_size);
                 // use a custom write all, which always use different length when calling `poll_write` 
                 crate::support::write_all::write_all(&mut session, &data_to_write, 1).await.unwrap();
                 session.shutdown().await.unwrap();
@@ -489,7 +484,6 @@ mod test {
                 let mut buf = vec![0; buffer_size];
                 match session.read_exact(&mut buf).await {
                     Ok(n) => {
-                        eprintln!("server read {}", n);
                         assert_eq!(n, buffer_size, "wrong length");
                         assert!(&buf[..] == &expected_data[..], "wrong read data");
                         return;
@@ -506,15 +500,47 @@ mod test {
         s.await.unwrap();
     }
 
-    fn random_data(sz: usize) -> Vec<u8> {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-        let mut data: Vec<u8> = Vec::with_capacity(sz);
+    /// when turn on `zlib` feature, c-mbedtls could not record buffer with
+    /// size > MBEDTLS_SSL_OUT_CONTENT_LEN (default: 16 * 1024)
+    /// Ref: mbedtls-sys/vendor/library/ssl_msg.c#L646-L653
+    #[cfg(feature = "zlib")]
+    #[tokio::test]
+    async fn write_large_buffer_should_fail_with_zlib() {
+        // create a big truck of data to write&read, so that OS's Tcp buffer will be
+        // full filled so that block appears during `mbedtls_ssl_write`
+        let buffer_size: usize =  3 * 1024 * 1024;
+        let expected_data = crate::support::rand::random_data(buffer_size);
+        let data_to_write = expected_data.clone();
+        assert_eq!(expected_data, data_to_write);
+        let (c, s) = crate::support::net::create_tcp_stream_pair_loopback_async();
+        let c = tokio::spawn(super::with_client(c, move |mut session| {
+            Box::pin(async move {
+                let ret = session.write_all(&data_to_write).await;
+                session.shutdown().await.unwrap();
+                assert!(ret.is_err());
+                let ref err = ret.unwrap_err();
+                assert_eq!(err.kind(), std::io::ErrorKind::Other);
+                assert!(err.to_string().contains("SslBadInputData"));
+            })
+        }));
 
-        for _ in 0..sz {
-            data.push(rng.gen_range(0, 255));
-        }
+        let s = tokio::spawn(super::with_server(s, move |mut session| {
+            Box::pin(async move {
+                let mut buf = vec![0; buffer_size];
+                match session.read_exact(&mut buf).await {
+                    Ok(_) => {
+                        session.shutdown().await.unwrap();
+                        panic!("should return error");
+                    }
+                    Err(e) => {
+                        session.shutdown().await.unwrap();
+                        assert_eq!(e.kind(), std::io::ErrorKind::UnexpectedEof);
+                    }
+                }
+            })
+        }));
 
-        data
+        c.await.unwrap();
+        s.await.unwrap();
     }
 }
