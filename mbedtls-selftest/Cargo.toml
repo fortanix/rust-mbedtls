@@ -3,8 +3,13 @@ name = "mbedtls-selftest"
 version = "0.1.0"
 edition = "2018"
 links = "mbedtls-selftest-support"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
+license = "Apache-2.0/GPL-2.0+"
+description = """
+Support crate for rust `mbedtls` crate. This crate contains the self-test logic
+which needs exporting rust function and define C function. By put these logic in
+a separate crate, different version of `mbedtls` can live together in on crate.
+"""
+repository = "https://github.com/fortanix/rust-mbedtls"
 
 [dependencies.mbedtls-sys-auto]
 version = "2.25.0"
