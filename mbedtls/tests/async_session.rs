@@ -342,7 +342,7 @@ mod test {
         }
     }
     
-    // #[cfg(not(feature = "zlib"))]
+    #[cfg(not(feature = "zlib"))]
     #[tokio::test]
     async fn write_large_buffer_ok() {
         // create a big truck of data to write&read, so that OS's Tcp buffer will be

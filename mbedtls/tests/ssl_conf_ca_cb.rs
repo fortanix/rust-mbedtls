@@ -18,14 +18,14 @@ use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::{Config, Context};
-use mbedtls::x509::{Certificate};
+use mbedtls::x509::Certificate;
 use mbedtls::Result as TlsResult;
 use mbedtls::ssl::config::CaCallback;
 
 mod support;
 use support::entropy::entropy_new;
 
-use mbedtls::alloc::{List as MbedtlsList};
+use mbedtls::alloc::List as MbedtlsList;
 
 fn client<F>(conn: TcpStream, ca_callback: F) -> TlsResult<()>
     where

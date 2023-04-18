@@ -47,6 +47,7 @@ pub fn test_rng() -> TestRandom {
 }
 
 /// Testing only helper function to create a buffer with random content
+#[cfg(feature = "std")]
 pub fn random_data(sz: usize) -> Vec<u8> {
     let mut rng = rand::thread_rng();
     let mut data: Vec<u8> = Vec::with_capacity(sz);
