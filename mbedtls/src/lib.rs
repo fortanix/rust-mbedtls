@@ -56,7 +56,7 @@ pub mod ecp;
 pub mod hash;
 pub mod pk;
 pub mod rng;
-pub mod self_test;
+pub use mbedtls_selftest as self_test;
 pub mod ssl;
 pub mod x509;
 
