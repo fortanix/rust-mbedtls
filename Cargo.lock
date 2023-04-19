@@ -368,7 +368,7 @@ checksum = "7ffc5c5338469d4d3ea17d269fa8ea3512ad247247c30bd2df69e68309ed0a08"
 
 [[package]]
 name = "mbedtls"
-version = "0.8.2"
+version = "0.8.3"
 dependencies = [
  "bit-vec",
  "bitflags",
@@ -382,6 +382,7 @@ dependencies = [
  "hyper",
  "libc",
  "matches",
+ "mbedtls-selftest",
  "mbedtls-sys-auto",
  "num-bigint",
  "rand",
@@ -392,6 +393,17 @@ dependencies = [
  "serde_derive",
  "spin",
  "yasna",
+]
+
+[[package]]
+name = "mbedtls-selftest"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b5950daa65ba1c71120766dfe975d1946289d4d6fdc4757778d631037098673"
+dependencies = [
+ "cc",
+ "cfg-if 1.0.0",
+ "mbedtls-sys-auto",
 ]
 
 [[package]]
