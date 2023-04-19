@@ -1,2 +1,10 @@
 [workspace]
 members = ["mbedtls", "mbedtls-sys"]
+
+[patch.crates-io]
+# This patch resolves a local dependency conflict between `mbedtls` and `mbedtls-selftest`.
+# Both of these crates require the native library `mbedtls-sys-auto`.
+# By default, Cargo chooses the `mbedtls-sys-auto` version from crates.io for `mbedtls-selftest`,
+# which conflicts with the local `mbedtls-sys-auto` used by `mbedtls`.
+# This patch ensures the local `mbedtls-sys-auto` is used for both crates.
+mbedtls-sys-auto = { path = "./mbedtls-sys" }

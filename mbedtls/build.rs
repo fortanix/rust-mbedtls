@@ -43,15 +43,10 @@ fn main() {
     b.define("RUST_MBEDTLS_METADATA_HASH", Some(metadata_hash.as_str()));
     
     b.file("src/mbedtls_malloc.c");
-    b.file("src/rust_printf.c");
     if sys_platform_components.get("c_compiler").map_or(false, |comps| comps.contains("freestanding")) {
         b.flag("-U_FORTIFY_SOURCE")
             .define("_FORTIFY_SOURCE", Some("0"))
             .flag("-ffreestanding");
     }
     b.compile("librust-mbedtls.a");
-    // Force correct link order for mbedtls_printf
-    println!("cargo:rustc-link-lib=static=mbedtls");
-    println!("cargo:rustc-link-lib=static=mbedx509");
-    println!("cargo:rustc-link-lib=static=mbedcrypto");
 }
