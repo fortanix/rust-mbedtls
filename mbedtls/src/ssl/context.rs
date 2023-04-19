@@ -124,9 +124,6 @@ pub struct Context<T> {
     /// be stored in [`Context`] first so that it can be set after the `ssl_session_reset` in the
     /// [`establish`](Context::establish) call.
     client_transport_id: Option<Vec<u8>>,
-
-    #[cfg(all(feature = "std", feature = "async"))]
-    pub(super) write_tracker: super::async_io::WriteTracker,
 }
 
 impl<'a, T> Into<*const ssl_context> for &'a Context<T> {
@@ -163,8 +160,6 @@ impl<T> Context<T> {
             io: None,
             timer_callback: None,
             client_transport_id: None,
-            #[cfg(all(feature = "std", feature = "async"))]
-            write_tracker: super::async_io::WriteTracker::new(),
         }
     }
 

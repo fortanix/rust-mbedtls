@@ -9,26 +9,28 @@
 #![cfg(not(target_env = "sgx"))]
 extern crate mbedtls;
 
-use std::future::Future;
-use std::pin::Pin;
-use std::sync::Arc;
-
+use async_trait::async_trait;
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::async_io::{AsyncIo, ConnectedAsyncUdpSocket};
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
-use mbedtls::ssl::{Config, Context, Version};
+use mbedtls::ssl::context::Timer;
 use mbedtls::ssl::io::IoCallback;
+use mbedtls::ssl::CookieContext;
+use mbedtls::ssl::{Config, Context, Version};
 use mbedtls::x509::{Certificate, VerifyError};
 use mbedtls::Error;
 use mbedtls::Result as TlsResult;
-
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::Context as TaskContext;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 
 mod support;
 use support::entropy::entropy_new;
 use support::keys;
-use tokio::net::TcpStream;
 
 #[async_trait]
 trait TransportType: Sized {
@@ -68,7 +70,6 @@ impl TransportType for ConnectedAsyncUdpSocket {
     }
 }
 
-use std::task::Context as TaskContext;
 async fn client<C, T>(
     conn: C,
     min_version: Version,
@@ -147,7 +148,7 @@ async fn server<C, T>(
     max_version: Version,
     exp_version: Option<Version>,
     use_psk: bool,
-) -> TlsResult<()> 
+) -> TlsResult<()>
 where
     C: TransportType + Unpin + 'static,
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut C): IoCallback<T>,
@@ -163,22 +164,24 @@ where
     config.set_rng(rng);
     config.set_min_version(min_version)?;
     config.set_max_version(max_version)?;
-    if !use_psk { // for certificate-based operation, set up certificates
+    if !use_psk {
+        // for certificate-based operation, set up certificates
         let cert = Arc::new(Certificate::from_pem_multiple(keys::EXPIRED_CERT.as_bytes())?);
         let key = Arc::new(Pk::from_private_key(keys::EXPIRED_KEY.as_bytes(), None)?);
         config.push_cert(cert, key)?;
-    } else { // for psk-based operation, only PSK required
+    } else {
+        // for psk-based operation, only PSK required
         config.set_psk(&[0x12, 0x34, 0x56, 0x78], "client")?;
     }
     let mut ctx = Context::new(Arc::new(config));
 
     let res = if C::get_transport_type() == Transport::Datagram {
-        // For DTLS, timers are required to support retransmissions and the DTLS server needs a client
-        // ID to create individual cookies per client
+        // For DTLS, timers are required to support retransmissions and the DTLS server
+        // needs a client ID to create individual cookies per client
         ctx.set_timer_callback(Box::new(Timer::new()));
         ctx.set_client_transport_id_once(b"127.0.0.1:12341");
-        // The first connection setup attempt will fail because the ClientHello is received without
-        // a cookie
+        // The first connection setup attempt will fail because the ClientHello is
+        // received without a cookie
         match ctx.establish_async(conn, None).await {
             Err(Error::SslHelloVerifyRequired) => {}
             Ok(()) => panic!("SslHelloVerifyRequired expected, got Ok instead"),
@@ -186,7 +189,9 @@ where
         }
         ctx.handshake_async().await
     } else {
-        ctx.establish_async(conn, None).await // For TLS, establish the connection which should just work
+        ctx.establish_async(conn, None).await // For TLS, establish the
+                                              // connection which should just
+                                              // work
     };
 
     match res {
@@ -196,8 +201,10 @@ where
         Err(e) => {
             match e {
                 // client just closes connection instead of sending alert
-                Error::NetSendFailed => {assert!(exp_version.is_none())},
-                Error::SslBadHsProtocolVersion => {},
+                Error::NetSendFailed => {
+                    assert!(exp_version.is_none())
+                }
+                Error::SslBadHsProtocolVersion => {}
                 e => panic!("Unexpected error {}", e),
             };
             return Ok(());
@@ -260,7 +267,10 @@ where
 #[cfg(unix)]
 mod test {
     use mbedtls::ssl::async_io::ConnectedAsyncUdpSocket;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, net::UdpSocket};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::UdpSocket,
+    };
 
     #[tokio::test]
     async fn async_session_client_server_test() {
@@ -359,7 +369,7 @@ mod test {
 
             c.await.unwrap().unwrap();
             s.await.unwrap().unwrap();
-            
+
             // TLS tests using PSK
 
             let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
@@ -377,28 +387,35 @@ mod test {
             }
 
             let s = UdpSocket::bind("127.0.0.1:12340").await.expect("could not bind UdpSocket");
-            let s = ConnectedAsyncUdpSocket::connect(s, "127.0.0.1:12341").await.expect("could not connect UdpSocket");
+            let s = ConnectedAsyncUdpSocket::connect(s, "127.0.0.1:12341")
+                .await
+                .expect("could not connect UdpSocket");
             let s = tokio::spawn(super::server(s, min_s, max_s, exp_ver, false));
             let c = UdpSocket::bind("127.0.0.1:12341").await.expect("could not bind UdpSocket");
-            let c = ConnectedAsyncUdpSocket::connect(c, "127.0.0.1:12340").await.expect("could not connect UdpSocket");
+            let c = ConnectedAsyncUdpSocket::connect(c, "127.0.0.1:12340")
+                .await
+                .expect("could not connect UdpSocket");
             let c = tokio::spawn(super::client(c, min_c, max_c, exp_ver, false));
-            
 
             s.await.unwrap().unwrap();
             c.await.unwrap().unwrap();
 
-            // TODO There seems to be a race condition which does not allow us to directly reuse
-            // the UDP address? Without a short delay here, the DTLS tests using PSK fail with
-            // NetRecvFailed in some cases.
+            // TODO There seems to be a race condition which does not allow us to directly
+            // reuse the UDP address? Without a short delay here, the DTLS tests
+            // using PSK fail with NetRecvFailed in some cases.
             std::thread::sleep(std::time::Duration::from_millis(10));
 
             // DTLS tests using PSK
 
             let s = UdpSocket::bind("127.0.0.1:12340").await.expect("could not bind UdpSocket");
-            let s = ConnectedAsyncUdpSocket::connect(s, "127.0.0.1:12341").await.expect("could not connect UdpSocket");
+            let s = ConnectedAsyncUdpSocket::connect(s, "127.0.0.1:12341")
+                .await
+                .expect("could not connect UdpSocket");
             let s = tokio::spawn(super::server(s, min_s, max_s, exp_ver, true));
             let c = UdpSocket::bind("127.0.0.1:12341").await.expect("could not bind UdpSocket");
-            let c = ConnectedAsyncUdpSocket::connect(c, "127.0.0.1:12340").await.expect("could not connect UdpSocket");
+            let c = ConnectedAsyncUdpSocket::connect(c, "127.0.0.1:12340")
+                .await
+                .expect("could not connect UdpSocket");
             let c = tokio::spawn(super::client(c, min_c, max_c, exp_ver, true));
 
             s.await.unwrap().unwrap();
