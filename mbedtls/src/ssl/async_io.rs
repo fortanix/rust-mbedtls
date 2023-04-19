@@ -15,29 +15,64 @@ use crate::{
         io::{IoCallback, IoCallbackUnsafe},
     },
 };
+use async_trait::async_trait;
+use core::marker::PhantomData;
 use std::{
     future::Future,
     io::{Error as IoError, ErrorKind as IoErrorKind, Result as IoResult},
     pin::Pin,
+    result::Result as StdResult,
     task::{Context as TaskContext, Poll},
 };
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::{
+    io::{AsyncRead, AsyncWrite, ReadBuf},
+    macros::support::poll_fn,
+    net::UdpSocket,
+};
 
 /// Marker type for an IO implementation that implements both
 /// `tokio::io::AsyncRead` and `tokio::io::AsyncWrite`.
 pub enum AsyncStream {}
 
-// TODO: Add enum `AnyAsyncIo` as marker type for an IO implementation that
-// doesn't implement `tokio::io::AsyncRead` and `tokio::io::AsyncWrite`.
+/// Marker type for an IO implementation that
+/// doesn't implement [`tokio::io::AsyncRead`] and [`tokio::io::AsyncWrite`].
+pub enum AnyAsyncIo {}
 
-// TODO: Add `AsyncIo` trait for async IO that that doesn't implement
-// `tokio::io::AsyncRead` and `tokio::io::AsyncWrite`. For example:
-//     pub trait AsyncIo {
-//        async fn recv(&mut self, buf: &mut [u8]) -> Result<usize>;
-//         async fn send(&mut self, buf: &[u8]) -> Result<usize>;
-//     }
-// Could implement by using `async-trait` crate or
-// #![feature(async_fn_in_trait)] or Associated Types
+/// Async read or write bytes or packets.
+///
+/// Implementors represent a socket or file descriptor that can be read from or
+/// written to.
+///
+/// By implementing [`AsyncIo`] you can wrap any type of
+/// [`AsyncIo`] with [`Context<T>::establish_async`] to protect that
+/// communication channel with (D)TLS. That [`Context`] then also implements
+/// [`AsyncIo`] so you can use it interchangeably.
+///
+/// If you are using byte streams and are using [`tokio::io`], you don't need
+/// this trait and can rely on [`tokio::io::AsyncRead`] and
+/// [`tokio::io::AsyncWrite`] instead.
+#[async_trait]
+pub trait AsyncIo {
+    async fn recv(&mut self, buf: &mut [u8]) -> IoResult<usize>;
+    async fn send(&mut self, buf: &[u8]) -> IoResult<usize>;
+}
+
+#[async_trait]
+impl<T: AsyncIo + Send> AsyncIo for Context<T> {
+    async fn recv(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+        self.io_mut()
+            .ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?
+            .recv(buf)
+            .await
+    }
+
+    async fn send(&mut self, buf: &[u8]) -> IoResult<usize> {
+        self.io_mut()
+            .ok_or(IoError::new(IoErrorKind::Other, "stream has been shutdown"))?
+            .send(buf)
+            .await
+    }
+}
 
 impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCallback<AsyncStream>
     for (&'a mut TaskContext<'b>, &'c mut IO)
@@ -57,6 +92,24 @@ impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCa
         match io.poll_write(self.0, buf) {
             Poll::Ready(Err(_)) => Err(Error::NetSendFailed),
             Poll::Ready(Ok(n)) => Ok(n),
+            Poll::Pending => Err(Error::SslWantWrite),
+        }
+    }
+}
+
+impl<'a, 'b, 'c, IO: AsyncIo> IoCallback<AnyAsyncIo> for (&'a mut TaskContext<'b>, &'c mut IO) {
+    fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
+        match Pin::new(&mut self.1.recv(buf)).poll(self.0) {
+            Poll::Ready(Ok(n)) => Ok(n),
+            Poll::Ready(Err(_)) => Err(Error::NetRecvFailed),
+            Poll::Pending => Err(Error::SslWantRead),
+        }
+    }
+
+    fn send(&mut self, buf: &[u8]) -> Result<usize> {
+        match Pin::new(&mut self.1.send(buf)).poll(self.0) {
+            Poll::Ready(Ok(n)) => Ok(n),
+            Poll::Ready(Err(_)) => Err(Error::NetSendFailed),
             Poll::Pending => Err(Error::SslWantWrite),
         }
     }
@@ -168,4 +221,42 @@ where
     }
 }
 
-// TODO: AsyncIo impl for tokio::net::UdpSocket
+/// A wrapper of [`tokio::net::UdpSocket`] on which
+/// [`tokio::net::UdpSocket::connect`] was successfully called.
+///
+/// Construct this type using [`ConnectedAsyncUdpSocket::connect`].
+pub struct ConnectedAsyncUdpSocket {
+    socket: UdpSocket,
+}
+
+impl ConnectedAsyncUdpSocket {
+    pub async fn connect<A: tokio::net::ToSocketAddrs>(socket: UdpSocket, addr: A) -> StdResult<Self, (IoError, UdpSocket)> {
+        match socket.connect(addr).await {
+            Ok(()) => Ok(ConnectedAsyncUdpSocket { socket }),
+            Err(e) => Err((e, socket)),
+        }
+    }
+
+    pub fn into_socket(self) -> UdpSocket {
+        self.socket
+    }
+}
+
+#[async_trait]
+impl AsyncIo for ConnectedAsyncUdpSocket {
+    async fn recv(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+        poll_fn(|cx| {
+            let mut buf = ReadBuf::new(buf);
+            match self.socket.poll_recv(cx, &mut buf) {
+                Poll::Ready(res) => res,
+                Poll::Pending => return Poll::Pending,
+            }?;
+            Poll::Ready(Ok(buf.filled().len()))
+        })
+        .await
+    }
+
+    async fn send(&mut self, buf: &[u8]) -> IoResult<usize> {
+        poll_fn(|cx| self.socket.poll_send(cx, buf)).await
+    }
+}
