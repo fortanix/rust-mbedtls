@@ -43,6 +43,7 @@ This is a list of the Cargo features available for mbedtls. Features in
           work without libc will be provided.
 * **time** Enable time support in mbedtls-sys.
 * *zlib* Enable zlib support in mbedtls-sys.
+* *async-rt* Enable async support for SSL.
 
 PRs adding new features are encouraged.
 
