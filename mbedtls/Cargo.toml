@@ -2,6 +2,7 @@
 name = "mbedtls"
 version = "0.7.3"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
+build = "build.rs"
 edition = "2018"
 license = "Apache-2.0/GPL-2.0+"
 description = """
@@ -15,7 +16,6 @@ readme = "../README.md"
 repository = "https://github.com/fortanix/rust-mbedtls"
 documentation = "https://docs.rs/mbedtls/"
 keywords = ["MbedTLS","mbed","TLS","SSL","cryptography"]
-crate-type = ["staticlib"]
 
 [dependencies]
 bitflags = "1"
