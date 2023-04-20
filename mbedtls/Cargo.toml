@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.7.2"
+version = "0.7.3"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -39,10 +39,13 @@ tokio = { version = "1.16.1", optional = true }
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.1.0"
 
+[dependencies.mbedtls-selftest]
+version = "0.1"
+
 [dependencies.mbedtls-sys-auto]
 version = "2.28.0"
 default-features = false
-features = ["custom_printf", "trusted_cert_callback"]
+features = ["trusted_cert_callback"]
 
 [dev-dependencies]
 libc = "0.2.0"
@@ -58,7 +61,7 @@ cc = "1.0"
 [features]
 # Features are documented in the README
 default = ["std", "aesni", "time", "padlock", "legacy_protocols", "use_libc"]
-std = ["mbedtls-sys-auto/std", "serde/std", "yasna"]
+std = ["mbedtls-sys-auto/std", "serde/std", "yasna", "mbedtls-selftest/std"]
 threading = []
 pthread = ["threading","std","mbedtls-sys-auto/pthread"]
 spin_threading = ["threading","spin","mbedtls-sys-auto/custom_threading"]
