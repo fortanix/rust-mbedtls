@@ -37,7 +37,7 @@ fn enable_self_test() {
 
     START.call_once(|| {
         // safe because synchronized
-        unsafe { mbedtls::self_test::enable(rand, Some(log)) };
+        unsafe { mbedtls::self_test::enable(rand, log) };
     });
 }
 
