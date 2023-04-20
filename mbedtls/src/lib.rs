@@ -9,6 +9,8 @@
 #![deny(warnings)]
 #![allow(unused_doc_comments)]
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(stable_features)]
+#![feature(extended_key_value_attributes)]
 
 #[cfg(not(any(feature = "std", feature = "no_std_deps")))]
 compile_error!("Either the `std` or `no_std_deps` feature needs to be enabled");
