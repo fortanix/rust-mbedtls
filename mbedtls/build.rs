@@ -6,6 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+use rustc_version::{version, Version};
 use std::collections::{HashMap, HashSet};
 use std::env;
 
@@ -22,7 +23,20 @@ fn get_compilation_metadata_hash() -> String {
     crate_[8..].to_owned()
 }
 
+/// Set cfg attribute to enable unstable feature based on `rustc`'s version.
+/// Some of code needs feature that is unstable when compiling with rust version
+/// that needed by `core-io`.
+fn check_and_enable_feature() {
+    let min_version_with_feature = Version::parse("1.54.0").unwrap();
+    let rustc_version = version().unwrap();
+    if rustc_version < min_version_with_feature {
+        println!("cargo:rustc-cfg=enable_extended_key_value_attributes");
+    }
+}
+
 fn main() {
+    check_and_enable_feature();
+
     let metadata_hash = get_compilation_metadata_hash();
     println!("cargo:rustc-env=RUST_MBEDTLS_METADATA_HASH={}", metadata_hash);
 

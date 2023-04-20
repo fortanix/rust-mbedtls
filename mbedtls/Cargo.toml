@@ -54,6 +54,7 @@ hyper = { version = "0.10.16", default-features = false }
 
 [build-dependencies]
 cc = "1.0"
+rustc_version = "0.2"
 
 [features]
 # Features are documented in the README
