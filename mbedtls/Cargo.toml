@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.7.3"
+version = "0.7.4"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -19,9 +19,7 @@ keywords = ["MbedTLS","mbed","TLS","SSL","cryptography"]
 
 [dependencies]
 bitflags = "1"
-chrono = { version = "0.4", optional = true }
 core_io = { version = "0.1.20210325", features = ["collections"], optional = true }
-spin = { version = "0.4.0", default-features = false, optional = true }
 serde = { version = "1.0.7", default-features = false }
 serde_derive = "1.0.7"
 byteorder = "1.0.0"
@@ -42,6 +40,10 @@ rs-libc = "0.1.0"
 [dependencies.mbedtls-selftest]
 version = "0.1"
 
+[dependencies.mbedtls-platform-support]
+version = "0.1"
+path = "../mbedtls-platform-support"
+
 [dependencies.mbedtls-sys-auto]
 version = "2.28.0"
 default-features = false
@@ -61,21 +63,21 @@ cc = "1.0"
 [features]
 # Features are documented in the README
 default = ["std", "aesni", "time", "padlock", "legacy_protocols", "use_libc"]
-std = ["mbedtls-sys-auto/std", "serde/std", "yasna", "mbedtls-selftest/std"]
+std = ["mbedtls-sys-auto/std", "serde/std", "yasna", "mbedtls-selftest/std", "mbedtls-platform-support/std"]
 threading = []
 pthread = ["threading","std","mbedtls-sys-auto/pthread"]
-spin_threading = ["threading","spin","mbedtls-sys-auto/custom_threading"]
+spin_threading = ["threading", "mbedtls-platform-support/spin_threading"]
 sgx = ["std", "rust_threading", "rdrand", "force_aesni_support"]
-rust_threading = ["threading", "mbedtls-sys-auto/custom_threading", "std"]
-force_aesni_support = ["mbedtls-sys-auto/custom_has_support","mbedtls-sys-auto/aes_alt","aesni"]
+rust_threading = ["threading", "mbedtls-platform-support/rust_threading", "std"]
+force_aesni_support = ["mbedtls-platform-support/force_aesni_support", "aesni"]
 mpi_force_c_code = ["mbedtls-sys-auto/mpi_force_c_code"]
 rdrand = []
 use_libc = ["mbedtls-sys-auto/libc"]
-custom_gmtime_r = ["mbedtls-sys-auto/custom_gmtime_r", "chrono"]
-custom_time = ["mbedtls-sys-auto/custom_time", "chrono"]
-aesni = ["mbedtls-sys-auto/aesni"]
+custom_gmtime_r = ["mbedtls-sys-auto/custom_gmtime_r"]
+custom_time = ["mbedtls-sys-auto/custom_time"]
+aesni = ["mbedtls-platform-support/aesni"]
 zlib = ["mbedtls-sys-auto/zlib"]
-time = ["mbedtls-sys-auto/time"]
+time = ["mbedtls-platform-support/time"]
 padlock = ["mbedtls-sys-auto/padlock"]
 legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]

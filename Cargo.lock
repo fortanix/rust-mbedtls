@@ -329,7 +329,7 @@ checksum = "7ffc5c5338469d4d3ea17d269fa8ea3512ad247247c30bd2df69e68309ed0a08"
 
 [[package]]
 name = "mbedtls"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "bit-vec",
  "bitflags",
@@ -337,11 +337,11 @@ dependencies = [
  "cbc",
  "cc",
  "cfg-if 1.0.0",
- "chrono",
  "core_io",
  "hex",
  "libc",
  "matches",
+ "mbedtls-platform-support",
  "mbedtls-selftest",
  "mbedtls-sys-auto",
  "num-bigint",
@@ -351,9 +351,18 @@ dependencies = [
  "serde",
  "serde_cbor",
  "serde_derive",
- "spin",
  "tokio",
  "yasna",
+]
+
+[[package]]
+name = "mbedtls-platform-support"
+version = "0.1.0"
+dependencies = [
+ "cfg-if 1.0.0",
+ "chrono",
+ "mbedtls-sys-auto",
+ "spin",
 ]
 
 [[package]]
