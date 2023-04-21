@@ -4,21 +4,19 @@
  * https://www.gnu.org/licenses/gpl-2.0.html> or the Apache License, Version
  * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your
  * option. This file may not be copied, modified, or distributed except
- * according to those terms.*/
+ * according to those terms. */
 
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 
-cfg_if::cfg_if! {
-    if #[cfg(feature = "std")]
-    || #[cfg(feature = "spin_threading")] {
-        use std::sync::{Mutex, MutexGuard};
-    } 
-    if #[cfg(not(feature = "std"))]
-    || #[cfg(all(feature = "rust_threading", not(feature = "spin_threading")))] {
-        use spin::{Mutex, MutexGuard};
-    }
-}
+#[cfg(not(feature = "std"))]
+// following cfg is for backward compatible with mbedtls 0.7
+#[cfg(all(feature = "rust_threading", not(feature = "spin_threading")))]
+use spin::{Mutex, MutexGuard};
+#[cfg(feature = "std")]
+// following cfg is for backward compatible with mbedtls 0.7
+#[cfg(feature = "spin_threading")]
+use std::sync::{Mutex, MutexGuard};
 
 use core::ptr;
 
@@ -31,20 +29,16 @@ pub struct StaticMutex {
 
 #[no_mangle]
 #[allow(non_upper_case_globals)]
-pub static mut mbedtls_mutex_init: unsafe extern "C" fn(mutex: *mut *mut StaticMutex) =
-    StaticMutex::init;
+pub static mut mbedtls_mutex_init: unsafe extern "C" fn(mutex: *mut *mut StaticMutex) = StaticMutex::init;
 #[no_mangle]
 #[allow(non_upper_case_globals)]
-pub static mut mbedtls_mutex_free: unsafe extern "C" fn(mutex: *mut *mut StaticMutex) =
-    StaticMutex::free;
+pub static mut mbedtls_mutex_free: unsafe extern "C" fn(mutex: *mut *mut StaticMutex) = StaticMutex::free;
 #[no_mangle]
 #[allow(non_upper_case_globals)]
-pub static mut mbedtls_mutex_lock: unsafe extern "C" fn(mutex: *mut *mut StaticMutex) -> c_int =
-    StaticMutex::lock;
+pub static mut mbedtls_mutex_lock: unsafe extern "C" fn(mutex: *mut *mut StaticMutex) -> c_int = StaticMutex::lock;
 #[no_mangle]
 #[allow(non_upper_case_globals)]
-pub static mut mbedtls_mutex_unlock: unsafe extern "C" fn(mutex: *mut *mut StaticMutex) -> c_int =
-    StaticMutex::unlock;
+pub static mut mbedtls_mutex_unlock: unsafe extern "C" fn(mutex: *mut *mut StaticMutex) -> c_int = StaticMutex::unlock;
 
 // The nightly compiler complains that StaticMutex has no representation hint,
 // but this is not an issue because this pointer is opaque to mbedtls
@@ -73,15 +67,13 @@ impl StaticMutex {
         if let Some(m) = mutex.as_mut().and_then(|p| p.as_mut()) {
             let guard = m.mutex.lock();
 
-            cfg_if::cfg_if! {
-                if #[cfg(feature = "std")]
-                || #[cfg(feature = "spin_threading")] {
-                    m.guard = Some(guard.unwrap());
-                } 
-                if #[cfg(not(feature = "std"))]
-                || #[cfg(all(feature = "rust_threading", not(feature = "spin_threading")))] {
-                    m.guard = Some(guard);
-                }
+            #[cfg(any(feature = "std", feature = "spin_threading"))]
+            {
+                m.guard = Some(guard.unwrap());
+            }
+            #[cfg(any(not(feature = "std"), all(feature = "rust_threading", not(feature = "spin_threading"))))]
+            {
+                m.guard = Some(guard);
             }
 
             0

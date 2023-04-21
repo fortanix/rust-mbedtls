@@ -17,16 +17,22 @@ keywords = ["MbedTLS", "mbed", "TLS", "SSL", "cryptography"]
 
 [dependencies]
 cfg-if = "1.0.0"
+spin = { version = "0.4.0", default-features = false, optional = true }
+chrono = { version = "0.4", optional = true }
+
+[target.x86_64-fortanix-unknown-sgx.dependencies]
+chrono = "0.4"
 
 [dependencies.mbedtls-sys-auto]
 version = "2.25.0"
 default-features = false
-path = "../mbedtls-sys"
 
 [features]
 time = ["mbedtls-sys-auto/time"]
 std = []
-spin_threading = []
-rust_threading = []
-custom_time = []
-custom_gmtime_r = []
+spin_threading = ["spin", "mbedtls-sys-auto/custom_threading"]
+rust_threading = ["mbedtls-sys-auto/custom_threading", "std"]
+custom_gmtime_r = ["mbedtls-sys-auto/custom_gmtime_r", "chrono"]
+custom_time = ["mbedtls-sys-auto/custom_time", "chrono"]
+force_aesni_support = ["mbedtls-sys-auto/custom_has_support","mbedtls-sys-auto/aes_alt", "aesni"]
+aesni = ["mbedtls-sys-auto/aesni"]
