@@ -506,12 +506,12 @@ dependencies = [
  "cbc",
  "cc",
  "cfg-if 1.0.0",
- "chrono",
  "futures",
  "hex",
  "hyper",
  "libc",
  "matches",
+ "mbedtls-platform-support",
  "mbedtls-selftest",
  "mbedtls-sys-auto",
  "num-bigint",
@@ -522,10 +522,19 @@ dependencies = [
  "serde",
  "serde_cbor",
  "serde_derive",
- "spin",
  "tokio",
  "tracing",
  "yasna",
+]
+
+[[package]]
+name = "mbedtls-platform-support"
+version = "0.1.0"
+dependencies = [
+ "cfg-if 1.0.0",
+ "chrono",
+ "mbedtls-sys-auto",
+ "spin",
 ]
 
 [[package]]
