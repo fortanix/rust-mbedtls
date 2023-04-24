@@ -67,6 +67,8 @@ define!(
     impl<'a> UnsafeFrom<ptr> {}
 );
 
+unsafe impl Sync for Certificate {}
+
 fn x509_buf_to_vec(buf: &x509_buf) -> Vec<u8> {
     if buf.p.is_null() || buf.len == 0 {
         return vec![];
@@ -494,10 +496,6 @@ impl<'a> Builder<'a> {
 // x509write_crt_set_subject_key_identifier
 //
 
-unsafe impl Send for MbedtlsBox<Certificate> {}
-
-unsafe impl Sync for MbedtlsBox<Certificate> {}
-
 impl MbedtlsBox<Certificate> {
     fn init() -> Result<Self> {
         unsafe {
@@ -555,10 +553,6 @@ impl<'a> UnsafeFrom<*mut *mut x509_crt> for &'a mut Option<MbedtlsBox<Certificat
         (ptr as *mut Option<MbedtlsBox<Certificate>>).as_mut()
     }
 }
-
-unsafe impl Send for MbedtlsList<Certificate> {}
-
-unsafe impl Sync for MbedtlsList<Certificate> {}
 
 impl MbedtlsList<Certificate> {
     pub fn new() -> Self {
@@ -1015,58 +1009,35 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         let c_int2 = Certificate::from_pem(C_INT2.as_bytes()).unwrap();
         let mut c_root = Certificate::from_pem_multiple(C_ROOT.as_bytes()).unwrap();
         
-        {
-            let mut chain = MbedtlsList::<Certificate>::new();
-            chain.push(c_leaf.clone());
-            chain.push(c_int1.clone());
+        // Certificate C_INT2 is missing at the beginning so the verification should fail at first
+        let mut chain = MbedtlsList::<Certificate>::new();
+        chain.push(c_leaf.clone());
+        chain.push(c_int1.clone());
 
-            let err = Certificate::verify(&chain, &mut c_root, None).unwrap_err();
-            assert_eq!(err, Error::X509CertVerifyFailed);
+        // The certificates used for this test are expired so we remove the CERT_EXPIRED flag with the callback
+        let verify_callback = |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
+            verify_flags.remove(VerifyError::CERT_EXPIRED);
+            Ok(())
+        };
 
-            // try again after fixing the chain
-            chain.push(c_int2.clone());
-
-
-            let mut err_str = String::new();
-
-            let verify_callback = |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
-                verify_flags.remove(VerifyError::CERT_EXPIRED);
-                Ok(())
-            };
-
-            Certificate::verify(&chain, &mut c_root, None).unwrap();
-            let res = Certificate::verify_with_callback(&chain, &mut c_root, Some(&mut err_str), verify_callback);
-
-            match res {
-                Ok(()) => (),
-                Err(e) => assert!(false, "Failed to verify, error: {}, err_str: {}", e, err_str),
-            };
+        let res = Certificate::verify_with_callback(&chain, &mut c_root, None, verify_callback);
+        match res {
+            Ok(_) => panic!("Certificate chain verification should have failed, but it succeeded"),
+            Err(err) => assert_eq!(err, Error::X509CertVerifyFailed),
         }
 
-        {
-            let mut chain = MbedtlsList::<Certificate>::new();
-            chain.push(c_leaf.clone());
-            chain.push(c_int1.clone());
-            chain.push(c_int2.clone());
+        // try again after fixing the chain
+        chain.push(c_int2.clone());
 
-            Certificate::verify(&chain, &mut c_root, None).unwrap();
+        let mut err_str = String::new();
 
-            let verify_callback = |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
-                verify_flags.remove(VerifyError::CERT_EXPIRED);
-                Ok(())
-            };
+        let res = Certificate::verify_with_callback(&chain, &mut c_root, Some(&mut err_str), verify_callback);
 
-            let mut err_str = String::new();
-            let res = Certificate::verify_with_callback(&chain, &mut c_root, Some(&mut err_str), verify_callback);
-
-            match res {
-                Ok(()) => (),
-                Err(e) => assert!(false, "Failed to verify, error: {}, err_str: {}", e, err_str),
-            };
-        }
+        match res {
+            Ok(()) => (),
+            Err(e) => panic!("Failed to verify, error: {}, err_str: {}", e, err_str),
+        };
     }
-
-    
     
     #[test]
     fn clone_test() {
@@ -1438,5 +1409,15 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
         let cert : &mut Certificate = unsafe { UnsafeFrom::from(ptr).unwrap() };
         assert_eq!(c1_info, format!("{:?}", cert));
+    }
+
+    #[test]
+    fn cert_send_sync() {
+        assert!(crate::tests::TestTrait::<dyn Send, Certificate>::new().impls_trait(), "Certificate should be Send");
+        assert!(crate::tests::TestTrait::<dyn Send, MbedtlsBox<Certificate>>::new().impls_trait(), "MbedtlsBox<Certificate> should be Send");
+        assert!(crate::tests::TestTrait::<dyn Send, MbedtlsList<Certificate>>::new().impls_trait(), "MbedtlsList<Certificate> should be Send");
+        assert!(crate::tests::TestTrait::<dyn Sync, Certificate>::new().impls_trait(), "Certificate should be Sync");
+        assert!(crate::tests::TestTrait::<dyn Sync, MbedtlsBox<Certificate>>::new().impls_trait(), "MbedtlsBox<Certificate> should be Sync");
+        assert!(crate::tests::TestTrait::<dyn Sync, MbedtlsList<Certificate>>::new().impls_trait(), "MbedtlsList<Certificate> should be Sync");
     }
 }
