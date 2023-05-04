@@ -104,7 +104,7 @@ impl super::BuildConfig {
         if compiler.is_like_gnu() {
             let output = compiler.to_command().args(&["--print-sysroot"]).output();
             match output {
-                Ok(sysroot) => {
+                Ok(sysroot) if sysroot.status.success() => {
                     let path = std::str::from_utf8(&sysroot.stdout).expect("Malformed sysroot");
                     let trimmed_path = path
                         .strip_suffix("\r\n")
