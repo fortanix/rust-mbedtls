@@ -39,10 +39,6 @@ default-features = false
 features = ["trusted_cert_callback", "threading"]
 path = "../mbedtls-sys"
 
-[dependencies.mbedtls-selftest]
-version = "0.1"
-path = "../mbedtls-selftest"
-
 [dependencies.mbedtls-platform-support]
 version = "0.1"
 path = "../mbedtls-platform-support"
@@ -65,7 +61,7 @@ cc = "1.0"
 [features]
 # Features are documented in the README
 default = ["std", "aesni", "time", "padlock"]
-std = ["byteorder/std", "mbedtls-sys-auto/std", "serde/std", "yasna", "mbedtls-selftest/std", "mbedtls-platform-support/std"]
+std = ["byteorder/std", "mbedtls-sys-auto/std", "serde/std", "yasna", "mbedtls-platform-support/std"]
 debug = ["mbedtls-sys-auto/debug"]
 no_std_deps = ["mbedtls-platform-support/spin", "serde/alloc"]
 force_aesni_support = ["mbedtls-platform-support/force_aesni_support", "aesni"]

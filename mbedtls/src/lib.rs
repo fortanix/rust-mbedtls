@@ -36,7 +36,7 @@ pub mod ecp;
 pub mod hash;
 pub mod pk;
 pub mod rng;
-pub use mbedtls_selftest as self_test;
+pub use mbedtls_platform_support::self_test as self_test;
 pub mod ssl;
 pub mod x509;
 pub mod alloc;

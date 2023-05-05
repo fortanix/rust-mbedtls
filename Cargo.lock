@@ -512,7 +512,6 @@ dependencies = [
  "libc",
  "matches",
  "mbedtls-platform-support",
- "mbedtls-selftest",
  "mbedtls-sys-auto",
  "num-bigint",
  "pin-project-lite",
@@ -531,19 +530,11 @@ dependencies = [
 name = "mbedtls-platform-support"
 version = "0.1.0"
 dependencies = [
+ "cc",
  "cfg-if 1.0.0",
  "chrono",
  "mbedtls-sys-auto",
  "spin",
-]
-
-[[package]]
-name = "mbedtls-selftest"
-version = "0.1.0"
-dependencies = [
- "cc",
- "cfg-if 1.0.0",
- "mbedtls-sys-auto",
 ]
 
 [[package]]

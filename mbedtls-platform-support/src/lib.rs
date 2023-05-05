@@ -23,6 +23,8 @@ mod alloc_prelude {
     pub(crate) use rust_alloc::borrow::Cow;
 }
 
+pub mod self_test;
+
 #[cfg(any(feature = "spin_threading", feature = "rust_threading", sys_threading_component = "custom"))]
 #[doc(hidden)]
 pub mod threading;
