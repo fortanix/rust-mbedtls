@@ -342,7 +342,6 @@ dependencies = [
  "libc",
  "matches",
  "mbedtls-platform-support",
- "mbedtls-selftest",
  "mbedtls-sys-auto",
  "num-bigint",
  "rand",
@@ -358,7 +357,9 @@ dependencies = [
 [[package]]
 name = "mbedtls-platform-support"
 version = "0.1.0"
+source = "git+https://github.com/fortanix/rust-mbedtls.git?branch=yx/mbedtls-platform-support#4f7ad204f85ec69ef1b253068f80c81b6982b5a6"
 dependencies = [
+ "cc",
  "cfg-if 1.0.0",
  "chrono",
  "mbedtls-sys-auto",
@@ -366,21 +367,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "mbedtls-selftest"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b5950daa65ba1c71120766dfe975d1946289d4d6fdc4757778d631037098673"
-dependencies = [
- "cc",
- "cfg-if 1.0.0",
- "mbedtls-sys-auto",
-]
-
-[[package]]
 name = "mbedtls-sys-auto"
 version = "2.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2231108271d9a10052178d940926baf24b57a2eb1703732faae387592dd6ac3"
+source = "git+https://github.com/fortanix/rust-mbedtls.git?branch=yx/mbedtls-platform-support#4f7ad204f85ec69ef1b253068f80c81b6982b5a6"
 dependencies = [
  "bindgen",
  "cc",
