@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.9.0"
+version = "0.9.1"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -19,7 +19,6 @@ keywords = ["MbedTLS","mbed","TLS","SSL","cryptography"]
 
 [dependencies]
 bitflags = "1"
-spin = { version = "0.4.0", default-features = false, optional = true }
 serde = { version = "1.0.7", default-features = false, features = ["alloc"] }
 serde_derive = "1.0.7"
 byteorder = { version = "1.0.0", default-features = false }
@@ -33,7 +32,6 @@ tokio = { version = "1.16.1", optional = true }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.2.0"
-chrono = "0.4"
 
 [dependencies.mbedtls-sys-auto]
 version = "2.25.0"
@@ -41,9 +39,9 @@ default-features = false
 features = ["trusted_cert_callback", "threading"]
 path = "../mbedtls-sys"
 
-[dependencies.mbedtls-selftest]
+[dependencies.mbedtls-platform-support]
 version = "0.1"
-path = "../mbedtls-selftest"
+path = "../mbedtls-platform-support"
 
 [dev-dependencies]
 libc = "0.2.0"
@@ -63,15 +61,15 @@ cc = "1.0"
 [features]
 # Features are documented in the README
 default = ["std", "aesni", "time", "padlock"]
-std = ["byteorder/std", "mbedtls-sys-auto/std", "serde/std", "yasna", "mbedtls-selftest/std"]
+std = ["byteorder/std", "mbedtls-sys-auto/std", "serde/std", "yasna", "mbedtls-platform-support/std"]
 debug = ["mbedtls-sys-auto/debug"]
-no_std_deps = ["spin", "serde/alloc"]
-force_aesni_support = ["mbedtls-sys-auto/custom_has_support", "mbedtls-sys-auto/aes_alt", "aesni"]
+no_std_deps = ["mbedtls-platform-support/spin", "serde/alloc"]
+force_aesni_support = ["mbedtls-platform-support/force_aesni_support", "aesni"]
 mpi_force_c_code = ["mbedtls-sys-auto/mpi_force_c_code"]
 rdrand = []
-aesni = ["mbedtls-sys-auto/aesni"]
+aesni = ["mbedtls-platform-support/aesni"]
 zlib = ["mbedtls-sys-auto/zlib"]
-time = ["mbedtls-sys-auto/time"]
+time = ["mbedtls-platform-support/time"]
 padlock = ["mbedtls-sys-auto/padlock"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]

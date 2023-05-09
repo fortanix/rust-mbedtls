@@ -497,7 +497,7 @@ checksum = "7ffc5c5338469d4d3ea17d269fa8ea3512ad247247c30bd2df69e68309ed0a08"
 
 [[package]]
 name = "mbedtls"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "async-stream",
  "bit-vec",
@@ -506,13 +506,12 @@ dependencies = [
  "cbc",
  "cc",
  "cfg-if 1.0.0",
- "chrono",
  "futures",
  "hex",
  "hyper",
  "libc",
  "matches",
- "mbedtls-selftest",
+ "mbedtls-platform-support",
  "mbedtls-sys-auto",
  "num-bigint",
  "pin-project-lite",
@@ -522,19 +521,20 @@ dependencies = [
  "serde",
  "serde_cbor",
  "serde_derive",
- "spin",
  "tokio",
  "tracing",
  "yasna",
 ]
 
 [[package]]
-name = "mbedtls-selftest"
+name = "mbedtls-platform-support"
 version = "0.1.0"
 dependencies = [
  "cc",
  "cfg-if 1.0.0",
+ "chrono",
  "mbedtls-sys-auto",
+ "spin",
 ]
 
 [[package]]
