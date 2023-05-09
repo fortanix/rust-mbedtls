@@ -126,6 +126,8 @@ pub struct Context<T> {
     client_transport_id: Option<Vec<u8>>,
 }
 
+unsafe impl<T: Sync> Sync for Context<T> {}
+
 impl<'a, T> Into<*const ssl_context> for &'a Context<T> {
     fn into(self) -> *const ssl_context {
         self.handle()
@@ -603,19 +605,19 @@ mod tests {
         assert!(!TestTrait::<dyn Sync, HandshakeContext>::new().impls_trait(), "HandshakeContext must be !Sync");
     }
 
-    struct NonSendStream {
+    struct NonSendSyncStream {
         _buffer: core::ptr::NonNull<u8>,
     }
 
     #[cfg(feature = "std")]
-    impl Read for NonSendStream {
+    impl Read for NonSendSyncStream {
         fn read(&mut self, _: &mut [u8]) -> IoResult<usize> {
             unimplemented!()
         }
     }
     
     #[cfg(feature = "std")]
-    impl Write for NonSendStream {
+    impl Write for NonSendSyncStream {
         fn write(&mut self, _: &[u8]) -> IoResult<usize> {
             unimplemented!()
         }
@@ -625,19 +627,19 @@ mod tests {
         }
     }
 
-    struct SendStream {
+    struct SendSyncStream {
         _buffer: u8,
     }
 
     #[cfg(feature = "std")]
-    impl Read for SendStream {
+    impl Read for SendSyncStream {
         fn read(&mut self, _: &mut [u8]) -> IoResult<usize> {
             unimplemented!()
         }
     }
     
     #[cfg(feature = "std")]
-    impl Write for SendStream {
+    impl Write for SendSyncStream {
         fn write(&mut self, _: &[u8]) -> IoResult<usize> {
             unimplemented!()
         }
@@ -648,12 +650,16 @@ mod tests {
     }
 
     #[test]
-    fn context_send() {
-        assert!(!TestTrait::<dyn Send, NonSendStream>::new().impls_trait(), "NonSendStream can't be send");
-        assert!(!TestTrait::<dyn Send, Context<NonSendStream>>::new().impls_trait(), "Context<NonSendStream> can't be send");
+    fn context_send_sync() {
+        assert!(!TestTrait::<dyn Send, NonSendSyncStream>::new().impls_trait(), "NonSendSyncStream can't be send");
+        assert!(!TestTrait::<dyn Send, Context<NonSendSyncStream>>::new().impls_trait(), "Context<NonSendSyncStream> can't be send");
+        assert!(!TestTrait::<dyn Sync, NonSendSyncStream>::new().impls_trait(), "NonSendSyncStream can't be sync");
+        assert!(!TestTrait::<dyn Sync, Context<NonSendSyncStream>>::new().impls_trait(), "Context<NonSendSyncStream> can't be sync");
 
-        assert!(TestTrait::<dyn Send, SendStream>::new().impls_trait(), "SendStream is send");
-        assert!(TestTrait::<dyn Send, Context<SendStream>>::new().impls_trait(), "Context<SendStream> is send");
+        assert!(TestTrait::<dyn Send, SendSyncStream>::new().impls_trait(), "SendSyncStream is send");
+        assert!(TestTrait::<dyn Send, Context<SendSyncStream>>::new().impls_trait(), "Context<SendSyncStream> is send");
+        assert!(TestTrait::<dyn Sync, SendSyncStream>::new().impls_trait(), "SendSyncStream is sync");
+        assert!(TestTrait::<dyn Sync, Context<SendSyncStream>>::new().impls_trait(), "Context<SendSyncStream> is sync");
     }
 
 }
