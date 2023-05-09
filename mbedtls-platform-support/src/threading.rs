@@ -9,10 +9,16 @@
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 
-#[cfg(any(all(feature = "spin_threading", not(feature = "rust_threading")), not(feature = "std")))]
-use spin::{Mutex, MutexGuard};
-#[cfg(any(feature = "rust_threading", feature = "std"))]
-use std::sync::{Mutex, MutexGuard};
+// use cfg_if to ensure conditional compilation is compatible with v0.7 code
+cfg_if::cfg_if! {
+    if #[cfg(any(all(feature = "spin_threading", not(feature = "rust_threading")), not(feature = "std")))] {
+        use spin::{Mutex, MutexGuard};
+    } else if #[cfg(any(feature = "rust_threading", feature = "std"))] {
+        use std::sync::{Mutex, MutexGuard};
+    } else {
+        {}
+    }
+}
 
 use core::ptr;
 
@@ -63,13 +69,15 @@ impl StaticMutex {
         if let Some(m) = mutex.as_mut().and_then(|p| p.as_mut()) {
             let guard = m.mutex.lock();
 
-            #[cfg(any(feature = "std", all(feature = "rust_threading", not(feature = "spin_threading"))))]
-            {
-                m.guard = Some(guard.unwrap());
-            }
-            #[cfg(any(not(feature = "std"), feature = "spin_threading"))]
-            {
-                m.guard = Some(guard);
+            // use cfg_if to ensure conditional compilation is compatible with v0.7 code
+            cfg_if::cfg_if! {
+                if #[cfg(any(not(feature = "std"), feature = "spin_threading"))] {
+                    m.guard = Some(guard);
+                } else if #[cfg(any(feature = "std", all(feature = "rust_threading", not(feature = "spin_threading"))))] {
+                    m.guard = Some(guard.unwrap());
+                } else {
+                    {}
+                }
             }
 
             0
