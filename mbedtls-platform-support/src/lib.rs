@@ -69,7 +69,10 @@ pub unsafe extern "C" fn mbedtls_platform_gmtime_r(tt: *const mbedtls_sys::types
     let naive = if tp.is_null() {
         return core::ptr::null_mut()
     } else {
-        NaiveDateTime::from_timestamp(*tt, 0)
+        match NaiveDateTime::from_timestamp_opt(*tt, 0) {
+            Some(t) => t,
+            None => return core::ptr::null_mut()
+        }
     };
     let utc = DateTime::<Utc>::from_utc(naive, Utc);
 
@@ -79,8 +82,11 @@ pub unsafe extern "C" fn mbedtls_platform_gmtime_r(tt: *const mbedtls_sys::types
     tp.tm_hour  = utc.hour()     as i32;
     tp.tm_mday  = utc.day()      as i32;
     tp.tm_mon   = utc.month0()   as i32;
-    tp.tm_year  = utc.year()     as i32 - 1900;
-    tp.tm_wday  = utc.weekday().num_days_from_monday() as i32;
+    tp.tm_year  = match (utc.year() as i32).checked_sub(1900) {
+        Some(year) => year,
+        None => return core::ptr::null_mut()
+    };
+    tp.tm_wday  = utc.weekday().num_days_from_sunday() as i32;
     tp.tm_yday  = utc.ordinal0() as i32;
     tp.tm_isdst = 0;
 
