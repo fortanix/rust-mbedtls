@@ -3,7 +3,7 @@ name = "mbedtls-sys-auto"
 version = "2.28.0"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build/build.rs"
-license = "Apache-2.0/GPL-2.0+"
+license = "Apache-2.0 OR GPL-2.0-or-later"
 description = """
 Rust bindings for MbedTLS.
 

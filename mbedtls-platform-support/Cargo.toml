@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Yuxiang Cao <yuxiang.cao@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
-license = "Apache-2.0/GPL-2.0+"
+license = "Apache-2.0 OR GPL-2.0-or-later"
 description = """
 This Rust crate is a support library for the `mbedtls` crate, providing platform and target specific
 implementations of all necessary functions. By separating this logic into a separate crate, multiple
