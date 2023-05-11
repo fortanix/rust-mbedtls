@@ -126,6 +126,12 @@ pub struct Context<T> {
     client_transport_id: Option<Vec<u8>>,
 }
 
+// # Safety
+//
+// It is safe for `Context` to be `Sync` as all its methods taking `&self`
+// can only trigger `MbedTLS` functions that have no side effects.
+// When introducing any new FFI call inside `&self` methods, `MbedTLS` sources
+// should be reviewed whether they don't result in any side-effect.
 unsafe impl<T: Sync> Sync for Context<T> {}
 
 impl<'a, T> Into<*const ssl_context> for &'a Context<T> {
