@@ -357,7 +357,7 @@ dependencies = [
 [[package]]
 name = "mbedtls-platform-support"
 version = "0.1.0"
-source = "git+https://github.com/fortanix/rust-mbedtls.git?branch=yx/mbedtls-platform-support#8fb58d4371a2e7b6617a60dfed9a67da08533db8"
+source = "git+https://github.com/fortanix/rust-mbedtls.git?branch=master#95a24391ce2afc22aecc1ee9f44f00e895fd0461"
 dependencies = [
  "cc",
  "cfg-if 1.0.0",
@@ -369,7 +369,7 @@ dependencies = [
 [[package]]
 name = "mbedtls-sys-auto"
 version = "2.28.0"
-source = "git+https://github.com/fortanix/rust-mbedtls.git?branch=yx/mbedtls-platform-support#8fb58d4371a2e7b6617a60dfed9a67da08533db8"
+source = "git+https://github.com/fortanix/rust-mbedtls.git?branch=master#95a24391ce2afc22aecc1ee9f44f00e895fd0461"
 dependencies = [
  "bindgen",
  "cc",
