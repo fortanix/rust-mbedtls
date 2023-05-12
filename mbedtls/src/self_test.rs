@@ -15,25 +15,25 @@ use mbedtls_sys::types::raw_types::{c_char, c_int};
 
 // needs to be pub for global visiblity
 #[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
-pub use mbedtls_selftest::rand;
+pub use mbedtls_platform_support::self_test::rand;
 
 // needs to be pub for global visiblity
 #[cfg(all(feature = "std", not(target_os = "none")))]
-pub use mbedtls_selftest::mbedtls_log;
+pub use mbedtls_platform_support::self_test::mbedtls_log;
 
 // needs to be pub for global visiblity
 #[cfg(any(target_os = "none", not(feature = "std")))]
-pub use mbedtls_selftest::mbedtls_log;
+pub use mbedtls_platform_support::self_test::mbedtls_log;
 
 // unsafe since unsynchronized
 #[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
 pub unsafe fn enable(rand: fn() -> c_int, log: unsafe fn(*const c_char)) {
-    mbedtls_selftest::enable(rand, Some(log))
+    mbedtls_platform_support::self_test::enable(rand, Some(log))
 }
 
 // unsafe since unsynchronized
 #[cfg(any(target_os = "none", target_env = "sgx", not(feature = "std")))]
-pub use mbedtls_selftest::disable;
+pub use mbedtls_platform_support::self_test::disable;
 
 pub use mbedtls_sys::{
     aes_self_test as aes, arc4_self_test as arc4, aria_self_test as aria, base64_self_test as base64,
