@@ -1,12 +1,2 @@
 [workspace]
 members = ["mbedtls"]
-
-[patch.crates-io]
-# This patch resolves a local dependency conflict between `mbedtls` and `mbedtls-selftest`.
-# Both of these crates require the native library `mbedtls-sys-auto`.
-# By default, Cargo chooses the `mbedtls-sys-auto` version from crates.io for `mbedtls-selftest`,
-# which conflicts with the local `mbedtls-sys-auto` used by `mbedtls`.
-# This patch ensures the local `mbedtls-sys-auto` is used for both crates.
-# TODO: remove these patches once `mbedtls-platform-support v0.1.0` is published
-mbedtls-platform-support = { git = "https://github.com/fortanix/rust-mbedtls.git", branch = "master"}
-mbedtls-sys-auto = { git = "https://github.com/fortanix/rust-mbedtls.git", branch = "master"}
