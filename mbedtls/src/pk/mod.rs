@@ -832,6 +832,11 @@ impl Pk {
         sig: &mut [u8],
         rng: &mut F,
     ) -> Result<usize> {
+        // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to auto-detect size and cause an invalid write.
+        if hash.len() == 0 || sig.len() == 0 {
+            return Err(Error::PkBadInputData)
+        }
+
         match self.pk_type() {
             Type::Rsa | Type::RsaAlt | Type::RsassaPss => {
                 if sig.len() < (self.len() / 8) {
@@ -868,6 +873,11 @@ impl Pk {
         sig: &mut [u8],
         rng: &mut F,
     ) -> Result<usize> {
+        // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to auto-detect size and cause an invalid write.
+        if hash.len() == 0 || sig.len() == 0 {
+            return Err(Error::PkBadInputData)
+        }
+
         use crate::rng::RngCallbackMut;
 
         if self.pk_type() == Type::Ecdsa || self.pk_type() == Type::Eckey {
@@ -913,6 +923,11 @@ impl Pk {
     }
 
     pub fn verify(&mut self, md: MdType, hash: &[u8], sig: &[u8]) -> Result<()> {
+        // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to auto-detect size and cause an invalid write.
+        if hash.len() == 0 || sig.len() == 0 {
+            return Err(Error::PkBadInputData)
+        }
+
         unsafe {
             pk_verify(
                 &mut self.inner,
@@ -1040,7 +1055,7 @@ impl Pk {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hash::Type;
+    use crate::hash::{Type, MdInfo};
     use crate::pk::Type as PkType;
 
     // This is test data that must match library output *exactly*
@@ -1242,7 +1257,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
     fn rsa_sign_verify_pkcs1v15() {
         let mut pk =
             Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
-        let data = b"SIGNATURE TEST SIGNATURE TEST SI";
+        let data = b"SIGNATURE TEST SIGNATURE TEST SIGNATURE TEST SIGNATURE TEST SIGN";
         let mut signature = vec![0u8; (pk.len() + 7) / 8];
 
         let digests = [
@@ -1258,16 +1273,34 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             Type::Ripemd,
         ];
 
-        for digest in &digests {
+        for &digest in &digests {
+            let data = if let Some(md @ MdInfo { .. }) = digest.into() {
+                &data[..md.size()]
+            } else {
+                &data[..]
+            };
+
             let len = pk
                 .sign(
-                    *digest,
+                    digest,
                     data,
                     &mut signature,
                     &mut crate::test_support::rand::test_rng(),
                 )
                 .unwrap();
-            pk.verify(*digest, data, &signature[0..len]).unwrap();
+            pk.verify(digest, data, &signature[0..len]).unwrap();
+
+            assert_eq!(pk.verify(digest, data, &[]).unwrap_err(), Error::PkBadInputData);
+            assert_eq!(pk.verify(digest, &[], &signature[0..len]).unwrap_err(), Error::PkBadInputData);
+
+
+            let mut dummy_sig = [];
+            assert_eq!(pk.sign(digest, data, &mut dummy_sig, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::PkBadInputData);
+            assert_eq!(pk.sign(digest, &[], &mut signature, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::PkBadInputData);
+            
+            assert_eq!(pk.sign_deterministic(digest, data, &mut dummy_sig, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::PkBadInputData);
+            assert_eq!(pk.sign_deterministic(digest, &[], &mut signature, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::PkBadInputData);
+
         }
     }
 
@@ -1275,7 +1308,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
     fn rsa_sign_verify_pss() {
         let mut pk =
             Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
-        let data = b"SIGNATURE TEST SIGNATURE TEST SI";
+        let data = b"SIGNATURE TEST SIGNATURE TEST SIGNATURE TEST SIGNATURE TEST SIGN";
         let mut signature = vec![0u8; (pk.len() + 7) / 8];
 
         let digests = [
@@ -1291,15 +1324,21 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             Type::Ripemd,
         ];
 
-        for digest in &digests {
+        for &digest in &digests {
+            let data = if let Some(md @ MdInfo { .. }) = digest.into() {
+                &data[..md.size()]
+            } else {
+                &data[..]
+            };
+
             pk.set_options(Options::Rsa {
-                padding: RsaPadding::Pkcs1V21 { mgf: *digest },
+                padding: RsaPadding::Pkcs1V21 { mgf: digest },
             });
 
-            if *digest == Type::None {
+            if digest == Type::None {
                 assert!(pk
                     .sign(
-                        *digest,
+                        digest,
                         data,
                         &mut signature,
                         &mut crate::test_support::rand::test_rng()
@@ -1308,13 +1347,13 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             } else {
                 let len = pk
                     .sign(
-                        *digest,
+                        digest,
                         data,
                         &mut signature,
                         &mut crate::test_support::rand::test_rng(),
                     )
                     .unwrap();
-                pk.verify(*digest, data, &signature[0..len]).unwrap();
+                pk.verify(digest, data, &signature[0..len]).unwrap();
             }
         }
     }

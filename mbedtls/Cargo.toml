@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.8.2"
+version = "0.8.3"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -20,7 +20,6 @@ keywords = ["MbedTLS","mbed","TLS","SSL","cryptography"]
 [dependencies]
 bitflags = "1"
 core_io = { version = "0.1", features = ["collections"], optional = true }
-spin = { version = "0.4.0", default-features = false, optional = true }
 serde = { version = "1.0.7", default-features = false }
 serde_derive = "1.0.7"
 byteorder = "1.0.0"
@@ -33,13 +32,14 @@ cfg-if = "1.0.0"
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.2.0"
-chrono = "0.4"
 
 [dependencies.mbedtls-sys-auto]
 version = "2.25.0"
 default-features = false
-features = ["custom_printf", "trusted_cert_callback", "threading"]
-path = "../mbedtls-sys"
+features = ["trusted_cert_callback", "threading"]
+
+[dependencies.mbedtls-platform-support]
+version = "0.1"
 
 [dev-dependencies]
 libc = "0.2.0"
@@ -51,19 +51,20 @@ hyper = { version = "0.10.16", default-features = false }
 
 [build-dependencies]
 cc = "1.0"
+rustc_version = "0.2"
 
 [features]
 # Features are documented in the README
 default = ["std", "aesni", "time", "padlock"]
-std = ["mbedtls-sys-auto/std", "serde/std", "yasna"]
+std = ["mbedtls-sys-auto/std", "serde/std", "yasna", "mbedtls-platform-support/std"]
 debug = ["mbedtls-sys-auto/debug"]
-no_std_deps = ["core_io", "spin"]
-force_aesni_support = ["mbedtls-sys-auto/custom_has_support", "mbedtls-sys-auto/aes_alt", "aesni"]
+no_std_deps = ["core_io", "mbedtls-platform-support/spin"]
+force_aesni_support = ["mbedtls-platform-support/force_aesni_support", "mbedtls-sys-auto/custom_has_support", "mbedtls-sys-auto/aes_alt", "aesni"]
 mpi_force_c_code = ["mbedtls-sys-auto/mpi_force_c_code"]
 rdrand = []
-aesni = ["mbedtls-sys-auto/aesni"]
+aesni = ["mbedtls-platform-support/aesni"]
 zlib = ["mbedtls-sys-auto/zlib"]
-time = ["mbedtls-sys-auto/time"]
+time = ["mbedtls-platform-support/time"]
 padlock = ["mbedtls-sys-auto/padlock"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]

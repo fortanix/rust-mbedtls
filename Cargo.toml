@@ -1,2 +1,2 @@
 [workspace]
-members = ["mbedtls", "mbedtls-sys"]
+members = ["mbedtls"]
