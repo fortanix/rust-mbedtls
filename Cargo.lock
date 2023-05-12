@@ -357,7 +357,8 @@ dependencies = [
 [[package]]
 name = "mbedtls-platform-support"
 version = "0.1.0"
-source = "git+https://github.com/fortanix/rust-mbedtls.git?branch=master#95a24391ce2afc22aecc1ee9f44f00e895fd0461"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85be113c8c2dc54cc6a5fba20130c7128f78dcb3ed0bb6797427333fa8cdb54d"
 dependencies = [
  "cc",
  "cfg-if 1.0.0",
@@ -369,7 +370,8 @@ dependencies = [
 [[package]]
 name = "mbedtls-sys-auto"
 version = "2.28.0"
-source = "git+https://github.com/fortanix/rust-mbedtls.git?branch=master#95a24391ce2afc22aecc1ee9f44f00e895fd0461"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2231108271d9a10052178d940926baf24b57a2eb1703732faae387592dd6ac3"
 dependencies = [
  "bindgen",
  "cc",
