@@ -24,7 +24,7 @@ fn main() {
     let config_file = format!(r#""{}""#, env::var("DEP_MBEDTLS_CONFIG_H").unwrap());
     b.define("MBEDTLS_CONFIG_FILE",
              Some(config_file.as_str()));
-    
+
     b.file("src/rust_printf.c");
     if sys_platform_components.get("c_compiler").map_or(false, |comps| comps.contains("freestanding")) {
         b.flag("-U_FORTIFY_SOURCE")
