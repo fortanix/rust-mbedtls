@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls-platform-support"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Yuxiang Cao <yuxiang.cao@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -27,7 +27,7 @@ chrono = { version = "0.4", optional = true }
 chrono = "0.4"
 
 [dependencies.mbedtls-sys-auto]
-version = "2.25.0"
+version = "3.4.0"
 default-features = false
 features = ["threading", "custom_printf"]
 path = "../mbedtls-sys"
@@ -38,9 +38,5 @@ cc = "1.0"
 [features]
 time = ["mbedtls-sys-auto/time"]
 std = ["mbedtls-sys-auto/std"]
-spin_threading = ["spin", "mbedtls-sys-auto/custom_threading"]
-rust_threading = ["mbedtls-sys-auto/custom_threading", "std"]
-custom_gmtime_r = ["mbedtls-sys-auto/custom_gmtime_r", "chrono"]
-custom_time = ["mbedtls-sys-auto/custom_time", "chrono"]
 force_aesni_support = ["mbedtls-sys-auto/custom_has_support","mbedtls-sys-auto/aes_alt", "aesni"]
 aesni = ["mbedtls-sys-auto/aesni"]
