@@ -14,14 +14,10 @@
 // with Rust's notion of safety.
 
 #[forbid(unsafe_code)]
-#[cfg(not(feature = "std"))]
-use crate::alloc_prelude::*;
-
+use core::fmt;
 use core::result::Result as StdResult;
 
-use core::fmt;
-
-#[cfg(feature = "std")]
+// pcks12 feature ensures std
 use std::error::Error as StdError;
 
 use yasna::models::ObjectIdentifier;
@@ -32,7 +28,7 @@ use yasna::{ASN1Result, BERDecodable, BERReader, BERReaderSeq, Tag};
 use crate::alloc::Box as MbedtlsBox;
 use crate::cipher::raw::{CipherId, CipherMode};
 use crate::cipher::{Cipher, Decryption, Fresh, Traditional};
-use crate::hash::{pbkdf_pkcs12, Hmac, MdInfo, Type as MdType};
+use crate::hash::{pbkdf2_hmac, pbkdf_pkcs12, Hmac, MdInfo, Type as MdType};
 use crate::pk::Pk;
 use crate::x509::Certificate;
 use crate::Error as MbedtlsError;
@@ -63,6 +59,20 @@ const OID_SHA1: &[u64] = &[1, 3, 14, 3, 2, 26];
 const OID_SHA256: &[u64] = &[2, 16, 840, 1, 101, 3, 4, 2, 1];
 const OID_SHA384: &[u64] = &[2, 16, 840, 1, 101, 3, 4, 2, 2];
 const OID_SHA512: &[u64] = &[2, 16, 840, 1, 101, 3, 4, 2, 3];
+
+const PKCS12_PBES2: &[u64] = &[1, 2, 840, 113549, 1, 5, 13];
+const PKCS12_PBES2_PBKDF2: &[u64] = &[1, 2, 840, 113549, 1, 5, 12];
+
+const OID_DES_EDE3_CBC: &[u64] = &[1, 2, 840, 113549, 3, 7];
+const OID_AES_128_CBC: &[u64] = &[2, 16, 840, 1, 101, 3, 4, 1, 2];
+const OID_AES_192_CBC: &[u64] = &[2, 16, 840, 1, 101, 3, 4, 1, 22];
+const OID_AES_256_CBC: &[u64] = &[2, 16, 840, 1, 101, 3, 4, 1, 42];
+
+const OID_HMAC_SHA1: &[u64] = &[1, 2, 840, 113549, 2, 7];
+const OID_HMAC_SHA224: &[u64] = &[1, 2, 840, 113549, 2, 8];
+const OID_HMAC_SHA256: &[u64] = &[1, 2, 840, 113549, 2, 9];
+const OID_HMAC_SHA384: &[u64] = &[1, 2, 840, 113549, 2, 10];
+const OID_HMAC_SHA512: &[u64] = &[1, 2, 840, 113549, 2, 11];
 
 fn read_struct_from_bytes<T: BERDecodable>(der: &[u8]) -> ASN1Result<T> {
     yasna::decode_der::<T>(der)
@@ -520,6 +530,26 @@ pub struct Pfx {
     raw_data: Vec<u8>,
 }
 
+#[derive(Debug, Clone)]
+enum Pkcs12Pbes {
+    Pbes1 {
+        algo: ObjectIdentifier,
+        params: Pkcs12PbeParams,
+    },
+    Pbes2(Pkcs12Pbes2Params),
+}
+
+impl Pkcs12Pbes {
+    fn decrypt(&self, ciphertext: &[u8], passphrase: &Pkcs12Passphrase) -> Pkcs12Result<Vec<u8>> {
+        match self {
+            Pkcs12Pbes::Pbes1 { algo, params } => {
+                decrypt_pbes1(ciphertext, params, algo, &passphrase.ucs_16)
+            }
+            Pkcs12Pbes::Pbes2(params) => decrypt_pbes2(ciphertext, params, &passphrase.utf8),
+        }
+    }
+}
+
 // See RFC 7292 Appendix C
 #[derive(Debug, Clone)]
 struct Pkcs12PbeParams {
@@ -537,19 +567,81 @@ impl BERDecodable for Pkcs12PbeParams {
     }
 }
 
-// PKCS12 formats PBKDF input as BMP (UCS-16) with trailing NULL
-// See RFC 7292 Appendix B.1
-fn format_passphrase_for_pkcs12(passphrase: &str) -> Vec<u8> {
-    let mut v = Vec::with_capacity((passphrase.len() + 1) * 2);
-
-    for c in passphrase.encode_utf16().chain(core::iter::once(0)) {
-        v.extend_from_slice(&c.to_be_bytes())
-    }
-
-    v
+// See RFC 8018 Appendix A.4
+#[derive(Debug, Clone)]
+struct Pkcs12Pbes2Params {
+    kdf: Pbkdf2Params,
+    encryption_scheme: Pbes2EncryptionScheme,
 }
 
-fn decrypt_contents(data: &EncryptedData, passphrase: &[u8]) -> Pkcs12Result<SafeContents> {
+impl BERDecodable for Pkcs12Pbes2Params {
+    fn decode_ber(reader: BERReader) -> ASN1Result<Self> {
+        reader.read_sequence(|reader| {
+            let kdf = reader.next().read_sequence(|reader| {
+                let algo = reader.next().read_oid()?;
+                // Scrypt not supported
+                if algo.as_ref() != PKCS12_PBES2_PBKDF2 {
+                    Err(ASN1Error::new(ASN1ErrorKind::Invalid))?
+                }
+                read_struct_from_bytes(&reader.next().read_der()?)
+            })?;
+            let encryption_scheme = read_struct_from_bytes(&reader.next().read_der()?)?;
+            Ok(Pkcs12Pbes2Params {
+                kdf,
+                encryption_scheme,
+            })
+        })
+    }
+}
+
+// See RFC 8018 Appendix A.2
+#[derive(Debug, Clone)]
+struct Pbkdf2Params {
+    salt: Vec<u8>,
+    iterations: u32,
+    #[allow(unused)]
+    key_length: Option<u16>,
+    prf: AlgorithmIdentifier,
+}
+
+impl BERDecodable for Pbkdf2Params {
+    fn decode_ber(reader: BERReader) -> ASN1Result<Self> {
+        reader.read_sequence(|reader| {
+            let salt = reader.next().read_bytes()?;
+            let iterations = reader.next().read_u32()?;
+            let key_length = reader.read_optional(|reader| reader.read_u16())?;
+            let prf = read_struct_from_bytes(&reader.next().read_der()?)?;
+            Ok(Pbkdf2Params {
+                salt,
+                iterations,
+                key_length,
+                prf,
+            })
+        })
+    }
+}
+
+// See RFC 8018 Appendix B.2
+#[derive(Debug, Clone)]
+struct Pbes2EncryptionScheme {
+    algo: ObjectIdentifier,
+    iv: Vec<u8>,
+}
+
+impl BERDecodable for Pbes2EncryptionScheme {
+    fn decode_ber(reader: BERReader) -> ASN1Result<Self> {
+        reader.read_sequence(|reader| {
+            let algo = reader.next().read_oid()?;
+            let iv = reader.next().read_bytes()?;
+            Ok(Pbes2EncryptionScheme { algo, iv })
+        })
+    }
+}
+
+fn decrypt_contents(
+    data: &EncryptedData,
+    passphrase: &Pkcs12Passphrase,
+) -> Pkcs12Result<SafeContents> {
     if data.version != 0 {
         return Err(Pkcs12Error::Custom(format!(
             "Unknown EncryptedData version {}",
@@ -557,46 +649,85 @@ fn decrypt_contents(data: &EncryptedData, passphrase: &[u8]) -> Pkcs12Result<Saf
         )));
     }
 
-    let encryption_algo = &data.content_info.encryption_algo.algo;
-    let pbe_params: Pkcs12PbeParams = yasna::decode_der(&data.content_info.encryption_algo.params)?;
+    let pbes = Pkcs12Pbes::Pbes1 {
+        algo: data.content_info.encryption_algo.algo.clone(),
+        params: yasna::decode_der(&data.content_info.encryption_algo.params)?,
+    };
 
-    let pt = decrypt_data(
-        &data.content_info.encrypted_content,
-        &pbe_params,
-        encryption_algo,
-        passphrase,
-    )?;
+    let pt = pbes.decrypt(&data.content_info.encrypted_content, passphrase)?;
 
     let sc = read_struct_from_bytes::<SafeContents>(&pt)?;
     return Ok(sc);
 }
 
-fn decrypt_pkcs8(pkcs8: &[u8], passphrase: &[u8]) -> Pkcs12Result<Vec<u8>> {
-    let p8 = yasna::parse_der(pkcs8, |reader| {
-        reader.read_sequence(|reader| {
-            let alg_id = read_struct_from_bytes::<AlgorithmIdentifier>(&reader.next().read_der()?)?;
-            let pbe_params = read_struct_from_bytes::<Pkcs12PbeParams>(&alg_id.params)?;
-            let enc_p8 = reader.next().read_bytes()?;
+// PKCS12 formats PBKDF input as BMP (UCS-16) with trailing NULL
+// See RFC 7292 Appendix B.1
+fn format_passphrase_for_pkcs12(passphrase: &str) -> Vec<u8> {
+    passphrase
+        .encode_utf16()
+        .chain(core::iter::once(0))
+        .flat_map(u16::to_be_bytes)
+        .collect()
+}
 
-            decrypt_data(&enc_p8, &pbe_params, &alg_id.algo, passphrase)
-                .map_err(|_| ASN1Error::new(ASN1ErrorKind::Invalid))
+struct Pkcs12Passphrase<'a> {
+    utf8: &'a [u8],
+    ucs_16: Vec<u8>,
+}
+
+impl<'a> Pkcs12Passphrase<'a> {
+    fn new(utf8: &'a str) -> Self {
+        Self {
+            utf8: utf8.as_bytes(),
+            ucs_16: format_passphrase_for_pkcs12(utf8),
+        }
+    }
+}
+fn decrypt_pkcs8(pkcs8: &[u8], passphrase: &Pkcs12Passphrase) -> Pkcs12Result<Vec<u8>> {
+    let (alg_id, enc_p8) = yasna::parse_der(pkcs8, |reader| {
+        reader.read_sequence(|reader| {
+            let alg_id = reader.next().read_der()?;
+            let enc_p8 = reader.next().read_bytes()?;
+            Ok((alg_id, enc_p8))
         })
     })?;
 
-    Ok(p8)
+    let algorithm = read_struct_from_bytes::<AlgorithmIdentifier>(&alg_id)?;
+
+    let pbes = match algorithm.algo.as_ref() {
+        PKCS12_PBES2 => Pkcs12Pbes::Pbes2(read_struct_from_bytes(&algorithm.params)?),
+        _ => Pkcs12Pbes::Pbes1 {
+            params: read_struct_from_bytes(&algorithm.params)?,
+            algo: algorithm.algo,
+        },
+    };
+
+    pbes.decrypt(&enc_p8, &passphrase)
+}
+
+fn decrypt_aes(ciphertext: &[u8], key: &[u8], iv: &[u8]) -> Pkcs12Result<Vec<u8>> {
+    let key_len = key.len() as u32 * 8;
+    let cipher = Cipher::new(CipherId::Aes, CipherMode::CBC, key_len)?;
+    decrypt_cbc(cipher, ciphertext, key, iv)
 }
 
 fn decrypt_3des(ciphertext: &[u8], key: &[u8], iv: &[u8]) -> Pkcs12Result<Vec<u8>> {
-    let cipher = Cipher::<Decryption, Traditional, Fresh>::new(
-        CipherId::Des3,
-        CipherMode::CBC,
-        (key.len() * 8) as u32,
-    )?;
-    let cipher = cipher.set_key_iv(&key, &iv)?;
-    let mut plaintext = vec![0; ciphertext.len() + 8];
-    let len = cipher.decrypt(&ciphertext, &mut plaintext)?;
+    let key_len = key.len() as u32 * 8;
+    let cipher = Cipher::new(CipherId::Des3, CipherMode::CBC, key_len)?;
+    decrypt_cbc(cipher, ciphertext, key, iv)
+}
+
+fn decrypt_cbc(
+    cipher: Cipher<Decryption, Traditional, Fresh>,
+    ciphertext: &[u8],
+    key: &[u8],
+    iv: &[u8],
+) -> Pkcs12Result<Vec<u8>> {
+    let cipher = cipher.set_key_iv(key, iv)?;
+    let mut plaintext = vec![0; ciphertext.len() + cipher.block_size()];
+    let len = cipher.decrypt(ciphertext, &mut plaintext)?;
     plaintext.truncate(len.0);
-    return Ok(plaintext);
+    Ok(plaintext)
 }
 
 #[cfg(feature = "pkcs12_rc2")]
@@ -638,7 +769,7 @@ fn key_length(algo: Pkcs12EncryptionAlgo) -> usize {
     }
 }
 
-fn decrypt_data(
+fn decrypt_pbes1(
     ciphertext: &[u8],
     pbe_params: &Pkcs12PbeParams,
     encryption_algo: &ObjectIdentifier,
@@ -689,6 +820,45 @@ fn decrypt_data(
             decrypt_rc2(ciphertext, &cipher_key, &cipher_iv)
         }
     };
+}
+
+fn decrypt_pbes2(
+    ciphertext: &[u8],
+    pbe_params: &Pkcs12Pbes2Params,
+    passphrase: &[u8],
+) -> Pkcs12Result<Vec<u8>> {
+    let key_len = match pbe_params.encryption_scheme.algo.as_ref() {
+        OID_DES_EDE3_CBC => 192 / 8,
+        OID_AES_128_CBC => 128 / 8,
+        OID_AES_192_CBC => 192 / 8,
+        OID_AES_256_CBC => 256 / 8,
+        _ => Err(Pkcs12Error::Crypto(MbedtlsError::CipherFeatureUnavailable))?,
+    };
+
+    let md_type = match pbe_params.kdf.prf.algo.as_ref() {
+        OID_HMAC_SHA1 => MdType::Sha1,
+        OID_HMAC_SHA224 => MdType::Sha224,
+        OID_HMAC_SHA256 => MdType::Sha256,
+        OID_HMAC_SHA384 => MdType::Sha384,
+        OID_HMAC_SHA512 => MdType::Sha512,
+        _ => Err(Pkcs12Error::Crypto(MbedtlsError::CipherFeatureUnavailable))?,
+    };
+
+    let mut cipher_key = vec![0; key_len];
+    pbkdf2_hmac(
+        md_type,
+        passphrase,
+        &pbe_params.kdf.salt,
+        pbe_params.kdf.iterations,
+        &mut cipher_key,
+    )?;
+
+    match pbe_params.encryption_scheme.algo.as_ref() {
+        OID_DES_EDE3_CBC => {
+            decrypt_3des(&ciphertext, &cipher_key, &pbe_params.encryption_scheme.iv)
+        }
+        _ => decrypt_aes(&ciphertext, &cipher_key, &pbe_params.encryption_scheme.iv),
+    }
 }
 
 impl Pfx {
@@ -757,21 +927,7 @@ impl Pfx {
     /// distinct passwords for encryption and authentication) can be created
     /// using openssl with the -twopass option.
     pub fn decrypt(&self, passphrase: &str, mac_passphrase: Option<&str>) -> Pkcs12Result<Pfx> {
-        // Test if this object is already decrypted
-        if self.raw_data.len() == 0 {
-            return Ok(self.clone());
-        }
-
-        let passphrase = format_passphrase_for_pkcs12(passphrase);
-
-        if let Some(mac_pass) = mac_passphrase {
-            let mac_passphrase = format_passphrase_for_pkcs12(mac_pass);
-            self.authenticate(&mac_passphrase)?;
-        } else {
-            self.authenticate(&passphrase)?;
-        }
-
-        fn decrypt_pkcs8_sb(sb: &SafeBag, passphrase: &[u8]) -> Pkcs12Result<SafeBag> {
+        fn decrypt_pkcs8_sb(sb: &SafeBag, passphrase: &Pkcs12Passphrase) -> Pkcs12Result<SafeBag> {
             if let &Pkcs12BagSet::EncryptedPkcs8(ref p8) = &sb.bag_value {
                 let decrypted_p8 = decrypt_pkcs8(&p8, passphrase)?;
                 return Ok(SafeBag {
@@ -786,7 +942,7 @@ impl Pfx {
 
         fn decrypt_data(
             data: &AuthenticatedSafe,
-            passphrase: &[u8],
+            passphrase: &Pkcs12Passphrase,
         ) -> Pkcs12Result<AuthenticatedSafe> {
             match data {
                 &AuthenticatedSafe::Data(ref sc) => {
@@ -799,10 +955,24 @@ impl Pfx {
                     Ok(AuthenticatedSafe::Data(SafeContents(contents)))
                 }
                 &AuthenticatedSafe::EncryptedData(ref ed) => {
-                    let decrypted = decrypt_contents(&ed, &passphrase)?;
+                    let decrypted = decrypt_contents(&ed, passphrase)?;
                     Ok(AuthenticatedSafe::Data(decrypted))
                 }
             }
+        }
+
+        // Test if this object is already decrypted
+        if self.raw_data.len() == 0 {
+            return Ok(self.clone());
+        }
+
+        let passphrase = Pkcs12Passphrase::new(passphrase);
+
+        if let Some(mac_pass) = mac_passphrase {
+            let mac_passphrase = format_passphrase_for_pkcs12(mac_pass);
+            self.authenticate(&mac_passphrase)?;
+        } else {
+            self.authenticate(&passphrase.ucs_16)?;
         }
 
         let mut new_authsafe = Vec::new();
@@ -1236,4 +1406,42 @@ mod tests {
         assert_eq!(pk.len(), 2048);
     }
 
+    #[test]
+    fn parse_pbes2() {
+        // Generated with
+        // ```
+        // for alg in "DES-EDE3-CBC" "AES-128-CBC" "AES-192-CBC" "AES-256-CBC"; do
+        // openssl pkcs12 -export -descert -keypbe $alg -name friendly_name -inkey key.pem -in cert.pem -password pass:mbedtls > pbes2-$alg.p12
+        // done
+        // ```
+        let keys = [
+            &include_bytes!("../../tests/data/pbes2-DES-EDE3-CBC.p12")[..],
+            &include_bytes!("../../tests/data/pbes2-AES-128-CBC.p12")[..],
+            &include_bytes!("../../tests/data/pbes2-AES-192-CBC.p12")[..],
+            &include_bytes!("../../tests/data/pbes2-AES-256-CBC.p12")[..],
+        ];
+        let password = "mbedtls";
+        let friendly_name = "friendly_name";
+
+        for pfx_bits in keys {
+            let pfx = Pfx::parse(pfx_bits).unwrap();
+
+            let certs = pfx.certificates().collect::<Vec<_>>();
+            assert_eq!(certs.len(), 0);
+
+            let keys = pfx.private_keys().collect::<Vec<_>>();
+            assert_eq!(keys.len(), 0);
+
+            let pfx = pfx.decrypt(&password, None).unwrap();
+
+            let keys = pfx.private_keys().collect::<Vec<_>>();
+            assert_eq!(keys.len(), 1);
+
+            assert_eq!(keys[0].1.len(), 1);
+            assert_eq!(keys[0].1[0], friendly_name);
+            let pk = keys[0].0.as_ref().unwrap();
+            assert_eq!(pk.name().unwrap(), "RSA");
+            assert_eq!(pk.len(), 2048);
+        }
+    }
 }
