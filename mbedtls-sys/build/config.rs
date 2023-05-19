@@ -308,7 +308,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_PK_C",                                      Defined),
     ("MBEDTLS_PK_PARSE_C",                                Defined),
     ("MBEDTLS_PK_WRITE_C",                                Defined),
-    ("MBEDTLS_PKCS5_C",                                   Defined),
+    ("MBEDTLS_PKCS5_C",                                   Undefined),
     ("MBEDTLS_PKCS11_C",                                  Undefined),
     ("MBEDTLS_PKCS12_C",                                  Defined),
     ("MBEDTLS_PLATFORM_C",                                Undefined),

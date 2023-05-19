@@ -71,7 +71,6 @@ pub const ORDERED: &'static [(Option<&'static str>, &'static str)] = &[
     (None,                 "rsa_internal.h"),
     (None,                 "ripemd160.h"),
     (None,                 "platform.h"),
-    (None,                 "pkcs5.h"),
     (None,                 "pkcs12.h"),
     (Some("pkcs11"),       "pkcs11.h"),
     (None,                 "pk_internal.h"),

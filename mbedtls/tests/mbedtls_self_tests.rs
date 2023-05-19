@@ -74,7 +74,6 @@ tests! {
     fn md4,
     fn md5,
     fn mpi,
-    fn pkcs5,
     fn ripemd160,
     fn rsa,
     fn sha1,

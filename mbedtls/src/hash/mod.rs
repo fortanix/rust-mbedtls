@@ -227,35 +227,6 @@ impl Clone for Md {
     }
 }
 
-pub fn pbkdf2_hmac(
-    md: Type,
-    password: &[u8],
-    salt: &[u8],
-    iterations: u32,
-    key: &mut [u8],
-) -> Result<()> {
-    let md: MdInfo = match md.into() {
-        Some(md) => md,
-        None => return Err(Error::MdBadInputData),
-    };
-
-    unsafe {
-        let mut ctx = Md::init();
-        md_setup((&mut ctx).into(), md.into(), 1).into_result()?;
-        pkcs5_pbkdf2_hmac(
-            (&mut ctx).into(),
-            password.as_ptr(),
-            password.len(),
-            salt.as_ptr(),
-            salt.len(),
-            iterations,
-            key.len() as u32,
-            key.as_mut_ptr(),
-        )
-        .into_result()?;
-        Ok(())
-    }
-}
 
 pub fn pbkdf_pkcs12(
     md: Type,

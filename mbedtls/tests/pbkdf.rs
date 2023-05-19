@@ -7,23 +7,7 @@
  * according to those terms. */
 
 use mbedtls::hash::Type as MdType;
-use mbedtls::hash::{pbkdf2_hmac, pbkdf_pkcs12};
-
-#[test]
-fn test_pbkdf2() {
-    let mut output = [0u8; 48];
-
-    let salt = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07];
-
-    let iterations = 10000;
-    let passphrase = b"xyz";
-
-    pbkdf2_hmac(MdType::Sha256, passphrase, &salt, iterations, &mut output).unwrap();
-
-    assert_eq!(output[0..4], [0xDE, 0xFD, 0x29, 0x87]);
-
-    assert_eq!(output[44..48], [0xE7, 0x0B, 0x72, 0xD0]);
-}
+use mbedtls::hash::pbkdf_pkcs12;
 
 #[test]
 fn test_pkcs12_pbe() {
