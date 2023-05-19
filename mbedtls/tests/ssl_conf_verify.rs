@@ -25,6 +25,7 @@ mod support;
 use support::entropy::entropy_new;
 use support::keys;
 use std::sync::Arc;
+use support::rand::test_rng;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum Test {
@@ -47,7 +48,7 @@ fn client(conn: TcpStream, test: Test) -> TlsResult<()> {
             Test::CallbackError => Err(codes::Asn1InvalidData.into()),
         }
     };
-    
+
     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
     config.set_rng(rng);
     config.set_verify_callback(verify_callback);
@@ -77,7 +78,7 @@ fn server(conn: TcpStream) -> TlsResult<()> {
     let entropy = entropy_new();
     let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
     let cert = Arc::new(Certificate::from_pem_multiple(keys::PEM_CERT.as_bytes())?);
-    let key = Arc::new(Pk::from_private_key(keys::PEM_KEY.as_bytes(), None)?);
+    let key = Arc::new(Pk::from_private_key(&mut test_rng(), keys::PEM_KEY.as_bytes(), None)?);
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(rng);
     config.push_cert(cert, key)?;

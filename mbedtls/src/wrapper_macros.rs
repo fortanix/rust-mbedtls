@@ -66,17 +66,17 @@ macro_rules! define {
         define_struct!(define_box $(#[$m])* struct $name $(lifetime $l)* inner $inner members $($($(#[$mm])* $member: $member_type,)*)*);
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
     };
-    {                   #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(#[$doc:meta] $rust:ident = $c:ident,)* } } => { define_enum!(                  $(#[$m])* enum $n ty $raw : $(doc ($doc) rust $rust c $c),*); };
-    {                   #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(             $rust:ident = $c:ident,)* } } => { define_enum!(                  $(#[$m])* enum $n ty $raw : $(doc (    ) rust $rust c $c),*); };
-    { #[non_exhaustive] #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(#[$doc:meta] $rust:ident = $c:ident,)* } } => { define_enum!(#[non_exhaustive] $(#[$m])* enum $n ty $raw : $(doc ($doc) rust $rust c $c),*); };
-    { #[non_exhaustive] #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(             $rust:ident = $c:ident,)* } } => { define_enum!(#[non_exhaustive] $(#[$m])* enum $n ty $raw : $(doc (    ) rust $rust c $c),*); };
+    {                   #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(#[$doc:meta] $(#[$v_m:meta])* $rust:ident = $c:ident,)* } } => { define_enum!(                  $(#[$m])* enum $n ty $raw : $(doc ($doc) ($(#[$v_m])*) rust $rust c $c),*); };
+    {                   #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(             $(#[$v_m:meta])* $rust:ident = $c:ident,)* } } => { define_enum!(                  $(#[$m])* enum $n ty $raw : $(doc (    ) ($(#[$v_m])*) rust $rust c $c),*); };
+    { #[non_exhaustive] #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(#[$doc:meta] $(#[$v_m:meta])* $rust:ident = $c:ident,)* } } => { define_enum!(#[non_exhaustive] $(#[$m])* enum $n ty $raw : $(doc ($doc) ($(#[$v_m])*) rust $rust c $c),*); };
+    { #[non_exhaustive] #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(             $(#[$v_m:meta])* $rust:ident = $c:ident,)* } } => { define_enum!(#[non_exhaustive] $(#[$m])* enum $n ty $raw : $(doc (    ) ($(#[$v_m])*) rust $rust c $c),*); };
 }
 
 macro_rules! define_enum {
-    {#[non_exhaustive] $(#[$m:meta])* enum $n:ident ty $raw:ty : $(doc ($($doc:meta)*) rust $rust:ident c $c:ident),*} => {
+    {#[non_exhaustive] $(#[$m:meta])* enum $n:ident ty $raw:ty : $(doc ($($doc:meta)*) ($(#[$v_m:meta])*) rust $rust:ident c $c:ident),*} => {
         $(#[$m])*
         pub enum $n {
-            $($(#[$doc])* $rust,)*
+            $($(#[$doc])* $(#[$v_m])* $rust,)*
             // Stable-Rust equivalent of `#[non_exhaustive]` attribute. This
             // value should never be used by users of this crate!
             #[doc(hidden)]
@@ -86,22 +86,22 @@ macro_rules! define_enum {
         impl Into<$raw> for $n {
             fn into(self) -> $raw {
                 match self {
-                    $($n::$rust => $c,)*
+                    $($(#[$v_m])* $n::$rust => $c,)*
                     $n::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
                 }
             }
         }
     };
-    {$(#[$m:meta])* enum $n:ident ty $raw:ty : $(doc ($($doc:meta)*) rust $rust:ident c $c:ident),*} => {
+    {$(#[$m:meta])* enum $n:ident ty $raw:ty : $(doc ($($doc:meta)*) ($(#[$v_m:meta])*) rust $rust:ident c $c:ident),*} => {
         $(#[$m])*
         pub enum $n {
-            $($(#[$doc])* $rust,)*
+            $($(#[$doc])* $(#[$v_m])* $rust,)*
         }
 
         impl Into<$raw> for $n {
             fn into(self) -> $raw {
                 match self {
-                    $($n::$rust => $c,)*
+                    $($(#[$v_m])* $n::$rust => $c,)*
                 }
             }
         }

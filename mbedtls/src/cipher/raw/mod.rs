@@ -10,6 +10,9 @@ use mbedtls_sys::*;
 
 use crate::error::{IntoResult, Result, codes};
 
+#[cfg(not(feature = "std"))]
+use crate::alloc_prelude::*;
+
 mod serde;
 
 define!(
@@ -21,9 +24,8 @@ define!(
         Des = CIPHER_ID_DES,
         Des3 = CIPHER_ID_3DES,
         Camellia = CIPHER_ID_CAMELLIA,
-        Blowfish = CIPHER_ID_BLOWFISH,
-        Arc4 = CIPHER_ID_ARC4,
         Aria = CIPHER_ID_ARIA,
+        ChaCha20 = CIPHER_ID_CHACHA20,
     }
 );
 
@@ -36,9 +38,8 @@ impl From<cipher_id_t> for CipherId {
             CIPHER_ID_DES => CipherId::Des,
             CIPHER_ID_3DES => CipherId::Des3,
             CIPHER_ID_CAMELLIA => CipherId::Camellia,
-            CIPHER_ID_BLOWFISH => CipherId::Blowfish,
-            CIPHER_ID_ARC4 => CipherId::Arc4,
             CIPHER_ID_ARIA => CipherId::Aria,
+            CIPHER_ID_CHACHA20 => CipherId::ChaCha20,
             // This should be replaced with TryFrom once it is stable.
             _ => panic!("Invalid cipher_id_t"),
         }
@@ -48,6 +49,7 @@ impl From<cipher_id_t> for CipherId {
 define!(
     #[c_ty(cipher_mode_t)]
     #[derive(Copy, Clone, Eq, PartialEq)]
+    #[allow(non_camel_case_types)]
     enum CipherMode {
         None = MODE_NONE,
         ECB = MODE_ECB,
@@ -58,8 +60,11 @@ define!(
         GCM = MODE_GCM,
         STREAM = MODE_STREAM,
         CCM = MODE_CCM,
+        CCM_STAR_NO_TAG = MODE_CCM_STAR_NO_TAG,
         KW = MODE_KW,
         KWP = MODE_KWP,
+        XTS = MODE_XTS,
+        CHACHAPOLY = MODE_CHACHAPOLY,
     }
 );
 
@@ -74,9 +79,12 @@ impl From<cipher_mode_t> for CipherMode {
             MODE_CTR => CipherMode::CTR,
             MODE_GCM => CipherMode::GCM,
             MODE_STREAM => CipherMode::STREAM,
+            MODE_CCM_STAR_NO_TAG => CipherMode::CCM_STAR_NO_TAG,
             MODE_CCM => CipherMode::CCM,
             MODE_KW => CipherMode::KW,
             MODE_KWP => CipherMode::KWP,
+            MODE_XTS => CipherMode::XTS,
+            MODE_CHACHAPOLY => CipherMode::CHACHAPOLY,
             // This should be replaced with TryFrom once it is stable.
             _ => panic!("Invalid cipher_mode_t"),
         }
@@ -124,17 +132,46 @@ define!(
         DesEdeCbc = CIPHER_DES_EDE_CBC,
         DesEde3Ecb = CIPHER_DES_EDE3_ECB,
         DesEde3Cbc = CIPHER_DES_EDE3_CBC,
-        BlowfishEcb = CIPHER_BLOWFISH_ECB,
-        BlowfishCbc = CIPHER_BLOWFISH_CBC,
-        BlowfishCfb64 = CIPHER_BLOWFISH_CFB64,
-        BlowfishCtr = CIPHER_BLOWFISH_CTR,
-        Arcfour128 = CIPHER_ARC4_128,
         Aes128Ccm = CIPHER_AES_128_CCM,
         Aes192Ccm = CIPHER_AES_192_CCM,
         Aes256Ccm = CIPHER_AES_256_CCM,
+        Aes128CcmStarNoTag = CIPHER_AES_128_CCM_STAR_NO_TAG,
+        Aes192CcmStarNoTag = CIPHER_AES_192_CCM_STAR_NO_TAG,
+        Aes256CcmStarNoTag = CIPHER_AES_256_CCM_STAR_NO_TAG,
         Camellia128Ccm = CIPHER_CAMELLIA_128_CCM,
         Camellia192Ccm = CIPHER_CAMELLIA_192_CCM,
         Camellia256Ccm = CIPHER_CAMELLIA_256_CCM,
+        Camellia128CcmStarNoTag = CIPHER_CAMELLIA_128_CCM_STAR_NO_TAG,
+        Camellia192CcmStarNoTag = CIPHER_CAMELLIA_192_CCM_STAR_NO_TAG,
+        Camellia256CcmStarNoTag = CIPHER_CAMELLIA_256_CCM_STAR_NO_TAG,
+        Aria128Ecb = CIPHER_ARIA_128_ECB,
+        Aria192Ecb = CIPHER_ARIA_192_ECB,
+        Aria256Ecb = CIPHER_ARIA_256_ECB,
+        Aria128Cbc = CIPHER_ARIA_128_CBC,
+        Aria192Cbc = CIPHER_ARIA_192_CBC,
+        Aria256Cbc = CIPHER_ARIA_256_CBC,
+        Aria128Cfb128 = CIPHER_ARIA_128_CFB128,
+        Aria192Cfb128 = CIPHER_ARIA_192_CFB128,
+        Aria256Cfb128 = CIPHER_ARIA_256_CFB128,
+        Aria128Ctr = CIPHER_ARIA_128_CTR,
+        Aria192Ctr = CIPHER_ARIA_192_CTR,
+        Aria256Ctr = CIPHER_ARIA_256_CTR,
+        Aria128Gcm = CIPHER_ARIA_128_GCM,
+        Aria192Gcm = CIPHER_ARIA_192_GCM,
+        Aria256Gcm = CIPHER_ARIA_256_GCM,
+        Aria128Ccm = CIPHER_ARIA_128_CCM,
+        Aria192Ccm = CIPHER_ARIA_192_CCM,
+        Aria256Ccm = CIPHER_ARIA_256_CCM,
+        Aria128CcmStarNoTag = CIPHER_ARIA_128_CCM_STAR_NO_TAG,
+        Aria192CcmStarNoTag = CIPHER_ARIA_192_CCM_STAR_NO_TAG,
+        Aria256CcmStarNoTag = CIPHER_ARIA_256_CCM_STAR_NO_TAG,
+        Aes128Ofb = CIPHER_AES_128_OFB,
+        Aes192Ofb = CIPHER_AES_192_OFB,
+        Aes256Ofb = CIPHER_AES_256_OFB,
+        Aes128Xts = CIPHER_AES_128_XTS,
+        Aes256Xts = CIPHER_AES_256_XTS,
+        Chacha20 = CIPHER_CHACHA20,
+        Chacha20Poly1305 = CIPHER_CHACHA20_POLY1305,
         Aes128Kw = CIPHER_AES_128_KW,
         Aes192Kw = CIPHER_AES_192_KW,
         Aes256Kw = CIPHER_AES_256_KW,
@@ -168,13 +205,30 @@ define!(
 define!(
     #[c_ty(cipher_context_t)]
     #[repr(C)]
-    struct Cipher;
-    const init: fn() -> Self = cipher_init;
+    struct Cipher {
+        // IV need to be record on rust side because the `iv` and `iv_len` field
+        // of `cipher_context_t` are no longer stable and are marked as `private_`,
+        // in another word there is no garruent that these fields are always correctly
+        // been updated.
+        iv: Option<Vec<u8>>,
+    };
     const drop: fn(&mut Self) = cipher_free;
     impl<'a> Into<ptr> {}
 );
 
 impl Cipher {
+    pub fn init() -> Self {
+        let mut inner = ::core::mem::MaybeUninit::uninit();
+        let inner = unsafe {
+            ::mbedtls_sys::cipher_init(inner.as_mut_ptr());
+            inner.assume_init()
+        };
+        Cipher {
+            inner,
+            iv: None,
+        }
+    }
+
     // Setup routine - this should be the first function called
     // it combines several steps into one call here, they are
     // Cipher init, Cipher setup
@@ -214,6 +268,7 @@ impl Cipher {
 
     // Cipher set IV - should be called after setup
     pub fn set_iv(&mut self, iv: &[u8]) -> Result<()> {
+        self.iv = Some(iv.to_vec());
         unsafe { cipher_set_iv(&mut self.inner, iv.as_ptr(), iv.len()).into_result_discard() }
     }
 
@@ -227,7 +282,7 @@ impl Cipher {
 
     pub fn update(&mut self, indata: &[u8], outdata: &mut [u8]) -> Result<usize> {
         // Check that minimum required space is available in outdata buffer
-        let reqd_size = if unsafe { *self.inner.cipher_info }.mode == MODE_ECB {
+        let reqd_size = if self.cipher_mode() == CipherMode::ECB {
             self.block_size()
         } else {
             indata.len() + self.block_size()
@@ -276,28 +331,54 @@ impl Cipher {
 
     // Utility function to get block size for the selected / setup cipher_info
     pub fn block_size(&self) -> usize {
-        unsafe { (*self.inner.cipher_info).block_size as usize }
+        unsafe { cipher_get_block_size(&self.inner) as usize}
     }
 
     // Utility function to get IV size for the selected / setup cipher_info
     pub fn iv_size(&self) -> usize {
-        unsafe { (*self.inner.cipher_info).iv_size as usize }
+        if let Some(ref iv) = self.iv {
+            iv.len()
+        } else {
+            unsafe { cipher_get_iv_size(&self.inner) as usize }
+        }
     }
 
     pub fn cipher_mode(&self) -> CipherMode {
-        unsafe { (*self.inner.cipher_info).mode.into() }
+        unsafe { cipher_get_cipher_mode(&self.inner).into() }
     }
 
-    // Utility function to get mdoe for the selected / setup cipher_info
+    /// Public function that determines if the selected cipher mode is an authenticated mode.
+    ///
+    /// # Returns
+    ///
+    /// This function returns a boolean value indicating whether the cipher mode is authenticated.
+    ///
+    /// Authenticated cipher modes provide both encryption and a level of integrity and authenticity.
+    /// Specifically, the following cipher modes are considered authenticated:
+    /// - GCM (Galois/Counter Mode): an authenticated encryption mode that provides confidentiality, integrity, and authenticity.
+    /// - CCM (Counter with CBC-MAC): an authenticated encryption mode that combines CTR for encryption and CBC-MAC for authentication.
+    /// - CCM_STAR_NO_TAG: a variant of CCM that omits the authentication tag, and thus, while derived from an authenticated encryption mode, does not provide authentication.
+    /// - CHACHAPOLY (ChaCha20-Poly1305): an authenticated encryption mode that combines the ChaCha20 stream cipher with the Poly1305 message authentication code.
+    /// - KW (AES Key Wrap): a deterministic authenticated encryption mode designed specifically for wrapping (encrypting) keys, as defined by NIST.
+    /// - KWP (AES Key Wrap with Padding): a variant of KW that includes padding, also defined by NIST and designed for key wrapping.
+    ///
+    /// If the cipher mode does not fall into one of these categories, the function will return false, indicating that it is not authenticated.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use mbedtls::cipher::raw::*;
+    /// let cipher = Cipher::setup(CipherId::Aes, CipherMode::GCM, 128).unwrap();
+    /// assert!(cipher.is_authenticated());
+    ///
+    /// let cipher = Cipher::setup(CipherId::Aes, CipherMode::CBC, 128).unwrap();
+    /// assert!(!cipher.is_authenticated());
+    /// ```
     pub fn is_authenticated(&self) -> bool {
-        unsafe {
-            if (*self.inner.cipher_info).mode == MODE_GCM
-                || (*self.inner.cipher_info).mode == MODE_CCM
-            {
-                return true;
-            } else {
-                return false;
-            }
+        match self.cipher_mode() {
+            CipherMode::GCM | CipherMode::CCM | CipherMode::CCM_STAR_NO_TAG |
+            CipherMode::CHACHAPOLY | CipherMode::KW | CipherMode::KWP => true,
+            _ => false,
         }
     }
 
@@ -315,21 +396,45 @@ impl Cipher {
         self.do_crypto(cipher, plain)
     }
 
+    /// The authenticated encryption (AEAD/NIST_KW) function.
+    ///
+    /// For AEAD modes, the tag will be appended to the ciphertext, as recommended by RFC 5116.
+    /// (NIST_KW doesn't have a separate tag.)
+    ///
+    /// # Arguments
+    ///
+    /// * `ad` - The additional data to authenticate.
+    /// * `plain` - The plaintext data to be encrypted and authenticated.
+    /// * `cipher_and_tag` - A mutable reference to a byte array where the ciphertext and authentication tag will be written.
+    /// * `tag_len` - The length of the tag to be generated.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<usize>` - The length of the encrypted data on success.
+    ///
+    /// # Errors
+    ///
+    /// * `codes::CipherBadInputData` - For authenticated cipher mode plain_text length should be smaller than cipher length, except
+    ///   AES KW and KWP cipher mode.
+    /// * Any other errors from underlying `mbedtls_cipher_auth_encrypt_ext` function.
     pub fn encrypt_auth(
         &mut self,
         ad: &[u8],
-        plain: &[u8],
+        plain_text: &[u8],
         cipher_and_tag: &mut [u8],
         tag_len: usize,
     ) -> Result<usize> {
-        if cipher_and_tag.len()
-            .checked_sub(tag_len)
-            .map_or(true, |cipher_len| cipher_len < plain.len()) {
+        let cipher_mode = self.cipher_mode();
+        if cipher_mode != CipherMode::KW
+        && cipher_mode != CipherMode::KWP
+        && self.is_authenticated()
+        && cipher_and_tag.len()
+                .checked_sub(tag_len)
+                .map_or(true, |cipher_len| cipher_len < plain_text.len()) {
             return Err(codes::CipherBadInputData.into());
         }
-
-        let iv = self.inner.iv;
-        let iv_len = self.inner.iv_size;
+        let iv = self.iv.as_ref().ok_or(crate::Error::from(codes::CipherBadInputData))?;
+        let iv_len = iv.len();
         let mut cipher_len = cipher_and_tag.len();
         unsafe {
             cipher_auth_encrypt_ext(
@@ -338,8 +443,8 @@ impl Cipher {
                 iv_len,
                 ad.as_ptr(),
                 ad.len(),
-                plain.as_ptr(),
-                plain.len(),
+                plain_text.as_ptr(),
+                plain_text.len(),
                 cipher_and_tag.as_mut_ptr(),
                 cipher_len,
                 &mut cipher_len,
@@ -351,24 +456,46 @@ impl Cipher {
         Ok(cipher_len)
     }
 
+    /// The authenticated decryption (AEAD/NIST_KW) function.
+    ///
+    /// # Arguments
+    ///
+    /// * `ad` - The additional data that was authenticated.
+    /// * `cipher_and_tag` - The ciphertext and authentication tag that were generated by the corresponding call to `encrypt_auth`.
+    /// * `plain_text` - A mutable reference to a byte array where the decrypted plaintext will be written.
+    /// * `tag_len` - The length of the tag.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<usize>` - The length of the decrypted data on success.
+    ///
+    /// # Errors
+    ///
+    /// * `codes::CipherBadInputData` - For authenticated cipher mode plain_text length should be smaller than cipher length, except
+    ///   AES KW and KWP cipher mode.
+    /// * Any other errors from underlying `mbedtls_cipher_auth_decrypt_ext` mbedtls function.
     pub fn decrypt_auth(
         &mut self,
         ad: &[u8],
         cipher_and_tag: &[u8],
-        plain: &mut [u8],
+        plain_text: &mut [u8],
         tag_len: usize,
     ) -> Result<usize> {
-        // For AES KW and KWP cipher text length can be greater than plain text length
-        if self.is_authenticated() &&
-            cipher_and_tag.len()
+        // For authenticated cipher mode plain_text length should be smaller than cipher length, except
+        // AES KW and KWP cipher mode
+        let cipher_mode = self.cipher_mode();
+        if cipher_mode != CipherMode::KW
+        && cipher_mode != CipherMode::KWP
+        && self.is_authenticated()
+        && cipher_and_tag.len()
                 .checked_sub(tag_len)
-                .map_or(true, |cipher_len| plain.len() < cipher_len) {
+                .map_or(true, |cipher_len| plain_text.len() < cipher_len) {
             return Err(codes::CipherBadInputData.into());
         }
 
-        let iv = self.inner.iv;
-        let iv_len = self.inner.iv_size;
-        let mut plain_len = plain.len();
+        let iv = self.iv.as_ref().ok_or(crate::Error::from(codes::CipherBadInputData))?;
+        let iv_len = iv.len();
+        let mut plain_len = plain_text.len();
         unsafe {
             cipher_auth_decrypt_ext(
                 &mut self.inner,
@@ -378,7 +505,7 @@ impl Cipher {
                 ad.len(),
                 cipher_and_tag.as_ptr(),
                 cipher_and_tag.len(),
-                plain.as_mut_ptr(),
+                plain_text.as_mut_ptr(),
                 plain_len,
                 &mut plain_len,
                 tag_len,
@@ -389,29 +516,50 @@ impl Cipher {
         Ok(plain_len)
     }
 
+    /// The authenticated encryption (AEAD/NIST_KW) function.
+    ///
+    /// For AEAD modes, the tag will be appended to the ciphertext, as recommended by RFC 5116.
+    /// (NIST_KW doesn't have a separate tag.)
+    ///
+    /// # Arguments
+    ///
+    /// * `ad` - The additional data to authenticate
+    /// * `data_with_tag` - The data to be encrypted and authenticated, along with space for the tag
+    /// * `tag_len` - The length of the tag to be generated
+    ///
+    /// # Returns
+    ///
+    /// * `Result<usize>` - The length of the encrypted data on success
+    ///
+    /// # Errors
+    ///
+    /// * `codes::CipherBadInputData` - If the size of `data_with_tag` minus `tag_len` is less than
+    ///   or equal to zero
     pub fn encrypt_auth_inplace(
         &mut self,
         ad: &[u8],
-        data: &mut [u8],
-        tag: &mut [u8],
+        data_with_tag: &mut [u8],
+        tag_len: usize,
     ) -> Result<usize> {
-
-        let iv = self.inner.iv;
-        let iv_len = self.inner.iv_size;
-        let mut olen = data.len();
+        if data_with_tag.len() - tag_len <= 0 {
+            return Err(codes::CipherBadInputData.into());
+        }
+        let iv = self.iv.as_ref().ok_or(crate::Error::from(codes::CipherBadInputData))?;
+        let iv_len = iv.len();
+        let mut olen = data_with_tag.len();
         unsafe {
-            cipher_auth_encrypt(
+            cipher_auth_encrypt_ext(
                 &mut self.inner,
                 iv.as_ptr(),
                 iv_len,
                 ad.as_ptr(),
                 ad.len(),
-                data.as_ptr(),
-                data.len(),
-                data.as_mut_ptr(),
+                data_with_tag.as_ptr(),
+                data_with_tag.len() - tag_len,
+                data_with_tag.as_mut_ptr(),
+                olen,
                 &mut olen,
-                tag.as_mut_ptr(),
-                tag.len(),
+                tag_len,
             )
             .into_result()?
         };
@@ -419,29 +567,53 @@ impl Cipher {
         Ok(olen)
     }
 
+    /// The authenticated decryption (AEAD/NIST_KW) function.
+    ///
+    /// If the data is not authentic, then the output buffer is zeroed out to
+    /// prevent the unauthentic plaintext being used, making this interface safer.
+    ///
+    /// For AEAD modes, the tag must be appended to the ciphertext, as recommended by RFC 5116.
+    /// (NIST_KW doesn't have a separate tag.)
+    ///
+    /// # Arguments
+    ///
+    /// * `ad` - The additional data to authenticate
+    /// * `data_with_tag` - The data to be decrypted and authenticated, along with space for the tag
+    /// * `tag_len` - The length of the tag to be generated
+    ///
+    /// # Returns
+    ///
+    /// * `Result<usize>` - The length of the decrypted data on success
+    ///
+    /// # Errors
+    ///
+    /// * `codes::CipherBadInputData` - If the size of `data_with_tag` minus `tag_len` is less than
+    ///   or equal to zero
     pub fn decrypt_auth_inplace(
         &mut self,
         ad: &[u8],
-        data: &mut [u8],
-        tag: &[u8],
+        data_with_tag: &mut [u8],
+        tag_len: usize,
     ) -> Result<usize> {
-
-        let iv = self.inner.iv;
-        let iv_len = self.inner.iv_size;
-        let mut plain_len = data.len();
+        if data_with_tag.len() - tag_len <= 0 {
+            return Err(codes::CipherBadInputData.into());
+        }
+        let iv = self.iv.as_ref().ok_or(crate::Error::from(codes::CipherBadInputData))?;
+        let iv_len = iv.len();
+        let mut plain_len = data_with_tag.len();
         unsafe {
-            cipher_auth_decrypt(
+            cipher_auth_decrypt_ext(
                 &mut self.inner,
                 iv.as_ptr(),
                 iv_len,
                 ad.as_ptr(),
                 ad.len(),
-                data.as_ptr(),
-                data.len(),
-                data.as_mut_ptr(),
+                data_with_tag.as_ptr(),
+                data_with_tag.len(),
+                data_with_tag.as_mut_ptr(),
+                data_with_tag.len() - tag_len,
                 &mut plain_len,
-                tag.as_ptr(),
-                tag.len(),
+                tag_len,
             )
             .into_result()?
         };
@@ -457,7 +629,7 @@ impl Cipher {
         // return an empty slice, it doesn't panic.
         let mut total_len = 0;
 
-        if unsafe { *self.inner.cipher_info }.mode == MODE_ECB {
+        if self.cipher_mode() == CipherMode::ECB {
             // ECB mode requires single-block updates
             for chunk in indata.chunks(self.block_size()) {
                 let len = self.update(chunk, &mut outdata[total_len..])?;
@@ -478,7 +650,7 @@ impl Cipher {
         }
         self.reset()?;
         unsafe {
-            cipher_cmac(&*self.inner.cipher_info, key.as_ptr(), (key.len() * 8) as _, data.as_ptr(), data.len(), 
+            cipher_cmac(&*self.inner.private_cipher_info, key.as_ptr(), (key.len() * 8) as _, data.as_ptr(), data.len(), 
                         outdata.as_mut_ptr()).into_result()?;
         }
         Ok(())

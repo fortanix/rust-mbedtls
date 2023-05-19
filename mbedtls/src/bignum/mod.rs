@@ -133,22 +133,15 @@ impl Mpi {
         Ok(())
     }
 
-    fn get_limb(&self, n: usize) -> mpi_uint {
-        if n < self.inner.n {
-            unsafe { *self.inner.p.offset(n as isize) }
-        } else {
-            // zero pad
-            0
-        }
-    }
-
     pub fn as_u32(&self) -> Result<u32> {
         if self.bit_length()? > 32 {
             // Not exactly correct but close enough
             return Err(codes::MpiBufferTooSmall.into());
         }
 
-        Ok(self.get_limb(0) as u32)
+        let mut buf = [0u8; 4];
+        unsafe { mpi_write_binary(&self.inner, buf.as_mut_ptr(), buf.len()).into_result() }?;
+        Ok(u32::from_be_bytes(buf))
     }
 
     pub fn sign(&self) -> Sign {

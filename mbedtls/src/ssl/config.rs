@@ -18,12 +18,12 @@ use mbedtls_sys::types::raw_types::*;
 use mbedtls_sys::types::size_t;
 
 
-use crate::alloc::{List as MbedtlsList};
+use crate::alloc::List as MbedtlsList;
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 #[cfg(feature = "std")]
 use crate::error::Error;
-use crate::error::{Result, IntoResult, codes};
+use crate::error::{Result, IntoResult};
 use crate::pk::Pk;
 use crate::pk::dhparam::Dhm;
 use crate::private::UnsafeFrom;
@@ -33,15 +33,27 @@ use crate::ssl::context::HandshakeContext;
 use crate::ssl::ticket::TicketCallback;
 use crate::x509::{self, Certificate, Crl, Profile, VerifyCallback};
 
-#[allow(non_camel_case_types)]
-#[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Copy, Clone)]
-pub enum Version {
-    Ssl3,
-    Tls1_0,
-    Tls1_1,
-    Tls1_2,
-    #[doc(hidden)]
-    __NonExhaustive,
+define!(
+    #[c_ty(ssl_protocol_version)]
+    #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Copy, Clone)]
+    enum Version {
+        Tls12 = SSL_VERSION_TLS1_2,
+        #[cfg(feature = "tls13")]
+        Tls13 = SSL_VERSION_TLS1_3,
+        Unknown = SSL_VERSION_UNKNOWN,
+    }
+);
+
+impl From<u32> for Version {
+    fn from(value: u32) -> Self {
+        use Version::*;
+        match value {
+            SSL_VERSION_TLS1_2 => Tls12,
+            #[cfg(feature = "tls13")]
+            SSL_VERSION_TLS1_3 => Tls13,
+            _ => Unknown
+        }
+    }
 }
 
 define!(
@@ -51,6 +63,18 @@ define!(
         Server = SSL_IS_SERVER,
     }
 );
+
+#[cfg(feature = "tls13")]
+bitflags! {
+    pub struct Tls13KeyExchangeMode: c_int {
+        const PSK = SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK as c_int;
+        const EPHEMERAL = SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL as c_int;
+        const PSK_EPHEMERAL = SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_EPHEMERAL as c_int;
+        const ALL = SSL_TLS1_3_KEY_EXCHANGE_MODE_ALL as c_int;
+        const PSK_ALL = SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_ALL as c_int;
+        const EPHEMERAL_ALL = SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ALL as c_int;
+    }
+}
 
 define!(
     #[c_ty(c_int)]
@@ -80,6 +104,8 @@ define!(
         Optional = SSL_VERIFY_OPTIONAL,
         /// default on client
         Required = SSL_VERIFY_REQUIRED,
+        /// used only for sni_authmode
+        Unset = SSL_VERIFY_UNSET,
     }
 );
 
@@ -120,10 +146,10 @@ impl NullTerminatedStrList {
         let mut ret = NullTerminatedStrList { c: Vec::with_capacity(list.len() + 1) };
 
         for item in list {
-            ret.c.push(::std::ffi::CString::new(*item).map_err(|_| Error::from(codes::SslBadInputData))?.into_raw());
+            ret.c.push(::std::ffi::CString::new(*item).map_err(|_| Error::from(crate::error::codes::SslBadInputData))?.into_raw());
         }
-        
-        ret.c.push(core::ptr::null_mut()); 
+
+        ret.c.push(core::ptr::null_mut());
         Ok(ret)
     }
 
@@ -161,8 +187,9 @@ define!(
         
         ciphersuites: Vec<Arc<Vec<c_int>>>,
         curves: Option<Arc<Vec<ecp_group_id>>>,
+        groups: Option<Arc<Vec<u16>>>,
         protocols: Option<Arc<NullTerminatedStrList>>,
-        
+        signature_algorithms: Option<Arc<Vec<u16>>>,
         verify_callback: Option<Arc<dyn VerifyCallback + 'static>>,
         #[cfg(feature = "std")]
         dbg_callback: Option<Arc<dyn DbgCallback + 'static>>,
@@ -179,6 +206,12 @@ unsafe impl Sync for Config {}
 
 impl Config {
     pub fn new(e: Endpoint, t: Transport, p: Preset) -> Self {
+        // `psa_crypto_init()` need to be called before calling any function from the SSL/TLS, X.509
+        // or PK modules. Since we only turn on PSA with TLS 1.3, it just need to be called here so
+        // that TLS could work correctly.
+        #[cfg(feature = "tls13")]
+        mbedtls_platform_support::psa_crypto_init();
+
         let mut inner = ssl_config::default();
 
         unsafe {
@@ -186,7 +219,7 @@ impl Config {
             ssl_config_init(&mut inner);
 
             // Set default values - after this point we will need ssl_config_free to be called.
-            ssl_config_defaults(&mut inner, e as c_int, t as c_int, p as c_int);
+            ssl_config_defaults(&mut inner, e as c_int, t as c_int, p as c_int).into_result().unwrap();
         };
 
         Config {
@@ -198,7 +231,9 @@ impl Config {
             rng: None,
             ciphersuites: vec![],
             curves: None,
+            groups: None,
             protocols: None,
+            signature_algorithms: None,
             verify_callback: None,
             #[cfg(feature = "std")]
             dbg_callback: None,
@@ -215,7 +250,7 @@ impl Config {
     setter!(set_transport(t: Transport) = ssl_conf_transport);
     // need bitfield support getter!(authmode() -> AuthMode = field authmode);
     setter!(set_authmode(am: AuthMode) = ssl_conf_authmode);
-    getter!(read_timeout() -> u32 = .read_timeout);
+    getter!(read_timeout() -> u32 = .private_read_timeout);
     setter!(set_read_timeout(t: u32) = ssl_conf_read_timeout);
 
     fn check_c_list<T: Default + Eq>(list: &[T]) {
@@ -229,6 +264,17 @@ impl Config {
         self.ciphersuites.push(list);
     }
 
+    pub fn set_signature_algorithms(&mut self,  list: Arc<Vec<u16>>) {
+        Self::check_c_list(&list);
+        unsafe { ssl_conf_sig_algs(self.into(), list.as_ptr()) }
+        self.signature_algorithms = Some(list);
+    }
+
+    #[cfg(feature = "tls13")]
+    pub fn set_tls13_key_exchange_modes(&mut self, mode: Tls13KeyExchangeMode) {
+        unsafe { ssl_conf_tls13_key_exchange_modes(self.into(), mode.bits()) }
+    }
+
     /// Set the supported Application Layer Protocols.
     pub fn set_alpn_protocols(&mut self, protocols: Arc<NullTerminatedStrList>) -> Result<()> {
         unsafe {
@@ -240,11 +286,11 @@ impl Config {
         self.protocols = Some(protocols);
         Ok(())
     }
-    
-    pub fn set_ciphersuites_for_version(&mut self, list: Arc<Vec<c_int>>, major: c_int, minor: c_int) {
-        Self::check_c_list(&list);
-        unsafe { ssl_conf_ciphersuites_for_version(self.into(), list.as_ptr(), major, minor) }
-        self.ciphersuites.push(list);
+
+    pub fn set_groups(&mut self, groups: Arc<Vec<u16>>) {
+        Self::check_c_list(&groups);
+        unsafe { ssl_conf_groups(self.into(), groups.as_ptr()) }
+        self.groups = Some(groups);
     }
 
     pub fn set_curves(&mut self, list: Arc<Vec<ecp_group_id>>) {
@@ -259,27 +305,12 @@ impl Config {
     }
     
     pub fn set_min_version(&mut self, version: Version) -> Result<()> {
-        let minor = match version {
-            Version::Ssl3 => 0,
-            Version::Tls1_0 => 1,
-            Version::Tls1_1 => 2,
-            Version::Tls1_2 => 3,
-            _ => { return Err(codes::SslBadHsProtocolVersion.into()); }
-        };
-
-        unsafe { ssl_conf_min_version(self.into(), 3, minor) };
+        unsafe { ssl_conf_min_tls_version(self.into(), version.into()) };
         Ok(())
     }
 
     pub fn set_max_version(&mut self, version: Version) -> Result<()> {
-        let minor = match version {
-            Version::Ssl3 => 0,
-            Version::Tls1_0 => 1,
-            Version::Tls1_1 => 2,
-            Version::Tls1_2 => 3,
-            _ => { return Err(codes::SslBadHsProtocolVersion.into()); }
-        };
-        unsafe { ssl_conf_max_version(self.into(), 3, minor) };
+        unsafe { ssl_conf_max_tls_version(self.into(), version.into()) };
         Ok(())
     }
 

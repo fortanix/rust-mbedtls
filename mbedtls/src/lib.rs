@@ -7,6 +7,12 @@
  * according to those terms. */
 
 #![deny(warnings)]
+// TODO: this is added to ensure `#![allow(ambiguous_glob_reexports)]` also works
+// in rust with old version, need to be removed after migration to rustc 1.70..,
+// See issue #277
+#![allow(unknown_lints)]
+// TODO: need to be removed after migration to rustc 1.70.., issue #277
+#![allow(ambiguous_glob_reexports)]
 #![allow(unused_doc_comments)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -42,9 +48,6 @@ pub mod ssl;
 pub mod x509;
 pub mod alloc;
 
-#[cfg(feature = "pkcs12")]
-pub mod pkcs12;
-
 // ==============
 //    Utility
 // ==============
@@ -78,6 +81,13 @@ mod test_support;
 mod mbedtls {
     pub use super::*;
 }
+
+/// You need to call `psa_crypto_init()` before calling any function from the SSL/TLS, X.509 or PK modules.
+/// This function is fine to be called mutiple times while ensure underlying initilization function is only
+/// been called only once.
+/// Re-export here for convenience.
+#[cfg(feature = "tls13")]
+pub use mbedtls_platform_support::psa_crypto_init;
 
 #[cfg(not(feature = "std"))]
 #[macro_use]
