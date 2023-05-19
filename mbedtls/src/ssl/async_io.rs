@@ -95,19 +95,21 @@ where
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
 {
     fn poll_read(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>> {
-        if self.handle().session.is_null() {
+        if self.handle().private_session.is_null() {
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
-        self.with_bio_async(cx, |ssl_ctx| match ssl_ctx.recv(buf.initialize_unfilled()) {
-            Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Poll::Ready(Ok(())),
-            Err(e) if e.high_level() == Some(codes::SslWantRead) => Poll::Pending,
-            Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
-            Ok(i) => {
-                buf.advance(i);
-                Poll::Ready(Ok(()))
+        self.with_bio_async(cx, |ssl_ctx|
+            match ssl_ctx.read_impl(buf.initialize_unfilled()) {
+                Ok(0) => Poll::Ready(Ok(())),
+                Err(e) if e.kind() == IoErrorKind::WouldBlock => Poll::Pending,
+                Err(e) => Poll::Ready(Err(e)),
+                Ok(i) => {
+                        buf.advance(i);
+                        Poll::Ready(Ok(()))
+                    }
             }
-        })
+        )
         .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::from(codes::NetRecvFailed)))))
     }
 }
@@ -117,7 +119,7 @@ where
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
 {
     fn poll_write(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
-        if self.handle().session.is_null() {
+        if self.handle().private_session.is_null() {
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
@@ -132,7 +134,7 @@ where
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
-        if self.handle().session.is_null() {
+        if self.handle().private_session.is_null() {
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
@@ -147,7 +149,7 @@ where
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
-        if self.handle().session.is_null() {
+        if self.handle().private_session.is_null() {
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 

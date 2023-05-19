@@ -24,12 +24,11 @@ use mbedtls::ssl::config::CaCallback;
 
 mod support;
 use support::entropy::entropy_new;
-
-use mbedtls::alloc::{List as MbedtlsList};
+use support::rand::test_rng;
 
 fn client<F>(conn: TcpStream, ca_callback: F) -> TlsResult<()>
-    where
-        F: CaCallback + Send + 'static,
+where
+    F: CaCallback + Send + 'static,
 {
     let entropy = entropy_new();
     let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
@@ -44,7 +43,7 @@ fn server(conn: TcpStream, cert: &[u8], key: &[u8]) -> TlsResult<()> {
     let entropy = entropy_new();
     let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
     let cert = Arc::new(Certificate::from_pem_multiple(cert)?);
-    let key = Arc::new(Pk::from_private_key(key, None)?);
+    let key = Arc::new(Pk::from_private_key(&mut test_rng(), key, None)?);
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(rng);
     config.push_cert(cert, key)?;
@@ -60,7 +59,8 @@ mod test {
     use std::thread;
     use crate::support::net::create_tcp_pair;
     use crate::support::keys;
-    use mbedtls::x509::{Certificate};
+    use mbedtls::alloc::List as MbedtlsList;
+    use mbedtls::x509::Certificate;
     use mbedtls::error::codes;
 
     // This callback should accept any valid self-signed certificate
@@ -74,8 +74,8 @@ mod test {
 
         let ca_callback =
             |_: &MbedtlsList<Certificate>| -> TlsResult<MbedtlsList<Certificate>> {
-                Ok(Certificate::from_pem_multiple(keys::ROOT_CA_CERT.as_bytes()).unwrap())
-            };
+            Ok(Certificate::from_pem_multiple(keys::ROOT_CA_CERT.as_bytes()).unwrap())
+        };
         let c = thread::spawn(move || super::client(c, ca_callback).unwrap());
         let s = thread::spawn(move || super::server(s, keys::PEM_CERT.as_bytes(), keys::PEM_KEY.as_bytes()).unwrap());
         c.join().unwrap();

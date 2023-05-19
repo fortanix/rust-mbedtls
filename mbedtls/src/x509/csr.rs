@@ -129,6 +129,7 @@ impl<'a> Builder<'a> {
                 &mut self.inner,
                 oid.as_ptr() as *const _,
                 oid.len(),
+                0,
                 val.as_ptr(),
                 val.len()
             )
@@ -218,7 +219,7 @@ mod tests {
     impl Test {
         fn new() -> Self {
             Test {
-                key: Pk::from_private_key(crate::test_support::keys::PEM_SELF_SIGNED_KEY, None).unwrap(),
+                key: Pk::from_private_key(&mut crate::test_support::rand::test_rng(), crate::test_support::keys::PEM_SELF_SIGNED_KEY, None).unwrap(),
             }
         }
 

@@ -187,11 +187,52 @@ impl<T: IoCallbackUnsafe<AnyIo>> Io for Context<T> {
 /// for `Context<TcpStream>`, i.e. TLS connections but not for DTLS connections.
 impl<T: IoCallbackUnsafe<Stream>> Read for Context<T> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
-        match self.recv(buf) {
-            Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Ok(0),
-            Err(e) if matches!(e.high_level(), Some(codes::SslWantRead | codes::SslWantWrite)) => Err(IoErrorKind::WouldBlock.into()),
-            Err(e) => Err(crate::private::error_to_io_error(e)),
-            Ok(i) => Ok(i),
+        self.read_impl(buf)
+    }
+}
+
+#[cfg(feature = "std")]
+impl<T> Context<T> {
+    /// This function contains the implementation of `Read::read`.
+    /// It's been extracted into a separate function to enable reusability
+    /// when handling some special cases in TLS 1.3. This allows the logic to be shared in the
+    /// `AsyncRead` implementation found in `mbedtls/src/ssl/async_io.rs`.
+    pub(super) fn read_impl(&mut self, buf: &mut [u8]) -> IoResult<usize> {
+        loop {
+            match self.recv(buf) {
+                Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => return Ok(0),
+                #[cfg(not(feature = "tls13"))]
+                Err(e) if matches!(e.high_level(), Some(codes::SslWantRead | codes::SslWantWrite)) => return Err(IoErrorKind::WouldBlock.into()),
+                #[cfg(feature = "tls13")]
+                Err(e) if e.high_level() == Some(codes::SslWantRead) => {
+                    // In TLS 1.3, mbedtls delegates the responsibility of handling and
+                    // saving the `NewSessionTicket` to the user. When using the client
+                    // mode, it's possible to receive a `NewSessionTicket` instead of
+                    // the expected application data. In this case, mbedtls may return
+                    // `SslWantRead` to indicate that incoming data of the `NewSessionTicket`
+                    // should be read.
+                    // Refer to the following issue for more details:
+                    // https://github.com/Mbed-TLS/mbedtls/issues/6640
+                    if self.config().handle().private_endpoint as c_int == super::config::Endpoint::Client.into()
+                        && self.handle().private_state as mbedtls_sys::ssl_states == super::ssl_states::SslStates::Tls13NewSessionTicket.into()
+                    {
+                        continue;
+                    }
+                    return Err(IoErrorKind::WouldBlock.into());
+                }
+                // In TLS 1.3, mbedtls delegates the responsibility of handling and
+                // saving the `NewSessionTicket` to the user. When using the client mode,
+                // it's possible to receive a `NewSessionTicket` instead of the expected
+                // application data. After read the `NewSessionTicket` above, mbedtls will return a
+                // `SslReceivedNewSessionTicket` error. We catch it and continue reading
+                // since we now just does not support client side session resumption.
+                // Refer to the following issue for more details:
+                // https://github.com/Mbed-TLS/mbedtls/issues/6640
+                #[cfg(feature = "tls13")]
+                Err(e) if e.high_level() == Some(codes::SslReceivedNewSessionTicket) => continue,
+                Err(e) => return Err(crate::private::error_to_io_error(e)),
+                Ok(i) => return Ok(i),
+            }
         }
     }
 }

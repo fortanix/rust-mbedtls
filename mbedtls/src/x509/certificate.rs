@@ -212,11 +212,15 @@ impl Certificate {
     }
 
     pub fn signature(&self) -> Result<Vec<u8>> {
-        Ok(x509_buf_to_vec(&self.inner.sig))
+        // access `private_` field here becauase C mbedtls does not provide accessor
+        // TODO: need to be replaced with accessor, ref: #283
+        Ok(x509_buf_to_vec(&self.inner.private_sig))
     }
 
     pub fn digest_type(&self) -> MdType {
-        MdType::from(self.inner.sig_md)
+        // access `private_` field here becauase C mbedtls does not provide accessor
+        // TODO: need to be replaced with accessor, ref: #283
+        MdType::from(self.inner.private_sig_md)
     }
 
     fn verify_ex<F>(
@@ -755,8 +759,8 @@ mod tests {
     impl Test {
         fn new() -> Self {
             Test {
-                key1: Pk::from_private_key(crate::test_support::keys::PEM_SELF_SIGNED_KEY, None).unwrap(),
-                key2: Pk::from_private_key(crate::test_support::keys::PEM_SELF_SIGNED_KEY, None).unwrap(),
+                key1: Pk::from_private_key(&mut crate::test_support::rand::test_rng(), crate::test_support::keys::PEM_SELF_SIGNED_KEY, None).unwrap(),
+                key2: Pk::from_private_key(&mut crate::test_support::rand::test_rng(), crate::test_support::keys::PEM_SELF_SIGNED_KEY, None).unwrap(),
             }
         }
 
