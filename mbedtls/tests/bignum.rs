@@ -381,7 +381,7 @@ fn base58_decode(b58: &str) -> mbedtls::Result<Vec<u8>> {
                 return Ok(i);
             }
         }
-        Err(mbedtls::Error::Base64InvalidCharacter)
+        Err(mbedtls::Error::from(mbedtls::MbedErrorCode::Base64InvalidCharacter))
     }
 
     for c in b58.bytes() {

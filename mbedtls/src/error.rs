@@ -31,9 +31,15 @@ pub const ERR_UTF8_INVALID: c_int = -0x10000;
 
 macro_rules! error_enum {
     {enum $n:ident {$($rust:ident = $c:ident,)*}} => {
+
         #[derive(Debug, Eq, PartialEq)]
         pub enum $n {
             $($rust,)*
+        }
+
+        #[derive(Debug, Eq, PartialEq)]
+        pub enum Error {
+            MbedError(MbedErrorCode, c_int),
             Other(c_int),
             Utf8Error(Option<Utf8Error>),
             // Stable-Rust equivalent of `#[non_exhaustive]` attribute. This
@@ -49,34 +55,44 @@ macro_rules! error_enum {
                     ERR_UTF8_INVALID => return Err(Error::Utf8Error(None)),
                     _ => -self,
                 };
-                let (high_level_code, low_level_code) = (err_code & 0xFF80, err_code & 0x7F);
-                Err($n::from_mbedtls_code(if high_level_code > 0 { -high_level_code } else { -low_level_code }))
+                Err(Error::from_mbedtls_code(err_code))
             }
         }
 
-        impl $n {
-            pub fn from_mbedtls_code(code: c_int) -> Self {
-                match code {
-                    $(::mbedtls_sys::$c => $n::$rust),*,
-                    _ => $n::Other(code)
+        impl From<MbedErrorCode> for Error {
+            fn from(x: MbedErrorCode) -> Error {
+                match x {
+                    $(MbedErrorCode::$rust => return Error::MbedError(MbedErrorCode::$rust, ::mbedtls_sys::$c),)*
+                }
+            }
+        }
+
+        impl Error {
+            pub fn from_mbedtls_code(err_code: c_int) -> Self {
+                let (high_level_code, low_level_code) = (err_code & 0xFF80, err_code & 0x7F);
+                let code = if high_level_code != 0 { high_level_code } else { low_level_code };
+                match -code {
+                    $(::mbedtls_sys::$c => return Error::MbedError($n::$rust, err_code)),*,
+                    _ => return Error::Other(code)
                 }
             }
 
             pub fn as_str(&self) -> &'static str {
                 match self {
-                    $(&$n::$rust => concat!("mbedTLS error ",stringify!($n::$rust)),)*
-                    &$n::Other(_) => "mbedTLS unknown error",
-                    &$n::Utf8Error(_) => "error converting to UTF-8",
-                    &$n::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
+                    // TODO: add code
+                    $(&Error::MbedError($n::$rust, _) => concat!("mbedTLS error ",stringify!($n::$rust)),)*
+                    &Error::Other(_) => "mbedTLS unknown error",
+                    &Error::Utf8Error(_) => "error converting to UTF-8",
+                    &Error::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
                 }
             }
 
             pub fn to_int(&self) -> c_int {
                 match *self {
-                    $($n::$rust => ::mbedtls_sys::$c,)*
-                    $n::Other(code) => code,
-                    $n::Utf8Error(_) => ERR_UTF8_INVALID,
-                    $n::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
+                    Error::MbedError( _, code) => code,
+                    Error::Other(code) => code,
+                    Error::Utf8Error(_) => ERR_UTF8_INVALID,
+                    Error::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
                 }
             }
         }
@@ -117,7 +133,7 @@ impl StdError for Error {
 }
 
 error_enum!(
-    enum Error {
+    enum MbedErrorCode {
         AesBadInputData = ERR_AES_BAD_INPUT_DATA,
         AesFeatureUnavailable = ERR_AES_FEATURE_UNAVAILABLE,
         AesHwAccelFailed = ERR_AES_HW_ACCEL_FAILED,

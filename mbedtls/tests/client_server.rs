@@ -21,7 +21,7 @@ use mbedtls::ssl::context::Timer;
 use mbedtls::ssl::io::{ConnectedUdpSocket, IoCallback};
 use mbedtls::ssl::{Config, Context, CookieContext, Io, Version};
 use mbedtls::x509::{Certificate, VerifyError};
-use mbedtls::Error;
+use mbedtls::{Error, MbedErrorCode};
 use mbedtls::Result as TlsResult;
 use std::sync::Arc;
 
@@ -42,11 +42,11 @@ impl TransportType for TcpStream {
     }
 
     fn recv(ctx: &mut Context<Self>, buf: &mut [u8]) -> TlsResult<usize> {
-        ctx.read(buf).map_err(|_| Error::NetRecvFailed)
+        ctx.read(buf).map_err(|_| Error::from(MbedErrorCode::NetRecvFailed))
     }
 
     fn send(ctx: &mut Context<Self>, buf: &[u8]) -> TlsResult<usize> {
-        ctx.write(buf).map_err(|_| Error::NetSendFailed)
+        ctx.write(buf).map_err(|_| Error::from(MbedErrorCode::NetSendFailed))
     }
 }
 
@@ -111,8 +111,8 @@ fn client<C: IoCallback<T> + TransportType, T>(
         }
         Err(e) => {
             match e {
-                Error::SslBadHsProtocolVersion => {assert!(exp_version.is_none())},
-                Error::SslFatalAlertMessage => {},
+                Error::MbedError(MbedErrorCode::SslBadHsProtocolVersion, _) => {assert!(exp_version.is_none())},
+                Error::MbedError(MbedErrorCode::SslFatalAlertMessage, _) => {},
                 e => panic!("Unexpected error {}", e),
             };
             return Ok(());
@@ -163,7 +163,7 @@ fn server<C: IoCallback<T> + TransportType, T>(
         // The first connection setup attempt will fail because the ClientHello is received without
         // a cookie
         match ctx.establish(conn, None) {
-            Err(Error::SslHelloVerifyRequired) => {}
+            Err(Error::MbedError(MbedErrorCode::SslHelloVerifyRequired, _)) => {}
             Ok(()) => panic!("SslHelloVerifyRequired expected, got Ok instead"),
             Err(e) => panic!("SslHelloVerifyRequired expected, got {} instead", e),
         }
@@ -179,8 +179,8 @@ fn server<C: IoCallback<T> + TransportType, T>(
         Err(e) => {
             match e {
                 // client just closes connection instead of sending alert
-                Error::NetSendFailed => {assert!(exp_version.is_none())},
-                Error::SslBadHsProtocolVersion => {},
+                Error::MbedError(MbedErrorCode::NetSendFailed, _) => {assert!(exp_version.is_none())},
+                Error::MbedError(MbedErrorCode::SslBadHsProtocolVersion, _) => {},
                 e => panic!("Unexpected error {}", e),
             };
             return Ok(());

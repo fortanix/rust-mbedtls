@@ -24,9 +24,9 @@ use std::{
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 
+use crate::error::MbedErrorCode;
 #[cfg(feature = "std")]
-use crate::error::Error;
-use crate::error::Result;
+use crate::error::{Result, Error};
 use super::context::Context;
 
 /// A direct representation of the `mbedtls_ssl_send_t` and `mbedtls_ssl_recv_t`
@@ -118,15 +118,15 @@ impl<IO: Io> IoCallback<AnyIo> for IO {
 impl<IO: Read + Write> IoCallback<Stream> for IO {
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.read(buf).map_err(|e| match e {
-            ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::SslWantRead,
-            _ => Error::NetRecvFailed
+            ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::from(MbedErrorCode::SslWantRead),
+            _ => Error::from(MbedErrorCode::NetRecvFailed)
         })
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<usize> {
         self.write(buf).map_err(|e| match e {
-            ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::SslWantWrite,
-            _ => Error::NetSendFailed
+            ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::from(MbedErrorCode::SslWantWrite),
+            _ => Error::from(MbedErrorCode::NetSendFailed)
         })
     }
 }
@@ -160,13 +160,13 @@ impl Io for ConnectedUdpSocket {
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self.socket.recv(buf) {
             Ok(i) => Ok(i),
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Err(Error::SslWantRead),
-            Err(_) => Err(Error::NetRecvFailed)
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Err(Error::from(MbedErrorCode::SslWantRead)),
+            Err(_) => Err(Error::from(MbedErrorCode::NetRecvFailed))
         }
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<usize> {
-        self.socket.send(buf).map_err(|_| Error::NetSendFailed)
+        self.socket.send(buf).map_err(|_| Error::from(MbedErrorCode::NetSendFailed))
     }
 }
 
@@ -188,8 +188,8 @@ impl<T: IoCallbackUnsafe<AnyIo>> Io for Context<T> {
 impl<T: IoCallbackUnsafe<Stream>> Read for Context<T> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match self.recv(buf) {
-            Err(Error::SslPeerCloseNotify) => Ok(0),
-            Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Err(IoErrorKind::WouldBlock.into()),
+            Err(Error::MbedError(MbedErrorCode::SslPeerCloseNotify, _)) => Ok(0),
+            Err(Error::MbedError(MbedErrorCode::SslWantRead, _)) | Err(Error::MbedError(MbedErrorCode::SslWantWrite, _)) => Err(IoErrorKind::WouldBlock.into()),
             Err(e) => Err(crate::private::error_to_io_error(e)),
             Ok(i) => Ok(i),
         }
@@ -204,8 +204,11 @@ impl<T: IoCallbackUnsafe<Stream>> Read for Context<T> {
 impl<T: IoCallbackUnsafe<Stream>> Write for Context<T> {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
         match self.send(buf) {
-            Err(Error::SslPeerCloseNotify) => Ok(0),
-            Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Err(IoErrorKind::WouldBlock.into()),
+            Err(Error::MbedError(MbedErrorCode::SslPeerCloseNotify, _)) => Ok(0),
+            Err(Error::MbedError(e, c)) => match e {
+                MbedErrorCode::SslWantRead | MbedErrorCode::SslWantWrite => Err(IoErrorKind::WouldBlock.into()),
+                _ => Err(crate::private::error_to_io_error(Error::MbedError(e, c))),
+            },
             Err(e) => Err(crate::private::error_to_io_error(e)),
             Ok(i) => Ok(i),
         }
