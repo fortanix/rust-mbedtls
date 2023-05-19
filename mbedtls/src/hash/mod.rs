@@ -256,28 +256,3 @@ pub fn pbkdf2_hmac(
         Ok(())
     }
 }
-
-pub fn pbkdf_pkcs12(
-    md: Type,
-    password: &[u8],
-    salt: &[u8],
-    id: u8,
-    iterations: u32,
-    key: &mut [u8],
-) -> Result<()> {
-    unsafe {
-        pkcs12_derivation(
-            key.as_mut_ptr(),
-            key.len(),
-            password.as_ptr(),
-            password.len(),
-            salt.as_ptr(),
-            salt.len(),
-            md.into(),
-            id as i32,
-            iterations as i32,
-        )
-        .into_result()?;
-        Ok(())
-    }
-}

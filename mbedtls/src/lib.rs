@@ -41,9 +41,6 @@ pub mod ssl;
 pub mod x509;
 pub mod alloc;
 
-#[cfg(feature = "pkcs12")]
-pub mod pkcs12;
-
 // ==============
 //    Utility
 // ==============
