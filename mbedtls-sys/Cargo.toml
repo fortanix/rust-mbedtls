@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls-sys-auto"
-version = "2.28.3"
+version = "3.4.0"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build/build.rs"
 license = "Apache-2.0 OR GPL-2.0-or-later"
@@ -18,16 +18,12 @@ name = "mbedtls_sys"
 
 [dependencies]
 cfg-if = "1.0.0"
-libz-sys = { version = "1.0.0", optional = true }
-# deprecated dependency, this don't do anything anymore, but still needed to
-# provide the `libc` feature, can be removed on major version bump
-libc = { version = "0.2.0", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = { version = "0.2.0" }
 
 [build-dependencies]
-bindgen = "0.65"
+bindgen = {version = "0.65.1", features = ["experimental"] }
 cmake = "0.1.17"
 cc = "1.0.45"
 lazy_static = "1.4"
@@ -42,8 +38,8 @@ quote = "1.0.9"
 # * strstr/strlen/strncpy/strncmp/strcmp/snprintf
 # * memmove/memcpy/memcmp/memset
 # * rand/printf (used only for self tests. optionally use custom_printf)
-default = ["std", "debug", "threading", "zlib", "time", "aesni", "padlock", "legacy_protocols"]
-std = ["debug"] # deprecated automatic enabling of debug, can be removed on major version bump
+default = ["std", "debug", "threading", "time", "aesni", "padlock"]
+std = []
 debug = []
 custom_printf = []
 custom_has_support = []
@@ -51,16 +47,13 @@ aes_alt = []
 threading = []
 time = []
 havege = ["time"]
-zlib = ["libz-sys"]
-pkcs11 = []
 aesni = []
 padlock = []
-legacy_protocols = []
 mpi_force_c_code = []
 trusted_cert_callback = []
-# deprecated, needed for backcompat, can be removed on major version bump
-custom_threading = ["threading"]
-custom_time = ["time"]
-custom_gmtime_r = ["time"]
-# deprecated features, these don't do anything anymore, can be removed on major version bump
-pthread = ["threading"]
+
+[profile.release]
+# Turn on "thin" LTO in release to optimize static function wrappers code
+# To make this take affect, please use following command to compile the code:
+# RUSTFLAGS="-Clinker-plugin-lto -Clinker=clang -Clink-arg=-fuse-ld=lld" cargo build --release
+lto = "thin"
