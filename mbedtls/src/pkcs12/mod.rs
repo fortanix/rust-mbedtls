@@ -36,6 +36,7 @@ use crate::pk::Pk;
 use crate::x509::Certificate;
 use crate::alloc::{Box as MbedtlsBox};
 use crate::error::{Error as MbedtlsError, codes};
+use crate::rng::Random;
 
 // Constants for various object identifiers used in PKCS12:
 
@@ -843,12 +844,12 @@ impl Pfx {
 
     /// Return the private keys stored in this Pfx along with a possibly empty list
     /// of "friendly names" which are associated with said private key.
-    pub fn private_keys<'a>(&'a self) -> impl Iterator<Item=(Result<Pk, crate::Error>, Vec<String>)> + 'a {
+    pub fn private_keys<'a, F: Random>(&'a self, rng: &'a mut F) -> impl Iterator<Item=(Result<Pk, crate::Error>, Vec<String>)> + 'a {
         self.authsafe_decrypted_contents()
-            .filter_map(|sb|
+            .filter_map(move |sb|
                 match &sb.bag_value {
                     Pkcs12BagSet::Pkcs8(pkcs8) | Pkcs12BagSet::Key(KeyBag { pkcs8 }) =>
-                        Some((Pk::from_private_key(pkcs8, None), sb.friendly_name())),
+                        Some((Pk::from_private_key(rng, pkcs8, None), sb.friendly_name())),
                     _ => /* not a private key */ None
                 }
             )
@@ -910,7 +911,7 @@ mod tests {
         assert_eq!(certs.len(), 1);
         assert_eq!(certs[0].1.len(), 0); // no friendly name set
 
-        let keys = parsed_pfx.private_keys().collect::<Vec<_>>();
+        let keys = parsed_pfx.private_keys(&mut crate::test_support::rand::test_rng()).collect::<Vec<_>>();
         assert_eq!(keys.len(), 0);
 
         let pfx = parsed_pfx.decrypt(&password, None).unwrap();
@@ -921,7 +922,7 @@ mod tests {
             assert!(cert.0.is_ok());
         }
 
-        let keys = pfx.private_keys().collect::<Vec<_>>();
+        let keys = pfx.private_keys(&mut crate::test_support::rand::test_rng()).collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1); // has friendly name
@@ -946,7 +947,7 @@ mod tests {
         let certs = parsed_pfx.certificates().collect::<Vec<_>>();
         assert_eq!(certs.len(), 0);
 
-        let keys = parsed_pfx.private_keys().collect::<Vec<_>>();
+        let keys = parsed_pfx.private_keys(&mut crate::test_support::rand::test_rng()).collect::<Vec<_>>();
         assert_eq!(keys.len(), 0);
 
         assert!(parsed_pfx.decrypt(&not_the_password, None).is_err());
@@ -959,7 +960,7 @@ mod tests {
             assert!(cert.0.is_ok());
         }
 
-        let keys = pfx.private_keys().collect::<Vec<_>>();
+        let keys = pfx.private_keys(&mut crate::test_support::rand::test_rng()).collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1); // has friendly name
@@ -983,7 +984,7 @@ mod tests {
             assert!(cert.0.is_ok());
         }
 
-        let keys = parsed_pfx.private_keys().collect::<Vec<_>>();
+        let keys = parsed_pfx.private_keys(&mut crate::test_support::rand::test_rng()).collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 0); // no name
@@ -1009,7 +1010,7 @@ mod tests {
             assert!(cert.0.is_ok());
         }
 
-        let keys = pfx.private_keys().collect::<Vec<_>>();
+        let keys = pfx.private_keys(&mut crate::test_support::rand::test_rng()).collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1); // no name
@@ -1035,7 +1036,7 @@ mod tests {
             assert!(cert.0.is_ok());
         }
 
-        let keys = pfx.private_keys().collect::<Vec<_>>();
+        let keys = pfx.private_keys(&mut crate::test_support::rand::test_rng()).collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1);
@@ -1077,7 +1078,7 @@ mod tests {
             assert!(cert.0.is_ok());
         }
 
-        let keys = pfx.private_keys().collect::<Vec<_>>();
+        let keys = pfx.private_keys(&mut crate::test_support::rand::test_rng()).collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1);
@@ -1103,7 +1104,7 @@ mod tests {
             assert!(cert.0.is_ok());
         }
 
-        let keys = pfx.private_keys().collect::<Vec<_>>();
+        let keys = pfx.private_keys(&mut crate::test_support::rand::test_rng()).collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1);
@@ -1128,7 +1129,7 @@ mod tests {
             assert!(cert.0.is_ok());
         }
 
-        let keys = pfx.private_keys().collect::<Vec<_>>();
+        let keys = pfx.private_keys(&mut crate::test_support::rand::test_rng()).collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1);
@@ -1153,7 +1154,7 @@ mod tests {
             assert!(cert.0.is_ok());
         }
 
-        let keys = pfx.private_keys().collect::<Vec<_>>();
+        let keys = pfx.private_keys(&mut crate::test_support::rand::test_rng()).collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         let pk = keys[0].0.as_ref().unwrap();
@@ -1181,7 +1182,7 @@ mod tests {
             assert!(cert.0.is_ok());
         }
 
-        let keys = pfx.private_keys().collect::<Vec<_>>();
+        let keys = pfx.private_keys(&mut crate::test_support::rand::test_rng()).collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1);
@@ -1207,12 +1208,12 @@ mod tests {
             assert!(cert.0.is_ok());
         }
 
-        let keys = pfx.private_keys().collect::<Vec<_>>();
+        let keys = pfx.private_keys(&mut crate::test_support::rand::test_rng()).collect::<Vec<_>>();
         assert_eq!(keys.len(), 0);
 
         let pfx = pfx.decrypt(&password, None).unwrap();
 
-        let keys = pfx.private_keys().collect::<Vec<_>>();
+        let keys = pfx.private_keys(&mut crate::test_support::rand::test_rng()).collect::<Vec<_>>();
         assert_eq!(keys.len(), 1);
 
         assert_eq!(keys[0].1.len(), 1); // no name

@@ -21,6 +21,7 @@ use mbedtls::x509::{Certificate, VerifyError};
 use mbedtls::error::codes;
 use mbedtls::Result as TlsResult;
 
+use support::rand::test_rng;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 mod support;
@@ -65,7 +66,7 @@ async fn client(conn: TcpStream, min_version: Version, max_version: Version, exp
             }
             Err(e) => {
                 match e.high_level() {
-                    Some(codes::SslBadHsProtocolVersion) => {
+                    Some(codes::SslBadProtocolVersion) => {
                         assert!(exp_version.is_none())
                     }
                     Some(codes::SslFatalAlertMessage) => {}
@@ -90,11 +91,15 @@ async fn server(conn: TcpStream, min_version: Version, max_version: Version, exp
     let entropy = entropy_new();
     let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
     let cert = Arc::new(Certificate::from_pem_multiple(keys::EXPIRED_CERT.as_bytes())?);
-    let key = Arc::new(Pk::from_private_key(keys::EXPIRED_KEY.as_bytes(), None)?);
+    let key = Arc::new(Pk::from_private_key(&mut test_rng(), keys::EXPIRED_KEY.as_bytes(), None)?);
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(rng);
     config.set_min_version(min_version)?;
     config.set_max_version(max_version)?;
+    if min_version == Version::Tls13 || max_version == Version::Tls13 {
+        let sig_algs = Arc::new(mbedtls::ssl::tls13_preset_default_sig_algs());
+        config.set_signature_algorithms(sig_algs);
+    }
     config.push_cert(cert, key)?;
     let mut context = Context::new(Arc::new(config));
 
@@ -108,7 +113,7 @@ async fn server(conn: TcpStream, min_version: Version, max_version: Version, exp
                 (Some(codes::NetSendFailed), _) => {
                     assert!(exp_version.is_none())
                 }
-                (_, Some(codes::SslBadHsProtocolVersion)) => {}
+                (_, Some(codes::SslBadProtocolVersion)) => {}
                 _ => panic!("Unexpected error {}", e),
             };
             return Ok(());
@@ -159,7 +164,7 @@ where
     let entropy = Arc::new(entropy_new());
     let rng = Arc::new(CtrDrbg::new(entropy, None).unwrap());
     let cert = Arc::new(Certificate::from_pem_multiple(keys::EXPIRED_CERT.as_bytes()).unwrap());
-    let key = Arc::new(Pk::from_private_key(keys::EXPIRED_KEY.as_bytes(), None).unwrap());
+    let key = Arc::new(Pk::from_private_key(&mut test_rng(), keys::EXPIRED_KEY.as_bytes(), None).unwrap());
 
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(rng);
@@ -173,104 +178,95 @@ where
 
 #[cfg(unix)]
 mod test {
+    use mbedtls::ssl::Version;
+    use rstest::rstest;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+    #[derive(Copy, Clone)]
+    struct TestConfig {
+        min_c: Version,
+        max_c: Version,
+        min_s: Version,
+        max_s: Version,
+        exp_ver: Option<Version>,
+    }
+
+    impl TestConfig {
+        pub fn new(min_c: Version, max_c: Version, min_s: Version, max_s: Version, exp_ver: Option<Version>) -> Self {
+            TestConfig {
+                min_c,
+                max_c,
+                min_s,
+                max_s,
+                exp_ver,
+            }
+        }
+    }
+
+    #[rstest]
+    #[case::client1_2_server1_2(TestConfig::new(
+        Version::Tls12,
+        Version::Tls12,
+        Version::Tls12,
+        Version::Tls12,
+        Some(Version::Tls12)
+    ))]
+    #[case::client_mix_server1_2(TestConfig::new(
+        Version::Tls12,
+        Version::Tls13,
+        Version::Tls12,
+        Version::Tls12,
+        Some(Version::Tls12)
+    ))]
+    #[case::client1_3_server1_3(TestConfig::new(
+        Version::Tls13,
+        Version::Tls13,
+        Version::Tls13,
+        Version::Tls13,
+        Some(Version::Tls13)
+    ))]
+    #[case::client_mix_server1_3(TestConfig::new(
+        Version::Tls12,
+        Version::Tls13,
+        Version::Tls13,
+        Version::Tls13,
+        Some(Version::Tls13)
+    ))]
+    #[case::client1_2_server_mix(TestConfig::new(
+        Version::Tls12,
+        Version::Tls12,
+        Version::Tls12,
+        Version::Tls13,
+        Some(Version::Tls12)
+    ))]
+    #[case::client1_3_server_mix(TestConfig::new(
+        Version::Tls13,
+        Version::Tls13,
+        Version::Tls12,
+        Version::Tls13,
+        Some(Version::Tls13)
+    ))]
+    #[case::client_mix_server_mix(TestConfig::new(
+        Version::Tls12,
+        Version::Tls13,
+        Version::Tls12,
+        Version::Tls13,
+        Some(Version::Tls13)
+    ))]
     #[tokio::test]
-    async fn async_session_client_server_test() {
-        use mbedtls::ssl::Version;
+    async fn async_session_client_server_test(#[case] config: TestConfig) {
+        let min_c = config.min_c;
+        let max_c = config.max_c;
+        let min_s = config.min_s;
+        let max_s = config.max_s;
+        let exp_ver = config.exp_ver;
 
-        #[derive(Copy, Clone)]
-        struct TestConfig {
-            min_c: Version,
-            max_c: Version,
-            min_s: Version,
-            max_s: Version,
-            exp_ver: Option<Version>,
-        }
+        let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
+        let c = tokio::spawn(super::client(c, min_c, max_c, exp_ver.clone()));
+        let s = tokio::spawn(super::server(s, min_s, max_s, exp_ver));
 
-        impl TestConfig {
-            pub fn new(min_c: Version, max_c: Version, min_s: Version, max_s: Version, exp_ver: Option<Version>) -> Self {
-                TestConfig {
-                    min_c,
-                    max_c,
-                    min_s,
-                    max_s,
-                    exp_ver,
-                }
-            }
-        }
-
-        let test_configs = [
-            TestConfig::new(
-                Version::Ssl3,
-                Version::Ssl3,
-                Version::Ssl3,
-                Version::Ssl3,
-                Some(Version::Ssl3),
-            ),
-            TestConfig::new(
-                Version::Ssl3,
-                Version::Tls1_2,
-                Version::Ssl3,
-                Version::Ssl3,
-                Some(Version::Ssl3),
-            ),
-            TestConfig::new(
-                Version::Tls1_0,
-                Version::Tls1_0,
-                Version::Tls1_0,
-                Version::Tls1_0,
-                Some(Version::Tls1_0),
-            ),
-            TestConfig::new(
-                Version::Tls1_1,
-                Version::Tls1_1,
-                Version::Tls1_1,
-                Version::Tls1_1,
-                Some(Version::Tls1_1),
-            ),
-            TestConfig::new(
-                Version::Tls1_2,
-                Version::Tls1_2,
-                Version::Tls1_2,
-                Version::Tls1_2,
-                Some(Version::Tls1_2),
-            ),
-            TestConfig::new(
-                Version::Tls1_0,
-                Version::Tls1_2,
-                Version::Tls1_0,
-                Version::Tls1_2,
-                Some(Version::Tls1_2),
-            ),
-            TestConfig::new(
-                Version::Tls1_2,
-                Version::Tls1_2,
-                Version::Tls1_0,
-                Version::Tls1_2,
-                Some(Version::Tls1_2),
-            ),
-            TestConfig::new(Version::Tls1_0, Version::Tls1_1, Version::Tls1_2, Version::Tls1_2, None),
-        ];
-
-        for config in &test_configs {
-            let min_c = config.min_c;
-            let max_c = config.max_c;
-            let min_s = config.min_s;
-            let max_s = config.max_s;
-            let exp_ver = config.exp_ver;
-
-            if (max_c < Version::Tls1_2 || max_s < Version::Tls1_2) && !cfg!(feature = "legacy_protocols") {
-                continue;
-            }
-
-            let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
-            let c = tokio::spawn(super::client(c, min_c, max_c, exp_ver.clone()));
-            let s = tokio::spawn(super::server(s, min_s, max_s, exp_ver));
-
-            c.await.unwrap().unwrap();
-            s.await.unwrap().unwrap();
-        }
+        c.await.unwrap().unwrap();
+        s.await.unwrap().unwrap();
     }
 
     #[tokio::test]
@@ -342,7 +338,6 @@ mod test {
         }
     }
 
-    #[cfg(not(feature = "zlib"))]
     #[tokio::test]
     async fn write_large_buffer_ok() {
         // create a big truck of data to write&read, so that OS's Tcp buffer will be
@@ -382,7 +377,6 @@ mod test {
 
     /// write large buffer should ok when `poll_write` is getting an unchanging
     /// buffer when meet `Poll::Pending`
-    #[cfg(not(feature = "zlib"))]
     #[tokio::test]
     async fn write_large_buffer_ok_with_unchanging_buffer() {
         // create a big truck of data to write&read, so that OS's Tcp buffer will be
@@ -426,7 +420,6 @@ mod test {
 
     /// write large buffer should ok when `poll_write` is getting a increasing
     /// buffer when meet `Poll::Pending`
-    #[cfg(not(feature = "zlib"))]
     #[tokio::test]
     async fn write_large_buffer_ok_with_changing_buffer_1() {
         // create a big truck of data to write&read, so that OS's Tcp buffer will be
@@ -470,7 +463,6 @@ mod test {
 
     /// write large buffer should ok when `poll_write` is getting a decreasing
     /// buffer when meet `Poll::Pending`
-    #[cfg(not(feature = "zlib"))]
     #[tokio::test]
     async fn write_large_buffer_ok_with_changing_buffer_2() {
         // create a big truck of data to write&read, so that OS's Tcp buffer will be
@@ -503,47 +495,6 @@ mod test {
                     Err(e) => {
                         session.shutdown().await.unwrap();
                         panic!("Unexpected error {:?}", e);
-                    }
-                }
-            })
-        }));
-
-        c.await.unwrap();
-        s.await.unwrap();
-    }
-
-    /// when turn on `zlib` feature, c-mbedtls could not record buffer with
-    /// size > MBEDTLS_SSL_OUT_CONTENT_LEN (default: 16 * 1024)
-    /// Ref: mbedtls-sys/vendor/library/ssl_msg.c#L646-L653
-    #[cfg(feature = "zlib")]
-    #[tokio::test]
-    async fn write_large_buffer_should_fail_with_zlib() {
-        // create a big truck of data to write&read, so that OS's Tcp buffer will be
-        // full filled so that block appears during `mbedtls_ssl_write`
-        let buffer_size: usize = 3 * 1024 * 1024;
-        let expected_data: Vec<u8> = std::iter::repeat_with(rand::random).take(buffer_size).collect();
-        let data_to_write = expected_data.clone();
-        assert_eq!(expected_data, data_to_write);
-        let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
-        let c = tokio::spawn(super::with_client(c, move |mut session| {
-            Box::pin(async move {
-                let ret = session.write_all(&data_to_write).await;
-                assert!(ret.is_err());
-                let ref err = ret.unwrap_err();
-                assert_eq!(err.kind(), std::io::ErrorKind::Other);
-                assert!(err.to_string().contains("SslBadInputData"));
-            })
-        }));
-
-        let s = tokio::spawn(super::with_server(s, move |mut session| {
-            Box::pin(async move {
-                let mut buf = vec![0; buffer_size];
-                match session.read_exact(&mut buf).await {
-                    Ok(_) => {
-                        panic!("should return error");
-                    }
-                    Err(e) => {
-                        assert_eq!(e.kind(), std::io::ErrorKind::UnexpectedEof);
                     }
                 }
             })

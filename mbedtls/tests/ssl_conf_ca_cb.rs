@@ -17,25 +17,27 @@ use std::sync::Arc;
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
-use mbedtls::ssl::{Config, Context};
+use mbedtls::ssl::{Config, Context, Version};
 use mbedtls::x509::{Certificate};
 use mbedtls::Result as TlsResult;
 use mbedtls::ssl::config::CaCallback;
 
 mod support;
 use support::entropy::entropy_new;
+use support::rand::test_rng;
 
 use mbedtls::alloc::{List as MbedtlsList};
 
 fn client<F>(conn: TcpStream, ca_callback: F) -> TlsResult<()>
-    where
-        F: CaCallback + Send + 'static,
+where
+    F: CaCallback + Send + 'static,
 {
     let entropy = entropy_new();
     let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
     config.set_rng(rng);
     config.set_ca_callback(ca_callback);
+    config.set_max_version(Version::Tls12)?;
     let mut ctx = Context::new(Arc::new(config));
     ctx.establish(conn, None).map(|_| ())
 }
@@ -44,10 +46,11 @@ fn server(conn: TcpStream, cert: &[u8], key: &[u8]) -> TlsResult<()> {
     let entropy = entropy_new();
     let rng = Arc::new(CtrDrbg::new(Arc::new(entropy), None)?);
     let cert = Arc::new(Certificate::from_pem_multiple(cert)?);
-    let key = Arc::new(Pk::from_private_key(key, None)?);
+    let key = Arc::new(Pk::from_private_key(&mut test_rng(), key, None)?);
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(rng);
     config.push_cert(cert, key)?;
+    config.set_max_version(Version::Tls12)?;
     let mut ctx = Context::new(Arc::new(config));
 
     let _ = ctx.establish(conn, None);
@@ -74,8 +77,8 @@ mod test {
 
         let ca_callback =
             |_: &MbedtlsList<Certificate>| -> TlsResult<MbedtlsList<Certificate>> {
-                Ok(Certificate::from_pem_multiple(keys::ROOT_CA_CERT.as_bytes()).unwrap())
-            };
+            Ok(Certificate::from_pem_multiple(keys::ROOT_CA_CERT.as_bytes()).unwrap())
+        };
         let c = thread::spawn(move || super::client(c, ca_callback).unwrap());
         let s = thread::spawn(move || super::server(s, keys::PEM_CERT.as_bytes(), keys::PEM_KEY.as_bytes()).unwrap());
         c.join().unwrap();

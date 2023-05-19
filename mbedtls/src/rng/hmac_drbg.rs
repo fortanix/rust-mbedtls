@@ -80,7 +80,7 @@ impl HmacDrbg {
     }
 
     pub fn prediction_resistance(&self) -> bool {
-        if self.inner.prediction_resistance == HMAC_DRBG_PR_OFF {
+        if self.inner.private_prediction_resistance == HMAC_DRBG_PR_OFF {
             false
         } else {
             true
@@ -100,9 +100,9 @@ impl HmacDrbg {
         }
     }
 
-    getter!(entropy_len() -> size_t = .entropy_len);
+    getter!(entropy_len() -> size_t = .private_entropy_len);
     setter!(set_entropy_len(len: size_t) = hmac_drbg_set_entropy_len);
-    getter!(reseed_interval() -> c_int = .reseed_interval);
+    getter!(reseed_interval() -> c_int = .private_reseed_interval);
     setter!(set_reseed_interval(i: c_int) = hmac_drbg_set_reseed_interval);
 
     pub fn reseed(&mut self, additional_entropy: Option<&[u8]>) -> Result<()> {

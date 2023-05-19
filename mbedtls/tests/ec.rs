@@ -44,7 +44,7 @@ wvkbR/h/+CNU1mMPdGoooNsldBtbNKgoAIsirMI/kk+q+9TTP4HqZpVt/qor/fz1
 
 #[test]
 fn sign_verify() {
-    let mut k = Pk::from_private_key(TEST_KEY_PEM.as_bytes(), None).unwrap();
+    let mut k = Pk::from_private_key(&mut test_rng(), TEST_KEY_PEM.as_bytes(), None).unwrap();
 
     let data = b"SIGNATURE TEST SIGNATURE TEST SI";
     let mut signature1 = [0u8; ECDSA_MAX_LEN];
@@ -67,7 +67,7 @@ fn sign_verify() {
 
 #[test]
 fn verify_failure() {
-    let mut k = Pk::from_private_key(TEST_KEY_PEM.as_bytes(), None).unwrap();
+    let mut k = Pk::from_private_key(&mut test_rng(), TEST_KEY_PEM.as_bytes(), None).unwrap();
 
     let data = b"SIGNATURE TEST SIGNATURE TEST SI";
     let mut signature = [0u8; ECDSA_MAX_LEN];
@@ -107,7 +107,7 @@ fn sign_verify_rfc6979_sig() {
             .unwrap();
     }
 
-    let mut p256 = Pk::from_private_key(RFC6979_P256_KEY.as_bytes(), None).unwrap();
+    let mut p256 = Pk::from_private_key(&mut test_rng(), RFC6979_P256_KEY.as_bytes(), None).unwrap();
 
     test_rfc6979_sig(&mut p256, "sample", Type::Sha1,
 			 "3044022061340C88C3AAEBEB4F6D667F672CA9759A6CCAA9FA8811313039EE4A35471D3202206D7F147DAC089441BB2E2FE8F7A3FA264B9C475098FDCF6E00D7C996E1B8B7EB");
@@ -139,7 +139,7 @@ fn sign_verify_rfc6979_sig() {
     test_rfc6979_sig(&mut p256, "test", Type::Sha512,
 			 "30440220461D93F31B6540894788FD206C07CFA0CC35F46FA3C91816FFF1040AD1581A04022039AF9F15DE0DB8D97E72719C74820D304CE5226E32DEDAE67519E840D1194E55");
 
-    let mut p521 = Pk::from_private_key(RFC6979_P521_KEY.as_bytes(), None).unwrap();
+    let mut p521 = Pk::from_private_key(&mut test_rng(), RFC6979_P521_KEY.as_bytes(), None).unwrap();
 
     test_rfc6979_sig(&mut p521, "sample", Type::Sha1,
 			 "3081870241343B6EC45728975EA5CBA6659BBB6062A5FF89EEA58BE3C80B619F322C87910FE092F7D45BB0F8EEE01ED3F20BABEC079D202AE677B243AB40B5431D497C55D75D024200E7B0E675A9B24413D448B8CC119D2BF7B2D2DF032741C096634D6D65D0DBE3D5694625FB9E8104D3B842C1B0E2D0B98BEA19341E8676AEF66AE4EBA3D5475D5D16");
@@ -150,7 +150,7 @@ fn sign_verify_rfc6979_sig() {
 
 #[test]
 fn buffer_too_small() {
-    let mut k = Pk::from_private_key(TEST_KEY_PEM.as_bytes(), None).unwrap();
+    let mut k = Pk::from_private_key(&mut test_rng(), TEST_KEY_PEM.as_bytes(), None).unwrap();
 
     let data = b"SIGNATURE TEST SIGNATURE TEST SI";
     let mut signature = [0u8; ECDSA_MAX_LEN - 1];

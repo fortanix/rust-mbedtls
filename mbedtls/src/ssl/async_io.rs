@@ -15,6 +15,7 @@ use crate::{
         io::{IoCallback, IoCallbackUnsafe},
     },
 };
+use mbedtls_sys::types::raw_types::c_int;
 use std::{
     future::Future,
     io::{Error as IoError, ErrorKind as IoErrorKind, Result as IoResult},
@@ -95,17 +96,41 @@ where
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
 {
     fn poll_read(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>> {
-        if self.handle().session.is_null() {
+        if self.handle().private_session.is_null() {
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
-        self.with_bio_async(cx, |ssl_ctx| match ssl_ctx.recv(buf.initialize_unfilled()) {
-            Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Poll::Ready(Ok(())),
-            Err(e) if e.high_level() == Some(codes::SslWantRead) => Poll::Pending,
-            Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
-            Ok(i) => {
-                buf.advance(i);
-                Poll::Ready(Ok(()))
+        self.with_bio_async(cx, |ssl_ctx| loop {
+            match ssl_ctx.recv(buf.initialize_unfilled()) {
+                Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Poll::Ready(Ok(())),
+                Err(e) if e.high_level() == Some(codes::SslWantRead) => {
+                    // When using a client, it's possible that we were waiting for application data
+                    // but got a NewSessionTicket instead. In this case, mbedtls
+                    // might return SslWantRead to indicate to read incoming data of
+                    // NewSessionTicket Please check code of function
+                    // `mbedtls_ssl_read` & `ssl_handle_hs_message_post_handshake` in
+                    // `mbedtls-sys/vendor/library/ssl_msg.c` for more info.
+                    if ssl_ctx.config().handle().private_endpoint as c_int == super::config::Endpoint::Client.into()
+                        && ssl_ctx.handle().private_state as mbedtls_sys::ssl_states
+                            == super::ssl_states::SslStates::Tls13NewSessionTicket.into()
+                    {
+                        continue;
+                    }
+                    return Poll::Pending;
+                }
+                // When using a client, it's possible that we were waiting for application data but got a NewSessionTicket
+                // instead. In this case, mbedtls will return SslReceivedNewSessionTicket, here we catch it and
+                // continue reading since we accept session resumption.
+                // Please check code of function `mbedtls_ssl_tls13_handshake_client_step` in
+                // `mbedtls-sys/vendor/library/ssl_tls13_client.c`
+                // and `case MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET` in example code
+                // `mbedtls-sys/vendor/programs/ssl/ssl_client2.c` for more info.
+                Err(e) if e.high_level() == Some(codes::SslReceivedNewSessionTicket) => continue,
+                Err(e) => return Poll::Ready(Err(crate::private::error_to_io_error(e))),
+                Ok(i) => {
+                    buf.advance(i);
+                    return Poll::Ready(Ok(()));
+                }
             }
         })
         .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::from(codes::NetRecvFailed)))))
@@ -117,7 +142,7 @@ where
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
 {
     fn poll_write(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
-        if self.handle().session.is_null() {
+        if self.handle().private_session.is_null() {
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
@@ -132,7 +157,7 @@ where
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
-        if self.handle().session.is_null() {
+        if self.handle().private_session.is_null() {
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
@@ -147,7 +172,7 @@ where
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
-        if self.handle().session.is_null() {
+        if self.handle().private_session.is_null() {
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 

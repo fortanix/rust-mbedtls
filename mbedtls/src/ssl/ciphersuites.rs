@@ -13,15 +13,9 @@ use mbedtls_sys::*;
 define!(
     #[non_exhaustive]
     #[c_ty(c_int)]
-    enum CipherSuite {
+    enum Tls12CipherSuite {
         RsaWithNullMd5 = TLS_RSA_WITH_NULL_MD5,
         RsaWithNullSha = TLS_RSA_WITH_NULL_SHA,
-        RsaWithRc4128Md5 = TLS_RSA_WITH_RC4_128_MD5,
-        RsaWithRc4128Sha = TLS_RSA_WITH_RC4_128_SHA,
-        RsaWithDesCbcSha = TLS_RSA_WITH_DES_CBC_SHA,
-        RsaWith3desEdeCbcSha = TLS_RSA_WITH_3DES_EDE_CBC_SHA,
-        DheRsaWithDesCbcSha = TLS_DHE_RSA_WITH_DES_CBC_SHA,
-        DheRsaWith3desEdeCbcSha = TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA,
         PskWithNullSha = TLS_PSK_WITH_NULL_SHA,
         DhePskWithNullSha = TLS_DHE_PSK_WITH_NULL_SHA,
         RsaPskWithNullSha = TLS_RSA_PSK_WITH_NULL_SHA,
@@ -38,16 +32,10 @@ define!(
         DheRsaWithAes256CbcSha256 = TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,
         RsaWithCamellia256CbcSha = TLS_RSA_WITH_CAMELLIA_256_CBC_SHA,
         DheRsaWithCamellia256CbcSha = TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA,
-        PskWithRc4128Sha = TLS_PSK_WITH_RC4_128_SHA,
-        PskWith3desEdeCbcSha = TLS_PSK_WITH_3DES_EDE_CBC_SHA,
         PskWithAes128CbcSha = TLS_PSK_WITH_AES_128_CBC_SHA,
         PskWithAes256CbcSha = TLS_PSK_WITH_AES_256_CBC_SHA,
-        DhePskWithRc4128Sha = TLS_DHE_PSK_WITH_RC4_128_SHA,
-        DhePskWith3desEdeCbcSha = TLS_DHE_PSK_WITH_3DES_EDE_CBC_SHA,
         DhePskWithAes128CbcSha = TLS_DHE_PSK_WITH_AES_128_CBC_SHA,
         DhePskWithAes256CbcSha = TLS_DHE_PSK_WITH_AES_256_CBC_SHA,
-        RsaPskWithRc4128Sha = TLS_RSA_PSK_WITH_RC4_128_SHA,
-        RsaPskWith3desEdeCbcSha = TLS_RSA_PSK_WITH_3DES_EDE_CBC_SHA,
         RsaPskWithAes128CbcSha = TLS_RSA_PSK_WITH_AES_128_CBC_SHA,
         RsaPskWithAes256CbcSha = TLS_RSA_PSK_WITH_AES_256_CBC_SHA,
         RsaWithAes128GcmSha256 = TLS_RSA_WITH_AES_128_GCM_SHA256,
@@ -77,23 +65,15 @@ define!(
         RsaWithCamellia256CbcSha256 = TLS_RSA_WITH_CAMELLIA_256_CBC_SHA256,
         DheRsaWithCamellia256CbcSha256 = TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA256,
         EcdhEcdsaWithNullSha = TLS_ECDH_ECDSA_WITH_NULL_SHA,
-        EcdhEcdsaWithRc4128Sha = TLS_ECDH_ECDSA_WITH_RC4_128_SHA,
-        EcdhEcdsaWith3desEdeCbcSha = TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA,
         EcdhEcdsaWithAes128CbcSha = TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA,
         EcdhEcdsaWithAes256CbcSha = TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,
         EcdheEcdsaWithNullSha = TLS_ECDHE_ECDSA_WITH_NULL_SHA,
-        EcdheEcdsaWithRc4128Sha = TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,
-        EcdheEcdsaWith3desEdeCbcSha = TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA,
         EcdheEcdsaWithAes128CbcSha = TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
         EcdheEcdsaWithAes256CbcSha = TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
         EcdhRsaWithNullSha = TLS_ECDH_RSA_WITH_NULL_SHA,
-        EcdhRsaWithRc4128Sha = TLS_ECDH_RSA_WITH_RC4_128_SHA,
-        EcdhRsaWith3desEdeCbcSha = TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA,
         EcdhRsaWithAes128CbcSha = TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,
         EcdhRsaWithAes256CbcSha = TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,
         EcdheRsaWithNullSha = TLS_ECDHE_RSA_WITH_NULL_SHA,
-        EcdheRsaWithRc4128Sha = TLS_ECDHE_RSA_WITH_RC4_128_SHA,
-        EcdheRsaWith3desEdeCbcSha = TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
         EcdheRsaWithAes128CbcSha = TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
         EcdheRsaWithAes256CbcSha = TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
         EcdheEcdsaWithAes128CbcSha256 = TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
@@ -112,8 +92,6 @@ define!(
         EcdheRsaWithAes256GcmSha384 = TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
         EcdhRsaWithAes128GcmSha256 = TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,
         EcdhRsaWithAes256GcmSha384 = TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,
-        EcdhePskWithRc4128Sha = TLS_ECDHE_PSK_WITH_RC4_128_SHA,
-        EcdhePskWith3desEdeCbcSha = TLS_ECDHE_PSK_WITH_3DES_EDE_CBC_SHA,
         EcdhePskWithAes128CbcSha = TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA,
         EcdhePskWithAes256CbcSha = TLS_ECDHE_PSK_WITH_AES_256_CBC_SHA,
         EcdhePskWithAes128CbcSha256 = TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA256,
@@ -214,5 +192,96 @@ define!(
         EcdheEcdsaWithAes128Ccm8 = TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8,
         EcdheEcdsaWithAes256Ccm8 = TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8,
         EcjpakeWithAes128Ccm8 = TLS_ECJPAKE_WITH_AES_128_CCM_8,
+        EcdheRsaWithChacha20Poly1305Sha256 = TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+        EcdheEcdsaWithChacha20Poly1305Sha256 = TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+        DheRsaWithChacha20Poly1305Sha256 = TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+        PskWithChacha20Poly1305Sha256 = TLS_PSK_WITH_CHACHA20_POLY1305_SHA256,
+        EcdhePskWithChacha20Poly1305Sha256 = TLS_ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256,
+        DhePskWithChacha20Poly1305Sha256 = TLS_DHE_PSK_WITH_CHACHA20_POLY1305_SHA256,
+        RsaPskWithChacha20Poly1305Sha256 = TLS_RSA_PSK_WITH_CHACHA20_POLY1305_SHA256,
     }
 );
+
+/// Always use into() to convert to i32, do not use 'as i32'. (until issue is fixed: https://github.com/fortanix/rust-mbedtls/issues/129)
+define!(
+    #[non_exhaustive]
+    #[c_ty(c_int)]
+    enum Tls13CipherSuite {
+        Tls13Aes128GcmSha256 = TLS1_3_AES_128_GCM_SHA256,
+        Tls13Aes256GcmSha384 = TLS1_3_AES_256_GCM_SHA384,
+        Tls13Chacha20Poly1305Sha256 = TLS1_3_CHACHA20_POLY1305_SHA256,
+        Tls13Aes128CcmSha256 = TLS1_3_AES_128_CCM_SHA256,
+        Tls13Aes128Ccm8Sha256 = TLS1_3_AES_128_CCM_8_SHA256,
+    }
+);
+
+/// Always use into() to convert to i32, do not use 'as i32'. (until issue is fixed: https://github.com/fortanix/rust-mbedtls/issues/129)
+define!(
+    #[non_exhaustive]
+    #[c_ty(c_int)]
+    enum IanaTlsNamedGroup {
+        None = SSL_IANA_TLS_GROUP_NONE,
+        Secp192k1 = SSL_IANA_TLS_GROUP_SECP192K1,
+        Secp192r1 = SSL_IANA_TLS_GROUP_SECP192R1,
+        Secp224k1 = SSL_IANA_TLS_GROUP_SECP224K1,
+        Secp224r1 = SSL_IANA_TLS_GROUP_SECP224R1,
+        Secp256k1 = SSL_IANA_TLS_GROUP_SECP256K1,
+        Secp256r1 = SSL_IANA_TLS_GROUP_SECP256R1,
+        Secp384r1 = SSL_IANA_TLS_GROUP_SECP384R1,
+        Secp521r1 = SSL_IANA_TLS_GROUP_SECP521R1,
+        Bp256r1 = SSL_IANA_TLS_GROUP_BP256R1,
+        Bp384r1 = SSL_IANA_TLS_GROUP_BP384R1,
+        Bp512r1 = SSL_IANA_TLS_GROUP_BP512R1,
+        X25519 = SSL_IANA_TLS_GROUP_X25519,
+        X448 = SSL_IANA_TLS_GROUP_X448,
+        Ffdhe2048 = SSL_IANA_TLS_GROUP_FFDHE2048,
+        Ffdhe3072 = SSL_IANA_TLS_GROUP_FFDHE3072,
+        Ffdhe4096 = SSL_IANA_TLS_GROUP_FFDHE4096,
+        Ffdhe6144 = SSL_IANA_TLS_GROUP_FFDHE6144,
+        Ffdhe8192 = SSL_IANA_TLS_GROUP_FFDHE8192,
+    }
+);
+
+/// Always use into() to convert to i32, do not use 'as i32'. (until issue is fixed: https://github.com/fortanix/rust-mbedtls/issues/129)
+define!(
+    #[non_exhaustive]
+    #[c_ty(c_int)]
+    enum TLS13SignatureAlgorithms {
+        RsaPkcs1Sha256 = TLS1_3_SIG_RSA_PKCS1_SHA256,
+        RsaPkcs1Sha384 = TLS1_3_SIG_RSA_PKCS1_SHA384,
+        RsaPkcs1Sha512 = TLS1_3_SIG_RSA_PKCS1_SHA512,
+        EcdsaSecp256R1Sha256 = TLS1_3_SIG_ECDSA_SECP256R1_SHA256,
+        EcdsaSecp384R1Sha384 = TLS1_3_SIG_ECDSA_SECP384R1_SHA384,
+        EcdsaSecp521R1Sha512 = TLS1_3_SIG_ECDSA_SECP521R1_SHA512,
+        RsaPssRsaeSha256 = TLS1_3_SIG_RSA_PSS_RSAE_SHA256,
+        RsaPssRsaeSha384 = TLS1_3_SIG_RSA_PSS_RSAE_SHA384,
+        RsaPssRsaeSha512 = TLS1_3_SIG_RSA_PSS_RSAE_SHA512,
+        Ed25519 = TLS1_3_SIG_ED25519,
+        Ed448 = TLS1_3_SIG_ED448,
+        RsaPssPssSha256 = TLS1_3_SIG_RSA_PSS_PSS_SHA256,
+        RsaPssPssSha384 = TLS1_3_SIG_RSA_PSS_PSS_SHA384,
+        RsaPssPssSha512 = TLS1_3_SIG_RSA_PSS_PSS_SHA512,
+        RsaPkcs1Sha1 = TLS1_3_SIG_RSA_PKCS1_SHA1,
+        EcdsaSha1 = TLS1_3_SIG_ECDSA_SHA1,
+        None = TLS1_3_SIG_NONE,
+    }
+);
+
+#[cfg(not(feature = "std"))]
+use crate::alloc_prelude::*;
+
+use TLS13SignatureAlgorithms::*;
+pub fn tls13_preset_default_sig_algs() -> Vec<u16> {
+    vec![
+    Into::<c_int>::into(EcdsaSecp256R1Sha256) as u16,
+    Into::<c_int>::into(EcdsaSecp384R1Sha384) as u16,
+    Into::<c_int>::into(EcdsaSecp521R1Sha512) as u16,
+    Into::<c_int>::into(RsaPkcs1Sha256) as u16,
+    Into::<c_int>::into(RsaPkcs1Sha384) as u16,
+    Into::<c_int>::into(RsaPkcs1Sha512) as u16,
+    Into::<c_int>::into(RsaPssRsaeSha256) as u16,
+    Into::<c_int>::into(RsaPssRsaeSha384) as u16,
+    Into::<c_int>::into(RsaPssRsaeSha512) as u16,
+    Into::<c_int>::into(None) as u16,
+    ]
+}

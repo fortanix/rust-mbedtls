@@ -29,18 +29,19 @@ cbc = { version = "0.1.2", optional = true }
 rc2 = { version = "0.8.1", optional = true }
 cfg-if = "1.0.0"
 tokio = { version = "1.16.1", optional = true }
+once_cell = "1.17.1"
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.2.0"
 
 [dependencies.mbedtls-sys-auto]
-version = "2.25.0"
+version = "3.4.0"
 default-features = false
 features = ["trusted_cert_callback", "threading"]
 path = "../mbedtls-sys"
 
 [dependencies.mbedtls-platform-support]
-version = "0.1"
+version = "0.2"
 path = "../mbedtls-platform-support"
 
 [dev-dependencies]
@@ -48,12 +49,15 @@ libc = "0.2.0"
 rand = "0.4.0"
 serde_cbor = "0.6"
 hex = "0.3"
-matches = "0.1.8"
 hyper = { version = "0.10.16", default-features = false }
 async-stream = "0.3.0"
 futures = "0.3"
 tracing = "0.1"
 pin-project-lite = "0.2"
+rstest = "0.17.0"
+lazy_static = "1.4"
+env_logger = "0.10"
+hyper14 = { package = "hyper", version = "0.14", default-features = false, features = ["stream", "server", "client", "http1", "http2"] }
 
 [build-dependencies]
 cc = "1.0"
@@ -68,13 +72,11 @@ force_aesni_support = ["mbedtls-platform-support/force_aesni_support", "aesni"]
 mpi_force_c_code = ["mbedtls-sys-auto/mpi_force_c_code"]
 rdrand = []
 aesni = ["mbedtls-platform-support/aesni"]
-zlib = ["mbedtls-sys-auto/zlib"]
 time = ["mbedtls-platform-support/time"]
 padlock = ["mbedtls-sys-auto/padlock"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "cbc"]
-legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
 async = ["std", "tokio", "tokio/net", "tokio/io-util", "tokio/macros"]
 async-rt = ["async", "tokio/rt", "tokio/sync", "tokio/rt-multi-thread"]
 
@@ -114,4 +116,9 @@ required-features = ["std"]
 [[test]]
 name = "async_session"
 path = "tests/async_session.rs"
+required-features = ["async-rt"]
+
+[[test]]
+name = "hyper_async"
+path = "tests/hyper_async.rs"
 required-features = ["async-rt"]

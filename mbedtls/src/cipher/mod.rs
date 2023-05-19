@@ -145,7 +145,7 @@ impl<O: Operation, T: Type> Cipher<O, T, Fresh> {
 
         // Put together the structure to return
         Ok(Cipher {
-            raw_cipher: raw_cipher,
+            raw_cipher,
             padding: raw::CipherPadding::Pkcs7,
             _op: PhantomData,
             _type: PhantomData,
@@ -290,12 +290,12 @@ impl Cipher<Encryption, Authenticated, AdditionalData> {
     pub fn encrypt_auth_inplace(
         mut self,
         ad: &[u8],
-        data: &mut [u8],
-        tag: &mut [u8],
+        data_with_tag: &mut [u8],
+        tag_len: usize,
     ) -> Result<(usize, Cipher<Encryption, Authenticated, Finished>)> {
         Ok((
             self.raw_cipher
-                .encrypt_auth_inplace(ad, data, tag)?,
+                .encrypt_auth_inplace(ad, data_with_tag, tag_len)?,
             self.change_state(),
         ))
     }
@@ -319,12 +319,12 @@ impl Cipher<Decryption, Authenticated, AdditionalData> {
     pub fn decrypt_auth_inplace(
         mut self,
         ad: &[u8],
-        data: &mut [u8],
-        tag: &[u8],
+        data_with_tag: &mut [u8],
+        tag_len: usize,
     ) -> Result<(usize, Cipher<Decryption, Authenticated, Finished>)> {
         Ok((
             self.raw_cipher
-                .decrypt_auth_inplace(ad, data, tag)?,
+                .decrypt_auth_inplace(ad, data_with_tag, tag_len)?,
             self.change_state(),
         ))
     }
@@ -437,6 +437,7 @@ fn ccm_inplace() {
     let iv = [0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16];
     let ad = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07];
     let mut c = [0x20, 0x21, 0x22, 0x23, 0x0, 0x0, 0x0, 0x0];
+    let tag_len: usize = 4;
     let validate_cipher = [0x71, 0x62, 0x01, 0x5b, 0x4d, 0xac, 0x25, 0x5d];
     let validate_plain = [0x20, 0x21, 0x22, 0x23];
 
@@ -447,9 +448,8 @@ fn ccm_inplace() {
     )
     .unwrap();
     let cipher = cipher.set_key_iv(&k, &iv).unwrap();
-    let (data, tag) = c.split_at_mut(4);
     cipher
-        .encrypt_auth_inplace(&ad, data, tag)
+        .encrypt_auth_inplace(&ad, &mut c, tag_len)
         .unwrap();
     assert_eq!(c, validate_cipher);
 
@@ -460,9 +460,8 @@ fn ccm_inplace() {
     )
     .unwrap();
     let cipher = cipher.set_key_iv(&k, &iv).unwrap();
-    let (data, tag) = c.split_at_mut(4);
-    cipher.decrypt_auth_inplace(&ad, data, tag).unwrap();
-    assert_eq!(validate_plain, data);
+    cipher.decrypt_auth_inplace(&ad, &mut c, tag_len).unwrap();
+    assert_eq!(validate_plain, c[..c.len() - tag_len]);
 }
 
 #[test]

@@ -187,11 +187,35 @@ impl<T: IoCallbackUnsafe<AnyIo>> Io for Context<T> {
 /// for `Context<TcpStream>`, i.e. TLS connections but not for DTLS connections.
 impl<T: IoCallbackUnsafe<Stream>> Read for Context<T> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
-        match self.recv(buf) {
-            Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Ok(0),
-            Err(e) if matches!(e.high_level(), Some(codes::SslWantRead | codes::SslWantWrite)) => Err(IoErrorKind::WouldBlock.into()),
-            Err(e) => Err(crate::private::error_to_io_error(e)),
-            Ok(i) => Ok(i),
+        loop {
+            match self.recv(buf) {
+                Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Ok(0),
+                Err(e) if matches!(e.high_level(), Some(codes::SslWantRead)) => {
+                    // When using a client, it's possible that we were waiting for application data
+                    // but got a NewSessionTicket instead. In this case, mbedtls
+                    // might return SslWantRead to indicate to read incoming data of
+                    // NewSessionTicket Please check code of function
+                    // `mbedtls_ssl_read` & `ssl_handle_hs_message_post_handshake` in
+                    // `mbedtls-sys/vendor/library/ssl_msg.c` for more info.
+                    if self.config().handle().private_endpoint as c_int == super::config::Endpoint::Client.into()
+                        && self.handle().private_state as mbedtls_sys::ssl_states == super::ssl_states::SslStates::Tls13NewSessionTicket.into()
+                    {
+                        continue;
+                    }
+                    return Err(IoErrorKind::WouldBlock.into());
+                }
+                // When using a client, it's possible that we were waiting for application data but got a NewSessionTicket
+                // instead. In this case, mbedtls will return SslReceivedNewSessionTicket, here we catch it and
+                // continue reading since we accept session resumption.
+                // Please check code of function `mbedtls_ssl_tls13_handshake_client_step` in
+                // `mbedtls-sys/vendor/library/ssl_tls13_client.c`
+                // and `case MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET` in example code
+                // `mbedtls-sys/vendor/programs/ssl/ssl_client2.c` for more info.
+                Err(e) if matches!(e.high_level(), Some(codes::SslReceivedNewSessionTicket)) => continue,
+                Err(e) if matches!(e.high_level(), Some(codes::SslWantWrite)) => return Err(IoErrorKind::WouldBlock.into()),
+                Err(e) => return Err(crate::private::error_to_io_error(e)),
+                Ok(i) => return Ok(i),
+            }
         }
     }
 }

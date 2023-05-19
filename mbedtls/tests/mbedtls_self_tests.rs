@@ -52,17 +52,18 @@ macro_rules! tests {
                 assert!(mbedtls::self_test::$t(1)==0);
             }
         }
-        )*
-    };
+    )*
+};
 }
 
 tests! {
     fn aes,
-    fn arc4,
     fn aria,
     fn base64,
     fn camellia,
     fn ccm,
+    fn chacha20,
+    fn chachapoly,
     fn ctr_drbg,
     fn des,
     fn dhm,
@@ -70,18 +71,17 @@ tests! {
     fn entropy,
     fn gcm,
     fn hmac_drbg,
-    fn md2,
-    fn md4,
     fn md5,
     fn mpi,
     fn pkcs5,
+    fn poly1305,
     fn ripemd160,
     fn rsa,
     fn sha1,
+    fn sha224,
     fn sha256,
+    fn sha384,
     fn sha512,
-    fn x509,
-    fn xtea,
     fn nist_kw,
     fn cmac,
 }
