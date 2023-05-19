@@ -31,6 +31,7 @@ struct BuildConfig {
     mbedtls_include: PathBuf,
     config_h: PathBuf,
     cflags: Vec<String>,
+    static_wrappers_c: PathBuf,
 }
 
 impl BuildConfig {
@@ -95,6 +96,7 @@ impl BuildConfig {
         let config_h = out_dir.join("config.h");
         let mbedtls_src = PathBuf::from(env::var("RUST_MBEDTLS_SYS_SOURCE").unwrap_or("vendor".to_owned()));
         let mbedtls_include = mbedtls_src.join("include");
+        let static_wrappers_c = out_dir.join("static_wrappers.c");
 
         let mut cflags = vec![];
         if FEATURES.have_platform_component("c_compiler", "freestanding") {
@@ -110,7 +112,28 @@ impl BuildConfig {
             mbedtls_src,
             mbedtls_include,
             cflags,
+            static_wrappers_c
         }
+    }
+
+    // compile static function wrappers
+    fn build_static_wrappers(&self) {
+        let mut cc = cc::Build::new();
+        cc.include(&self.mbedtls_include)
+        .flag(&format!(
+            "-DMBEDTLS_CONFIG_FILE=\"{}\"",
+            self.config_h.to_str().expect("config.h UTF-8 error")
+        ));
+        for cflag in &self.cflags {
+            cc.flag(cflag);
+        }
+        if FEATURES.have_platform_component("c_compiler", "freestanding") {
+            cc.flag("-ffreestanding");
+        }
+        cc
+        .flag_if_supported("-flto=thin")
+        .file(&self.static_wrappers_c)
+        .compile("libstatic-wrappers.a");
     }
 }
 
@@ -120,4 +143,5 @@ fn main() {
     cfg.print_rerun_files();
     cfg.cmake();
     cfg.bindgen();
+    cfg.build_static_wrappers();
 }
