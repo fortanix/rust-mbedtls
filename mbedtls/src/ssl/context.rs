@@ -17,7 +17,7 @@ use mbedtls_sys::*;
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 use crate::alloc::List as MbedtlsList;
-use crate::error::{Error, Result, IntoResult};
+use crate::error::{Error, Result, IntoResult, HighLevelError};
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
 use crate::ssl::config::{Config, Version, AuthMode};
@@ -285,29 +285,31 @@ impl<T> Context<T> {
     pub fn handshake(&mut self) -> Result<()> {
         match self.inner_handshake() {
             Ok(()) => Ok(()),
-            Err(Error::SslWantRead) => Err(Error::SslWantRead),
-            Err(Error::SslWantWrite) => Err(Error::SslWantWrite),
-            Err(Error::SslHelloVerifyRequired) => {
-                unsafe {
-                    // `ssl_session_reset` resets the client ID but the user will call handshake
-                    // again in this case and the client ID is required for a DTLS connection setup
-                    // on the server side. So we extract it before and set it after
-                    // `ssl_session_reset`.
-                    let mut client_transport_id = None;
-                    if !self.inner.handle().cli_id.is_null() {
-                        client_transport_id = Some(Vec::from(core::slice::from_raw_parts(self.inner.handle().cli_id, self.inner.handle().cli_id_len)));
+            Err(e) => match e.high_level() {
+                Some(HighLevelError::SslWantRead) => Err(Error::from(HighLevelError::SslWantRead)),
+                Some(HighLevelError::SslWantWrite) => Err(Error::from(HighLevelError::SslWantWrite)),
+                Some(HighLevelError::SslHelloVerifyRequired) => {
+                    unsafe {
+                        // `ssl_session_reset` resets the client ID but the user will call handshake
+                        // again in this case and the client ID is required for a DTLS connection setup
+                        // on the server side. So we extract it before and set it after
+                        // `ssl_session_reset`.
+                        let mut client_transport_id = None;
+                        if !self.inner.handle().cli_id.is_null() {
+                            client_transport_id = Some(Vec::from(core::slice::from_raw_parts(self.inner.handle().cli_id, self.inner.handle().cli_id_len)));
+                        }
+                        ssl_session_reset(self.into()).into_result()?;
+                        if let Some(client_id) = client_transport_id.take() {
+                            self.set_client_transport_id(&client_id)?;
+                        }
                     }
-                    ssl_session_reset(self.into()).into_result()?;
-                    if let Some(client_id) = client_transport_id.take() {
-                        self.set_client_transport_id(&client_id)?;
-                    }
-                }
-                Err(Error::SslHelloVerifyRequired)
+                    Err(Error::from(HighLevelError::SslHelloVerifyRequired))
+                },
+                _ => {
+                    self.close();
+                    Err(e)
+                },
             }
-            Err(e) => {
-                self.close();
-                Err(e)
-            },
         }
     }
 
@@ -328,7 +330,7 @@ impl<T> Context<T> {
     #[cfg(not(feature = "std"))]
     fn set_hostname(&mut self, hostname: Option<&str>) -> Result<()> {
         match hostname {
-            Some(_) => Err(Error::SslBadInputData),
+            Some(_) => Err(Error::from(LowLevelError::SslBadInputData)),
             None => Ok(()),
         }
     }
@@ -336,7 +338,7 @@ impl<T> Context<T> {
     #[cfg(feature = "std")]
     fn set_hostname(&mut self, hostname: Option<&str>) -> Result<()> {
         if let Some(s) = hostname {
-            let cstr = ::std::ffi::CString::new(s).map_err(|_| Error::SslBadInputData)?;
+            let cstr = ::std::ffi::CString::new(s).map_err(|_| Error::from(HighLevelError::SslBadInputData))?;
             unsafe {
                 ssl_set_hostname(self.into(), cstr.as_ptr())
                     .into_result()
@@ -428,7 +430,7 @@ impl<T> Context<T> {
     /// <https://www.iana.org/assignments/tls-parameters/tls-parameters.txt>
     pub fn ciphersuite(&self) -> Result<u16> {
         if self.handle().session.is_null() {
-            return Err(Error::SslBadInputData);
+            return Err(Error::from(HighLevelError::SslBadInputData));
         }
         
         Ok(unsafe { self.handle().session.as_ref().unwrap().ciphersuite as u16 })
@@ -436,12 +438,12 @@ impl<T> Context<T> {
 
     pub fn peer_cert(&self) -> Result<Option<&MbedtlsList<Certificate>>> {
         if self.handle().session.is_null() {
-            return Err(Error::SslBadInputData);
+            return Err(Error::from(HighLevelError::SslBadInputData));
         }
 
         unsafe {
             // We cannot call the peer cert function as we need a pointer to a pointer to create the MbedtlsList, we need something in the heap / cannot use any local variable for that.
-            let peer_cert : &MbedtlsList<Certificate> = UnsafeFrom::from(&((*self.handle().session).peer_cert) as *const *mut x509_crt as *const *const x509_crt).ok_or(Error::SslBadInputData)?;
+            let peer_cert : &MbedtlsList<Certificate> = UnsafeFrom::from(&((*self.handle().session).peer_cert) as *const *mut x509_crt as *const *const x509_crt).ok_or(Error::from(HighLevelError::SslBadInputData))?;
             Ok(Some(peer_cert))
         }
     }
@@ -534,7 +536,7 @@ impl HandshakeContext {
     
     pub fn set_authmode(&mut self, am: AuthMode) -> Result<()> {
         if self.inner.handshake as *const _ == ::core::ptr::null() {
-            return Err(Error::SslBadInputData);
+            return Err(Error::from(HighLevelError::SslBadInputData));
         }
         
         unsafe { ssl_set_hs_authmode(self.into(), am as i32) }
@@ -548,7 +550,7 @@ impl HandshakeContext {
     ) -> Result<()> {
         // mbedtls_ssl_set_hs_ca_chain does not check for NULL handshake.
         if self.inner.handshake as *const _ == ::core::ptr::null() {
-            return Err(Error::SslBadInputData);
+            return Err(Error::from(HighLevelError::SslBadInputData));
         }
 
         // This will override current handshake CA chain.
@@ -576,7 +578,7 @@ impl HandshakeContext {
     ) -> Result<()> {
         // mbedtls_ssl_set_hs_own_cert does not check for NULL handshake.
         if self.inner.handshake as *const _ == ::core::ptr::null() {
-            return Err(Error::SslBadInputData);
+            return Err(Error::from(HighLevelError::SslBadInputData));
         }
 
         // This will append provided certificate pointers in internal structures.

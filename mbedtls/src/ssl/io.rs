@@ -24,9 +24,9 @@ use std::{
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 
+use crate::error::{LowLevelError, HighLevelError};
 #[cfg(feature = "std")]
-use crate::error::Error;
-use crate::error::Result;
+use crate::error::{Result, Error};
 use super::context::Context;
 
 /// A direct representation of the `mbedtls_ssl_send_t` and `mbedtls_ssl_recv_t`
@@ -118,15 +118,15 @@ impl<IO: Io> IoCallback<AnyIo> for IO {
 impl<IO: Read + Write> IoCallback<Stream> for IO {
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.read(buf).map_err(|e| match e {
-            ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::SslWantRead,
-            _ => Error::NetRecvFailed
+            ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::from(HighLevelError::SslWantRead),
+            _ => Error::from(LowLevelError::NetRecvFailed)
         })
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<usize> {
         self.write(buf).map_err(|e| match e {
-            ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::SslWantWrite,
-            _ => Error::NetSendFailed
+            ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::from(HighLevelError::SslWantWrite),
+            _ => Error::from(LowLevelError::NetSendFailed)
         })
     }
 }
@@ -160,13 +160,13 @@ impl Io for ConnectedUdpSocket {
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self.socket.recv(buf) {
             Ok(i) => Ok(i),
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Err(Error::SslWantRead),
-            Err(_) => Err(Error::NetRecvFailed)
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Err(Error::from(HighLevelError::SslWantRead)),
+            Err(_) => Err(Error::from(LowLevelError::NetRecvFailed))
         }
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<usize> {
-        self.socket.send(buf).map_err(|_| Error::NetSendFailed)
+        self.socket.send(buf).map_err(|_| Error::from(LowLevelError::NetSendFailed))
     }
 }
 
@@ -188,9 +188,11 @@ impl<T: IoCallbackUnsafe<AnyIo>> Io for Context<T> {
 impl<T: IoCallbackUnsafe<Stream>> Read for Context<T> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match self.recv(buf) {
-            Err(Error::SslPeerCloseNotify) => Ok(0),
-            Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Err(IoErrorKind::WouldBlock.into()),
-            Err(e) => Err(crate::private::error_to_io_error(e)),
+            Err(e) => match e.high_level() {
+                Some(HighLevelError::SslPeerCloseNotify) => Ok(0),
+                Some(HighLevelError::SslWantRead | HighLevelError::SslWantWrite) => Err(IoErrorKind::WouldBlock.into()),
+                _ => Err(crate::private::error_to_io_error(e)),
+            }
             Ok(i) => Ok(i),
         }
     }
@@ -204,9 +206,11 @@ impl<T: IoCallbackUnsafe<Stream>> Read for Context<T> {
 impl<T: IoCallbackUnsafe<Stream>> Write for Context<T> {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
         match self.send(buf) {
-            Err(Error::SslPeerCloseNotify) => Ok(0),
-            Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Err(IoErrorKind::WouldBlock.into()),
-            Err(e) => Err(crate::private::error_to_io_error(e)),
+            Err(e) => match e.high_level() {
+                Some(HighLevelError::SslPeerCloseNotify) => Ok(0),
+                Some(HighLevelError::SslWantRead | HighLevelError::SslWantWrite) => Err(IoErrorKind::WouldBlock.into()),
+                _ => Err(crate::private::error_to_io_error(e)),
+            },
             Ok(i) => Ok(i),
         }
     }

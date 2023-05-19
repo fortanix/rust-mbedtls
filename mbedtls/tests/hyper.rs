@@ -370,7 +370,7 @@ mod tests {
                     ctx.push_cert(cert.clone(), key.clone()).unwrap();
                     Ok(())
                 } else {
-                    return Err(mbedtls::Error::SslNoClientCertificate);
+                    return Err(mbedtls::Error::from(mbedtls::HighLevelError::SslNoClientCertificate));
                 }
             };
 

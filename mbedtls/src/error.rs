@@ -31,56 +31,98 @@ pub const ERR_UTF8_INVALID: c_int = -0x10000;
 
 macro_rules! error_enum {
     {enum $n:ident {$($rust:ident = $c:ident,)*}} => {
+        
         #[derive(Debug, Eq, PartialEq)]
         pub enum $n {
             $($rust,)*
-            Other(c_int),
-            Utf8Error(Option<Utf8Error>),
-            // Stable-Rust equivalent of `#[non_exhaustive]` attribute. This
-            // value should never be used by users of this crate!
-            #[doc(hidden)]
-            __Nonexhaustive,
+            Unknown(c_int)
         }
 
-        impl IntoResult for c_int {
-            fn into_result(self) -> Result<c_int> {
-                let err_code = match self {
-                    _ if self >= 0 => return Ok(self),
-                    ERR_UTF8_INVALID => return Err(Error::Utf8Error(None)),
-                    _ => -self,
-                };
-                let (high_level_code, low_level_code) = (err_code & 0xFF80, err_code & 0x7F);
-                Err($n::from_mbedtls_code(if high_level_code > 0 { -high_level_code } else { -low_level_code }))
+        impl From<c_int> for $n {
+            fn from(code: c_int) -> $n {
+                match -code {
+                    $(::mbedtls_sys::$c => return $n::$rust),*,
+                    _ => return $n::Unknown(code)
+                }
+            }
+        }
+
+        impl From<&$n> for c_int {
+            fn from(error: &$n) -> c_int {
+                match error {
+                    $($n::$rust => return ::mbedtls_sys::$c,)*
+                    $n::Unknown(code) => return *code,
+                }
             }
         }
 
         impl $n {
-            pub fn from_mbedtls_code(code: c_int) -> Self {
-                match code {
-                    $(::mbedtls_sys::$c => $n::$rust),*,
-                    _ => $n::Other(code)
-                }
-            }
-
-            pub fn as_str(&self) -> &'static str {
+            pub fn as_str(&self)-> &'static str {
                 match self {
-                    $(&$n::$rust => concat!("mbedTLS error ",stringify!($n::$rust)),)*
-                    &$n::Other(_) => "mbedTLS unknown error",
-                    &$n::Utf8Error(_) => "error converting to UTF-8",
-                    &$n::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
-                }
-            }
-
-            pub fn to_int(&self) -> c_int {
-                match *self {
-                    $($n::$rust => ::mbedtls_sys::$c,)*
-                    $n::Other(code) => code,
-                    $n::Utf8Error(_) => ERR_UTF8_INVALID,
-                    $n::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
+                    $($n::$rust => concat!("mbedTLS $n error ", stringify!($n::$rust)),)*
+                    $n::Unknown(_) => "mbedTLS unknown $n error"
                 }
             }
         }
     };
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum Error {
+    HighLevel(HighLevelError),
+    LowLevel(LowLevelError),
+    HighAndLowLevel(HighLevelError, LowLevelError),
+    Other(c_int),
+    Utf8Error(Option<Utf8Error>),
+    // Stable-Rust equivalent of `#[non_exhaustive]` attribute. This
+    // value should never be used by users of this crate!
+    #[doc(hidden)]
+    __Nonexhaustive,
+}
+
+impl Error {
+
+    pub fn low_level(&self) -> Option<&LowLevelError> {
+        match &self {
+            &Error::LowLevel(error)
+            | &Error::HighAndLowLevel(_, error) => Some(&error),
+            _ => None
+        }
+    }
+
+    pub fn high_level(&self) -> Option<&HighLevelError> {
+        match &self {
+            &Error::HighLevel(error)
+            | &Error::HighAndLowLevel(error, _) => Some(&error),
+            _ => None
+        }
+    }
+
+    pub fn as_str(&self) -> String {
+        match &self {
+            &Error::HighLevel(e) => e.as_str().to_owned(),
+            &Error::LowLevel(e) => e.as_str().to_owned(),
+            &Error::HighAndLowLevel(h, l) => {
+                let high_level_str = h.as_str();
+                let low_level_str = l.as_str();
+                format!("high level error: {}, Low level error: {}", high_level_str, low_level_str)
+            }
+            &Error::Other(_) => "mbedTLS unknown error".to_owned(),
+            &Error::Utf8Error(_) => "error converting to UTF-8".to_owned(),
+            &Error::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
+        }
+    }
+
+    pub fn to_int(&self) -> c_int {
+        match &self {
+            &Error::HighLevel(error) => error.into(),
+            &Error::LowLevel(error) => error.into(),
+            &Error::HighAndLowLevel(hl_error, ll_error) => c_int::from(hl_error) & c_int::from(ll_error),
+            &Error::Other(error) => *error,
+            &Error::Utf8Error(_) => ERR_UTF8_INVALID,
+            &Error::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
+        }
+    }
 }
 
 impl From<Utf8Error> for Error {
@@ -95,6 +137,34 @@ impl From<Infallible> for Error {
     }
 }
 
+impl From<LowLevelError> for Error {
+    fn from(error: LowLevelError) -> Error {
+        Error::LowLevel(error)
+    }
+}
+
+impl From<HighLevelError> for Error {
+    fn from(error: HighLevelError) -> Error {
+        Error::HighLevel(error)
+    }
+}
+
+impl From<c_int> for Error {
+    fn from(x: c_int) -> Error {
+        let (high_level_code, low_level_code) = (-x & 0xFF80, -x & 0x7F);
+        if -x & 0xFFFF != -x {
+            return Error::Other(x);
+        }
+        if high_level_code != 0 && low_level_code != 0 {
+            return Error::HighAndLowLevel(HighLevelError::from(high_level_code), LowLevelError::from(low_level_code))
+        } else if high_level_code != 0 {
+            return Error::HighLevel(HighLevelError::from(high_level_code))
+        } else {
+            return Error::LowLevel(LowLevelError::from(low_level_code))
+        }
+    }
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -102,7 +172,6 @@ impl fmt::Display for Error {
                 f.write_fmt(format_args!("Error converting to UTF-8: {}", e))
             }
             &Error::Utf8Error(None) => f.write_fmt(format_args!("Error converting to UTF-8")),
-            &Error::Other(i) => f.write_fmt(format_args!("mbedTLS unknown error ({})", i)),
             &Error::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
             e @ _ => f.write_fmt(format_args!("mbedTLS error {:?}", e)),
         }
@@ -110,44 +179,20 @@ impl fmt::Display for Error {
 }
 
 #[cfg(feature = "std")]
-impl StdError for Error {
-    fn description(&self) -> &str {
-        self.as_str()
+impl StdError for Error {}
+
+impl IntoResult for c_int {
+    fn into_result(self) -> Result<c_int> {
+        match self {
+            _ if self >= 0 => return Ok(self),
+            ERR_UTF8_INVALID => return Err(Error::Utf8Error(None)),
+            _ => return Err(Error::from(self))
+        };
     }
 }
 
 error_enum!(
-    enum Error {
-        AesBadInputData = ERR_AES_BAD_INPUT_DATA,
-        AesFeatureUnavailable = ERR_AES_FEATURE_UNAVAILABLE,
-        AesHwAccelFailed = ERR_AES_HW_ACCEL_FAILED,
-        AesInvalidInputLength = ERR_AES_INVALID_INPUT_LENGTH,
-        AesInvalidKeyLength = ERR_AES_INVALID_KEY_LENGTH,
-        Arc4HwAccelFailed = ERR_ARC4_HW_ACCEL_FAILED,
-        AriaFeatureUnavailable = ERR_ARIA_FEATURE_UNAVAILABLE,
-        AriaHwAccelFailed = ERR_ARIA_HW_ACCEL_FAILED,
-        AriaInvalidInputLength = ERR_ARIA_INVALID_INPUT_LENGTH,
-        Asn1AllocFailed = ERR_ASN1_ALLOC_FAILED,
-        Asn1BufTooSmall = ERR_ASN1_BUF_TOO_SMALL,
-        Asn1InvalidData = ERR_ASN1_INVALID_DATA,
-        Asn1InvalidLength = ERR_ASN1_INVALID_LENGTH,
-        Asn1LengthMismatch = ERR_ASN1_LENGTH_MISMATCH,
-        Asn1OutOfData = ERR_ASN1_OUT_OF_DATA,
-        Asn1UnexpectedTag = ERR_ASN1_UNEXPECTED_TAG,
-        Base64BufferTooSmall = ERR_BASE64_BUFFER_TOO_SMALL,
-        Base64InvalidCharacter = ERR_BASE64_INVALID_CHARACTER,
-        BlowfishHwAccelFailed = ERR_BLOWFISH_HW_ACCEL_FAILED,
-        BlowfishInvalidInputLength = ERR_BLOWFISH_INVALID_INPUT_LENGTH,
-        CamelliaHwAccelFailed = ERR_CAMELLIA_HW_ACCEL_FAILED,
-        CamelliaInvalidInputLength = ERR_CAMELLIA_INVALID_INPUT_LENGTH,
-        CcmAuthFailed = ERR_CCM_AUTH_FAILED,
-        CcmBadInput = ERR_CCM_BAD_INPUT,
-        CcmHwAccelFailed = ERR_CCM_HW_ACCEL_FAILED,
-        Chacha20BadInputData = ERR_CHACHA20_BAD_INPUT_DATA,
-        Chacha20FeatureUnavailable = ERR_CHACHA20_FEATURE_UNAVAILABLE,
-        Chacha20HwAccelFailed = ERR_CHACHA20_HW_ACCEL_FAILED,
-        ChachapolyAuthFailed = ERR_CHACHAPOLY_AUTH_FAILED,
-        ChachapolyBadState = ERR_CHACHAPOLY_BAD_STATE,
+    enum HighLevelError {
         CipherAllocFailed = ERR_CIPHER_ALLOC_FAILED,
         CipherAuthFailed = ERR_CIPHER_AUTH_FAILED,
         CipherBadInputData = ERR_CIPHER_BAD_INPUT_DATA,
@@ -156,14 +201,6 @@ error_enum!(
         CipherHwAccelFailed = ERR_CIPHER_HW_ACCEL_FAILED,
         CipherInvalidContext = ERR_CIPHER_INVALID_CONTEXT,
         CipherInvalidPadding = ERR_CIPHER_INVALID_PADDING,
-        CmacHwAccelFailed = ERR_CMAC_HW_ACCEL_FAILED,
-        CtrDrbgEntropySourceFailed = ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED,
-        CtrDrbgFileIoError = ERR_CTR_DRBG_FILE_IO_ERROR,
-        CtrDrbgInputTooBig = ERR_CTR_DRBG_INPUT_TOO_BIG,
-        CtrDrbgRequestTooBig = ERR_CTR_DRBG_REQUEST_TOO_BIG,
-        DesHwAccelFailed = ERR_DES_HW_ACCEL_FAILED,
-        DesInvalidInputLength = ERR_DES_INVALID_INPUT_LENGTH,
-        DhmAllocFailed = ERR_DHM_ALLOC_FAILED,
         DhmBadInputData = ERR_DHM_BAD_INPUT_DATA,
         DhmCalcSecretFailed = ERR_DHM_CALC_SECRET_FAILED,
         DhmFileIoError = ERR_DHM_FILE_IO_ERROR,
@@ -183,51 +220,12 @@ error_enum!(
         EcpRandomFailed = ERR_ECP_RANDOM_FAILED,
         EcpSigLenMismatch = ERR_ECP_SIG_LEN_MISMATCH,
         EcpVerifyFailed = ERR_ECP_VERIFY_FAILED,
-        EntropyFileIoError = ERR_ENTROPY_FILE_IO_ERROR,
-        EntropyMaxSources = ERR_ENTROPY_MAX_SOURCES,
-        EntropyNoSourcesDefined = ERR_ENTROPY_NO_SOURCES_DEFINED,
-        EntropyNoStrongSource = ERR_ENTROPY_NO_STRONG_SOURCE,
-        EntropySourceFailed = ERR_ENTROPY_SOURCE_FAILED,
-        GcmAuthFailed = ERR_GCM_AUTH_FAILED,
-        GcmBadInput = ERR_GCM_BAD_INPUT,
-        GcmHwAccelFailed = ERR_GCM_HW_ACCEL_FAILED,
         HkdfBadInputData = ERR_HKDF_BAD_INPUT_DATA,
-        HmacDrbgEntropySourceFailed = ERR_HMAC_DRBG_ENTROPY_SOURCE_FAILED,
-        HmacDrbgFileIoError = ERR_HMAC_DRBG_FILE_IO_ERROR,
-        HmacDrbgInputTooBig = ERR_HMAC_DRBG_INPUT_TOO_BIG,
-        HmacDrbgRequestTooBig = ERR_HMAC_DRBG_REQUEST_TOO_BIG,
-        Md2HwAccelFailed = ERR_MD2_HW_ACCEL_FAILED,
-        Md4HwAccelFailed = ERR_MD4_HW_ACCEL_FAILED,
-        Md5HwAccelFailed = ERR_MD5_HW_ACCEL_FAILED,
         MdAllocFailed = ERR_MD_ALLOC_FAILED,
         MdBadInputData = ERR_MD_BAD_INPUT_DATA,
         MdFeatureUnavailable = ERR_MD_FEATURE_UNAVAILABLE,
         MdFileIoError = ERR_MD_FILE_IO_ERROR,
         MdHwAccelFailed = ERR_MD_HW_ACCEL_FAILED,
-        MpiAllocFailed = ERR_MPI_ALLOC_FAILED,
-        MpiBadInputData = ERR_MPI_BAD_INPUT_DATA,
-        MpiBufferTooSmall = ERR_MPI_BUFFER_TOO_SMALL,
-        MpiDivisionByZero = ERR_MPI_DIVISION_BY_ZERO,
-        MpiFileIoError = ERR_MPI_FILE_IO_ERROR,
-        MpiInvalidCharacter = ERR_MPI_INVALID_CHARACTER,
-        MpiNegativeValue = ERR_MPI_NEGATIVE_VALUE,
-        MpiNotAcceptable = ERR_MPI_NOT_ACCEPTABLE,
-        NetAcceptFailed = ERR_NET_ACCEPT_FAILED,
-        NetBadInputData = ERR_NET_BAD_INPUT_DATA,
-        NetBindFailed = ERR_NET_BIND_FAILED,
-        NetBufferTooSmall = ERR_NET_BUFFER_TOO_SMALL,
-        NetConnReset = ERR_NET_CONN_RESET,
-        NetConnectFailed = ERR_NET_CONNECT_FAILED,
-        NetInvalidContext = ERR_NET_INVALID_CONTEXT,
-        NetListenFailed = ERR_NET_LISTEN_FAILED,
-        NetPollFailed = ERR_NET_POLL_FAILED,
-        NetRecvFailed = ERR_NET_RECV_FAILED,
-        NetSendFailed = ERR_NET_SEND_FAILED,
-        NetSocketFailed = ERR_NET_SOCKET_FAILED,
-        NetUnknownHost = ERR_NET_UNKNOWN_HOST,
-        OidBufTooSmall = ERR_OID_BUF_TOO_SMALL,
-        OidNotFound = ERR_OID_NOT_FOUND,
-        PadlockDataMisaligned = ERR_PADLOCK_DATA_MISALIGNED,
         PemAllocFailed = ERR_PEM_ALLOC_FAILED,
         PemBadInputData = ERR_PEM_BAD_INPUT_DATA,
         PemFeatureUnavailable = ERR_PEM_FEATURE_UNAVAILABLE,
@@ -260,10 +258,6 @@ error_enum!(
         Pkcs5FeatureUnavailable = ERR_PKCS5_FEATURE_UNAVAILABLE,
         Pkcs5InvalidFormat = ERR_PKCS5_INVALID_FORMAT,
         Pkcs5PasswordMismatch = ERR_PKCS5_PASSWORD_MISMATCH,
-        Poly1305BadInputData = ERR_POLY1305_BAD_INPUT_DATA,
-        Poly1305FeatureUnavailable = ERR_POLY1305_FEATURE_UNAVAILABLE,
-        Poly1305HwAccelFailed = ERR_POLY1305_HW_ACCEL_FAILED,
-        Ripemd160HwAccelFailed = ERR_RIPEMD160_HW_ACCEL_FAILED,
         RsaBadInputData = ERR_RSA_BAD_INPUT_DATA,
         RsaHwAccelFailed = ERR_RSA_HW_ACCEL_FAILED,
         RsaInvalidPadding = ERR_RSA_INVALID_PADDING,
@@ -275,9 +269,6 @@ error_enum!(
         RsaRngFailed = ERR_RSA_RNG_FAILED,
         RsaUnsupportedOperation = ERR_RSA_UNSUPPORTED_OPERATION,
         RsaVerifyFailed = ERR_RSA_VERIFY_FAILED,
-        Sha1HwAccelFailed = ERR_SHA1_HW_ACCEL_FAILED,
-        Sha256HwAccelFailed = ERR_SHA256_HW_ACCEL_FAILED,
-        Sha512HwAccelFailed = ERR_SHA512_HW_ACCEL_FAILED,
         SslAllocFailed = ERR_SSL_ALLOC_FAILED,
         SslAsyncInProgress = ERR_SSL_ASYNC_IN_PROGRESS,
         SslBadHsCertificate = ERR_SSL_BAD_HS_CERTIFICATE,
@@ -351,6 +342,95 @@ error_enum!(
         X509UnknownOid = ERR_X509_UNKNOWN_OID,
         X509UnknownSigAlg = ERR_X509_UNKNOWN_SIG_ALG,
         X509UnknownVersion = ERR_X509_UNKNOWN_VERSION,
+    }
+);
+
+error_enum!(
+    enum LowLevelError {
+        AesBadInputData = ERR_AES_BAD_INPUT_DATA,
+        AesFeatureUnavailable = ERR_AES_FEATURE_UNAVAILABLE,
+        AesHwAccelFailed = ERR_AES_HW_ACCEL_FAILED,
+        AesInvalidInputLength = ERR_AES_INVALID_INPUT_LENGTH,
+        AesInvalidKeyLength = ERR_AES_INVALID_KEY_LENGTH,
+        Arc4HwAccelFailed = ERR_ARC4_HW_ACCEL_FAILED,
+        AriaFeatureUnavailable = ERR_ARIA_FEATURE_UNAVAILABLE,
+        AriaHwAccelFailed = ERR_ARIA_HW_ACCEL_FAILED,
+        AriaInvalidInputLength = ERR_ARIA_INVALID_INPUT_LENGTH,
+        Asn1AllocFailed = ERR_ASN1_ALLOC_FAILED,
+        Asn1BufTooSmall = ERR_ASN1_BUF_TOO_SMALL,
+        Asn1InvalidData = ERR_ASN1_INVALID_DATA,
+        Asn1InvalidLength = ERR_ASN1_INVALID_LENGTH,
+        Asn1LengthMismatch = ERR_ASN1_LENGTH_MISMATCH,
+        Asn1OutOfData = ERR_ASN1_OUT_OF_DATA,
+        Asn1UnexpectedTag = ERR_ASN1_UNEXPECTED_TAG,
+        Base64BufferTooSmall = ERR_BASE64_BUFFER_TOO_SMALL,
+        Base64InvalidCharacter = ERR_BASE64_INVALID_CHARACTER,
+        BlowfishHwAccelFailed = ERR_BLOWFISH_HW_ACCEL_FAILED,
+        BlowfishInvalidInputLength = ERR_BLOWFISH_INVALID_INPUT_LENGTH,
+        CamelliaHwAccelFailed = ERR_CAMELLIA_HW_ACCEL_FAILED,
+        CamelliaInvalidInputLength = ERR_CAMELLIA_INVALID_INPUT_LENGTH,
+        CcmAuthFailed = ERR_CCM_AUTH_FAILED,
+        CcmBadInput = ERR_CCM_BAD_INPUT,
+        CcmHwAccelFailed = ERR_CCM_HW_ACCEL_FAILED,
+        Chacha20BadInputData = ERR_CHACHA20_BAD_INPUT_DATA,
+        Chacha20FeatureUnavailable = ERR_CHACHA20_FEATURE_UNAVAILABLE,
+        Chacha20HwAccelFailed = ERR_CHACHA20_HW_ACCEL_FAILED,
+        ChachapolyAuthFailed = ERR_CHACHAPOLY_AUTH_FAILED,
+        ChachapolyBadState = ERR_CHACHAPOLY_BAD_STATE,
+        CmacHwAccelFailed = ERR_CMAC_HW_ACCEL_FAILED,
+        CtrDrbgEntropySourceFailed = ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED,
+        CtrDrbgFileIoError = ERR_CTR_DRBG_FILE_IO_ERROR,
+        CtrDrbgInputTooBig = ERR_CTR_DRBG_INPUT_TOO_BIG,
+        CtrDrbgRequestTooBig = ERR_CTR_DRBG_REQUEST_TOO_BIG,
+        DesHwAccelFailed = ERR_DES_HW_ACCEL_FAILED,
+        DesInvalidInputLength = ERR_DES_INVALID_INPUT_LENGTH,
+        DhmAllocFailed = ERR_DHM_ALLOC_FAILED,
+        EntropyFileIoError = ERR_ENTROPY_FILE_IO_ERROR,
+        EntropyMaxSources = ERR_ENTROPY_MAX_SOURCES,
+        EntropyNoSourcesDefined = ERR_ENTROPY_NO_SOURCES_DEFINED,
+        EntropyNoStrongSource = ERR_ENTROPY_NO_STRONG_SOURCE,
+        EntropySourceFailed = ERR_ENTROPY_SOURCE_FAILED,
+        GcmAuthFailed = ERR_GCM_AUTH_FAILED,
+        GcmBadInput = ERR_GCM_BAD_INPUT,
+        GcmHwAccelFailed = ERR_GCM_HW_ACCEL_FAILED,
+        HmacDrbgEntropySourceFailed = ERR_HMAC_DRBG_ENTROPY_SOURCE_FAILED,
+        HmacDrbgFileIoError = ERR_HMAC_DRBG_FILE_IO_ERROR,
+        HmacDrbgInputTooBig = ERR_HMAC_DRBG_INPUT_TOO_BIG,
+        HmacDrbgRequestTooBig = ERR_HMAC_DRBG_REQUEST_TOO_BIG,
+        Md2HwAccelFailed = ERR_MD2_HW_ACCEL_FAILED,
+        Md4HwAccelFailed = ERR_MD4_HW_ACCEL_FAILED,
+        Md5HwAccelFailed = ERR_MD5_HW_ACCEL_FAILED,
+        MpiAllocFailed = ERR_MPI_ALLOC_FAILED,
+        MpiBadInputData = ERR_MPI_BAD_INPUT_DATA,
+        MpiBufferTooSmall = ERR_MPI_BUFFER_TOO_SMALL,
+        MpiDivisionByZero = ERR_MPI_DIVISION_BY_ZERO,
+        MpiFileIoError = ERR_MPI_FILE_IO_ERROR,
+        MpiInvalidCharacter = ERR_MPI_INVALID_CHARACTER,
+        MpiNegativeValue = ERR_MPI_NEGATIVE_VALUE,
+        MpiNotAcceptable = ERR_MPI_NOT_ACCEPTABLE,
+        NetAcceptFailed = ERR_NET_ACCEPT_FAILED,
+        NetBadInputData = ERR_NET_BAD_INPUT_DATA,
+        NetBindFailed = ERR_NET_BIND_FAILED,
+        NetBufferTooSmall = ERR_NET_BUFFER_TOO_SMALL,
+        NetConnReset = ERR_NET_CONN_RESET,
+        NetConnectFailed = ERR_NET_CONNECT_FAILED,
+        NetInvalidContext = ERR_NET_INVALID_CONTEXT,
+        NetListenFailed = ERR_NET_LISTEN_FAILED,
+        NetPollFailed = ERR_NET_POLL_FAILED,
+        NetRecvFailed = ERR_NET_RECV_FAILED,
+        NetSendFailed = ERR_NET_SEND_FAILED,
+        NetSocketFailed = ERR_NET_SOCKET_FAILED,
+        NetUnknownHost = ERR_NET_UNKNOWN_HOST,
+        OidBufTooSmall = ERR_OID_BUF_TOO_SMALL,
+        OidNotFound = ERR_OID_NOT_FOUND,
+        PadlockDataMisaligned = ERR_PADLOCK_DATA_MISALIGNED,
+        Poly1305BadInputData = ERR_POLY1305_BAD_INPUT_DATA,
+        Poly1305FeatureUnavailable = ERR_POLY1305_FEATURE_UNAVAILABLE,
+        Poly1305HwAccelFailed = ERR_POLY1305_HW_ACCEL_FAILED,
+        Ripemd160HwAccelFailed = ERR_RIPEMD160_HW_ACCEL_FAILED,
+        Sha1HwAccelFailed = ERR_SHA1_HW_ACCEL_FAILED,
+        Sha256HwAccelFailed = ERR_SHA256_HW_ACCEL_FAILED,
+        Sha512HwAccelFailed = ERR_SHA512_HW_ACCEL_FAILED,
         XteaHwAccelFailed = ERR_XTEA_HW_ACCEL_FAILED,
         XteaInvalidInputLength = ERR_XTEA_INVALID_INPUT_LENGTH,
     }
