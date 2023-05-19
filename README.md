@@ -29,7 +29,7 @@ This is a list of the Cargo features available for mbedtls. Features in
                         unsupported processors. On SGX, this feature is
                         enabled automatically.
 * *mpi_force_c_code* Enables the `mpi_force_c_code` feature in mbedtls-sys
-* *legacy_protocols* Enable support for SSLv3, TLSv1.0 and TLSv1.1
+* ~~*legacy_protocols* Enable support for SSLv3, TLSv1.0 and TLSv1.1~~ (removed in mbedtls 3.X)
 * *no_std_deps* On no_std, you must enable this feature. It enables optional
                 dependencies needed on no_std. If the `std` feature is enabled,
                 this feature is ignored.
@@ -42,7 +42,7 @@ This is a list of the Cargo features available for mbedtls. Features in
           allocator is *required*) The necessary C functions to make MbedTLS
           work without libc will be provided.
 * **time** Enable time support in mbedtls-sys.
-* *zlib* Enable zlib support in mbedtls-sys.
+* ~~*zlib* Enable zlib support in mbedtls-sys.~~ (removed in mbedtls 3.X)
 * *async-rt* Enable async support for SSL.
 
 PRs adding new features are encouraged.
@@ -96,7 +96,7 @@ This is a list of the Cargo features available for mbedtls-sys. Features in
 * **debug** Enable debug callbacks.
 * *havege* Enable the Hardware Volatile Entropy Gathering and Expansion
            (HAVEGE) algorithm.
-* **legacy_protocols** Enable support for SSLv3, TLSv1.0 and TLSv1.1
+* ~~**legacy_protocols** Enable support for SSLv3, TLSv1.0 and TLSv1.1~~ (removed in mbedtls 3.X)
 * *mpi_force_c_code* MbedTLS uses assembly code for MPI functions, when available.
                      In some situations we may prefer C code instead. This is in
                      particular the case on x86 platforms where compile-time mitigation
@@ -126,7 +126,7 @@ This is a list of the Cargo features available for mbedtls-sys. Features in
            `mbedtls_platform_gmtime_r(const long long*, struct tm*)` and
            `mbedtls_time(long long*)`.
 * *trusted_cert_callback* Enable trusted certificate callback support.
-* **zlib** Enable zlib support.
+* ~~**zlib** Enable zlib support.~~ (removed in mbedtls 3.X)
 
 For the complete mapping of features to config.h defines, see
 [mbedtls-sys/build/config.rs]. PRs adding new features are encouraged.
@@ -142,15 +142,16 @@ Instructions for updating to new MbedTLS source code releases in `mbedtls-sys/`:
 4. Check `build/config.rs` vs. `vendor/include/mbedtls/config.h`.
 5. Update `Cargo.toml` version number.
 
-# mbedtls-selftest
+# mbedtls-platform-support
 
-This Rust crate is designed for separating self-test code that needs to export Rust
-functions and define C functions to be used by C `mbedtls`. By separating this code,
-different versions of Rust `mbedtls` crates can be used within a single crate, which
-helps to solve link name conflict errors.
+This Rust crate is a support library for the `mbedtls` crate, providing platform and target specific
+implementations of all necessary functions. By separating this logic into a separate crate, multiple
+versions of the mbedtls crate can coexist within a single crate.This helps to avoid link name conflict
+errors. The crate exports Rust functions and defines C functions to support external overrides as
+needed for custom implementation under various platforms or targets.
 
 **Note**: Although multiple versions of Rust `mbedtls` crates can be used within a
-single crate, only one `mbedtls-selftest` and one `mbedtls-sys-auto` crate can be
+single crate, only one `mbedtls-platform-support` and one `mbedtls-sys-auto` crate now can be
 used since they are built as native libraries.
 
 # Contributing
