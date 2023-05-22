@@ -63,38 +63,6 @@ impl bindgen::callbacks::ParseCallbacks for MbedtlsParseCallbacks {
     }
 }
 
-/// Add bindgen 0.19-style union accessor methods. These are deprecated
-/// and can be deleted with the next major version bump.
-fn generate_deprecated_union_accessors(bindings: &str) -> String {
-    #[derive(Default)]
-    struct UnionImplBuilder {
-        impls: String
-    }
-
-    impl<'ast> syn::visit::Visit<'ast> for UnionImplBuilder {
-        fn visit_item_union(&mut self, i: &'ast syn::ItemUnion) {
-            let union_name = &i.ident;
-            let field_name = i.fields.named.iter().map(|field| field.ident.as_ref().unwrap());
-            let field_type = i.fields.named.iter().map(|field| &field.ty);
-            write!(self.impls, "{}", quote::quote! {
-                impl #union_name {
-                    #(
-                        #[deprecated]
-                        pub unsafe fn #field_name(&mut self) -> *mut #field_type {
-                            &mut self.#field_name
-                        }
-                    )*
-                }
-            }).unwrap();
-        }
-    }
-
-    let mut impl_builder = UnionImplBuilder::default();
-    syn::visit::visit_file(&mut impl_builder, &syn::parse_file(&bindings).unwrap());
-
-    impl_builder.impls
-}
-
 impl super::BuildConfig {
     pub fn bindgen(&self) {
         let mut header = String::new();
@@ -173,13 +141,10 @@ impl super::BuildConfig {
         // update static function wrappers code with header for later compilation 
         fs::write(&self.static_wrappers_c, &header).expect("write static_wrappers.c I/O error");
 
-        let union_impls = generate_deprecated_union_accessors(&bindings);
-
         let bindings_rs = self.out_dir.join("bindings.rs");
         File::create(&bindings_rs)
             .and_then(|mut f| {
                 f.write_all(bindings.as_bytes())?;
-                f.write_all(union_impls.as_bytes())?;
                 f.write_all(b"use crate::types::*;\n")?; // for FILE, time_t, etc.
                 Ok(())
             }).expect("bindings.rs I/O error");
