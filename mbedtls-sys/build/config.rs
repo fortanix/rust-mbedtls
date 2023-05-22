@@ -282,7 +282,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_PK_WRITE_C",                                Defined),
     ("MBEDTLS_PKCS5_C",                                   Defined),
     ("MBEDTLS_PKCS7_C",                                   Defined),
-    ("MBEDTLS_PKCS12_C",                                  Defined),
+    ("MBEDTLS_PKCS12_C",                                  Undefined),
     ("MBEDTLS_PLATFORM_C",                                Undefined),
     ("MBEDTLS_POLY1305_C",                                Defined),
     ("MBEDTLS_PSA_CRYPTO_C",                              Defined),
@@ -411,6 +411,7 @@ pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
     ("aes_alt",               ("MBEDTLS_AES_DECRYPT_ALT",                   Defined)),
     ("mpi_force_c_code",      ("MBEDTLS_MPI_FORCE_C_CODE",                  Defined)),
     ("trusted_cert_callback", ("MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK", Defined)),
+    ("pkcs12",                ("MBEDTLS_PKCS12_C",                          Defined)),
 ];
 
 #[cfg_attr(rustfmt, rustfmt_skip)]

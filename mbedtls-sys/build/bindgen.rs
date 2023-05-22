@@ -11,7 +11,6 @@ use bindgen;
 use std::fmt::Write as _;
 use std::fs::{self, File};
 use std::io::Write;
-use bindgen::Formatter;
 
 use crate::headers;
 
