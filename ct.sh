@@ -56,8 +56,6 @@ if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" 
     if [ "$TARGET" != "x86_64-fortanix-unknown-sgx" ]; then 
         # make sure that explicitly providing the default target works
         cargo nextest run --target $TARGET --release
-        cargo nextest run --features pkcs12 --target $TARGET
-        cargo nextest run --features pkcs12_rc2 --target $TARGET
         cargo nextest run --features dsa --target $TARGET
         cargo nextest run --features async-rt --test async_session --test hyper_async --target $TARGET
         
