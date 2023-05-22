@@ -64,7 +64,7 @@ for line in open('vendor/include/mbedtls/mbedtls_config.h').readlines():
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 const DEFAULT_DEFINES: &'static [CDefine] = &[
-    ("MBEDTLS_CONFIG_VERSION",                            Undefined),
+    ("MBEDTLS_CONFIG_VERSION",                            DefinedAs("0x03040000")),
     ("MBEDTLS_HAVE_ASM",                                  Defined),
     ("MBEDTLS_NO_UDBL_DIVISION",                          Undefined),
     ("MBEDTLS_NO_64BIT_MULTIPLICATION",                   Undefined),
