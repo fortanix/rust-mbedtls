@@ -202,11 +202,12 @@ unsafe impl Sync for Config {}
 
 use once_cell::sync::OnceCell;
 
+/// you need to call `psa_crypto_init()` before calling any function from the SSL/TLS, X.509 or PK modules
 pub fn psa_crypto_init() {
     static INIT: OnceCell<()> = OnceCell::new();
 
     INIT.get_or_init(|| {
-        unsafe { libpsa_crypto_init() };
+        unsafe { psa::crypto_init() };
         return ();
     });
 }
