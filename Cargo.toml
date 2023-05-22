@@ -1,3 +1,9 @@
 [workspace]
 members = ["mbedtls", "mbedtls-sys", "mbedtls-platform-support"]
 resolver = "2"
+
+[profile.release]
+# Turn on "thin" LTO in release to optimize static function wrappers code
+# To make this take affect, please use following command to compile the code:
+# RUSTFLAGS="-Clinker-plugin-lto -Clinker=clang -Clink-arg=-fuse-ld=lld" cargo build --release
+lto = "thin"
