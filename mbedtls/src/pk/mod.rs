@@ -216,7 +216,7 @@ impl Pk {
         unsafe {
             pk_setup(&mut ret.inner, pk_info_from_type(Type::Rsa.into())).into_result()?;
             rsa_gen_key(
-                ret.inner.private_pk_ctx as *mut _,
+                pk_rsa(ret.inner),
                 Some(F::call),
                 rng.data_ptr(),
                 bits,
@@ -232,7 +232,7 @@ impl Pk {
         unsafe {
             let curve : EcGroup = curve.try_into().map_err(|e| e.into())?;
             pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result()?;
-            let ctx = ret.inner.private_pk_ctx as *mut ecp_keypair;
+            let ctx = pk_ec(ret.inner);
             (*ctx).private_grp = curve.clone().into_inner();
             ecp_gen_keypair(
                 &mut (*ctx).private_grp,
@@ -254,7 +254,7 @@ impl Pk {
         let public_point = curve_generator.mul(&mut curve, &private_key, rng)?;
         unsafe {
             pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result()?;
-            let ctx = ret.inner.private_pk_ctx as *mut ecp_keypair;
+            let ctx = pk_ec(ret.inner);
             (*ctx).private_grp = curve.into_inner();
             (*ctx).private_d = private_key.into_inner();
             (*ctx).private_Q = public_point.into_inner();
@@ -266,7 +266,7 @@ impl Pk {
         let mut ret = Self::init();
         unsafe {
             pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result()?;
-            let ctx = ret.inner.private_pk_ctx as *mut ecp_keypair;
+            let ctx = pk_ec(ret.inner);
             (*ctx).private_grp = curve.into_inner();
             (*ctx).private_Q = public_point.into_inner();
         }
@@ -283,12 +283,14 @@ impl Pk {
                         RsaPadding::Pkcs1V15 => (RSA_PKCS_V15, 0),
                         RsaPadding::Pkcs1V21 { mgf } => (RSA_PKCS_V21, mgf.into()),
                         RsaPadding::None => {
-                            let ctx = self.inner.private_pk_ctx as *mut rsa_context;
+                            let ctx = pk_rsa(self.inner);
+                            // not use `mbedtls_rsa_set_padding` here becuase `mbedtls_rsa_set_padding`
+                            // has check on padding
                             (*ctx).private_padding = RAW_RSA_DECRYPT; // denotes RawDecrypt padding being set
                             return;
                         }
                     };
-                    rsa_set_padding(self.inner.private_pk_ctx as *mut rsa_context, padding, hash_id as _);
+                    rsa_set_padding(pk_rsa(self.inner), padding, hash_id as _);
                 }
                 _ => panic!("Invalid options for this key type"),
             }
@@ -321,7 +323,7 @@ impl Pk {
             _ => return Err(codes::PkTypeMismatch.into()),
         }
 
-        unsafe { Ok((*(self.inner.private_pk_ctx as *const ecp_keypair)).private_grp.id.into()) }
+        unsafe { Ok((*(pk_ec(self.inner))).private_grp.id.into()) }
     }
 
     pub fn curve_oid(&self) -> Result<Vec<u64>> {
@@ -351,7 +353,7 @@ impl Pk {
             EcGroupId::None => {
                 // custom curve, need to read params
                 unsafe {
-                    let ecp = self.inner.private_pk_ctx as *const ecp_keypair;
+                    let ecp = pk_ec(self.inner);
                     let p = Mpi::copy(&(*ecp).private_grp.P)?;
                     let a = Mpi::copy(&(*ecp).private_grp.A)?;
                     let b = Mpi::copy(&(*ecp).private_grp.B)?;
@@ -372,7 +374,7 @@ impl Pk {
             _ => return Err(codes::PkTypeMismatch.into()),
         }
 
-        let q = &unsafe { (*(self.inner.private_pk_ctx as *const ecp_keypair)).private_Q };
+        let q = &unsafe { (*(pk_ec(self.inner))).private_Q };
         EcPoint::copy(q)
     }
 
@@ -382,7 +384,7 @@ impl Pk {
             _ => return Err(codes::PkTypeMismatch.into()),
         }
 
-        let d = &unsafe { (*(self.inner.private_pk_ctx as *const ecp_keypair)).private_d };
+        let d = &unsafe { (*(pk_ec(self.inner))).private_d };
         Mpi::copy(d)
     }
 
@@ -396,7 +398,7 @@ impl Pk {
 
         unsafe {
             rsa_export(
-                self.inner.private_pk_ctx as *const rsa_context,
+                pk_rsa(self.inner),
                 n.handle_mut(),
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -419,7 +421,7 @@ impl Pk {
 
         unsafe {
             rsa_export(
-                self.inner.private_pk_ctx as *const rsa_context,
+                pk_rsa(self.inner),
                 ptr::null_mut(),
                 p.handle_mut(),
                 ptr::null_mut(),
@@ -442,7 +444,7 @@ impl Pk {
 
         unsafe {
             rsa_export(
-                self.inner.private_pk_ctx as *const rsa_context,
+                pk_rsa(self.inner),
                 ptr::null_mut(),
                 ptr::null_mut(),
                 q.handle_mut(),
@@ -465,7 +467,7 @@ impl Pk {
 
         unsafe {
             rsa_export(
-                self.inner.private_pk_ctx as *const rsa_context,
+                pk_rsa(self.inner),
                 ptr::null_mut(),
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -488,7 +490,7 @@ impl Pk {
 
         unsafe {
             rsa_export_crt(
-                self.inner.private_pk_ctx as *const rsa_context,
+                pk_rsa(self.inner),
                 dp.handle_mut(),
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -509,7 +511,7 @@ impl Pk {
 
         unsafe {
             rsa_export_crt(
-                self.inner.private_pk_ctx as *const rsa_context,
+                pk_rsa(self.inner),
                 ptr::null_mut(),
                 dq.handle_mut(),
                 ptr::null_mut(),
@@ -530,7 +532,7 @@ impl Pk {
 
         unsafe {
             rsa_export_crt(
-                self.inner.private_pk_ctx as *const rsa_context,
+                pk_rsa(self.inner),
                 ptr::null_mut(),
                 ptr::null_mut(),
                 qp.handle_mut(),
@@ -550,7 +552,7 @@ impl Pk {
         let mut e: [u8; 4] = [0, 0, 0, 0];
         unsafe {
             rsa_export_raw(
-                self.inner.private_pk_ctx as *const rsa_context,
+                pk_rsa(self.inner),
                 ptr::null_mut(),
                 0,
                 ptr::null_mut(),
@@ -579,8 +581,8 @@ impl Pk {
         rng: &mut F,
     ) -> Result<usize> {
         if self.pk_type() == Type::Rsa {
-            let ctx = self.inner.private_pk_ctx as *mut rsa_context;
-            if unsafe { (*ctx).private_padding  == RAW_RSA_DECRYPT } {
+            let ctx = unsafe { pk_rsa(self.inner) };
+            if unsafe { rsa_get_padding_mode(ctx) == RAW_RSA_DECRYPT } {
                 let olen = self.len() / 8;
                 if plain.len() < olen {
                     return Err(codes::RsaOutputTooLarge.into());
@@ -628,8 +630,8 @@ impl Pk {
         if self.pk_type() != Type::Rsa {
             return Err(codes::PkTypeMismatch.into());
         }
-        let ctx = self.inner.private_pk_ctx as *mut rsa_context;
-        if unsafe { (*ctx).private_padding != RSA_PKCS_V21 } {
+        let ctx = unsafe { pk_rsa(self.inner) };
+        if unsafe { rsa_get_padding_mode(ctx) != RSA_PKCS_V21 } {
             return Err(codes::RsaInvalidPadding.into());
         }
 
@@ -685,8 +687,8 @@ impl Pk {
         if self.pk_type() != Type::Rsa {
             return Err(codes::PkTypeMismatch.into());
         }
-        let ctx = self.inner.private_pk_ctx as *mut rsa_context;
-        if unsafe { (*ctx).private_padding != RSA_PKCS_V21 } {
+        let ctx = unsafe { pk_rsa(self.inner) };
+        if unsafe { rsa_get_padding_mode(ctx) != RSA_PKCS_V21 } {
             return Err(codes::RsaInvalidPadding.into());
         }
         let olen = self.len() / 8;
@@ -806,7 +808,7 @@ impl Pk {
             Ok(ret)
         } else if self.pk_type() == Type::Rsa {
             // Reject sign_deterministic being use for PSS
-            if unsafe { (*(self.inner.private_pk_ctx as *mut rsa_context)).private_padding } != RSA_PKCS_V15 {
+            if unsafe { rsa_get_padding_mode(pk_rsa(self.inner)) } != RSA_PKCS_V15 {
                 return Err(codes::PkInvalidAlg.into());
             }
 
@@ -851,8 +853,8 @@ impl Pk {
             | (Type::Eckey, Type::EckeyDh)
             | (Type::EckeyDh, Type::EckeyDh) => unsafe {
                 let mut ecdh = ec::Ecdh::from_keys(
-                    UnsafeFrom::from(self.inner.private_pk_ctx as *const _).unwrap(),
-                    UnsafeFrom::from(other.inner.private_pk_ctx as *const _).unwrap(),
+                    UnsafeFrom::from(pk_ec(self.inner) as *const _).unwrap(),
+                    UnsafeFrom::from(pk_ec(other.inner) as *const _).unwrap(),
                 )?;
                 ecdh.calc_secret(shared, rng)
             },

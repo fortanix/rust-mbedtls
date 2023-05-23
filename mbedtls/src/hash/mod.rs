@@ -96,7 +96,7 @@ impl Md {
 
     pub fn finish(mut self, out: &mut [u8]) -> Result<usize> {
         unsafe {
-            let olen = md_get_size(self.inner.private_md_info) as usize;
+            let olen = md_get_size(md_info_from_ctx(&self.inner)) as usize;
             if out.len() < olen {
                 return Err(codes::MdBadInputData.into());
             }
@@ -148,7 +148,7 @@ impl Hmac {
 
     pub fn finish(mut self, out: &mut [u8]) -> Result<usize> {
         unsafe {
-            let olen = md_get_size(self.ctx.inner.private_md_info) as usize;
+            let olen = md_get_size(md_info_from_ctx(&self.ctx.inner)) as usize;
             if out.len() < olen {
                 return Err(codes::MdBadInputData.into());
             }
@@ -214,7 +214,7 @@ impl Hkdf {
 impl Clone for Md {
     fn clone(&self) -> Self {
         fn copy_md(md: &Md) -> Result<Md> {
-            let md_type = unsafe { md_get_type(md.inner.private_md_info) };
+            let md_type = unsafe { md_get_type(md_info_from_ctx(&md.inner)) };
             let mut m = Md::new(md_type.into())?;
             unsafe { md_clone(&mut m.inner, &md.inner) }.into_result()?;
             Ok(m)

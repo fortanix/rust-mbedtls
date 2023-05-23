@@ -413,7 +413,7 @@ impl<T> Context<T> {
     }
 
     pub fn version(&self) -> Version {
-        match self.handle().private_tls_version {
+        match unsafe { ssl_get_version_number(self.into()) } {
             SSL_VERSION_TLS1_2 => Version::Tls12,
             SSL_VERSION_TLS1_3 => Version::Tls13,
             SSL_VERSION_UNKNOWN => Version::Unknown,
@@ -428,11 +428,7 @@ impl<T> Context<T> {
     /// All assigned ciphersuites are listed by the IANA in
     /// <https://www.iana.org/assignments/tls-parameters/tls-parameters.txt>
     pub fn ciphersuite(&self) -> Result<u16> {
-        if self.handle().private_session.is_null() {
-            return Err(codes::SslBadInputData.into());
-        }
-        
-        Ok(unsafe { self.handle().private_session.as_ref().unwrap().private_ciphersuite as u16 })
+        unsafe { Ok(ssl_get_ciphersuite_id_from_ssl(self.into()) as u16) }
     }
 
     pub fn peer_cert(&self) -> Result<Option<&MbedtlsList<Certificate>>> {

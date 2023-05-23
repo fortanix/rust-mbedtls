@@ -212,10 +212,12 @@ impl Certificate {
     }
 
     pub fn signature(&self) -> Result<Vec<u8>> {
+        // access `private_` field here becuase C mbedtls does not provide accessor
         Ok(x509_buf_to_vec(&self.inner.private_sig))
     }
 
     pub fn digest_type(&self) -> MdType {
+        // access `private_` field here becuase C mbedtls does not provide accessor
         MdType::from(self.inner.private_sig_md)
     }
 
