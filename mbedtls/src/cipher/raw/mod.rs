@@ -261,7 +261,7 @@ impl Cipher {
 
     pub fn update(&mut self, indata: &[u8], outdata: &mut [u8]) -> Result<usize> {
         // Check that minimum required space is available in outdata buffer
-        let reqd_size = if unsafe { *self.inner.private_cipher_info }.private_mode == MODE_ECB {
+        let reqd_size = if self.cipher_mode() == CipherMode::ECB {
             self.block_size()
         } else {
             indata.len() + self.block_size()
@@ -319,19 +319,14 @@ impl Cipher {
     }
 
     pub fn cipher_mode(&self) -> CipherMode {
-        unsafe { (*self.inner.private_cipher_info).private_mode.into() }
+        unsafe { cipher_info_get_mode(self.inner.private_cipher_info).into() }
     }
 
     // Utility function to get mdoe for the selected / setup cipher_info
     pub fn is_authenticated(&self) -> bool {
-        unsafe {
-            if (*self.inner.private_cipher_info).private_mode == MODE_GCM
-                || (*self.inner.private_cipher_info).private_mode == MODE_CCM
-            {
-                return true;
-            } else {
-                return false;
-            }
+        match self.cipher_mode() {
+            CipherMode::GCM | CipherMode::CCM => true,
+            _ => false,
         }
     }
 
@@ -537,7 +532,7 @@ impl Cipher {
         // return an empty slice, it doesn't panic.
         let mut total_len = 0;
 
-        if unsafe { *self.inner.private_cipher_info }.private_mode == MODE_ECB {
+        if self.cipher_mode() == CipherMode::ECB {
             // ECB mode requires single-block updates
             for chunk in indata.chunks(self.block_size()) {
                 let len = self.update(chunk, &mut outdata[total_len..])?;
