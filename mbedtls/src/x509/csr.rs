@@ -14,7 +14,7 @@ use crate::alloc_prelude::*;
 use mbedtls_sys::*;
 
 use crate::private::{alloc_string_repeat, alloc_vec_repeat};
-use crate::error::{Error, IntoResult, Result, LowLevelError, HighLevelError};
+use crate::error::{Error, IntoResult, Result, LoError, HiError};
 use crate::pk::Pk;
 use crate::hash::Type as MdType;
 use crate::rng::Random;
@@ -89,7 +89,7 @@ impl<'a> Builder<'a> {
     #[cfg(feature = "std")]
     pub fn subject(&mut self, subject: &str) -> Result<&mut Self> {
         match ::std::ffi::CString::new(subject) {
-            Err(_) => Err(Error::from(HighLevelError::X509InvalidName)),
+            Err(_) => Err(Error::from(HiError::X509InvalidName)),
             Ok(s) => unsafe { self.subject_with_nul_unchecked(s.as_bytes_with_nul()) },
         }
     }
@@ -98,7 +98,7 @@ impl<'a> Builder<'a> {
         if subject.as_bytes().iter().any(|&c| c == 0) {
             unsafe { self.subject_with_nul_unchecked(subject.as_bytes()) }
         } else {
-            Err(HighLevelError::X509InvalidName.into())
+            Err(HiError::X509InvalidName.into())
         }
     }
 
@@ -116,7 +116,7 @@ impl<'a> Builder<'a> {
         let usage = usage.bits();
         if (usage & !0xfe) != 0 {
             // according to x509write_**crt**_set_key_usage
-            return Err(Error::from(HighLevelError::X509FeatureUnavailable));
+            return Err(Error::from(HiError::X509FeatureUnavailable));
         }
 
         unsafe { x509write_csr_set_key_usage(&mut self.inner, (usage & 0xfe) as u8) }.into_result()?;
@@ -152,7 +152,7 @@ impl<'a> Builder<'a> {
             .into_result()
         } {
             Err(e) => match e.low_level() {
-                Some(LowLevelError::Asn1BufTooSmall) => Ok(None),
+                Some(LoError::Asn1BufTooSmall) => Ok(None),
                 _ => Err(e),
             }
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
@@ -184,7 +184,7 @@ impl<'a> Builder<'a> {
             .into_result()
         } {
             Err(e) => match e.low_level() {
-                Some(LowLevelError::Base64BufferTooSmall) => Ok(None),
+                Some(LoError::Base64BufferTooSmall) => Ok(None),
                 _ => Err(e),
             }
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),

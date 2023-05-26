@@ -8,7 +8,7 @@
 
 use mbedtls_sys::*;
 
-use crate::error::{IntoResult, Result, Error, HighLevelError};
+use crate::error::{IntoResult, Result, Error, HiError};
 
 mod serde;
 
@@ -234,7 +234,7 @@ impl Cipher {
         };
 
         if outdata.len() < reqd_size {
-            return Err(Error::from(HighLevelError::CipherFullBlockExpected));
+            return Err(Error::from(HiError::CipherFullBlockExpected));
         }
 
         let mut olen = 0;
@@ -254,7 +254,7 @@ impl Cipher {
     pub fn finish(&mut self, outdata: &mut [u8]) -> Result<usize> {
         // Check that minimum required space is available in outdata buffer
         if outdata.len() < self.block_size() {
-            return Err(Error::from(HighLevelError::CipherFullBlockExpected));
+            return Err(Error::from(HiError::CipherFullBlockExpected));
         }
 
         let mut olen = 0;
@@ -325,7 +325,7 @@ impl Cipher {
         if cipher_and_tag.len()
             .checked_sub(tag_len)
             .map_or(true, |cipher_len| cipher_len < plain.len()) {
-            return Err(Error::from(HighLevelError::CipherBadInputData));
+            return Err(Error::from(HiError::CipherBadInputData));
         }
 
         let iv = self.inner.iv;
@@ -363,7 +363,7 @@ impl Cipher {
             cipher_and_tag.len()
                 .checked_sub(tag_len)
                 .map_or(true, |cipher_len| plain.len() < cipher_len) {
-            return Err(Error::from(HighLevelError::CipherBadInputData));
+            return Err(Error::from(HiError::CipherBadInputData));
         }
 
         let iv = self.inner.iv;
@@ -474,7 +474,7 @@ impl Cipher {
     pub fn cmac(&mut self, key: &[u8], data: &[u8], outdata: &mut [u8]) -> Result<()> {
         // Check that outdata buffer has enough space
         if outdata.len() < self.block_size() {
-            return Err(Error::from(HighLevelError::CipherFullBlockExpected));
+            return Err(Error::from(HiError::CipherFullBlockExpected));
         }
         self.reset()?;
         unsafe {

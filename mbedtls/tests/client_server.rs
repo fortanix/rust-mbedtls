@@ -21,7 +21,7 @@ use mbedtls::ssl::context::Timer;
 use mbedtls::ssl::io::{ConnectedUdpSocket, IoCallback};
 use mbedtls::ssl::{Config, Context, CookieContext, Io, Version};
 use mbedtls::x509::{Certificate, VerifyError};
-use mbedtls::{Error, LowLevelError, HighLevelError};
+use mbedtls::{Error, LoError, HiError};
 use mbedtls::Result as TlsResult;
 use std::sync::Arc;
 
@@ -42,11 +42,11 @@ impl TransportType for TcpStream {
     }
 
     fn recv(ctx: &mut Context<Self>, buf: &mut [u8]) -> TlsResult<usize> {
-        ctx.read(buf).map_err(|_| Error::from(LowLevelError::NetRecvFailed))
+        ctx.read(buf).map_err(|_| Error::from(LoError::NetRecvFailed))
     }
 
     fn send(ctx: &mut Context<Self>, buf: &[u8]) -> TlsResult<usize> {
-        ctx.write(buf).map_err(|_| Error::from(LowLevelError::NetSendFailed))
+        ctx.write(buf).map_err(|_| Error::from(LoError::NetSendFailed))
     }
 }
 
@@ -111,8 +111,8 @@ fn client<C: IoCallback<T> + TransportType, T>(
         }
         Err(e) => {
             match e.high_level() {
-                Some(HighLevelError::SslBadHsProtocolVersion) => {assert!(exp_version.is_none())},
-                Some(HighLevelError::SslFatalAlertMessage) => {},
+                Some(HiError::SslBadHsProtocolVersion) => {assert!(exp_version.is_none())},
+                Some(HiError::SslFatalAlertMessage) => {},
                 _ => panic!("Unexpected error {}", e),
             };
             return Ok(());
@@ -164,7 +164,7 @@ fn server<C: IoCallback<T> + TransportType, T>(
         // a cookie
         match ctx.establish(conn, None) {
             Err(e) => match e.high_level() {
-                Some(HighLevelError::SslHelloVerifyRequired) => {}
+                Some(HiError::SslHelloVerifyRequired) => {}
                 _ => panic!("SslHelloVerifyRequired expected, got {} instead", e),               
             }
             Ok(()) => panic!("SslHelloVerifyRequired expected, got Ok instead"),
@@ -181,8 +181,8 @@ fn server<C: IoCallback<T> + TransportType, T>(
         Err(e) => {
             match (e.high_level(), e.low_level()) {
                 // client just closes connection instead of sending alert
-                (_, Some(LowLevelError::NetSendFailed)) => {assert!(exp_version.is_none())},
-                (Some(HighLevelError::SslBadHsProtocolVersion), _) => {},
+                (_, Some(LoError::NetSendFailed)) => {assert!(exp_version.is_none())},
+                (Some(HiError::SslBadHsProtocolVersion), _) => {},
                 _ => panic!("Unexpected error {}", e),
             };
             return Ok(());

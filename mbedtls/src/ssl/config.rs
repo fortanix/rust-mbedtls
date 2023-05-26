@@ -21,7 +21,7 @@ use mbedtls_sys::types::size_t;
 use crate::alloc::{List as MbedtlsList};
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
-use crate::error::{Error, Result, IntoResult, HighLevelError};
+use crate::error::{Error, Result, IntoResult, HiError};
 use crate::pk::Pk;
 use crate::pk::dhparam::Dhm;
 use crate::private::UnsafeFrom;
@@ -118,7 +118,7 @@ impl NullTerminatedStrList {
         let mut ret = NullTerminatedStrList { c: Vec::with_capacity(list.len() + 1) };
 
         for item in list {
-            ret.c.push(::std::ffi::CString::new(*item).map_err(|_| Error::from(HighLevelError::SslBadInputData))?.into_raw());
+            ret.c.push(::std::ffi::CString::new(*item).map_err(|_| Error::from(HiError::SslBadInputData))?.into_raw());
         }
         
         ret.c.push(core::ptr::null_mut()); 
@@ -262,7 +262,7 @@ impl Config {
             Version::Tls1_0 => 1,
             Version::Tls1_1 => 2,
             Version::Tls1_2 => 3,
-            _ => { return Err(Error::from(HighLevelError::SslBadHsProtocolVersion)); }
+            _ => { return Err(Error::from(HiError::SslBadHsProtocolVersion)); }
         };
 
         unsafe { ssl_conf_min_version(self.into(), 3, minor) };
@@ -275,7 +275,7 @@ impl Config {
             Version::Tls1_0 => 1,
             Version::Tls1_1 => 2,
             Version::Tls1_2 => 3,
-            _ => { return Err(Error::from(HighLevelError::SslBadHsProtocolVersion)); }
+            _ => { return Err(Error::from(HiError::SslBadHsProtocolVersion)); }
         };
         unsafe { ssl_conf_max_version(self.into(), 3, minor) };
         Ok(())

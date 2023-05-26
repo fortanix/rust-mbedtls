@@ -18,7 +18,7 @@ use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::{Config, Context};
 use mbedtls::x509::{Certificate, VerifyError};
-use mbedtls::{Error, LowLevelError, HighLevelError};
+use mbedtls::{Error, LoError, HiError};
 use mbedtls::Result as TlsResult;
 
 mod support;
@@ -44,7 +44,7 @@ fn client(conn: TcpStream, test: Test) -> TlsResult<()> {
                 *verify_flags |= VerifyError::CERT_OTHER;
                 Ok(())
             }
-            Test::CallbackError => Err(Error::from(LowLevelError::Asn1InvalidData)),
+            Test::CallbackError => Err(Error::from(LoError::Asn1InvalidData)),
         }
     };
     
@@ -60,13 +60,13 @@ fn client(conn: TcpStream, test: Test) -> TlsResult<()> {
             .err()
             .expect("should have failed"),
     ) {
-        (Test::CallbackSetVerifyFlags, Error::HighLevel(HighLevelError::X509CertVerifyFailed)) => {
+        (Test::CallbackSetVerifyFlags, Error::HighLevel(HiError::X509CertVerifyFailed)) => {
             assert_eq!(
                 ctx.verify_result().unwrap_err(),
                 VerifyError::CERT_OTHER | VerifyError::CERT_NOT_TRUSTED,
             );
         }
-        (Test::CallbackError, Error::LowLevel(LowLevelError::Asn1InvalidData)) => {}
+        (Test::CallbackError, Error::LowLevel(LoError::Asn1InvalidData)) => {}
         (_, err) => assert!(false, "Unexpected error from ctx.establish(): {:?}", err),
     }
 

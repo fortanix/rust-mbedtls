@@ -7,6 +7,7 @@
  * according to those terms. */
 
 use core::fmt;
+use core::ops::BitOr;
 use core::str::Utf8Error;
 use core::convert::Infallible;
 #[cfg(feature = "std")]
@@ -30,9 +31,12 @@ pub trait IntoResult: Sized {
 pub const ERR_UTF8_INVALID: c_int = -0x10000;
 
 macro_rules! error_enum {
-    {enum $n:ident {$($rust:ident = $c:ident,)*}} => {
-        
-        #[derive(Debug, Eq, PartialEq)]
+    {
+        const MASK: c_int = $mask:literal;
+        enum $n:ident {$($rust:ident = $c:ident,)*}
+    } => {
+        #[non_exhaustive]
+        #[derive(Debug, Eq, PartialEq, Copy, Clone)]
         pub enum $n {
             $($rust,)*
             Unknown(c_int)
@@ -40,27 +44,37 @@ macro_rules! error_enum {
 
         impl From<c_int> for $n {
             fn from(code: c_int) -> $n {
+                $(const $c: c_int = $n::assert_in_mask(::mbedtls_sys::$c);)*
                 match -code {
-                    $(::mbedtls_sys::$c => return $n::$rust),*,
-                    _ => return $n::Unknown(code)
+                    $($c => return $n::$rust),*,
+                    _ => return $n::Unknown(-code)
                 }
             }
         }
 
-        impl From<&$n> for c_int {
-            fn from(error: &$n) -> c_int {
+        impl From<$n> for c_int {
+            fn from(error: $n) -> c_int {
                 match error {
                     $($n::$rust => return ::mbedtls_sys::$c,)*
-                    $n::Unknown(code) => return *code,
+                    $n::Unknown(code) => return code,
                 }
             }
         }
 
         impl $n {
+            const fn mask() -> c_int {
+                $mask
+            }
+            
+            const fn assert_in_mask(val: c_int) -> c_int {
+                assert!((-val & !Self::mask()) == 0);
+                val
+            }
+
             pub fn as_str(&self)-> &'static str {
                 match self {
-                    $($n::$rust => concat!("mbedTLS $n error ", stringify!($n::$rust)),)*
-                    $n::Unknown(_) => "mbedTLS unknown $n error"
+                    $($n::$rust => concat!("mbedTLS error ", stringify!($n::$rust)),)*
+                    $n::Unknown(_) => concat!("mbedTLS unknown ", stringify!($n), " error")
                 }
             }
         }
@@ -69,58 +83,48 @@ macro_rules! error_enum {
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Error {
-    HighLevel(HighLevelError),
-    LowLevel(LowLevelError),
-    HighAndLowLevel(HighLevelError, LowLevelError),
+    HighLevel(HiError),
+    LowLevel(LoError),
+    HighAndLowLevel(HiError, LoError),
     Other(c_int),
     Utf8Error(Option<Utf8Error>),
-    // Stable-Rust equivalent of `#[non_exhaustive]` attribute. This
-    // value should never be used by users of this crate!
-    #[doc(hidden)]
-    __Nonexhaustive,
 }
 
 impl Error {
 
-    pub fn low_level(&self) -> Option<&LowLevelError> {
-        match &self {
-            &Error::LowLevel(error)
-            | &Error::HighAndLowLevel(_, error) => Some(&error),
+    pub fn low_level(&self) -> Option<LoError> {
+        match self {
+            Error::LowLevel(error)
+            | Error::HighAndLowLevel(_, error) => Some(*error),
             _ => None
         }
     }
 
-    pub fn high_level(&self) -> Option<&HighLevelError> {
-        match &self {
-            &Error::HighLevel(error)
-            | &Error::HighAndLowLevel(error, _) => Some(&error),
+    pub fn high_level(&self) -> Option<HiError> {
+        match self {
+            Error::HighLevel(error)
+            | Error::HighAndLowLevel(error, _) => Some(*error),
             _ => None
         }
     }
 
-    pub fn as_str(&self) -> String {
+    pub fn as_str(&self) -> &'static str {
         match &self {
-            &Error::HighLevel(e) => e.as_str().to_owned(),
-            &Error::LowLevel(e) => e.as_str().to_owned(),
-            &Error::HighAndLowLevel(h, l) => {
-                let high_level_str = h.as_str();
-                let low_level_str = l.as_str();
-                format!("high level error: {}, Low level error: {}", high_level_str, low_level_str)
-            }
-            &Error::Other(_) => "mbedTLS unknown error".to_owned(),
-            &Error::Utf8Error(_) => "error converting to UTF-8".to_owned(),
-            &Error::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
+            &Error::HighLevel(e) => e.as_str(),
+            &Error::LowLevel(e) => e.as_str(),
+            &Error::HighAndLowLevel(e, _) => e.as_str(),
+            &Error::Other(_) => "mbedTLS unknown error",
+            &Error::Utf8Error(_) => "error converting to UTF-8"
         }
     }
 
     pub fn to_int(&self) -> c_int {
-        match &self {
+        match self {
             &Error::HighLevel(error) => error.into(),
             &Error::LowLevel(error) => error.into(),
-            &Error::HighAndLowLevel(hl_error, ll_error) => c_int::from(hl_error) & c_int::from(ll_error),
-            &Error::Other(error) => *error,
+            &Error::HighAndLowLevel(hl_error, ll_error) => c_int::from(hl_error) + c_int::from(ll_error),
+            &Error::Other(error) => error,
             &Error::Utf8Error(_) => ERR_UTF8_INVALID,
-            &Error::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
         }
     }
 }
@@ -137,30 +141,44 @@ impl From<Infallible> for Error {
     }
 }
 
-impl From<LowLevelError> for Error {
-    fn from(error: LowLevelError) -> Error {
+impl From<LoError> for Error {
+    fn from(error: LoError) -> Error {
         Error::LowLevel(error)
     }
 }
 
-impl From<HighLevelError> for Error {
-    fn from(error: HighLevelError) -> Error {
+impl From<HiError> for Error {
+    fn from(error: HiError) -> Error {
         Error::HighLevel(error)
+    }
+}
+
+impl BitOr<LoError> for HiError {
+    type Output = Error;
+    fn bitor(self, rhs: LoError) -> Self::Output {
+        Error::HighAndLowLevel(self, rhs)
+    }
+}
+impl BitOr<HiError> for LoError {
+    type Output = Error;
+    fn bitor(self, rhs: HiError) -> Self::Output {
+        Error::HighAndLowLevel(rhs, self)
     }
 }
 
 impl From<c_int> for Error {
     fn from(x: c_int) -> Error {
-        let (high_level_code, low_level_code) = (-x & 0xFF80, -x & 0x7F);
-        if -x & 0xFFFF != -x {
+        let (high_level_code, low_level_code) = (-x & HiError::mask(), -x & LoError::mask());
+        if -x & (HiError::mask() | LoError::mask()) != -x || x >= 0 {
             return Error::Other(x);
         }
-        if high_level_code != 0 && low_level_code != 0 {
-            return Error::HighAndLowLevel(HighLevelError::from(high_level_code), LowLevelError::from(low_level_code))
-        } else if high_level_code != 0 {
-            return Error::HighLevel(HighLevelError::from(high_level_code))
+        else if high_level_code == 0 {
+            return Error::LowLevel(LoError::from(low_level_code));
+        }
+        else if low_level_code == 0 {
+            return Error::HighLevel(HiError::from(high_level_code));
         } else {
-            return Error::LowLevel(LowLevelError::from(low_level_code))
+            return Error::HighAndLowLevel(HiError::from(high_level_code), LoError::from(low_level_code))
         }
     }
 }
@@ -172,8 +190,10 @@ impl fmt::Display for Error {
                 f.write_fmt(format_args!("Error converting to UTF-8: {}", e))
             }
             &Error::Utf8Error(None) => f.write_fmt(format_args!("Error converting to UTF-8")),
-            &Error::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
-            e @ _ => f.write_fmt(format_args!("mbedTLS error {:?}", e)),
+            &Error::LowLevel(e) => f.write_fmt(format_args!("{}", e.as_str())),
+            &Error::HighLevel(e) => f.write_fmt(format_args!("{}", e.as_str())),
+            &Error::HighAndLowLevel(hi, lo) => f.write_fmt(format_args!("({}, {})", hi.as_str(), lo.as_str())),
+            &Error::Other(code) => f.write_fmt(format_args!("mbedTLS unknown error code {}", code)),
         }
     }
 }
@@ -192,7 +212,8 @@ impl IntoResult for c_int {
 }
 
 error_enum!(
-    enum HighLevelError {
+    const MASK: c_int = 0xFF80;
+    enum HiError {
         CipherAllocFailed = ERR_CIPHER_ALLOC_FAILED,
         CipherAuthFailed = ERR_CIPHER_AUTH_FAILED,
         CipherBadInputData = ERR_CIPHER_BAD_INPUT_DATA,
@@ -201,6 +222,7 @@ error_enum!(
         CipherHwAccelFailed = ERR_CIPHER_HW_ACCEL_FAILED,
         CipherInvalidContext = ERR_CIPHER_INVALID_CONTEXT,
         CipherInvalidPadding = ERR_CIPHER_INVALID_PADDING,
+        DhmAllocFailed = ERR_DHM_ALLOC_FAILED,
         DhmBadInputData = ERR_DHM_BAD_INPUT_DATA,
         DhmCalcSecretFailed = ERR_DHM_CALC_SECRET_FAILED,
         DhmFileIoError = ERR_DHM_FILE_IO_ERROR,
@@ -346,7 +368,8 @@ error_enum!(
 );
 
 error_enum!(
-    enum LowLevelError {
+    const MASK: c_int = 0x7F;
+    enum LoError {
         AesBadInputData = ERR_AES_BAD_INPUT_DATA,
         AesFeatureUnavailable = ERR_AES_FEATURE_UNAVAILABLE,
         AesHwAccelFailed = ERR_AES_HW_ACCEL_FAILED,
@@ -384,7 +407,6 @@ error_enum!(
         CtrDrbgRequestTooBig = ERR_CTR_DRBG_REQUEST_TOO_BIG,
         DesHwAccelFailed = ERR_DES_HW_ACCEL_FAILED,
         DesInvalidInputLength = ERR_DES_INVALID_INPUT_LENGTH,
-        DhmAllocFailed = ERR_DHM_ALLOC_FAILED,
         EntropyFileIoError = ERR_ENTROPY_FILE_IO_ERROR,
         EntropyMaxSources = ERR_ENTROPY_MAX_SOURCES,
         EntropyNoSourcesDefined = ERR_ENTROPY_NO_SOURCES_DEFINED,
@@ -435,3 +457,8 @@ error_enum!(
         XteaInvalidInputLength = ERR_XTEA_INVALID_INPUT_LENGTH,
     }
 );
+
+pub(crate) mod error {
+    pub use crate::error::HiError::*;
+    pub use crate::error::LoError::*;
+}
