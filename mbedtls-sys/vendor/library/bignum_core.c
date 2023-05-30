@@ -448,6 +448,17 @@ mbedtls_mpi_uint mbedtls_mpi_core_mla(mbedtls_mpi_uint *d, size_t d_len,
     return c;
 }
 
+void mbedtls_mpi_core_mul(mbedtls_mpi_uint *X,
+                          const mbedtls_mpi_uint *A, size_t A_limbs,
+                          const mbedtls_mpi_uint *B, size_t B_limbs)
+{
+    memset(X, 0, (A_limbs + B_limbs) * ciL);
+
+    for (size_t i = 0; i < B_limbs; i++) {
+        (void) mbedtls_mpi_core_mla(X + i, A_limbs + 1, A, A_limbs, B[i]);
+    }
+}
+
 /*
  * Fast Montgomery initialization (thanks to Tom St Denis).
  */
@@ -629,8 +640,6 @@ cleanup:
     return ret;
 }
 
-/* BEGIN MERGE SLOT 1 */
-
 static size_t exp_mod_get_window_size(size_t Ebits)
 {
     size_t wsize = (Ebits > 671) ? 6 : (Ebits > 239) ? 5 :
@@ -780,14 +789,6 @@ void mbedtls_mpi_core_exp_mod(mbedtls_mpi_uint *X,
     } while (!(E_bit_index == 0 && E_limb_index == 0));
 }
 
-/* END MERGE SLOT 1 */
-
-/* BEGIN MERGE SLOT 2 */
-
-/* END MERGE SLOT 2 */
-
-/* BEGIN MERGE SLOT 3 */
-
 mbedtls_mpi_uint mbedtls_mpi_core_sub_int(mbedtls_mpi_uint *X,
                                           const mbedtls_mpi_uint *A,
                                           mbedtls_mpi_uint c,  /* doubles as carry */
@@ -837,35 +838,5 @@ void mbedtls_mpi_core_from_mont_rep(mbedtls_mpi_uint *X,
 
     mbedtls_mpi_core_montmul(X, A, &Rinv, 1, N, AN_limbs, mm, T);
 }
-
-/* END MERGE SLOT 3 */
-
-/* BEGIN MERGE SLOT 4 */
-
-/* END MERGE SLOT 4 */
-
-/* BEGIN MERGE SLOT 5 */
-
-/* END MERGE SLOT 5 */
-
-/* BEGIN MERGE SLOT 6 */
-
-/* END MERGE SLOT 6 */
-
-/* BEGIN MERGE SLOT 7 */
-
-/* END MERGE SLOT 7 */
-
-/* BEGIN MERGE SLOT 8 */
-
-/* END MERGE SLOT 8 */
-
-/* BEGIN MERGE SLOT 9 */
-
-/* END MERGE SLOT 9 */
-
-/* BEGIN MERGE SLOT 10 */
-
-/* END MERGE SLOT 10 */
 
 #endif /* MBEDTLS_BIGNUM_C */

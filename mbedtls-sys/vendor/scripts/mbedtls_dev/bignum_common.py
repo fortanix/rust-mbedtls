@@ -68,7 +68,8 @@ def bound_mpi_limbs(limbs: int, bits_in_limb: int) -> int:
 
 def limbs_mpi(val: int, bits_in_limb: int) -> int:
     """Return the number of limbs required to store value."""
-    return (val.bit_length() + bits_in_limb - 1) // bits_in_limb
+    bit_length = max(val.bit_length(), 1)
+    return (bit_length + bits_in_limb - 1) // bits_in_limb
 
 def combination_pairs(values: List[T]) -> List[Tuple[T, T]]:
     """Return all pair combinations from input values."""
@@ -388,43 +389,3 @@ class ModOperationCommon(OperationCommon):
                         lambda test_object: test_object.is_valid,
                         chain(test_objects, special_cases)
                         ))
-
-# BEGIN MERGE SLOT 1
-
-# END MERGE SLOT 1
-
-# BEGIN MERGE SLOT 2
-
-# END MERGE SLOT 2
-
-# BEGIN MERGE SLOT 3
-
-# END MERGE SLOT 3
-
-# BEGIN MERGE SLOT 4
-
-# END MERGE SLOT 4
-
-# BEGIN MERGE SLOT 5
-
-# END MERGE SLOT 5
-
-# BEGIN MERGE SLOT 6
-
-# END MERGE SLOT 6
-
-# BEGIN MERGE SLOT 7
-
-# END MERGE SLOT 7
-
-# BEGIN MERGE SLOT 8
-
-# END MERGE SLOT 8
-
-# BEGIN MERGE SLOT 9
-
-# END MERGE SLOT 9
-
-# BEGIN MERGE SLOT 10
-
-# END MERGE SLOT 10

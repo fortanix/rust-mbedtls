@@ -8,11 +8,6 @@
 #include "ecp_invasive.h"
 #include "bignum_mod_raw_invasive.h"
 
-#if defined(MBEDTLS_TEST_HOOKS) &&                  \
-    defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
-#define HAVE_FIX_NEGATIVE
-#endif
-
 #define ECP_PF_UNKNOWN     -1
 
 #define ECP_PT_RESET(x)           \
@@ -1091,36 +1086,6 @@ exit:
 }
 /* END_CASE */
 
-/* BEGIN_CASE depends_on:HAVE_FIX_NEGATIVE */
-void fix_negative(data_t *N_bin, int c, int bits)
-{
-    mbedtls_mpi C, M, N;
-
-    mbedtls_mpi_init(&C);
-    mbedtls_mpi_init(&M);
-    mbedtls_mpi_init(&N);
-
-    /* C = - c * 2^bits (positive since c is negative) */
-    TEST_EQUAL(0, mbedtls_mpi_lset(&C, -c));
-    TEST_EQUAL(0, mbedtls_mpi_shift_l(&C, bits));
-
-    TEST_EQUAL(0, mbedtls_mpi_read_binary(&N, N_bin->x, N_bin->len));
-    TEST_EQUAL(0, mbedtls_mpi_grow(&N, C.n));
-
-    /* M = N - C = - ( C - N ) (expected result of fix_negative) */
-    TEST_EQUAL(0, mbedtls_mpi_sub_mpi(&M, &N, &C));
-
-    mbedtls_ecp_fix_negative(&N, c, bits);
-
-    TEST_EQUAL(0, mbedtls_mpi_cmp_mpi(&N, &M));
-
-exit:
-    mbedtls_mpi_free(&C);
-    mbedtls_mpi_free(&M);
-    mbedtls_mpi_free(&N);
-}
-/* END_CASE */
-
 /* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS:MBEDTLS_ECP_MONTGOMERY_ENABLED */
 void genkey_mx_known_answer(int bits, data_t *seed, data_t *expected)
 {
@@ -1301,7 +1266,7 @@ exit:
 }
 /* END_CASE */
 
-/* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS */
+/* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS:MBEDTLS_ECP_DP_SECP192R1_ENABLED */
 void ecp_mod_p192_raw(char *input_N,
                       char *input_X,
                       char *result)
@@ -1344,7 +1309,7 @@ exit:
 }
 /* END_CASE */
 
-/* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS */
+/* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS:MBEDTLS_ECP_DP_SECP224R1_ENABLED */
 void ecp_mod_p224_raw(char *input_N,
                       char *input_X,
                       char *result)
@@ -1387,7 +1352,7 @@ exit:
 }
 /* END_CASE */
 
-/* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS */
+/* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS:MBEDTLS_ECP_DP_SECP256R1_ENABLED */
 void ecp_mod_p256_raw(char *input_N,
                       char *input_X,
                       char *result)
@@ -1430,7 +1395,50 @@ exit:
 }
 /* END_CASE */
 
-/* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS */
+/* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS:MBEDTLS_ECP_DP_SECP384R1_ENABLED */
+void ecp_mod_p384_raw(char *input_N,
+                      char *input_X,
+                      char *result)
+{
+    mbedtls_mpi_uint *X = NULL;
+    mbedtls_mpi_uint *N = NULL;
+    mbedtls_mpi_uint *res = NULL;
+    size_t limbs_X;
+    size_t limbs_N;
+    size_t limbs_res;
+
+    mbedtls_mpi_mod_modulus m;
+    mbedtls_mpi_mod_modulus_init(&m);
+
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&X,   &limbs_X,   input_X), 0);
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&N,   &limbs_N,   input_N), 0);
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&res, &limbs_res, result),  0);
+
+    size_t limbs = limbs_N;
+    size_t bytes = limbs * sizeof(mbedtls_mpi_uint);
+
+    TEST_EQUAL(limbs_X, 2 * limbs);
+    TEST_EQUAL(limbs_res, limbs);
+
+    TEST_EQUAL(mbedtls_mpi_mod_modulus_setup(
+                   &m, N, limbs,
+                   MBEDTLS_MPI_MOD_REP_MONTGOMERY), 0);
+
+    TEST_EQUAL(mbedtls_ecp_mod_p384_raw(X, limbs_X), 0);
+    TEST_LE_U(mbedtls_mpi_core_bitlen(X, limbs_X), 384);
+    mbedtls_mpi_mod_raw_fix_quasi_reduction(X, &m);
+    ASSERT_COMPARE(X, bytes, res, bytes);
+
+exit:
+    mbedtls_free(X);
+    mbedtls_free(res);
+
+    mbedtls_mpi_mod_modulus_free(&m);
+    mbedtls_free(N);
+}
+/* END_CASE */
+
+/* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS:MBEDTLS_ECP_DP_SECP521R1_ENABLED */
 void ecp_mod_p521_raw(char *input_N,
                       char *input_X,
                       char *result)

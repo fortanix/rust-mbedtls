@@ -33,19 +33,6 @@
 
 #if defined(MBEDTLS_TEST_HOOKS) && defined(MBEDTLS_ECP_C)
 
-#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
-/* Preconditions:
- *   - bits is a multiple of 64 or is 224
- *   - c is -1 or -2
- *   - 0 <= N < 2^bits
- *   - N has room for bits plus one limb
- *
- * Behavior:
- * Set N to c * 2^bits + old_value_of_N.
- */
-void mbedtls_ecp_fix_negative(mbedtls_mpi *N, signed char c, size_t bits);
-#endif
-
 #if defined(MBEDTLS_ECP_MONTGOMERY_ENABLED)
 /** Generate a private key on a Montgomery curve (Curve25519 or Curve448).
  *
@@ -159,6 +146,28 @@ MBEDTLS_STATIC_TESTABLE
 int mbedtls_ecp_mod_p521_raw(mbedtls_mpi_uint *X, size_t X_limbs);
 
 #endif /* MBEDTLS_ECP_DP_SECP521R1_ENABLED */
+
+#if defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
+
+/** Fast quasi-reduction modulo p384 (FIPS 186-3 D.2.4)
+ *
+ * \param[in,out]   X       The address of the MPI to be converted.
+ *                          Must have exact limb size that stores a 768-bit MPI
+ *                          (double the bitlength of the modulus).
+ *                          Upon return holds the reduced value which is
+ *                          in range `0 <= X < 2 * N` (where N is the modulus).
+ *                          The bitlength of the reduced value is the same as
+ *                          that of the modulus (384 bits).
+ * \param[in]       X_limbs The length of \p N in limbs.
+ *
+ * \return          \c 0 on success.
+ * \return          #MBEDTLS_ERR_ECP_BAD_INPUT_DATA if \p N_n does not have
+ *                  twice as many limbs as the modulus.
+ */
+MBEDTLS_STATIC_TESTABLE
+int  mbedtls_ecp_mod_p384_raw(mbedtls_mpi_uint *X, size_t X_limbs);
+
+#endif /* MBEDTLS_ECP_DP_SECP384R1_ENABLED */
 
 /** Initialise a modulus with hard-coded const curve data.
  *
