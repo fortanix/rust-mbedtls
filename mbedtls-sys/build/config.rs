@@ -192,7 +192,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_PKCS1_V21",                                 Defined),
     ("MBEDTLS_PSA_CRYPTO_BUILTIN_KEYS",                   Undefined),
     ("MBEDTLS_PSA_CRYPTO_CLIENT",                         Undefined),
-    ("MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG",                   Defined),
+    ("MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG",                   Undefined),
     ("MBEDTLS_PSA_CRYPTO_SPM",                            Undefined),
     ("MBEDTLS_PSA_INJECT_ENTROPY",                        Undefined),
     ("MBEDTLS_RSA_NO_CRT",                                Undefined),
@@ -212,11 +212,11 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_SSL_MAX_FRAGMENT_LENGTH",                   Defined),
     ("MBEDTLS_SSL_RECORD_SIZE_LIMIT",                     Undefined),
     ("MBEDTLS_SSL_PROTO_TLS1_2",                          Defined),
-    ("MBEDTLS_SSL_PROTO_TLS1_3",                          Defined),
-    ("MBEDTLS_SSL_TLS1_3_COMPATIBILITY_MODE",             Defined),
-    ("MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_ENABLED",           Defined),
-    ("MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED",     Defined),
-    ("MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_EPHEMERAL_ENABLED", Defined),
+    ("MBEDTLS_SSL_PROTO_TLS1_3",                          Undefined),
+    ("MBEDTLS_SSL_TLS1_3_COMPATIBILITY_MODE",             Undefined),
+    ("MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_ENABLED",           Undefined),
+    ("MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED",     Undefined),
+    ("MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_EPHEMERAL_ENABLED", Undefined),
     ("MBEDTLS_SSL_EARLY_DATA",                            Undefined),
     ("MBEDTLS_SSL_MAX_EARLY_DATA_SIZE",                   Undefined),
     ("MBEDTLS_SSL_PROTO_DTLS",                            Defined),
@@ -285,7 +285,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_PKCS12_C",                                  Undefined),
     ("MBEDTLS_PLATFORM_C",                                Undefined),
     ("MBEDTLS_POLY1305_C",                                Defined),
-    ("MBEDTLS_PSA_CRYPTO_C",                              Defined),
+    ("MBEDTLS_PSA_CRYPTO_C",                              Undefined),
     ("MBEDTLS_PSA_CRYPTO_SE_C",                           Undefined),
     ("MBEDTLS_PSA_CRYPTO_STORAGE_C",                      Undefined),
     ("MBEDTLS_PSA_ITS_FILE_C",                            Undefined),
@@ -373,9 +373,9 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_PSK_MAX_LEN",                               Undefined), // default: 32
     ("MBEDTLS_SSL_COOKIE_TIMEOUT",                        Undefined), // default: 60
     ("MBEDTLS_SSL_CIPHERSUITES",                          Undefined), // default: MBEDTLS_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
-    ("MBEDTLS_SSL_TLS1_3_TICKET_AGE_TOLERANCE",           DefinedAs("6000")),
-    ("MBEDTLS_SSL_TLS1_3_TICKET_NONCE_LENGTH",            DefinedAs("32")),
-    ("MBEDTLS_SSL_TLS1_3_DEFAULT_NEW_SESSION_TICKETS",    DefinedAs("1")),
+    ("MBEDTLS_SSL_TLS1_3_TICKET_AGE_TOLERANCE",           Undefined),
+    ("MBEDTLS_SSL_TLS1_3_TICKET_NONCE_LENGTH",            Undefined),
+    ("MBEDTLS_SSL_TLS1_3_DEFAULT_NEW_SESSION_TICKETS",    Undefined),
     ("MBEDTLS_X509_MAX_INTERMEDIATE_CA",                  Undefined), // default: 8
     ("MBEDTLS_X509_MAX_FILE_PATH_LEN",                    Undefined), // default: 512
     ("MBEDTLS_PLATFORM_ZEROIZE_ALT",                      Undefined),
@@ -412,6 +412,17 @@ pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
     ("mpi_force_c_code",      ("MBEDTLS_MPI_FORCE_C_CODE",                  Defined)),
     ("trusted_cert_callback", ("MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK", Defined)),
     ("pkcs12",                ("MBEDTLS_PKCS12_C",                          Defined)),
+    ("tls13",                 ("MBEDTLS_PSA_CRYPTO_C",                                       Defined)),
+    ("tls13",                 ("MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG",                            Defined)),
+    ("tls13",                 ("MBEDTLS_SSL_PROTO_TLS1_3",                                   Defined)),
+    ("tls13",                 ("MBEDTLS_SSL_TLS1_3_COMPATIBILITY_MODE",                      Defined)),
+    ("tls13",                 ("MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_ENABLED",           Defined)),
+    ("tls13",                 ("MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED",     Defined)),
+    ("tls13",                 ("MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK_EPHEMERAL_ENABLED", Defined)),
+    ("tls13",                 ("MBEDTLS_SSL_TLS1_3_TICKET_AGE_TOLERANCE",                    DefinedAs("6000"))),
+    ("tls13",                 ("MBEDTLS_SSL_TLS1_3_TICKET_AGE_TOLERANCE",                    DefinedAs("6000"))),
+    ("tls13",                 ("MBEDTLS_SSL_TLS1_3_TICKET_NONCE_LENGTH",                     DefinedAs("32"))),
+    ("tls13",                 ("MBEDTLS_SSL_TLS1_3_DEFAULT_NEW_SESSION_TICKETS",             DefinedAs("1"))),
 ];
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
