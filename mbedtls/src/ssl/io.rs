@@ -200,7 +200,7 @@ impl<T: IoCallbackUnsafe<Stream>> Read for Context<T> {
                     // might return `SslWantRead` to indicate to read incoming data of
                     // `NewSessionTicket`.
                     // There is an issue for tracking: https://github.com/Mbed-TLS/mbedtls/issues/6640
-                    if self.config().handle().private_endpoint as c_int == super::config::Endpoint::Client.into()
+                    if matches!(self.config().endpoint(), super::config::Endpoint::Client)
                         && self.handle().private_state as mbedtls_sys::ssl_states == super::ssl_states::SslStates::Tls13NewSessionTicket.into()
                     {
                         continue;

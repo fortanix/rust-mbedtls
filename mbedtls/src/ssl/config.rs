@@ -262,8 +262,16 @@ impl Config {
     setter!(set_transport(t: Transport) = ssl_conf_transport);
     // need bitfield support getter!(authmode() -> AuthMode = field authmode);
     setter!(set_authmode(am: AuthMode) = ssl_conf_authmode);
-    getter!(read_timeout() -> u32 = .private_read_timeout);
+    getter!(read_timeout() -> u32 = fn ssl_get_read_timeout);
     setter!(set_read_timeout(t: u32) = ssl_conf_read_timeout);
+
+    pub fn endpoint(&self) -> Endpoint {
+        match unsafe { ssl_get_endpoint(self.into()) } {
+            SSL_IS_CLIENT => Endpoint::Client,
+            SSL_IS_SERVER => Endpoint::Server,
+            _ => unreachable!(),
+        }
+    }
 
     fn check_c_list<T: Default + Eq>(list: &[T]) {
         assert!(list.last() == Some(&T::default()));

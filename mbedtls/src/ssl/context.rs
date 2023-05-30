@@ -531,10 +531,6 @@ impl HandshakeContext {
     }
     
     pub fn set_authmode(&mut self, am: AuthMode) -> Result<()> {
-        if self.inner.private_handshake as *const _ == ::core::ptr::null() {
-            return Err(codes::SslBadInputData.into());
-        }
-        
         unsafe { ssl_set_hs_authmode(self.into(), am as i32) }
         Ok(())
     }
@@ -544,11 +540,6 @@ impl HandshakeContext {
         chain: Option<Arc<MbedtlsList<Certificate>>>,
         crl: Option<Arc<Crl>>,
     ) -> Result<()> {
-        // mbedtls_ssl_set_hs_ca_chain does not check for NULL handshake.
-        if self.inner.private_handshake as *const _ == ::core::ptr::null() {
-            return Err(codes::SslBadInputData.into());
-        }
-
         // This will override current handshake CA chain.
         unsafe {
             ssl_set_hs_ca_chain(
@@ -572,11 +563,6 @@ impl HandshakeContext {
         chain: Arc<MbedtlsList<Certificate>>,
         key: Arc<Pk>,
     ) -> Result<()> {
-        // mbedtls_ssl_set_hs_own_cert does not check for NULL handshake.
-        if self.inner.private_handshake as *const _ == ::core::ptr::null() {
-            return Err(codes::SslBadInputData.into());
-        }
-
         // This will append provided certificate pointers in internal structures.
         unsafe {
             ssl_set_hs_own_cert(self.into(), chain.inner_ffi_mut(), key.inner_ffi_mut()).into_result()?;

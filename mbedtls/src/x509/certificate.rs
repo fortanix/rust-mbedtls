@@ -217,8 +217,7 @@ impl Certificate {
     }
 
     pub fn digest_type(&self) -> MdType {
-        // access `private_` field here becuase C mbedtls does not provide accessor
-        MdType::from(self.inner.private_sig_md)
+        MdType::from( unsafe { x509_crt_get_md_alg(&self.inner) } )
     }
 
     fn verify_ex<F>(

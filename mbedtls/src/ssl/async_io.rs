@@ -15,10 +15,9 @@ use crate::{
         io::{IoCallback, IoCallbackUnsafe},
     },
 };
-use mbedtls_sys::types::raw_types::c_int;
 use std::{
     future::Future,
-    io::{Error as IoError, ErrorKind as IoErrorKind, Result as IoResult},
+    io::Result as IoResult,
     pin::Pin,
     task::{Context as TaskContext, Poll},
 };
@@ -96,10 +95,6 @@ where
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
 {
     fn poll_read(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &mut ReadBuf<'_>) -> Poll<IoResult<()>> {
-        if self.handle().private_session.is_null() {
-            return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
-        }
-
         self.with_bio_async(cx, |ssl_ctx| loop {
             match ssl_ctx.recv(buf.initialize_unfilled()) {
                 Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => return Poll::Ready(Ok(())),
@@ -113,7 +108,7 @@ where
                     // might return `SslWantRead` to indicate to read incoming data of
                     // `NewSessionTicket`.
                     // There is an issue for tracking: https://github.com/Mbed-TLS/mbedtls/issues/6640
-                    if ssl_ctx.config().handle().private_endpoint as c_int == super::config::Endpoint::Client.into()
+                    if matches!(ssl_ctx.config().endpoint(), super::config::Endpoint::Client)
                         && ssl_ctx.handle().private_state as mbedtls_sys::ssl_states
                             == super::ssl_states::SslStates::Tls13NewSessionTicket.into()
                     {
@@ -144,10 +139,6 @@ where
     for<'c, 'cx> (&'c mut TaskContext<'cx>, &'c mut T): IoCallbackUnsafe<AsyncStream>,
 {
     fn poll_write(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
-        if self.handle().private_session.is_null() {
-            return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
-        }
-
         self
             .with_bio_async(cx, |ssl_ctx| match ssl_ctx.async_write(buf) {
                 Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
@@ -159,10 +150,6 @@ where
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
-        if self.handle().private_session.is_null() {
-            return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
-        }
-
         match self
             .with_bio_async(cx, Context::flush_output)
             .unwrap_or(Err(Error::from(codes::NetSendFailed)))
@@ -174,10 +161,6 @@ where
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
-        if self.handle().private_session.is_null() {
-            return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
-        }
-
         match self
             .with_bio_async(cx, Context::close_notify)
             .unwrap_or(Err(Error::from(codes::NetSendFailed)))
