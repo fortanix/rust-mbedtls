@@ -354,6 +354,20 @@ void mbedtls_ctr_drbg_set_prediction_resistance(mbedtls_ctr_drbg_context *ctx,
                                                 int resistance);
 
 /**
+ * \brief               This function gets current state of prediction resistance.
+ *
+ * The default value is #MBEDTLS_CTR_DRBG_PR_OFF.
+ *
+ * \param ctx           The CTR_DRBG context.
+ * \return              #MBEDTLS_CTR_DRBG_PR_ON or #MBEDTLS_CTR_DRBG_PR_OFF.
+ */
+static inline int mbedtls_ctr_drbg_get_prediction_resistance(
+    const mbedtls_ctr_drbg_context *ctx)
+{
+    return ctx->MBEDTLS_PRIVATE(prediction_resistance);
+};
+
+/**
  * \brief               This function sets the amount of entropy grabbed on each
  *                      seed or reseed.
  *
@@ -379,6 +393,22 @@ void mbedtls_ctr_drbg_set_prediction_resistance(mbedtls_ctr_drbg_context *ctx,
  */
 void mbedtls_ctr_drbg_set_entropy_len(mbedtls_ctr_drbg_context *ctx,
                                       size_t len);
+
+/**
+ * \brief               This function gets the amount of entropy grabbed on each
+ *                      seed or reseed.
+ *
+ * The default value is #MBEDTLS_CTR_DRBG_ENTROPY_LEN.
+ *
+ *
+ * \param ctx           The CTR_DRBG context.
+ * \return              The amount of entropy to grab, in bytes.
+ */
+static inline size_t mbedtls_ctr_drbg_get_entropy_len(
+    const mbedtls_ctr_drbg_context *ctx)
+{
+    return ctx->MBEDTLS_PRIVATE(entropy_len);
+};
 
 /**
  * \brief               This function sets the amount of entropy grabbed
@@ -416,6 +446,20 @@ int mbedtls_ctr_drbg_set_nonce_len(mbedtls_ctr_drbg_context *ctx,
  */
 void mbedtls_ctr_drbg_set_reseed_interval(mbedtls_ctr_drbg_context *ctx,
                                           int interval);
+
+/**
+ * \brief               This function gets the reseed interval.
+ *
+ * The default value is #MBEDTLS_CTR_DRBG_RESEED_INTERVAL.
+ *
+ * \param ctx           The CTR_DRBG context.
+ * \return              The reseed interval.
+ */
+static inline int mbedtls_ctr_drbg_get_reseed_interval(
+    const mbedtls_ctr_drbg_context *ctx)
+{
+    return ctx->MBEDTLS_PRIVATE(reseed_interval);
+};
 
 /**
  * \brief               This function reseeds the CTR_DRBG context, that is

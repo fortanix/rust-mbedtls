@@ -1053,6 +1053,64 @@ int mbedtls_mpi_gen_prime(mbedtls_mpi *X, size_t nbits, int flags,
                           int (*f_rng)(void *, unsigned char *, size_t),
                           void *p_rng);
 
+/**
+ * \brief          Retrieves the sign of an MPI.
+ *
+ * \param X        The source MPI. This must point to an initialized MPI.
+ *
+ * \return         The sign of the MPI: -1 if negative, 1 otherwise.
+ */
+static inline int mbedtls_mpi_get_sign(const mbedtls_mpi *X)
+{
+    return X->MBEDTLS_PRIVATE(s);
+}
+
+/**
+ * \brief          Sets the sign of an MPI.
+ *
+ * \param X        The source MPI. This must point to an initialized MPI.
+ * \param sign     The sign to be set: -1 if negative, 1 otherwise.
+ */
+static inline void mbedtls_mpi_set_sign(mbedtls_mpi *X, int sign)
+{
+    X->MBEDTLS_PRIVATE(s) = sign;
+}
+
+/**
+ * \brief          Retrieves the size of an MPI.
+ *
+ * \param X        The source MPI. This must point to an initialized MPI.
+ *
+ * \return         The size of the MPI in number of limbs.
+ */
+static inline size_t mbedtls_mpi_get_size(const mbedtls_mpi *X)
+{
+    return X->MBEDTLS_PRIVATE(n);
+}
+
+/**
+ * \brief          Sets the size of an MPI.
+ *
+ * \param X        The source MPI. This must point to an initialized MPI.
+ * \param n        The size to be set in number of limbs.
+ */
+static inline void mbedtls_mpi_set_size(mbedtls_mpi *X, size_t n)
+{
+    X->MBEDTLS_PRIVATE(n) = n;
+}
+
+/**
+ * \brief          Retrieves the pointer to the limbs of an MPI.
+ *
+ * \param X        The source MPI. This must point to an initialized MPI.
+ *
+ * \return         The pointer to the limbs of the MPI.
+ */
+static inline mbedtls_mpi_uint *mbedtls_mpi_get_p(const mbedtls_mpi *X)
+{
+    return X->MBEDTLS_PRIVATE(p);
+}
+
 #if defined(MBEDTLS_SELF_TEST)
 
 /**

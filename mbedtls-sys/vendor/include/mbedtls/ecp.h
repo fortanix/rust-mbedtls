@@ -1320,6 +1320,165 @@ int mbedtls_ecp_check_pub_priv(
 int mbedtls_ecp_export(const mbedtls_ecp_keypair *key, mbedtls_ecp_group *grp,
                        mbedtls_mpi *d, mbedtls_ecp_point *Q);
 
+/**
+ * \brief           This function get the X coordinate of the ECP point.
+ *
+ * \param pt        The point to get. This must be initialized.
+ *
+ * \return          A const pointer of MPI representing X coordinate of the ECP
+ *                  Point
+ */
+static inline const mbedtls_mpi *mbedtls_ecp_point_get_x(const mbedtls_ecp_point *pt)
+{
+    return &pt->MBEDTLS_PRIVATE(X);
+}
+
+/**
+ * \brief           This function set the X coordinate of the ECP point.
+ *
+ * \param pt        The point to set. This must be initialized.
+ * \param x         The integer to be set. This must be initialized.
+ *
+
+ */
+static inline void mbedtls_ecp_point_set_x(mbedtls_ecp_point *pt,
+                                           const mbedtls_mpi *x)
+{
+    pt->MBEDTLS_PRIVATE(X) = *x;
+}
+
+/**
+ * \brief           This function get the Y coordinate of the ECP point.
+ *
+ * \param pt        The point to get. This must be initialized.
+ *
+ * \return          A const pointer of MPI representing Y coordinate of the ECP
+ *                  Point
+ */
+static inline const mbedtls_mpi *mbedtls_ecp_point_get_y(const mbedtls_ecp_point *pt)
+{
+    return &pt->MBEDTLS_PRIVATE(Y);
+}
+
+/**
+ * \brief           This function set the Y coordinate of the ECP point.
+ *
+ * \param pt        The point to set. This must be initialized.
+ * \param y         The integer to be set. This must be initialized.
+ *
+
+ */
+static inline void mbedtls_ecp_point_set_y(mbedtls_ecp_point *pt,
+                                           const mbedtls_mpi *y)
+{
+    pt->MBEDTLS_PRIVATE(Y) = *y;
+}
+
+/**
+ * \brief           This function get the Z coordinate of the ECP point.
+ *
+ * \param pt        The point to get. This must be initialized.
+ *
+ * \return          A const pointer of MPI representing Z coordinate of the ECP
+ *                  Point
+ */
+static inline const mbedtls_mpi *mbedtls_ecp_point_get_z(const mbedtls_ecp_point *pt)
+{
+    return &pt->MBEDTLS_PRIVATE(Z);
+}
+
+/**
+ * \brief           This function set the Z coordinate of the ECP point.
+ *
+ * \param pt        The point to set. This must be initialized.
+ * \param z         The integer to be set. This must be initialized.
+ *
+
+ */
+static inline void mbedtls_ecp_point_set_z(mbedtls_ecp_point *pt,
+                                           const mbedtls_mpi *z)
+{
+    pt->MBEDTLS_PRIVATE(Z) = *z;
+}
+
+/**
+ * \brief           This function gets the grp component of the ECP key pair.
+ *
+ * \param kp        The source key pair. This must be initialized.
+ *
+ * \return          A const pointer of ECP group representing grp component of the ECP
+ *                  Key pair
+ */
+static inline const mbedtls_ecp_group *mbedtls_ecp_keypair_get_grp(const mbedtls_ecp_keypair *kp)
+{
+    return &kp->MBEDTLS_PRIVATE(grp);
+}
+
+/**
+ * \brief           This function sets the grp component of the ECP key pair.
+ *
+ * \param kp        The key pair to set. This must be initialized.
+ * \param grp       The group to be set. This must be initialized.
+ *
+ */
+static inline void mbedtls_ecp_keypair_set_grp(mbedtls_ecp_keypair *kp,
+                                               const mbedtls_ecp_group *grp)
+{
+    kp->MBEDTLS_PRIVATE(grp) = *grp;
+}
+
+/**
+ * \brief           This function gets the d component of the ECP key pair.
+ *
+ * \param kp        The source key pair. This must be initialized.
+ *
+ * \return          A const pointer of MPI representing d component of the ECP
+ *                  Key pair
+ */
+static inline const mbedtls_mpi *mbedtls_ecp_keypair_get_d(const mbedtls_ecp_keypair *kp)
+{
+    return &kp->MBEDTLS_PRIVATE(d);
+}
+
+/**
+ * \brief           This function sets the d component of the ECP key pair.
+ *
+ * \param kp        The key pair to set. This must be initialized.
+ * \param d         The MPI to be set. This must be initialized.
+ *
+ */
+static inline void mbedtls_ecp_keypair_set_d(mbedtls_ecp_keypair *kp,
+                                             const mbedtls_mpi *d)
+{
+    kp->MBEDTLS_PRIVATE(d) = *d;
+}
+
+/**
+ * \brief           This function gets the Q component of the ECP key pair.
+ *
+ * \param kp        The source key pair. This must be initialized.
+ *
+ * \return          A const pointer of ECP point representing Q component of the ECP
+ *                  Key pair
+ */
+static inline const mbedtls_ecp_point *mbedtls_ecp_keypair_get_q(const mbedtls_ecp_keypair *kp)
+{
+    return &kp->MBEDTLS_PRIVATE(Q);
+}
+
+/**
+ * \brief           This function sets the Q component of the ECP key pair.
+ *
+ * \param kp        The key pair to set. This must be initialized.
+ * \param q         The ECP point to be set. This must be initialized.
+ *
+ */
+static inline void mbedtls_ecp_keypair_set_q(mbedtls_ecp_keypair *kp,
+                                             const mbedtls_ecp_point *q)
+{
+    kp->MBEDTLS_PRIVATE(Q) = *q;
+}
+
 #if defined(MBEDTLS_SELF_TEST)
 
 /**

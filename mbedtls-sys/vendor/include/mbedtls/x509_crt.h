@@ -906,6 +906,18 @@ static inline int mbedtls_x509_crt_has_ext_type(const mbedtls_x509_crt *ctx,
     return ctx->MBEDTLS_PRIVATE(ext_types) & ext_type;
 }
 
+/**
+ * \brief           Get the MD algorithm used for the signature
+ *                  (e.g. MBEDTLS_MD_SHA1)
+ *
+ * \param ctx       CRT context to use
+ * \return          MD algorithm using
+ */
+static inline mbedtls_md_type_t mbedtls_x509_crt_get_md_alg(const mbedtls_x509_crt *ctx)
+{
+    return ctx->MBEDTLS_PRIVATE(sig_md);
+};
+
 /** \} name Structures and functions for parsing and writing X.509 certificates */
 
 #if defined(MBEDTLS_X509_CRT_WRITE_C)

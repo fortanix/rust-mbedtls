@@ -1916,6 +1916,17 @@ int mbedtls_ssl_session_reset(mbedtls_ssl_context *ssl);
 void mbedtls_ssl_conf_endpoint(mbedtls_ssl_config *conf, int endpoint);
 
 /**
+ * \brief          Get the current endpoint type
+ *
+ * \param conf     SSL configuration
+ * \return         must be MBEDTLS_SSL_IS_CLIENT or MBEDTLS_SSL_IS_SERVER
+ */
+static inline int mbedtls_ssl_get_endpoint(const mbedtls_ssl_config *conf)
+{
+    return conf->MBEDTLS_PRIVATE(endpoint);
+}
+
+/**
  * \brief           Set the transport type (TLS or DTLS).
  *                  Default: TLS
  *
@@ -2369,6 +2380,19 @@ void mbedtls_ssl_set_verify(mbedtls_ssl_context *ssl,
  *                 altogether and handle timeouts at the application layer.
  */
 void mbedtls_ssl_conf_read_timeout(mbedtls_ssl_config *conf, uint32_t timeout);
+
+/**
+ * \brief          Get the timeout period for mbedtls_ssl_read()
+ *                 (Default: no timeout.)
+ *
+ * \param conf     SSL configuration context
+ * \return         Timeout value in milliseconds.
+ *                 Use 0 for no timeout (default).
+ */
+static inline uint32_t mbedtls_ssl_get_read_timeout(const mbedtls_ssl_config *conf)
+{
+    return conf->MBEDTLS_PRIVATE(read_timeout);
+};
 
 /**
  * \brief          Check whether a buffer contains a valid and authentic record

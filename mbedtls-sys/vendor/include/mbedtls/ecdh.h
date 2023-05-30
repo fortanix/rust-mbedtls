@@ -430,6 +430,61 @@ int mbedtls_ecdh_calc_secret(mbedtls_ecdh_context *ctx, size_t *olen,
                              int (*f_rng)(void *, unsigned char *, size_t),
                              void *p_rng);
 
+/**
+ * \brief          Retrieves the elliptic curve group from the ECDH context.
+ *
+ * \param ctx      The source ECDH context. This must point to an initialized ECDH context.
+ *
+ * \return         A pointer to the elliptic curve group.
+ */
+static inline mbedtls_ecp_group* mbedtls_ecdh_get_grp_ptr(mbedtls_ecdh_context* ctx) {
+    return &(ctx->MBEDTLS_PRIVATE(ctx).MBEDTLS_PRIVATE(mbed_ecdh).MBEDTLS_PRIVATE(grp));
+}
+
+/**
+ * \brief          Retrieves the private key from the ECDH context.
+ *
+ * \param ctx      The source ECDH context. This must point to an initialized ECDH context.
+ *
+ * \return         A pointer to the private key.
+ */
+static inline mbedtls_mpi* mbedtls_ecdh_get_d_ptr(mbedtls_ecdh_context* ctx) {
+    return &(ctx->MBEDTLS_PRIVATE(ctx).MBEDTLS_PRIVATE(mbed_ecdh).MBEDTLS_PRIVATE(d));
+}
+
+/**
+ * \brief          Retrieves the public key from the ECDH context.
+ *
+ * \param ctx      The source ECDH context. This must point to an initialized ECDH context.
+ *
+ * \return         A pointer to the public key.
+ */
+static inline mbedtls_ecp_point* mbedtls_ecdh_get_Q_ptr(mbedtls_ecdh_context* ctx) {
+    return &(ctx->MBEDTLS_PRIVATE(ctx).MBEDTLS_PRIVATE(mbed_ecdh).MBEDTLS_PRIVATE(Q));
+}
+
+/**
+ * \brief          Retrieves the value of the public key of the peer from the ECDH context.
+ *
+ * \param ctx      The source ECDH context. This must point to an initialized ECDH context.
+ *
+ * \return         A pointer to the value of the public key of the peer.
+ */
+static inline mbedtls_ecp_point* mbedtls_ecdh_get_Qp_ptr(mbedtls_ecdh_context* ctx) {
+    return &(ctx->MBEDTLS_PRIVATE(ctx).MBEDTLS_PRIVATE(mbed_ecdh).MBEDTLS_PRIVATE(Qp));
+}
+
+/**
+ * \brief          Retrieves the shared secret from the ECDH context.
+ *
+ * \param ctx      The source ECDH context. This must point to an initialized ECDH context.
+ *
+ * \return         A pointer to the shared secret.
+ */
+static inline mbedtls_mpi* mbedtls_ecdh_get_z_ptr(mbedtls_ecdh_context* ctx) {
+    return &(ctx->MBEDTLS_PRIVATE(ctx).MBEDTLS_PRIVATE(mbed_ecdh).MBEDTLS_PRIVATE(z));
+}
+
 #if defined(MBEDTLS_ECP_RESTARTABLE)
 /**
  * \brief           This function enables restartable EC computations for this
