@@ -140,7 +140,7 @@ static int ssl_parse_renegotiation_info(mbedtls_ssl_context *ssl,
     return 0;
 }
 
-#if defined(MBEDTLS_ECDH_C) || defined(MBEDTLS_ECDSA_C) || \
+#if defined(MBEDTLS_PK_CAN_ECDH) || defined(MBEDTLS_PK_CAN_ECDSA_SOME) || \
     defined(MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED)
 /*
  * Function for parsing a supported groups (TLS 1.3) or supported elliptic
@@ -266,11 +266,9 @@ static int ssl_parse_supported_point_formats(mbedtls_ssl_context *ssl,
     while (list_size > 0) {
         if (p[0] == MBEDTLS_ECP_PF_UNCOMPRESSED ||
             p[0] == MBEDTLS_ECP_PF_COMPRESSED) {
-#if !defined(MBEDTLS_USE_PSA_CRYPTO) &&                             \
-            (defined(MBEDTLS_ECDH_C) || defined(MBEDTLS_ECDSA_C))
+#if !defined(MBEDTLS_USE_PSA_CRYPTO) && defined(MBEDTLS_ECDH_C)
             ssl->handshake->ecdh_ctx.point_format = p[0];
-#endif /* !MBEDTLS_USE_PSA_CRYPTO &&
-          ( MBEDTLS_ECDH_C || MBEDTLS_ECDSA_C ) */
+#endif /* !MBEDTLS_USE_PSA_CRYPTO && MBEDTLS_ECDH_C */
 #if !defined(MBEDTLS_USE_PSA_CRYPTO) &&                             \
             defined(MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED)
             mbedtls_ecjpake_set_point_format(&ssl->handshake->ecjpake_ctx,
@@ -286,7 +284,7 @@ static int ssl_parse_supported_point_formats(mbedtls_ssl_context *ssl,
 
     return 0;
 }
-#endif /* MBEDTLS_ECDH_C || MBEDTLS_ECDSA_C ||
+#endif /* MBEDTLS_PK_CAN_ECDH || MBEDTLS_PK_CAN_ECDSA_SOME ||
           MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED */
 
 #if defined(MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED)
@@ -662,7 +660,7 @@ static int ssl_parse_use_srtp_ext(mbedtls_ssl_context *ssl,
 /*
  * Return 0 if the given key uses one of the acceptable curves, -1 otherwise
  */
-#if defined(MBEDTLS_ECDSA_C)
+#if defined(MBEDTLS_PK_CAN_ECDSA_SOME)
 MBEDTLS_CHECK_RETURN_CRITICAL
 static int ssl_check_key_curve(mbedtls_pk_context *pk,
                                uint16_t *curves_tls_id)
@@ -681,7 +679,7 @@ static int ssl_check_key_curve(mbedtls_pk_context *pk,
 
     return -1;
 }
-#endif /* MBEDTLS_ECDSA_C */
+#endif /* MBEDTLS_PK_CAN_ECDSA_SOME */
 
 /*
  * Try picking a certificate for this ciphersuite,
@@ -766,7 +764,7 @@ static int ssl_pick_cert(mbedtls_ssl_context *ssl,
             continue;
         }
 
-#if defined(MBEDTLS_ECDSA_C)
+#if defined(MBEDTLS_PK_CAN_ECDSA_SOME)
         if (pk_alg == MBEDTLS_PK_ECDSA &&
             ssl_check_key_curve(&cur->cert->pk,
                                 ssl->handshake->curves_tls_id) != 0) {
@@ -830,7 +828,7 @@ static int ssl_ciphersuite_match(mbedtls_ssl_context *ssl, int suite_id,
 #endif
 
 
-#if defined(MBEDTLS_ECDH_C) || defined(MBEDTLS_ECDSA_C)
+#if defined(MBEDTLS_PK_CAN_ECDH) || defined(MBEDTLS_PK_CAN_ECDSA_SOME)
     if (mbedtls_ssl_ciphersuite_uses_ec(suite_info) &&
         (ssl->handshake->curves_tls_id == NULL ||
          ssl->handshake->curves_tls_id[0] == 0)) {
@@ -922,12 +920,15 @@ read_record_header:
      * If renegotiating, then the input was read with mbedtls_ssl_read_record(),
      * otherwise read it ourselves manually in order to support SSLv2
      * ClientHello, which doesn't use the same record layer format.
+     * Otherwise in a scenario of TLS 1.3/TLS 1.2 version negotiation, the
+     * ClientHello has been already fully fetched by the TLS 1.3 code and the
+     * flag ssl->keep_current_message is raised.
      */
     renegotiating = 0;
 #if defined(MBEDTLS_SSL_RENEGOTIATION)
     renegotiating = (ssl->renego_status != MBEDTLS_SSL_INITIAL_HANDSHAKE);
 #endif
-    if (!renegotiating) {
+    if (!renegotiating && !ssl->keep_current_message) {
         if ((ret = mbedtls_ssl_fetch_input(ssl, 5)) != 0) {
             /* No alert on a read error. */
             MBEDTLS_SSL_DEBUG_RET(1, "mbedtls_ssl_fetch_input", ret);
@@ -1002,24 +1003,28 @@ read_record_header:
     } else
 #endif
     {
-        if (msg_len > MBEDTLS_SSL_IN_CONTENT_LEN) {
-            MBEDTLS_SSL_DEBUG_MSG(1, ("bad client hello message"));
-            return MBEDTLS_ERR_SSL_ILLEGAL_PARAMETER;
-        }
+        if (ssl->keep_current_message) {
+            ssl->keep_current_message = 0;
+        } else {
+            if (msg_len > MBEDTLS_SSL_IN_CONTENT_LEN) {
+                MBEDTLS_SSL_DEBUG_MSG(1, ("bad client hello message"));
+                return MBEDTLS_ERR_SSL_ILLEGAL_PARAMETER;
+            }
 
-        if ((ret = mbedtls_ssl_fetch_input(ssl,
-                                           mbedtls_ssl_in_hdr_len(ssl) + msg_len)) != 0) {
-            MBEDTLS_SSL_DEBUG_RET(1, "mbedtls_ssl_fetch_input", ret);
-            return ret;
-        }
+            if ((ret = mbedtls_ssl_fetch_input(ssl,
+                                               mbedtls_ssl_in_hdr_len(ssl) + msg_len)) != 0) {
+                MBEDTLS_SSL_DEBUG_RET(1, "mbedtls_ssl_fetch_input", ret);
+                return ret;
+            }
 
-        /* Done reading this record, get ready for the next one */
+            /* Done reading this record, get ready for the next one */
 #if defined(MBEDTLS_SSL_PROTO_DTLS)
-        if (ssl->conf->transport == MBEDTLS_SSL_TRANSPORT_DATAGRAM) {
-            ssl->next_record_offset = msg_len + mbedtls_ssl_in_hdr_len(ssl);
-        } else
+            if (ssl->conf->transport == MBEDTLS_SSL_TRANSPORT_DATAGRAM) {
+                ssl->next_record_offset = msg_len + mbedtls_ssl_in_hdr_len(ssl);
+            } else
 #endif
-        ssl->in_left = 0;
+            ssl->in_left = 0;
+        }
     }
 
     buf = ssl->in_msg;
@@ -1369,7 +1374,7 @@ read_record_header:
                 break;
 #endif /* MBEDTLS_KEY_EXCHANGE_WITH_CERT_ENABLED */
 
-#if defined(MBEDTLS_ECDH_C) || defined(MBEDTLS_ECDSA_C) || \
+#if defined(MBEDTLS_PK_CAN_ECDH) || defined(MBEDTLS_PK_CAN_ECDSA_SOME) || \
                 defined(MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED)
             case MBEDTLS_TLS_EXT_SUPPORTED_GROUPS:
                 MBEDTLS_SSL_DEBUG_MSG(3, ("found supported elliptic curves extension"));
@@ -1389,7 +1394,7 @@ read_record_header:
                     return ret;
                 }
                 break;
-#endif /* MBEDTLS_ECDH_C || MBEDTLS_ECDSA_C ||
+#endif /* MBEDTLS_PK_CAN_ECDH || MBEDTLS_PK_CAN_ECDSA_SOME ||
           MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED */
 
 #if defined(MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED)
@@ -1499,7 +1504,7 @@ read_record_header:
     if (!sig_hash_alg_ext_present) {
         uint16_t *received_sig_algs = ssl->handshake->received_sig_algs;
         const uint16_t default_sig_algs[] = {
-#if defined(MBEDTLS_ECDSA_C)
+#if defined(MBEDTLS_PK_CAN_ECDSA_SOME)
             MBEDTLS_SSL_TLS12_SIG_AND_HASH_ALG(MBEDTLS_SSL_SIG_ECDSA,
                                                MBEDTLS_SSL_HASH_SHA1),
 #endif
@@ -2208,11 +2213,37 @@ static int ssl_write_server_hello(mbedtls_ssl_context *ssl)
     p += 4;
 #endif /* MBEDTLS_HAVE_TIME */
 
-    if ((ret = ssl->conf->f_rng(ssl->conf->p_rng, p, 28)) != 0) {
+    if ((ret = ssl->conf->f_rng(ssl->conf->p_rng, p, 20)) != 0) {
         return ret;
     }
+    p += 20;
 
-    p += 28;
+#if defined(MBEDTLS_SSL_PROTO_TLS1_3)
+    /*
+     * RFC 8446
+     * TLS 1.3 has a downgrade protection mechanism embedded in the server's
+     * random value. TLS 1.3 servers which negotiate TLS 1.2 or below in
+     * response to a ClientHello MUST set the last 8 bytes of their Random
+     * value specially in their ServerHello.
+     */
+    if (mbedtls_ssl_conf_is_tls13_enabled(ssl->conf)) {
+        static const unsigned char magic_tls12_downgrade_string[] =
+        { 'D', 'O', 'W', 'N', 'G', 'R', 'D', 1 };
+
+        MBEDTLS_STATIC_ASSERT(
+            sizeof(magic_tls12_downgrade_string) == 8,
+            "magic_tls12_downgrade_string does not have the expected size");
+
+        memcpy(p, magic_tls12_downgrade_string,
+               sizeof(magic_tls12_downgrade_string));
+    } else
+#endif
+    {
+        if ((ret = ssl->conf->f_rng(ssl->conf->p_rng, p, 8)) != 0) {
+            return ret;
+        }
+    }
+    p += 8;
 
     memcpy(ssl->handshake->randbytes + 32, buf + 6, 32);
 
