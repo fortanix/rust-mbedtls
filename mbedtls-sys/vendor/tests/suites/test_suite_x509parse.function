@@ -11,8 +11,6 @@
 #include "mbedtls/pk.h"
 #include "string.h"
 
-#include "mbedtls/legacy_or_psa.h"
-
 #if MBEDTLS_X509_MAX_INTERMEDIATE_CA > 19
 #error "The value of MBEDTLS_X509_MAX_INTERMEDIATE_C is larger \
     than the current threshold 19. To test larger values, please \
@@ -291,6 +289,17 @@ int verify_parse_san(mbedtls_x509_subject_alternative_name *san,
                 *p++ = san->san.unstructured_name.p[i];
             }
             break;/* MBEDTLS_X509_SAN_RFC822_NAME */
+        case (MBEDTLS_X509_SAN_DIRECTORY_NAME):
+            ret = mbedtls_snprintf(p, n, "\ndirectoryName : ");
+            MBEDTLS_X509_SAFE_SNPRINTF;
+            ret = mbedtls_x509_dn_gets(p, n, &san->san.directory_name);
+            if (ret < 0) {
+                return ret;
+            }
+
+            p += ret;
+            n -= ret;
+            break;/* MBEDTLS_X509_SAN_DIRECTORY_NAME */
         default:
             /*
              * Should not happen.
@@ -428,7 +437,7 @@ void x509_accessor_ext_types(int ext_type, int has_ext_type)
 /* END_CASE */
 
 /* BEGIN_CASE depends_on:MBEDTLS_FS_IO:MBEDTLS_X509_CRT_PARSE_C */
-void x509_parse_san(char *crt_file, char *result_str)
+void x509_parse_san(char *crt_file, char *result_str, int parse_result)
 {
     int ret;
     mbedtls_x509_crt   crt;
@@ -441,8 +450,11 @@ void x509_parse_san(char *crt_file, char *result_str)
     mbedtls_x509_crt_init(&crt);
     memset(buf, 0, 2000);
 
-    TEST_ASSERT(mbedtls_x509_crt_parse_file(&crt, crt_file) == 0);
+    TEST_EQUAL(mbedtls_x509_crt_parse_file(&crt, crt_file), parse_result);
 
+    if (parse_result != 0) {
+        goto exit;
+    }
     if (crt.ext_types & MBEDTLS_X509_EXT_SUBJECT_ALT_NAME) {
         cur = &crt.subject_alt_names;
         while (cur != NULL) {
@@ -452,7 +464,9 @@ void x509_parse_san(char *crt_file, char *result_str)
              * If san type not supported, ignore.
              */
             if (ret == 0) {
-                TEST_ASSERT(verify_parse_san(&san, &p, &n) == 0);
+                ret = verify_parse_san(&san, &p, &n);
+                mbedtls_x509_free_subject_alt_name(&san);
+                TEST_EQUAL(ret, 0);
             }
             cur = cur->next;
         }
@@ -592,7 +606,7 @@ void x509_verify_restart(char *crt_file, char *ca_file,
     mbedtls_x509_crt_init(&crt);
     mbedtls_x509_crt_init(&ca);
 
-    USE_PSA_INIT();
+    MD_OR_USE_PSA_INIT();
 
     TEST_ASSERT(mbedtls_x509_crt_parse_file(&crt, crt_file) == 0);
     TEST_ASSERT(mbedtls_x509_crt_parse_file(&ca, ca_file) == 0);
@@ -622,7 +636,7 @@ exit:
     mbedtls_x509_crt_restart_free(&rs_ctx);
     mbedtls_x509_crt_free(&crt);
     mbedtls_x509_crt_free(&ca);
-    USE_PSA_DONE();
+    MD_OR_USE_PSA_DONE();
 }
 /* END_CASE */
 
@@ -645,7 +659,7 @@ void x509_verify(char *crt_file, char *ca_file, char *crl_file,
     mbedtls_x509_crt_init(&ca);
     mbedtls_x509_crl_init(&crl);
 
-    USE_PSA_INIT();
+    MD_OR_USE_PSA_INIT();
 
     if (strcmp(cn_name_str, "NULL") != 0) {
         cn_name = cn_name_str;
@@ -714,7 +728,7 @@ exit:
     mbedtls_x509_crt_free(&crt);
     mbedtls_x509_crt_free(&ca);
     mbedtls_x509_crl_free(&crl);
-    USE_PSA_DONE();
+    MD_OR_USE_PSA_DONE();
 }
 /* END_CASE */
 
@@ -763,7 +777,7 @@ void x509_verify_callback(char *crt_file, char *ca_file, char *name,
     mbedtls_x509_crt_init(&ca);
     verify_print_init(&vrfy_ctx);
 
-    USE_PSA_INIT();
+    MD_OR_USE_PSA_INIT();
 
     TEST_ASSERT(mbedtls_x509_crt_parse_file(&crt, crt_file) == 0);
     TEST_ASSERT(mbedtls_x509_crt_parse_file(&ca, ca_file) == 0);
@@ -783,7 +797,7 @@ void x509_verify_callback(char *crt_file, char *ca_file, char *name,
 exit:
     mbedtls_x509_crt_free(&crt);
     mbedtls_x509_crt_free(&ca);
-    USE_PSA_DONE();
+    MD_OR_USE_PSA_DONE();
 }
 /* END_CASE */
 
@@ -1246,7 +1260,7 @@ void mbedtls_x509_crt_verify_max(char *ca_file, char *chain_dir, int nb_int,
     mbedtls_x509_crt_init(&trusted);
     mbedtls_x509_crt_init(&chain);
 
-    USE_PSA_INIT();
+    MD_OR_USE_PSA_INIT();
 
     /* Load trusted root */
     TEST_ASSERT(mbedtls_x509_crt_parse_file(&trusted, ca_file) == 0);
@@ -1267,7 +1281,7 @@ void mbedtls_x509_crt_verify_max(char *ca_file, char *chain_dir, int nb_int,
 exit:
     mbedtls_x509_crt_free(&chain);
     mbedtls_x509_crt_free(&trusted);
-    USE_PSA_DONE();
+    MD_OR_USE_PSA_DONE();
 }
 /* END_CASE */
 
@@ -1285,7 +1299,7 @@ void mbedtls_x509_crt_verify_chain(char *chain_paths, char *trusted_ca,
     mbedtls_x509_crt_init(&chain);
     mbedtls_x509_crt_init(&trusted);
 
-    USE_PSA_INIT();
+    MD_OR_USE_PSA_INIT();
 
     while ((act = mystrsep(&chain_paths, " ")) != NULL) {
         TEST_ASSERT(mbedtls_x509_crt_parse_file(&chain, act) == 0);
@@ -1313,7 +1327,7 @@ void mbedtls_x509_crt_verify_chain(char *chain_paths, char *trusted_ca,
 exit:
     mbedtls_x509_crt_free(&trusted);
     mbedtls_x509_crt_free(&chain);
-    USE_PSA_DONE();
+    MD_OR_USE_PSA_DONE();
 }
 /* END_CASE */
 

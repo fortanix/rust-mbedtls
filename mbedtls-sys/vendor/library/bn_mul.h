@@ -81,7 +81,7 @@
 #endif /* bits in mbedtls_mpi_uint */
 
 /* *INDENT-OFF* */
-#if defined(MBEDTLS_HAVE_ASM) && !defined(MBEDTLS_MPI_FORCE_C_CODE)
+#if defined(MBEDTLS_HAVE_ASM)
 
 /* armcc5 --gnu defines __GNUC__ but doesn't support GNU's extended asm */
 #if defined(__GNUC__) && \
@@ -1000,7 +1000,7 @@
 #endif /* SSE2 */
 #endif /* MSVC */
 
-#endif /* MBEDTLS_HAVE_ASM && !MBEDTLS_MPI_FORCE_C_CODE */
+#endif /* MBEDTLS_HAVE_ASM */
 
 #if !defined(MULADDC_X1_CORE)
 #if defined(MBEDTLS_HAVE_UDBL)

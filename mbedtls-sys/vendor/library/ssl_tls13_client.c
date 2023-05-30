@@ -184,7 +184,7 @@ static int ssl_tls13_reset_key_share(mbedtls_ssl_context *ssl)
         return MBEDTLS_ERR_SSL_INTERNAL_ERROR;
     }
 
-#if defined(MBEDTLS_ECDH_C)
+#if defined(PSA_WANT_ALG_ECDH)
     if (mbedtls_ssl_tls13_named_group_is_ecdhe(group_id)) {
         int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
         psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
@@ -200,7 +200,7 @@ static int ssl_tls13_reset_key_share(mbedtls_ssl_context *ssl)
         ssl->handshake->ecdh_psa_privkey = MBEDTLS_SVC_KEY_ID_INIT;
         return 0;
     } else
-#endif /* MBEDTLS_ECDH_C */
+#endif /* PSA_WANT_ALG_ECDH */
     if (0 /* other KEMs? */) {
         /* Do something */
     }
@@ -219,7 +219,7 @@ static int ssl_tls13_get_default_group_id(mbedtls_ssl_context *ssl,
     int ret = MBEDTLS_ERR_SSL_FEATURE_UNAVAILABLE;
 
 
-#if defined(MBEDTLS_ECDH_C)
+#if defined(PSA_WANT_ALG_ECDH)
     const uint16_t *group_list = mbedtls_ssl_get_groups(ssl);
     /* Pick first available ECDHE group compatible with TLS 1.3 */
     if (group_list == NULL) {
@@ -237,7 +237,7 @@ static int ssl_tls13_get_default_group_id(mbedtls_ssl_context *ssl,
 #else
     ((void) ssl);
     ((void) group_id);
-#endif /* MBEDTLS_ECDH_C */
+#endif /* PSA_WANT_ALG_ECDH */
 
     /*
      * Add DHE named groups here.
@@ -301,7 +301,7 @@ static int ssl_tls13_write_key_share_ext(mbedtls_ssl_context *ssl,
      * only one key share entry is allowed.
      */
     client_shares = p;
-#if defined(MBEDTLS_ECDH_C)
+#if defined(PSA_WANT_ALG_ECDH)
     if (mbedtls_ssl_tls13_named_group_is_ecdhe(group_id)) {
         /* Pointer to group */
         unsigned char *group = p;
@@ -326,7 +326,7 @@ static int ssl_tls13_write_key_share_ext(mbedtls_ssl_context *ssl,
         /* Write key_exchange_length */
         MBEDTLS_PUT_UINT16_BE(key_exchange_len, group, 2);
     } else
-#endif /* MBEDTLS_ECDH_C */
+#endif /* PSA_WANT_ALG_ECDH */
     if (0 /* other KEMs? */) {
         /* Do something */
     } else {
@@ -375,7 +375,7 @@ static int ssl_tls13_parse_hrr_key_share_ext(mbedtls_ssl_context *ssl,
                                              const unsigned char *buf,
                                              const unsigned char *end)
 {
-#if defined(MBEDTLS_ECDH_C)
+#if defined(PSA_WANT_ALG_ECDH)
     const unsigned char *p = buf;
     int selected_group;
     int found = 0;
@@ -480,7 +480,7 @@ static int ssl_tls13_parse_key_share_ext(mbedtls_ssl_context *ssl,
         return MBEDTLS_ERR_SSL_HANDSHAKE_FAILURE;
     }
 
-#if defined(MBEDTLS_ECDH_C)
+#if defined(PSA_WANT_ALG_ECDH)
     if (mbedtls_ssl_tls13_named_group_is_ecdhe(group)) {
         if (mbedtls_ssl_get_psa_curve_info_from_tls_id(group, NULL, NULL)
             == PSA_ERROR_NOT_SUPPORTED) {
@@ -496,7 +496,7 @@ static int ssl_tls13_parse_key_share_ext(mbedtls_ssl_context *ssl,
             return ret;
         }
     } else
-#endif /* MBEDTLS_ECDH_C */
+#endif /* PSA_WANT_ALG_ECDH */
     if (0 /* other KEMs? */) {
         /* Do something */
     } else {
@@ -1324,8 +1324,8 @@ static int ssl_tls13_is_supported_versions_ext_present(
 {
     const unsigned char *p = buf;
     size_t legacy_session_id_echo_len;
-    size_t extensions_len;
-    const unsigned char *extensions_end;
+    const unsigned char *supported_versions_data;
+    const unsigned char *supported_versions_data_end;
 
     /*
      * Check there is enough data to access the legacy_session_id_echo vector
@@ -1347,45 +1347,9 @@ static int ssl_tls13_is_supported_versions_ext_present(
     MBEDTLS_SSL_CHK_BUF_READ_PTR(p, end, legacy_session_id_echo_len + 4);
     p += legacy_session_id_echo_len + 4;
 
-    /* Case of no extension */
-    if (p == end) {
-        return 0;
-    }
-
-    /* ...
-     * Extension extensions<6..2^16-1>;
-     * ...
-     * struct {
-     *      ExtensionType extension_type; (2 bytes)
-     *      opaque extension_data<0..2^16-1>;
-     * } Extension;
-     */
-    MBEDTLS_SSL_CHK_BUF_READ_PTR(p, end, 2);
-    extensions_len = MBEDTLS_GET_UINT16_BE(p, 0);
-    p += 2;
-
-    /* Check extensions do not go beyond the buffer of data. */
-    MBEDTLS_SSL_CHK_BUF_READ_PTR(p, end, extensions_len);
-    extensions_end = p + extensions_len;
-
-    while (p < extensions_end) {
-        unsigned int extension_type;
-        size_t extension_data_len;
-
-        MBEDTLS_SSL_CHK_BUF_READ_PTR(p, extensions_end, 4);
-        extension_type = MBEDTLS_GET_UINT16_BE(p, 0);
-        extension_data_len = MBEDTLS_GET_UINT16_BE(p, 2);
-        p += 4;
-
-        if (extension_type == MBEDTLS_TLS_EXT_SUPPORTED_VERSIONS) {
-            return 1;
-        }
-
-        MBEDTLS_SSL_CHK_BUF_READ_PTR(p, extensions_end, extension_data_len);
-        p += extension_data_len;
-    }
-
-    return 0;
+    return mbedtls_ssl_tls13_is_supported_versions_ext_present_in_exts(
+        ssl, p, end,
+        &supported_versions_data, &supported_versions_data_end);
 }
 
 /* Returns a negative value on failure, and otherwise
@@ -1491,6 +1455,13 @@ static int ssl_tls13_preprocess_server_hello(mbedtls_ssl_context *ssl,
             return MBEDTLS_ERR_SSL_ILLEGAL_PARAMETER;
         }
 
+        /*
+         * Version 1.2 of the protocol has been negotiated, set the
+         * ssl->keep_current_message flag for the ServerHello to be kept and
+         * parsed as a TLS 1.2 ServerHello. We also change ssl->tls_version to
+         * MBEDTLS_SSL_VERSION_TLS1_2 thus from now on mbedtls_ssl_handshake_step()
+         * will dispatch to the TLS 1.2 state machine.
+         */
         ssl->keep_current_message = 1;
         ssl->tls_version = MBEDTLS_SSL_VERSION_TLS1_2;
         MBEDTLS_SSL_PROC_CHK(mbedtls_ssl_add_hs_msg_to_checksum(ssl,
@@ -1721,7 +1692,7 @@ static int ssl_tls13_parse_server_hello(mbedtls_ssl_context *ssl,
                               cipher_suite, ciphersuite_info->name));
 
 #if defined(MBEDTLS_HAVE_TIME)
-    ssl->session_negotiate->start = mbedtls_time(NULL);
+    ssl->session_negotiate->start = time(NULL);
 #endif /* MBEDTLS_HAVE_TIME */
 
     /* ...

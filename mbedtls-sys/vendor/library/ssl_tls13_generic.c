@@ -86,6 +86,61 @@ cleanup:
     return ret;
 }
 
+int mbedtls_ssl_tls13_is_supported_versions_ext_present_in_exts(
+    mbedtls_ssl_context *ssl,
+    const unsigned char *buf, const unsigned char *end,
+    const unsigned char **supported_versions_data,
+    const unsigned char **supported_versions_data_end)
+{
+    const unsigned char *p = buf;
+    size_t extensions_len;
+    const unsigned char *extensions_end;
+
+    *supported_versions_data = NULL;
+    *supported_versions_data_end = NULL;
+
+    /* Case of no extension */
+    if (p == end) {
+        return 0;
+    }
+
+    /* ...
+     * Extension extensions<x..2^16-1>;
+     * ...
+     * struct {
+     *      ExtensionType extension_type; (2 bytes)
+     *      opaque extension_data<0..2^16-1>;
+     * } Extension;
+     */
+    MBEDTLS_SSL_CHK_BUF_READ_PTR(p, end, 2);
+    extensions_len = MBEDTLS_GET_UINT16_BE(p, 0);
+    p += 2;
+
+    /* Check extensions do not go beyond the buffer of data. */
+    MBEDTLS_SSL_CHK_BUF_READ_PTR(p, end, extensions_len);
+    extensions_end = p + extensions_len;
+
+    while (p < extensions_end) {
+        unsigned int extension_type;
+        size_t extension_data_len;
+
+        MBEDTLS_SSL_CHK_BUF_READ_PTR(p, extensions_end, 4);
+        extension_type = MBEDTLS_GET_UINT16_BE(p, 0);
+        extension_data_len = MBEDTLS_GET_UINT16_BE(p, 2);
+        p += 4;
+        MBEDTLS_SSL_CHK_BUF_READ_PTR(p, extensions_end, extension_data_len);
+
+        if (extension_type == MBEDTLS_TLS_EXT_SUPPORTED_VERSIONS) {
+            *supported_versions_data = p;
+            *supported_versions_data_end = p + extension_data_len;
+            return 1;
+        }
+        p += extension_data_len;
+    }
+
+    return 0;
+}
+
 #if defined(MBEDTLS_SSL_TLS1_3_KEY_EXCHANGE_MODE_EPHEMERAL_ENABLED)
 /*
  * STATE HANDLING: Read CertificateVerify
@@ -1428,7 +1483,7 @@ int mbedtls_ssl_reset_transcript_for_hrr(mbedtls_ssl_context *ssl)
     return ret;
 }
 
-#if defined(MBEDTLS_ECDH_C)
+#if defined(PSA_WANT_ALG_ECDH)
 
 int mbedtls_ssl_tls13_read_public_ecdhe_share(mbedtls_ssl_context *ssl,
                                               const unsigned char *buf,
@@ -1510,7 +1565,7 @@ int mbedtls_ssl_tls13_generate_and_write_ecdh_key_exchange(
 
     return 0;
 }
-#endif /* MBEDTLS_ECDH_C */
+#endif /* PSA_WANT_ALG_ECDH */
 
 /* RFC 8446 section 4.2
  *
