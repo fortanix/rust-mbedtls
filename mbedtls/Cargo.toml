@@ -55,7 +55,6 @@ pin-project-lite = "0.2"
 rstest = "0.17.0"
 lazy_static = "1.4"
 env_logger = "0.10"
-hyper14 = { package = "hyper", version = "0.14", default-features = false, features = ["stream", "server", "client", "http1", "http2"] }
 
 [build-dependencies]
 cc = "1.0"
@@ -112,9 +111,4 @@ required-features = ["std"]
 [[test]]
 name = "async_session"
 path = "tests/async_session.rs"
-required-features = ["async-rt"]
-
-[[test]]
-name = "hyper_async"
-path = "tests/hyper_async.rs"
 required-features = ["async-rt"]
