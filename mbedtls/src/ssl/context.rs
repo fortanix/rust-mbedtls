@@ -108,10 +108,10 @@ define!(
 );
 
 extern "C" {
-    // Since in mbedtld 3.X, upstream hide the `mbedtls_ssl_flush_output`, but we still need it for
+    // Since in mbedtls 3.X, upstream hide the `mbedtls_ssl_flush_output`, but we still need it for
     // async here. Ref: https://github.com/Mbed-TLS/mbedtls/issues/4183
     // So we mannully access it through defining it in `extern "C"` here
-    #[link_name = "\u{1}mbedtls_ssl_flush_output"]
+    #[link_name = "mbedtls_ssl_flush_output"]
     fn ssl_flush_output(ssl: *mut ssl_context) -> c_int;
 }
 
