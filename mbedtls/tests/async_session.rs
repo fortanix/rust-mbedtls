@@ -96,6 +96,7 @@ async fn server(conn: TcpStream, min_version: Version, max_version: Version, exp
     config.set_rng(rng);
     config.set_min_version(min_version)?;
     config.set_max_version(max_version)?;
+    #[cfg(feature = "tls13")]
     if min_version == Version::Tls13 || max_version == Version::Tls13 {
         let sig_algs = Arc::new(mbedtls::ssl::tls13_preset_default_sig_algs());
         config.set_signature_algorithms(sig_algs);
@@ -203,6 +204,21 @@ mod test {
         }
     }
 
+    async fn run_async_session_client_server_test(config: TestConfig) {
+        let min_c = config.min_c;
+        let max_c = config.max_c;
+        let min_s = config.min_s;
+        let max_s = config.max_s;
+        let exp_ver = config.exp_ver;
+
+        let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
+        let c = tokio::spawn(super::client(c, min_c, max_c, exp_ver.clone()));
+        let s = tokio::spawn(super::server(s, min_s, max_s, exp_ver));
+
+        c.await.unwrap().unwrap();
+        s.await.unwrap().unwrap();
+    }
+
     #[rstest]
     #[case::client1_2_server1_2(TestConfig::new(
         Version::Tls12,
@@ -211,6 +227,13 @@ mod test {
         Version::Tls12,
         Some(Version::Tls12)
     ))]
+    #[tokio::test]
+    async fn async_session_client_server_tls12_test(#[case] config: TestConfig) {
+        run_async_session_client_server_test(config).await;
+    }
+
+    #[cfg(feature = "tls13")]
+    #[rstest]
     #[case::client_mix_server1_2(TestConfig::new(
         Version::Tls12,
         Version::Tls13,
@@ -254,19 +277,8 @@ mod test {
         Some(Version::Tls13)
     ))]
     #[tokio::test]
-    async fn async_session_client_server_test(#[case] config: TestConfig) {
-        let min_c = config.min_c;
-        let max_c = config.max_c;
-        let min_s = config.min_s;
-        let max_s = config.max_s;
-        let exp_ver = config.exp_ver;
-
-        let (c, s) = crate::support::net::create_tcp_pair_async().unwrap();
-        let c = tokio::spawn(super::client(c, min_c, max_c, exp_ver.clone()));
-        let s = tokio::spawn(super::server(s, min_s, max_s, exp_ver));
-
-        c.await.unwrap().unwrap();
-        s.await.unwrap().unwrap();
+    async fn async_session_client_server_tls13_test(#[case] config: TestConfig) {
+        run_async_session_client_server_test(config).await;
     }
 
     #[tokio::test]

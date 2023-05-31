@@ -151,6 +151,7 @@ fn server<C: IoCallback<T> + TransportType, T>(
     config.set_rng(rng);
     config.set_min_version(min_version)?;
     config.set_max_version(max_version)?;
+    #[cfg(feature = "tls13")]
     if min_version == Version::Tls13 || max_version == Version::Tls13 {
         let sig_algs = Arc::new(mbedtls::ssl::tls13_preset_default_sig_algs());
         config.set_signature_algorithms(sig_algs);
@@ -337,6 +338,23 @@ mod test {
         Version::Tls12,
         Some(Version::Tls12)
     ))]
+    fn client_server_tls12_test(
+        #[case] config: TestConfig,
+        #[values(false, true)] use_psk: bool,
+        #[values(false, true)] is_dtls: bool,
+    ) {
+        run_client_server_test(&config, use_psk, is_dtls);
+    }
+
+    #[cfg(feature = "tls13")]
+    #[rstest]
+    #[case::client1_2_server1_2(TestConfig::new(
+        Version::Tls12,
+        Version::Tls12,
+        Version::Tls12,
+        Version::Tls12,
+        Some(Version::Tls12)
+    ))]
     #[case::client_mix_server1_2(TestConfig::new(
         Version::Tls12,
         Version::Tls13,
@@ -379,7 +397,7 @@ mod test {
         Version::Tls13,
         Some(Version::Tls13)
     ))]
-    fn client_server_test(
+    fn client_server_tls13_test(
         #[case] config: TestConfig,
         #[values(false, true)] use_psk: bool,
         #[values(false, true)] is_dtls: bool,

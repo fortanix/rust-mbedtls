@@ -270,18 +270,17 @@ define!(
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 
-use TLS13SignatureAlgorithms::*;
 pub fn tls13_preset_default_sig_algs() -> Vec<u16> {
     vec![
-    Into::<c_int>::into(EcdsaSecp256R1Sha256) as u16,
-    Into::<c_int>::into(EcdsaSecp384R1Sha384) as u16,
-    Into::<c_int>::into(EcdsaSecp521R1Sha512) as u16,
-    Into::<c_int>::into(RsaPkcs1Sha256) as u16,
-    Into::<c_int>::into(RsaPkcs1Sha384) as u16,
-    Into::<c_int>::into(RsaPkcs1Sha512) as u16,
-    Into::<c_int>::into(RsaPssRsaeSha256) as u16,
-    Into::<c_int>::into(RsaPssRsaeSha384) as u16,
-    Into::<c_int>::into(RsaPssRsaeSha512) as u16,
-    Into::<c_int>::into(None) as u16,
+        Into::<c_int>::into(TLS13SignatureAlgorithms::EcdsaSecp256R1Sha256) as u16,
+        Into::<c_int>::into(TLS13SignatureAlgorithms::EcdsaSecp384R1Sha384) as u16,
+        Into::<c_int>::into(TLS13SignatureAlgorithms::EcdsaSecp521R1Sha512) as u16,
+        Into::<c_int>::into(TLS13SignatureAlgorithms::RsaPkcs1Sha256) as u16,
+        Into::<c_int>::into(TLS13SignatureAlgorithms::RsaPkcs1Sha384) as u16,
+        Into::<c_int>::into(TLS13SignatureAlgorithms::RsaPkcs1Sha512) as u16,
+        Into::<c_int>::into(TLS13SignatureAlgorithms::RsaPssRsaeSha256) as u16,
+        Into::<c_int>::into(TLS13SignatureAlgorithms::RsaPssRsaeSha384) as u16,
+        Into::<c_int>::into(TLS13SignatureAlgorithms::RsaPssRsaeSha512) as u16,
+        Into::<c_int>::into(TLS13SignatureAlgorithms::None) as u16,
     ]
 }

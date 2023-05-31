@@ -200,10 +200,10 @@ define!(
 
 unsafe impl Sync for Config {}
 
-use once_cell::sync::OnceCell;
-
 /// you need to call `psa_crypto_init()` before calling any function from the SSL/TLS, X.509 or PK modules
+#[cfg(feature = "tls13")]
 pub fn psa_crypto_init() {
+    use once_cell::sync::OnceCell;
     static INIT: OnceCell<()> = OnceCell::new();
 
     INIT.get_or_init(|| {
@@ -215,6 +215,7 @@ pub fn psa_crypto_init() {
 impl Config {
     pub fn new(e: Endpoint, t: Transport, p: Preset) -> Self {
         // PSA crypto need to be initialized for TLS 1.3
+        #[cfg(feature = "tls13")]
         psa_crypto_init();
         
         let mut inner = ssl_config::default();
@@ -275,7 +276,8 @@ impl Config {
         self.signature_algorithms = Some(list);
     }
 
-    pub fn set_tls1_3_key_exchange_modes(&mut self, mode: Tls13KeyExchangeMode) {
+    #[cfg(feature = "tls13")]
+    pub fn set_tls13_key_exchange_modes(&mut self, mode: Tls13KeyExchangeMode) {
         unsafe { ssl_conf_tls13_key_exchange_modes(self.into(), mode.bits()) }
     }
 

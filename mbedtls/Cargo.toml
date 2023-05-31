@@ -53,6 +53,7 @@ futures = "0.3"
 tracing = "0.1"
 pin-project-lite = "0.2"
 rstest = "0.17.0"
+rstest_reuse = "0.5.0"
 lazy_static = "1.4"
 env_logger = "0.10"
 
@@ -74,6 +75,7 @@ padlock = ["mbedtls-sys-auto/padlock"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 async = ["std", "tokio", "tokio/net", "tokio/io-util", "tokio/macros"]
 async-rt = ["async", "tokio/rt", "tokio/sync", "tokio/rt-multi-thread"]
+tls13 = ["mbedtls-sys-auto/tls13"]
 
 [[example]]
 name = "client"
@@ -106,7 +108,6 @@ required-features = ["std"]
 [[test]]
 name = "hyper"
 required-features = ["std"]
-
 
 [[test]]
 name = "async_session"

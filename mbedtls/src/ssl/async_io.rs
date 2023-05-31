@@ -103,6 +103,9 @@ where
         self.with_bio_async(cx, |ssl_ctx| loop {
             match ssl_ctx.recv(buf.initialize_unfilled()) {
                 Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Poll::Ready(Ok(())),
+                #[cfg(not(feature = "tls13"))]
+                Err(e) if e.high_level() == Some(codes::SslWantRead) => return Poll::Pending,
+                #[cfg(feature = "tls13")]
                 Err(e) if e.high_level() == Some(codes::SslWantRead) => {
                     // When using a client, it's possible that we were waiting for application data
                     // but got a NewSessionTicket instead. In this case, mbedtls
@@ -125,6 +128,7 @@ where
                 // `mbedtls-sys/vendor/library/ssl_tls13_client.c`
                 // and `case MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET` in example code
                 // `mbedtls-sys/vendor/programs/ssl/ssl_client2.c` for more info.
+                #[cfg(feature = "tls13")]
                 Err(e) if e.high_level() == Some(codes::SslReceivedNewSessionTicket) => continue,
                 Err(e) => return Poll::Ready(Err(crate::private::error_to_io_error(e))),
                 Ok(i) => {
