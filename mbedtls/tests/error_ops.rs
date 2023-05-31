@@ -8,20 +8,20 @@
 
 
 extern crate mbedtls;
-use mbedtls::{Error, HiError, LoError};
+use mbedtls::{Error, codes, error::HiError, error::LoError};
 
 
 #[test]
 fn test_common_error_ops() {
-    let (hi, lo) = (HiError::CipherAllocFailed, LoError::AesBadInputData);
+    let (hi, lo) = (codes::CipherAllocFailed, codes::AesBadInputData);
     let (hi_only_error, lo_only_error, combined_error) = (Error::HighLevel(hi), Error::LowLevel(lo), Error::HighAndLowLevel(hi, lo));
     assert_eq!(combined_error.high_level().unwrap(), hi);
     assert_eq!(combined_error.low_level().unwrap(), lo);
     assert_eq!(hi_only_error.to_int(), -24960);
     assert_eq!(lo_only_error.to_int(), -33);
     assert_eq!(combined_error.to_int(), hi_only_error.to_int() + lo_only_error.to_int());
-    assert_eq!(HiError::CipherAllocFailed | LoError::AesBadInputData, combined_error);
-    assert_eq!(LoError::AesBadInputData | HiError::CipherAllocFailed, combined_error);
+    assert_eq!(codes::CipherAllocFailed | codes::AesBadInputData, combined_error);
+    assert_eq!(codes::AesBadInputData | codes::CipherAllocFailed, combined_error);
 }
 
 #[test]

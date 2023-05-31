@@ -27,11 +27,11 @@ pub struct DsaParams {
 impl DsaParams {
     pub fn from_components(p: Mpi, q: Mpi, g: Mpi) -> Result<Self> {
         if g > p || q > p {
-            return Err(Error::from(LoError::PkBadInputData));
+            return Err(Error::from(codes::PkBadInputData));
         }
 
         if p.modulo(&q)? != Mpi::new(1)? {
-            return Err(Error::from(LoError::PkBadInputData));
+            return Err(Error::from(codes::PkBadInputData));
         }
 
         Ok(Self { p, q, g })
@@ -70,11 +70,11 @@ impl DsaPublicKey {
 
     pub fn from_components(params: DsaParams, y: Mpi) -> Result<Self> {
         if y < Mpi::new(1)? || y >= params.p {
-            return Err(Error::from(LoError::PkBadInputData));
+            return Err(Error::from(codes::PkBadInputData));
         }
         // Verify that y is of order q modulo p
         if y.mod_exp(&params.q, &params.p)? != Mpi::new(1)? {
-            return Err(Error::from(LoError::PkBadInputData));
+            return Err(Error::from(codes::PkBadInputData));
         }
         Ok(Self { params, y })
     }
@@ -159,14 +159,14 @@ impl DsaPublicKey {
         let zero = Mpi::new(0)?;
 
         if r <= &zero || s <= &zero {
-            return Err(Error::from(LoError::X509InvalidSignature));
+            return Err(Error::from(codes::X509InvalidSignature));
         }
 
         let p = &self.params.p;
         let q = &self.params.q;
 
         if r >= q || s >= q {
-            return Err(Error::from(LoError::X509InvalidSignature));
+            return Err(Error::from(codes::X509InvalidSignature));
         }
 
         let m = reduce_mod_q(pre_hashed_message, q)?;
@@ -183,7 +183,7 @@ impl DsaPublicKey {
         let gsm_ysr = (&gsm * &ysr)?.modulo(p)?;
 
         if &gsm_ysr.modulo(q)? != r {
-            return Err(Error::from(LoError::X509InvalidSignature));
+            return Err(Error::from(codes::X509InvalidSignature));
         }
 
         Ok(())
@@ -232,7 +232,7 @@ fn encode_dsa_signature(r: &Mpi, s: &Mpi) -> Result<Vec<u8>> {
 impl DsaPrivateKey {
     pub fn from_components(params: DsaParams, x: Mpi) -> Result<Self> {
         if x <= Mpi::new(1)? || x >= params.q {
-            return Err(Error::from(LoError::PkBadInputData));
+            return Err(Error::from(codes::PkBadInputData));
         }
         Ok(Self { params, x })
     }
@@ -352,7 +352,7 @@ impl DsaPrivateKey {
 
         let zero = Mpi::new(0)?;
         if r == zero || s == zero {
-            return Err(Error::from(LoError::MpiBadInputData));
+            return Err(Error::from(codes::MpiBadInputData));
         }
         encode_dsa_signature(&r, &s)
     }

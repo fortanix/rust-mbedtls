@@ -24,6 +24,11 @@ pub trait IntoResult: Sized {
     }
 }
 
+pub mod codes {
+    pub use crate::error::HiError::*;
+    pub use crate::error::LoError::*;
+}
+
 // This is intended not to overlap with mbedtls error codes. Utf8Error is
 // generated in the bindings when converting to rust UTF-8 strings. Only in rare
 // circumstances (callbacks from mbedtls to rust) do we need to pass a Utf8Error
@@ -44,6 +49,7 @@ macro_rules! error_enum {
 
         impl From<c_int> for $n {
             fn from(code: c_int) -> $n {
+                // check against mask here (not in match blook) to make it compile-time
                 $(const $c: c_int = $n::assert_in_mask(::mbedtls_sys::$c);)*
                 match -code {
                     $($c => return $n::$rust),*,
@@ -458,7 +464,3 @@ error_enum!(
     }
 );
 
-pub(crate) mod error {
-    pub use crate::error::HiError::*;
-    pub use crate::error::LoError::*;
-}

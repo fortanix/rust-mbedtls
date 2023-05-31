@@ -14,7 +14,7 @@ use mbedtls_sys::types::raw_types::c_void;
 
 use core::ptr;
 use core::convert::TryInto;
-use crate::error::{Error, IntoResult, Result, HiError, LoError};
+use crate::error::{Error, IntoResult, Result, codes};
 use crate::private::UnsafeFrom;
 use crate::rng::Random;
 use crate::hash::Type as MdType;
@@ -345,7 +345,7 @@ impl Pk {
 
     pub fn custom_algo_id(&self) -> Result<&[u64]> {
         if self.pk_type() != Type::Custom {
-            return Err(Error::from(HiError::PkInvalidAlg));
+            return Err(Error::from(codes::PkInvalidAlg));
         }
 
         unsafe {
@@ -356,7 +356,7 @@ impl Pk {
 
     pub fn custom_public_key(&self) -> Result<&[u8]> {
         if self.pk_type() != Type::Custom {
-            return Err(Error::from(HiError::PkInvalidAlg));
+            return Err(Error::from(codes::PkInvalidAlg));
         }
 
         let ctx = self.inner.pk_ctx as *const CustomPkContext;
@@ -365,13 +365,13 @@ impl Pk {
 
     pub fn custom_private_key(&self) -> Result<&[u8]> {
         if self.pk_type() != Type::Custom {
-            return Err(Error::from(HiError::PkInvalidAlg));
+            return Err(Error::from(codes::PkInvalidAlg));
         }
 
         let ctx = self.inner.pk_ctx as *const CustomPkContext;
         unsafe {
             if (*ctx).sk.len() == 0 {
-                return Err(Error::from(HiError::PkTypeMismatch));
+                return Err(Error::from(codes::PkTypeMismatch));
             }
             Ok(&(*ctx).sk)
         }
@@ -422,7 +422,7 @@ impl Pk {
     pub fn curve(&self) -> Result<EcGroupId> {
         match self.pk_type() {
             Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
-            _ => return Err(Error::from(HiError::PkTypeMismatch)),
+            _ => return Err(Error::from(codes::PkTypeMismatch)),
         }
 
         unsafe { Ok((*(self.inner.pk_ctx as *const ecp_keypair)).grp.id.into()) }
@@ -441,14 +441,14 @@ impl Pk {
             EcGroupId::SecP256R1 => Ok(vec![1, 2, 840, 10045, 3, 1, 7]),
             EcGroupId::SecP384R1 => Ok(vec![1, 3, 132, 0, 34]),
             EcGroupId::SecP521R1 => Ok(vec![1, 3, 132, 0, 35]),
-            _ => Err(Error::from(LoError::OidNotFound)),
+            _ => Err(Error::from(codes::OidNotFound)),
         }
     }
 
     pub fn ec_group(&self) -> Result<EcGroup> {
         match self.pk_type() {
             Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
-            _ => return Err(Error::from(HiError::PkTypeMismatch)),
+            _ => return Err(Error::from(codes::PkTypeMismatch)),
         }
 
         match self.curve()? {
@@ -473,7 +473,7 @@ impl Pk {
     pub fn ec_public(&self) -> Result<EcPoint> {
         match self.pk_type() {
             Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
-            _ => return Err(Error::from(HiError::PkTypeMismatch)),
+            _ => return Err(Error::from(codes::PkTypeMismatch)),
         }
 
         let q = &unsafe { (*(self.inner.pk_ctx as *const ecp_keypair)).Q };
@@ -483,7 +483,7 @@ impl Pk {
     pub fn ec_private(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
-            _ => return Err(Error::from(HiError::PkTypeMismatch)),
+            _ => return Err(Error::from(codes::PkTypeMismatch)),
         }
 
         let d = &unsafe { (*(self.inner.pk_ctx as *const ecp_keypair)).d };
@@ -493,7 +493,7 @@ impl Pk {
     pub fn rsa_public_modulus(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::from(HiError::PkTypeMismatch)),
+            _ => return Err(Error::from(codes::PkTypeMismatch)),
         }
 
         let mut n = Mpi::new(0)?;
@@ -516,7 +516,7 @@ impl Pk {
     pub fn rsa_private_prime1(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::from(HiError::PkTypeMismatch)),
+            _ => return Err(Error::from(codes::PkTypeMismatch)),
         }
 
         let mut p = Mpi::new(0)?;
@@ -539,7 +539,7 @@ impl Pk {
     pub fn rsa_private_prime2(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::from(HiError::PkTypeMismatch)),
+            _ => return Err(Error::from(codes::PkTypeMismatch)),
         }
 
         let mut q = Mpi::new(0)?;
@@ -562,7 +562,7 @@ impl Pk {
     pub fn rsa_private_exponent(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::from(HiError::PkTypeMismatch)),
+            _ => return Err(Error::from(codes::PkTypeMismatch)),
         }
 
         let mut d = Mpi::new(0)?;
@@ -585,7 +585,7 @@ impl Pk {
     pub fn rsa_crt_dp(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::from(HiError::PkTypeMismatch)),
+            _ => return Err(Error::from(codes::PkTypeMismatch)),
         }
 
         let mut dp = Mpi::new(0)?;
@@ -606,7 +606,7 @@ impl Pk {
     pub fn rsa_crt_dq(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::from(HiError::PkTypeMismatch)),
+            _ => return Err(Error::from(codes::PkTypeMismatch)),
         }
 
         let mut dq = Mpi::new(0)?;
@@ -627,7 +627,7 @@ impl Pk {
     pub fn rsa_crt_qp(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::from(HiError::PkTypeMismatch)),
+            _ => return Err(Error::from(codes::PkTypeMismatch)),
         }
 
         let mut qp = Mpi::new(0)?;
@@ -648,7 +648,7 @@ impl Pk {
     pub fn rsa_public_exponent(&self) -> Result<u32> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::from(HiError::PkTypeMismatch)),
+            _ => return Err(Error::from(codes::PkTypeMismatch)),
         }
 
         let mut e: [u8; 4] = [0, 0, 0, 0];
@@ -687,7 +687,7 @@ impl Pk {
             if unsafe { (*ctx).padding  == RAW_RSA_DECRYPT } {
                 let olen = self.len() / 8;
                 if plain.len() < olen {
-                    return Err(Error::from(HiError::RsaOutputTooLarge));
+                    return Err(Error::from(codes::RsaOutputTooLarge));
                 }
 
                 unsafe {
@@ -730,11 +730,11 @@ impl Pk {
         label: &[u8],
     ) -> Result<usize> {
         if self.pk_type() != Type::Rsa {
-            return Err(Error::from(HiError::PkTypeMismatch));
+            return Err(Error::from(codes::PkTypeMismatch));
         }
         let ctx = self.inner.pk_ctx as *mut rsa_context;
         if unsafe { (*ctx).padding != RSA_PKCS_V21 } {
-            return Err(Error::from(HiError::RsaInvalidPadding));
+            return Err(Error::from(codes::RsaInvalidPadding));
         }
 
         let mut ret = 0usize;
@@ -788,15 +788,15 @@ impl Pk {
         label: &[u8],
     ) -> Result<usize> {
         if self.pk_type() != Type::Rsa {
-            return Err(Error::from(HiError::PkTypeMismatch));
+            return Err(Error::from(codes::PkTypeMismatch));
         }
         let ctx = self.inner.pk_ctx as *mut rsa_context;
         if unsafe { (*ctx).padding != RSA_PKCS_V21 } {
-            return Err(Error::from(HiError::RsaInvalidPadding));
+            return Err(Error::from(codes::RsaInvalidPadding));
         }
         let olen = self.len() / 8;
         if cipher.len() < olen {
-            return Err(Error::from(HiError::RsaOutputTooLarge));
+            return Err(Error::from(codes::RsaOutputTooLarge));
         }
 
         unsafe {
@@ -834,21 +834,21 @@ impl Pk {
     ) -> Result<usize> {
         // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to auto-detect size and cause an invalid write.
         if hash.len() == 0 || sig.len() == 0 {
-            return Err(Error::from(HiError::PkBadInputData))
+            return Err(Error::from(codes::PkBadInputData))
         }
 
         match self.pk_type() {
             Type::Rsa | Type::RsaAlt | Type::RsassaPss => {
                 if sig.len() < (self.len() / 8) {
-                    return Err(Error::from(HiError::PkSigLenMismatch));
+                    return Err(Error::from(codes::PkSigLenMismatch));
                 }
             }
             Type::Eckey | Type::Ecdsa => {
                 if sig.len() < ECDSA_MAX_LEN {
-                    return Err(Error::from(HiError::PkSigLenMismatch));
+                    return Err(Error::from(codes::PkSigLenMismatch));
                 }
             }
-            _ => return Err(Error::from(HiError::PkSigLenMismatch)),
+            _ => return Err(Error::from(codes::PkSigLenMismatch)),
         }
         let mut ret = 0usize;
         unsafe {
@@ -875,14 +875,14 @@ impl Pk {
     ) -> Result<usize> {
         // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to auto-detect size and cause an invalid write.
         if hash.len() == 0 || sig.len() == 0 {
-            return Err(Error::from(HiError::PkBadInputData))
+            return Err(Error::from(codes::PkBadInputData))
         }
 
         use crate::rng::RngCallbackMut;
 
         if self.pk_type() == Type::Ecdsa || self.pk_type() == Type::Eckey {
             if sig.len() < ECDSA_MAX_LEN {
-                return Err(Error::from(HiError::PkSigLenMismatch));
+                return Err(Error::from(codes::PkSigLenMismatch));
             }
 
             // RFC 6979 signature scheme
@@ -911,21 +911,21 @@ impl Pk {
         } else if self.pk_type() == Type::Rsa {
             // Reject sign_deterministic being use for PSS
             if unsafe { (*(self.inner.pk_ctx as *mut rsa_context)).padding } != RSA_PKCS_V15 {
-                return Err(Error::from(HiError::PkInvalidAlg));
+                return Err(Error::from(codes::PkInvalidAlg));
             }
 
             // This is a PKCSv1.5 signature which is already deterministic; just pass it to sign
             return self.sign(md, hash, sig, rng);
         } else {
             // Some non-deterministic scheme
-            return Err(Error::from(HiError::PkInvalidAlg));
+            return Err(Error::from(codes::PkInvalidAlg));
         }
     }
 
     pub fn verify(&mut self, md: MdType, hash: &[u8], sig: &[u8]) -> Result<()> {
         // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to auto-detect size and cause an invalid write.
         if hash.len() == 0 || sig.len() == 0 {
-            return Err(Error::from(HiError::PkBadInputData))
+            return Err(Error::from(codes::PkBadInputData))
         }
         
         unsafe {
@@ -960,7 +960,7 @@ impl Pk {
                 )?;
                 ecdh.calc_secret(shared, rng)
             },
-            _ => return Err(Error::from(HiError::PkTypeMismatch)),
+            _ => return Err(Error::from(codes::PkTypeMismatch)),
         }
     }
 
@@ -969,7 +969,7 @@ impl Pk {
             pk_write_key_der(&mut self.inner, buf.as_mut_ptr(), buf.len()).into_result()
         } {
             Err(e) => match e.low_level() {
-                Some(LoError::Asn1BufTooSmall) => Ok(None),
+                Some(codes::Asn1BufTooSmall) => Ok(None),
                 _ => Err(e)
             }
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
@@ -988,7 +988,7 @@ impl Pk {
             pk_write_key_pem(&mut self.inner, buf.as_mut_ptr(), buf.len()).into_result()
         } {
             Err(e) => match e.low_level() {
-                Some(LoError::Base64BufferTooSmall) => Ok(None),
+                Some(codes::Base64BufferTooSmall) => Ok(None),
                 _ => Err(e)
             }
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
@@ -1009,7 +1009,7 @@ impl Pk {
             pk_write_pubkey_der(&mut self.inner, buf.as_mut_ptr(), buf.len()).into_result()
         } {
             Err(e) => match e.low_level() {
-                Some(LoError::Asn1BufTooSmall) => Ok(None),
+                Some(codes::Asn1BufTooSmall) => Ok(None),
                 _ => Err(e)
             }
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
@@ -1028,7 +1028,7 @@ impl Pk {
             pk_write_pubkey_pem(&mut self.inner, buf.as_mut_ptr(), buf.len()).into_result()
         } {
             Err(e) => match e.low_level() {
-                Some(LoError::Base64BufferTooSmall) => Ok(None),
+                Some(codes::Base64BufferTooSmall) => Ok(None),
                 _ => Err(e)
             }
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
@@ -1298,16 +1298,16 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
                 .unwrap();
             pk.verify(digest, data, &signature[0..len]).unwrap();
 
-            assert_eq!(pk.verify(digest, data, &[]).unwrap_err(), Error::from(HiError::PkBadInputData));
-            assert_eq!(pk.verify(digest, &[], &signature[0..len]).unwrap_err(), Error::from(HiError::PkBadInputData));
+            assert_eq!(pk.verify(digest, data, &[]).unwrap_err(), Error::from(codes::PkBadInputData));
+            assert_eq!(pk.verify(digest, &[], &signature[0..len]).unwrap_err(), Error::from(codes::PkBadInputData));
 
 
             let mut dummy_sig = [];
-            assert_eq!(pk.sign(digest, data, &mut dummy_sig, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::from(HiError::PkBadInputData));
-            assert_eq!(pk.sign(digest, &[], &mut signature, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::from(HiError::PkBadInputData));
+            assert_eq!(pk.sign(digest, data, &mut dummy_sig, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::from(codes::PkBadInputData));
+            assert_eq!(pk.sign(digest, &[], &mut signature, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::from(codes::PkBadInputData));
             
-            assert_eq!(pk.sign_deterministic(digest, data, &mut dummy_sig, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::from(HiError::PkBadInputData));
-            assert_eq!(pk.sign_deterministic(digest, &[], &mut signature, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::from(HiError::PkBadInputData));
+            assert_eq!(pk.sign_deterministic(digest, data, &mut dummy_sig, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::from(codes::PkBadInputData));
+            assert_eq!(pk.sign_deterministic(digest, &[], &mut signature, &mut crate::test_support::rand::test_rng()).unwrap_err(), Error::from(codes::PkBadInputData));
 
         }
     }
@@ -1427,7 +1427,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         assert_eq!(
             pk.encrypt(b"test", &mut cipher, &mut crate::test_support::rand::test_rng())
                 .unwrap_err(),
-            Error::from(HiError::RsaInvalidPadding)
+            Error::from(codes::RsaInvalidPadding)
         );
     }
 
@@ -1456,7 +1456,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         assert_eq!(pk.decrypt_with_label(&cipher, &mut plain_decrypted,
                                               &mut crate::test_support::rand::test_rng(),
                                               b"WRONG_LABEL").unwrap_err(),
-                   Error::from(HiError::RsaInvalidPadding));
+                   Error::from(codes::RsaInvalidPadding));
     }
 
     #[test]
@@ -1472,7 +1472,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         assert_eq!(
             pk.sign(Type::Sha256, data, &mut signature, &mut crate::test_support::rand::test_rng())
                 .unwrap_err(),
-            Error::from(HiError::RsaInvalidPadding)
+            Error::from(codes::RsaInvalidPadding)
         );
     }
 
@@ -1496,7 +1496,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         assert_eq!(
             pk.verify(digest, data, &signature[0..len])
                 .unwrap_err(),
-            Error::from(HiError::RsaInvalidPadding)
+            Error::from(codes::RsaInvalidPadding)
         );
     }
 

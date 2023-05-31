@@ -47,17 +47,17 @@ impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCa
         let io = Pin::new(&mut self.1);
         match io.poll_read(self.0, &mut buf) {
             Poll::Ready(Ok(())) => Ok(buf.filled().len()),
-            Poll::Ready(Err(_)) => Err(Error::from(LoError::NetRecvFailed)),
-            Poll::Pending => Err(Error::from(LoError::SslWantRead)),
+            Poll::Ready(Err(_)) => Err(Error::from(codes::NetRecvFailed)),
+            Poll::Pending => Err(Error::from(codes::SslWantRead)),
         }
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<usize> {
         let io = Pin::new(&mut self.1);
         match io.poll_write(self.0, buf) {
-            Poll::Ready(Err(_)) => Err(Error::from(LoError::NetSendFailed)),
+            Poll::Ready(Err(_)) => Err(Error::from(codes::NetSendFailed)),
             Poll::Ready(Ok(n)) => Ok(n),
-            Poll::Pending => Err(Error::from(LoError::SslWantWrite)),
+            Poll::Pending => Err(Error::from(codes::SslWantWrite)),
         }
     }
 }

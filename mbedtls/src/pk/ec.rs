@@ -9,7 +9,7 @@
 use mbedtls_sys::ECDSA_MAX_LEN as MBEDTLS_ECDSA_MAX_LEN;
 use mbedtls_sys::*;
 
-use crate::error::{Error, IntoResult, Result, HiError};
+use crate::error::{Error, IntoResult, Result, codes};
 
 define!(
     #[c_ty(ecp_group_id)]
@@ -80,7 +80,7 @@ define!(
 impl Ecdh {
     pub fn from_keys(private: &EcpKeypair, public: &EcpKeypair) -> Result<Ecdh> {
         if public.inner.grp.id == ECP_DP_NONE || public.inner.grp.id != private.inner.grp.id {
-            return Err(Error::from(HiError::EcpBadInputData));
+            return Err(Error::from(codes::EcpBadInputData));
         }
 
         let mut ret = Self::init();

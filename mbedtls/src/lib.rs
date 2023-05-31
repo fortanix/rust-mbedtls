@@ -29,8 +29,9 @@ mod wrapper_macros;
 //      API
 // ==============
 pub mod bignum;
-mod error;
-pub use crate::error::{Error, Result, HiError, LoError};
+pub mod error;
+pub use crate::error::{Error, Result, codes};
+
 pub mod cipher;
 pub mod ecp;
 pub mod hash;

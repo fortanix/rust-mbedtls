@@ -7,7 +7,7 @@
  * according to those terms. */
 
 use core::convert::TryFrom;
-use crate::error::{Error, IntoResult, Result, HiError};
+use crate::error::{Error, IntoResult, Result, codes};
 use mbedtls_sys::*;
 
 #[cfg(not(feature = "std"))]
@@ -114,7 +114,7 @@ impl EcGroup {
             || &order <= &zero
             || (&a == &zero && &b == &zero)
         {
-            return Err(Error::from(HiError::EcpBadInputData));
+            return Err(Error::from(codes::EcpBadInputData));
         }
 
         // Compute `order - 2`, needed below.
@@ -135,7 +135,7 @@ impl EcGroup {
         Test that the provided generator satisfies the curve equation
          */
         if unsafe { ecp_check_pubkey(&ret.inner, &ret.inner.G) } != 0 {
-            return Err(Error::from(HiError::EcpBadInputData));
+            return Err(Error::from(codes::EcpBadInputData));
         }
 
         /*
@@ -162,7 +162,7 @@ impl EcGroup {
         let is_zero = unsafe { ecp_is_zero(&g_m.inner as *const ecp_point as *mut ecp_point) };
 
         if is_zero != 1 {
-            return Err(Error::from(HiError::EcpBadInputData));
+            return Err(Error::from(codes::EcpBadInputData));
         }
 
         Ok(ret)
@@ -200,7 +200,7 @@ impl EcGroup {
             EcGroupId::Curve25519 => Ok(8),
             EcGroupId::Curve448 => Ok(4),
             // Requires a point-counting algorithm such as SEA.
-            EcGroupId::None => Err(Error::from(HiError::EcpFeatureUnavailable)),
+            EcGroupId::None => Err(Error::from(codes::EcpFeatureUnavailable)),
             _ => Ok(1),
         }
     }
@@ -256,7 +256,7 @@ impl EcPoint {
     }
 
     pub fn from_binary(group: &EcGroup, bin: &[u8]) -> Result<EcPoint> {
-        let prefix = *bin.get(0).ok_or(Error::from(HiError::EcpBadInputData))?;
+        let prefix = *bin.get(0).ok_or(Error::from(codes::EcpBadInputData))?;
 
         if prefix == 0x02 || prefix == 0x03 {
             // Compressed point, which mbedtls does not understand
@@ -267,7 +267,7 @@ impl EcPoint {
             let b = group.b()?;
 
             if bin.len() != (p.byte_length()? + 1) {
-                return Err(Error::from(HiError::EcpBadInputData));
+                return Err(Error::from(codes::EcpBadInputData));
             }
 
             let x = Mpi::from_binary(&bin[1..]).unwrap();
@@ -319,7 +319,7 @@ impl EcPoint {
         match unsafe { ecp_is_zero(&self.inner as *const ecp_point as *mut ecp_point) } {
             0 => Ok(false),
             1 => Ok(true),
-            _ => Err(Error::from(HiError::EcpInvalidKey)),
+            _ => Err(Error::from(codes::EcpInvalidKey)),
         }
     }
 
@@ -355,11 +355,11 @@ impl EcPoint {
         let mut ret = Self::init();
 
         if group.contains_point(&pt1)? == false {
-            return Err(Error::from(HiError::EcpInvalidKey));
+            return Err(Error::from(codes::EcpInvalidKey));
         }
 
         if group.contains_point(&pt2)? == false {
-            return Err(Error::from(HiError::EcpInvalidKey));
+            return Err(Error::from(codes::EcpInvalidKey));
         }
 
         unsafe {
