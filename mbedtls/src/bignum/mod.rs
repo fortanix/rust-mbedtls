@@ -142,7 +142,7 @@ impl Mpi {
     pub fn as_u32(&self) -> Result<u32> {
         if self.bit_length()? > 32 {
             // Not exactly correct but close enough
-            return Err(Error::from(codes::MpiBufferTooSmall));
+            return Err(codes::MpiBufferTooSmall.into());
         }
 
         Ok(self.get_limb(0) as u32)
@@ -165,7 +165,7 @@ impl Mpi {
             unsafe { mpi_write_string(&self.inner, radix, ::core::ptr::null_mut(), 0, &mut olen) };
 
         if r != ERR_MPI_BUFFER_TOO_SMALL {
-            return Err(Error::from(r));
+            return Err(r.into());
         }
 
         let mut buf = vec![0u8; olen];
@@ -258,7 +258,7 @@ impl Mpi {
         let zero = Mpi::new(0)?;
 
         if self < &zero || self >= p {
-            return Err(Error::from(codes::MpiBadInputData));
+            return Err(codes::MpiBadInputData.into());
         }
         if self == &zero {
             return Ok(zero);
@@ -266,12 +266,12 @@ impl Mpi {
 
         // This ignores p=2 (for which this algorithm is valid), as not cryptographically interesting.
         if p.get_bit(0) == false || p <= &zero {
-            return Err(Error::from(codes::MpiBadInputData));
+            return Err(codes::MpiBadInputData.into());
         }
 
         if self.jacobi(p)? != 1 {
             // a is not a quadratic residue mod p
-            return Err(Error::from(codes::MpiBadInputData));
+            return Err(codes::MpiBadInputData.into());
         }
 
         if (p % 4)?.as_u32()? == 3 {
@@ -318,7 +318,7 @@ impl Mpi {
                 bo = bo.mod_exp(&two, p)?;
                 m += 1;
                 if m >= r {
-                    return Err(Error::from(codes::MpiBadInputData));
+                    return Err(codes::MpiBadInputData.into());
                 }
             }
 
@@ -351,7 +351,7 @@ impl Mpi {
         let one = Mpi::new(1)?;
 
         if self < &zero || n < &zero || n.get_bit(0) == false {
-            return Err(Error::from(codes::MpiBadInputData));
+            return Err(codes::MpiBadInputData.into());
         }
 
         let mut x = self.modulo(n)?;

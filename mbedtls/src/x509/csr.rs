@@ -14,7 +14,7 @@ use crate::alloc_prelude::*;
 use mbedtls_sys::*;
 
 use crate::private::{alloc_string_repeat, alloc_vec_repeat};
-use crate::error::{Error, IntoResult, Result, codes};
+use crate::error::{IntoResult, Result, codes};
 use crate::pk::Pk;
 use crate::hash::Type as MdType;
 use crate::rng::Random;
@@ -89,7 +89,7 @@ impl<'a> Builder<'a> {
     #[cfg(feature = "std")]
     pub fn subject(&mut self, subject: &str) -> Result<&mut Self> {
         match ::std::ffi::CString::new(subject) {
-            Err(_) => Err(Error::from(codes::X509InvalidName)),
+            Err(_) => Err(codes::X509InvalidName.into()),
             Ok(s) => unsafe { self.subject_with_nul_unchecked(s.as_bytes_with_nul()) },
         }
     }
@@ -116,7 +116,7 @@ impl<'a> Builder<'a> {
         let usage = usage.bits();
         if (usage & !0xfe) != 0 {
             // according to x509write_**crt**_set_key_usage
-            return Err(Error::from(codes::X509FeatureUnavailable));
+            return Err(codes::X509FeatureUnavailable.into());
         }
 
         unsafe { x509write_csr_set_key_usage(&mut self.inner, (usage & 0xfe) as u8) }.into_result()?;
@@ -151,10 +151,8 @@ impl<'a> Builder<'a> {
             )
             .into_result()
         } {
-            Err(e) => match e.low_level() {
-                Some(codes::Asn1BufTooSmall) => Ok(None),
-                _ => Err(e),
-            }
+            Err(e) if e.low_level() == Some(codes::Asn1BufTooSmall) => Ok(None),
+            Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
     }
@@ -183,10 +181,8 @@ impl<'a> Builder<'a> {
             )
             .into_result()
         } {
-            Err(e) => match e.low_level() {
-                Some(codes::Base64BufferTooSmall) => Ok(None),
-                _ => Err(e),
-            }
+            Err(e) if e.low_level() == Some(codes::Base64BufferTooSmall) => Ok(None),
+            Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
     }

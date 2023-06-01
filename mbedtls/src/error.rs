@@ -25,8 +25,8 @@ pub trait IntoResult: Sized {
 }
 
 pub mod codes {
-    pub use crate::error::HiError::*;
-    pub use crate::error::LoError::*;
+    pub use super::HiError::*;
+    pub use super::LoError::*;
 }
 
 // This is intended not to overlap with mbedtls error codes. Utf8Error is
@@ -176,15 +176,13 @@ impl From<c_int> for Error {
     fn from(x: c_int) -> Error {
         let (high_level_code, low_level_code) = (-x & HiError::mask(), -x & LoError::mask());
         if -x & (HiError::mask() | LoError::mask()) != -x || x >= 0 {
-            return Error::Other(x);
-        }
-        else if high_level_code == 0 {
-            return Error::LowLevel(LoError::from(low_level_code));
-        }
-        else if low_level_code == 0 {
-            return Error::HighLevel(HiError::from(high_level_code));
+            Error::Other(x)
+        } else if high_level_code == 0 {
+            Error::LowLevel(low_level_code.into())
+        } else if low_level_code == 0 {
+            Error::HighLevel(high_level_code.into())
         } else {
-            return Error::HighAndLowLevel(HiError::from(high_level_code), LoError::from(low_level_code))
+            Error::HighAndLowLevel(high_level_code.into(), low_level_code.into())
         }
     }
 }
@@ -464,3 +462,45 @@ error_enum!(
     }
 );
 
+#[cfg(test)]
+mod tests {
+    use super::{Error, codes, HiError, LoError};
+
+    #[test]
+    fn test_common_error_operations() {
+        let (hi, lo) = (codes::CipherAllocFailed, codes::AesBadInputData);
+        let (hi_only_error, lo_only_error, combined_error) = (Error::HighLevel(hi), Error::LowLevel(lo), Error::HighAndLowLevel(hi, lo));
+        assert_eq!(combined_error.high_level().unwrap(), hi);
+        assert_eq!(combined_error.low_level().unwrap(), lo);
+        assert_eq!(hi_only_error.to_int(), -24960);
+        assert_eq!(lo_only_error.to_int(), -33);
+        assert_eq!(combined_error.to_int(), hi_only_error.to_int() + lo_only_error.to_int());
+        assert_eq!(codes::CipherAllocFailed | codes::AesBadInputData, combined_error);
+        assert_eq!(codes::AesBadInputData | codes::CipherAllocFailed, combined_error);
+    }
+
+    #[test]
+    fn test_error_display() {
+        let (hi, lo) = (HiError::CipherAllocFailed, LoError::AesBadInputData);
+        let (hi_only_error, lo_only_error, combined_error) = (Error::HighLevel(hi), Error::LowLevel(lo), Error::HighAndLowLevel(hi, lo));
+        assert_eq!(format!("{}", hi_only_error), "mbedTLS error HiError :: CipherAllocFailed");
+        assert_eq!(format!("{}", lo_only_error), "mbedTLS error LoError :: AesBadInputData");
+        assert_eq!(format!("{}", combined_error), "(mbedTLS error HiError :: CipherAllocFailed, mbedTLS error LoError :: AesBadInputData)");
+    }
+
+    #[test]
+    fn test_error_from_int() {
+        // positive error code
+        assert_eq!(Error::from(0), Error::Other(0));
+        assert_eq!(Error::from(1), Error::Other(1));
+        // Lo, Hi, HiAndLo cases
+        assert_eq!(Error::from(-1), Error::LowLevel(LoError::Unknown(-1)));
+        assert_eq!(Error::from(-0x80), Error::HighLevel(HiError::Unknown(-0x80)));
+        assert_eq!(Error::from(-0x81), Error::HighAndLowLevel(HiError::Unknown(-0x80), LoError::Unknown(-1)));
+        assert_eq!(Error::from(-24993), Error::HighAndLowLevel(HiError::CipherAllocFailed, LoError::AesBadInputData));
+        assert_eq!(Error::from(-24960), Error::HighLevel(HiError::CipherAllocFailed));
+        assert_eq!(Error::from(-33), Error::LowLevel(LoError::AesBadInputData ));
+        // error code out of boundaries
+        assert_eq!(Error::from(-0x01FFFF), Error::Other(-0x01FFFF));
+    }
+}

@@ -21,7 +21,7 @@ use mbedtls::ssl::context::Timer;
 use mbedtls::ssl::io::{ConnectedUdpSocket, IoCallback};
 use mbedtls::ssl::{Config, Context, CookieContext, Io, Version};
 use mbedtls::x509::{Certificate, VerifyError};
-use mbedtls::{Error, codes};
+use mbedtls::error::codes;
 use mbedtls::Result as TlsResult;
 use std::sync::Arc;
 
@@ -42,11 +42,11 @@ impl TransportType for TcpStream {
     }
 
     fn recv(ctx: &mut Context<Self>, buf: &mut [u8]) -> TlsResult<usize> {
-        ctx.read(buf).map_err(|_| Error::from(codes::NetRecvFailed))
+        ctx.read(buf).map_err(|_| codes::NetRecvFailed.into())
     }
 
     fn send(ctx: &mut Context<Self>, buf: &[u8]) -> TlsResult<usize> {
-        ctx.write(buf).map_err(|_| Error::from(codes::NetSendFailed))
+        ctx.write(buf).map_err(|_| codes::NetSendFailed.into())
     }
 }
 
@@ -163,10 +163,8 @@ fn server<C: IoCallback<T> + TransportType, T>(
         // The first connection setup attempt will fail because the ClientHello is received without
         // a cookie
         match ctx.establish(conn, None) {
-            Err(e) => match e.high_level() {
-                Some(codes::SslHelloVerifyRequired) => {}
-                _ => panic!("SslHelloVerifyRequired expected, got {} instead", e),               
-            }
+            Err(e) if matches!(e.high_level(), Some(codes::SslHelloVerifyRequired)) => {},
+            Err(e) => panic!("SslHelloVerifyRequired expected, got {} instead", e),
             Ok(()) => panic!("SslHelloVerifyRequired expected, got Ok instead"),
         }
         ctx.handshake()

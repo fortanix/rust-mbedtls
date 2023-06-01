@@ -18,7 +18,7 @@ use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::{Config, Context};
 use mbedtls::x509::{Certificate, VerifyError};
-use mbedtls::{Error, codes};
+use mbedtls::{Error, error::codes};
 use mbedtls::Result as TlsResult;
 
 mod support;
@@ -44,7 +44,7 @@ fn client(conn: TcpStream, test: Test) -> TlsResult<()> {
                 *verify_flags |= VerifyError::CERT_OTHER;
                 Ok(())
             }
-            Test::CallbackError => Err(Error::from(codes::Asn1InvalidData)),
+            Test::CallbackError => Err(codes::Asn1InvalidData.into()),
         }
     };
     

@@ -77,7 +77,7 @@ fn x509_buf_to_vec(buf: &x509_buf) -> Vec<u8> {
 fn x509_time_to_time(tm: &x509_time) -> Result<Time> {
     // ensure casts don't underflow
     if tm.year < 0 || tm.mon < 0 || tm.day < 0 || tm.hour < 0 || tm.min < 0 || tm.sec < 0 {
-        return Err(Error::from(codes::X509InvalidDate));
+        return Err(codes::X509InvalidDate.into());
     }
 
     Time::new(tm.year as u16, tm.mon as u8, tm.day as u8, tm.hour as u8, tm.min as u8, tm.sec as u8).ok_or(codes::X509InvalidDate.into())
@@ -98,7 +98,7 @@ impl Certificate {
         
         if !(*cert).inner.next.is_null() {
             // Use from_pem_multiple for parsing multiple certificates in a pem.
-            return Err(Error::from(codes::X509BadInputData));
+            return Err(codes::X509BadInputData.into());
         }
 
         Ok(cert)
@@ -322,7 +322,7 @@ impl<'a> Builder<'a> {
     #[cfg(feature = "std")]
     pub fn subject(&mut self, subject: &str) -> Result<&mut Self> {
         match ::std::ffi::CString::new(subject) {
-            Err(_) => Err(Error::from(codes::X509InvalidName)),
+            Err(_) => Err(codes::X509InvalidName.into()),
             Ok(s) => unsafe { self.subject_with_nul_unchecked(s.as_bytes_with_nul()) },
         }
     }
@@ -331,7 +331,7 @@ impl<'a> Builder<'a> {
         if subject.as_bytes().iter().any(|&c| c == 0) {
             unsafe { self.subject_with_nul_unchecked(subject.as_bytes()) }
         } else {
-            Err(Error::from(codes::X509InvalidName))
+            Err(codes::X509InvalidName.into())
         }
     }
 
@@ -343,7 +343,7 @@ impl<'a> Builder<'a> {
     #[cfg(feature = "std")]
     pub fn issuer(&mut self, issuer: &str) -> Result<&mut Self> {
         match ::std::ffi::CString::new(issuer) {
-            Err(_) => Err(Error::from(codes::X509InvalidName)),
+            Err(_) => Err(codes::X509InvalidName.into()),
             Ok(s) => unsafe { self.issuer_with_nul_unchecked(s.as_bytes_with_nul()) },
         }
     }
@@ -352,7 +352,7 @@ impl<'a> Builder<'a> {
         if issuer.as_bytes().iter().any(|&c| c == 0) {
             unsafe { self.issuer_with_nul_unchecked(issuer.as_bytes()) }
         } else {
-            Err(Error::from(codes::X509InvalidName))
+            Err(codes::X509InvalidName.into())
         }
     }
 
@@ -436,10 +436,8 @@ impl<'a> Builder<'a> {
             )
             .into_result()
         } {
-            Err(e) => match e.low_level() {
-                Some(codes::Asn1BufTooSmall) => Ok(None),
-                _ => Err(e),
-            }
+            Err(e) if  e.low_level() == Some(codes::Asn1BufTooSmall) => Ok(None),
+            Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
     }
@@ -468,10 +466,8 @@ impl<'a> Builder<'a> {
             )
             .into_result()
         } {
-            Err(e) => match e.low_level() {
-                Some(codes::Base64BufferTooSmall) => Ok(None),
-                _ => Err(e),
-            }
+            Err(e) if e.low_level() == Some(codes::Base64BufferTooSmall) => Ok(None),
+            Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
     }
@@ -1465,12 +1461,9 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
     }
 
     #[test]
-    fn check_combined_error_from_sys() {
-        let der = b"\x30\x02\x05\x00";
-        let mut cert = MbedtlsBox::<Certificate>::init().unwrap();
-        let res = unsafe { x509_crt_parse_der((&mut (*cert)).into(), der.as_ptr(), der.len()) }.into_result();
-        println!("{:?}", res);
-
+    fn test_combined_error_from_mbedtls() {
+        let err = super::x509::Certificate::from_der(&b"\x30\x02\x05\x00"[..]).unwrap_err();
+        assert_eq!(err, Error::HighAndLowLevel(codes::X509InvalidFormat, codes::Asn1UnexpectedTag));
     }
 
 }

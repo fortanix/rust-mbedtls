@@ -6,7 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use crate::error::{Error, IntoResult, Result, codes};
+use crate::error::{IntoResult, Result, codes};
 use mbedtls_sys::*;
 
 define!(
@@ -82,7 +82,7 @@ impl Md {
     pub fn new(md: Type) -> Result<Md> {
         let md: MdInfo = match md.into() {
             Some(md) => md,
-            None => return Err(Error::from(codes::MdBadInputData)),
+            None => return Err(codes::MdBadInputData.into()),
         };
 
         let mut ctx = Md::init();
@@ -102,7 +102,7 @@ impl Md {
         unsafe {
             let olen = (*self.inner.md_info).size as usize;
             if out.len() < olen {
-                return Err(Error::from(codes::MdBadInputData));
+                return Err(codes::MdBadInputData.into());
             }
             md_finish(&mut self.inner, out.as_mut_ptr()).into_result()?;
             Ok(olen)
@@ -112,13 +112,13 @@ impl Md {
     pub fn hash(mdt: Type, data: &[u8], out: &mut [u8]) -> Result<usize> {
         let mdinfo: MdInfo = match mdt.into() {
             Some(md) => md,
-            None => return Err(Error::from(codes::MdBadInputData)),
+            None => return Err(codes::MdBadInputData.into()),
         };
 
         unsafe {
             let olen = mdinfo.inner.size as usize;
             if out.len() < olen {
-                return Err(Error::from(codes::MdBadInputData));
+                return Err(codes::MdBadInputData.into());
             }
             md(mdinfo.inner, data.as_ptr(), data.len(), out.as_mut_ptr()).into_result()?;
             Ok(olen)
@@ -134,7 +134,7 @@ impl Hmac {
     pub fn new(md: Type, key: &[u8]) -> Result<Hmac> {
         let md: MdInfo = match md.into() {
             Some(md) => md,
-            None => return Err(Error::from(codes::MdBadInputData)),
+            None => return Err(codes::MdBadInputData.into()),
         };
 
         let mut ctx = Md::init();
@@ -154,7 +154,7 @@ impl Hmac {
         unsafe {
             let olen = (*self.ctx.inner.md_info).size as usize;
             if out.len() < olen {
-                return Err(Error::from(codes::MdBadInputData));
+                return Err(codes::MdBadInputData.into());
             }
             md_hmac_finish(&mut self.ctx.inner, out.as_mut_ptr()).into_result()?;
             Ok(olen)
@@ -164,13 +164,13 @@ impl Hmac {
     pub fn hmac(md: Type, key: &[u8], data: &[u8], out: &mut [u8]) -> Result<usize> {
         let md: MdInfo = match md.into() {
             Some(md) => md,
-            None => return Err(Error::from(codes::MdBadInputData)),
+            None => return Err(codes::MdBadInputData.into()),
         };
 
         unsafe {
             let olen = md.inner.size as usize;
             if out.len() < olen {
-                return Err(Error::from(codes::MdBadInputData));
+                return Err(codes::MdBadInputData.into());
             }
             md_hmac(
                 md.inner,
@@ -194,7 +194,7 @@ impl Hkdf {
     pub fn hkdf(md: Type, salt: &[u8], ikm: &[u8], info: &[u8], key: &mut [u8]) -> Result<()> {
         let md: MdInfo = match md.into() {
             Some(md) => md,
-            None => return Err(Error::from(codes::MdBadInputData)),
+            None => return Err(codes::MdBadInputData.into()),
         };
 
         unsafe {
@@ -236,7 +236,7 @@ pub fn pbkdf2_hmac(
 ) -> Result<()> {
     let md: MdInfo = match md.into() {
         Some(md) => md,
-        None => return Err(Error::from(codes::MdBadInputData)),
+        None => return Err(codes::MdBadInputData.into()),
     };
 
     unsafe {

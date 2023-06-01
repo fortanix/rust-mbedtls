@@ -61,7 +61,7 @@ mod test {
     use crate::support::net::create_tcp_pair;
     use crate::support::keys;
     use mbedtls::x509::{Certificate};
-    use mbedtls::{Error, codes};
+    use mbedtls::error::codes;
 
     // This callback should accept any valid self-signed certificate
     fn self_signed_ca_callback(child: &MbedtlsList<Certificate>) -> TlsResult<MbedtlsList<Certificate>> {
@@ -91,7 +91,7 @@ mod test {
             };
         let c = thread::spawn(move || {
             let result = super::client(c, ca_callback);
-            assert_eq!(result, Err(Error::from(codes::X509CertVerifyFailed)));
+            assert_eq!(result, Err(codes::X509CertVerifyFailed.into()));
         });
         let s = thread::spawn(move || super::server(s, keys::PEM_CERT.as_bytes(), keys::PEM_KEY.as_bytes()).unwrap());
         c.join().unwrap();
@@ -114,7 +114,7 @@ mod test {
         let (c, s) = create_tcp_pair().unwrap();
         let c = thread::spawn(move || {
             let result = super::client(c, self_signed_ca_callback);
-            assert_eq!(result, Err(Error::from(codes::X509CertVerifyFailed)));
+            assert_eq!(result, Err(codes::X509CertVerifyFailed.into()));
         });
         let s = thread::spawn(move || super::server(s, keys::PEM_CERT.as_bytes(), keys::PEM_KEY.as_bytes()).unwrap());
         c.join().unwrap();
@@ -128,7 +128,7 @@ mod test {
         let (c, s) = create_tcp_pair().unwrap();
         let c = thread::spawn(move || {
             let result = super::client(c, self_signed_ca_callback);
-            assert_eq!(result, Err(Error::from(codes::X509CertVerifyFailed)));
+            assert_eq!(result, Err(codes::X509CertVerifyFailed.into()));
         });
         let s = thread::spawn(move || super::server(s, keys::PEM_SELF_SIGNED_CERT_INVALID_SIG, keys::PEM_SELF_SIGNED_KEY).unwrap());
         c.join().unwrap();

@@ -115,7 +115,3 @@ required-features = ["std"]
 name = "async_session"
 path = "tests/async_session.rs"
 required-features = ["async-rt"]
-
-[[test]]
-name = "error_ops"
-required-features = ["std"]

@@ -262,7 +262,7 @@ impl Config {
             Version::Tls1_0 => 1,
             Version::Tls1_1 => 2,
             Version::Tls1_2 => 3,
-            _ => { return Err(Error::from(codes::SslBadHsProtocolVersion)); }
+            _ => { return Err(codes::SslBadHsProtocolVersion.into()); }
         };
 
         unsafe { ssl_conf_min_version(self.into(), 3, minor) };
@@ -275,7 +275,7 @@ impl Config {
             Version::Tls1_0 => 1,
             Version::Tls1_1 => 2,
             Version::Tls1_2 => 3,
-            _ => { return Err(Error::from(codes::SslBadHsProtocolVersion)); }
+            _ => { return Err(codes::SslBadHsProtocolVersion.into()); }
         };
         unsafe { ssl_conf_max_version(self.into(), 3, minor) };
         Ok(())

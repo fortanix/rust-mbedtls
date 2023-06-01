@@ -30,7 +30,7 @@ mod wrapper_macros;
 // ==============
 pub mod bignum;
 pub mod error;
-pub use crate::error::{Error, Result, codes};
+pub use crate::error::{Error, Result};
 
 pub mod cipher;
 pub mod ecp;

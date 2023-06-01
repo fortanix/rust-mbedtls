@@ -159,13 +159,13 @@ impl Io for ConnectedUdpSocket {
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self.socket.recv(buf) {
             Ok(i) => Ok(i),
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Err(Error::from(codes::SslWantRead)),
-            Err(_) => Err(Error::from(codes::NetRecvFailed))
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Err(codes::SslWantRead.into()),
+            Err(_) => Err(codes::NetRecvFailed.into())
         }
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<usize> {
-        self.socket.send(buf).map_err(|_| Error::from(codes::NetSendFailed))
+        self.socket.send(buf).map_err(|_| codes::NetSendFailed.into())
     }
 }
 
@@ -187,11 +187,9 @@ impl<T: IoCallbackUnsafe<AnyIo>> Io for Context<T> {
 impl<T: IoCallbackUnsafe<Stream>> Read for Context<T> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match self.recv(buf) {
-            Err(e) => match e.high_level() {
-                Some(codes::SslPeerCloseNotify) => Ok(0),
-                Some(codes::SslWantRead | codes::SslWantWrite) => Err(IoErrorKind::WouldBlock.into()),
-                _ => Err(crate::private::error_to_io_error(e)),
-            }
+            Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Ok(0),
+            Err(e) if matches!(e.high_level(), Some(codes::SslWantRead | codes::SslWantWrite)) => Err(IoErrorKind::WouldBlock.into()),
+            Err(e) => Err(crate::private::error_to_io_error(e)),
             Ok(i) => Ok(i),
         }
     }
@@ -205,11 +203,9 @@ impl<T: IoCallbackUnsafe<Stream>> Read for Context<T> {
 impl<T: IoCallbackUnsafe<Stream>> Write for Context<T> {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
         match self.send(buf) {
-            Err(e) => match e.high_level() {
-                Some(codes::SslPeerCloseNotify) => Ok(0),
-                Some(codes::SslWantRead | codes::SslWantWrite) => Err(IoErrorKind::WouldBlock.into()),
-                _ => Err(crate::private::error_to_io_error(e)),
-            },
+            Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Ok(0),
+            Err(e) if matches!(e.high_level(), Some(codes::SslWantRead | codes::SslWantWrite)) => Err(IoErrorKind::WouldBlock.into()),
+            Err(e) => Err(crate::private::error_to_io_error(e)),
             Ok(i) => Ok(i),
         }
     }
