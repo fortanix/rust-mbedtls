@@ -6,7 +6,10 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use crate::error::{Error, IntoResult, Result, codes};
+
+ #[cfg(feature = "std")]
+use crate::error::Error;
+use crate::error::{IntoResult, Result, codes};
 use mbedtls_sys::*;
 
 #[cfg(not(feature = "std"))]

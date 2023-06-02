@@ -191,13 +191,13 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &Error::Utf8Error(Some(ref e)) => {
-                f.write_fmt(format_args!("Error converting to UTF-8: {}", e))
+                write!(f, "Error converting to UTF-8: {}", e)
             }
-            &Error::Utf8Error(None) => f.write_fmt(format_args!("Error converting to UTF-8")),
-            &Error::LowLevel(e) => f.write_fmt(format_args!("{}", e.as_str())),
-            &Error::HighLevel(e) => f.write_fmt(format_args!("{}", e.as_str())),
-            &Error::HighAndLowLevel(hi, lo) => f.write_fmt(format_args!("({}, {})", hi.as_str(), lo.as_str())),
-            &Error::Other(code) => f.write_fmt(format_args!("mbedTLS unknown error code {}", code)),
+            &Error::Utf8Error(None) => write!(f, "Error converting to UTF-8"),
+            &Error::LowLevel(e) => write!(f, "{}", e.as_str()),
+            &Error::HighLevel(e) => write!(f, "{}", e.as_str()),
+            &Error::HighAndLowLevel(hi, lo) => write!(f, "({}, {})", hi.as_str(), lo.as_str()),
+            &Error::Other(code) => write!(f, "mbedTLS unknown error code {}", code),
         }
     }
 }
@@ -208,7 +208,7 @@ impl StdError for Error {}
 impl IntoResult for c_int {
     fn into_result(self) -> Result<c_int> {
         match self {
-            _ if self >= 0 => return Ok(self),
+            0.. => return Ok(self),
             ERR_UTF8_INVALID => return Err(Error::Utf8Error(None)),
             _ => return Err(Error::from(self))
         };
@@ -216,7 +216,7 @@ impl IntoResult for c_int {
 }
 
 error_enum!(
-    const MASK: c_int = 0xFF80;
+    const MASK: c_int = 0x7F80;
     enum HiError {
         CipherAllocFailed = ERR_CIPHER_ALLOC_FAILED,
         CipherAuthFailed = ERR_CIPHER_AUTH_FAILED,

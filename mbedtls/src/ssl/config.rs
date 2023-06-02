@@ -21,7 +21,9 @@ use mbedtls_sys::types::size_t;
 use crate::alloc::{List as MbedtlsList};
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
-use crate::error::{Error, Result, IntoResult, codes};
+#[cfg(feature = "std")]
+use crate::error::Error;
+use crate::error::{Result, IntoResult, codes};
 use crate::pk::Pk;
 use crate::pk::dhparam::Dhm;
 use crate::private::UnsafeFrom;

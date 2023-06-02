@@ -10,7 +10,9 @@ use crate::bignum::Mpi;
 use crate::rng::Random;
 use crate::hash::{MdInfo, Type as MdType};
 use crate::pk::rfc6979::generate_rfc6979_nonce;
-use crate::{Result, Error};
+#[cfg(not(feature = "std"))]
+use crate::Error;
+use crate::{Result, error::codes};
 
 use yasna::models::ObjectIdentifier;
 pub use yasna::{ASN1Error, ASN1ErrorKind};
@@ -97,11 +99,11 @@ impl DsaPublicKey {
                 let y = r.next().read_bitvec()?;
                 Ok((p,q,g,y))
             })
-        }).map_err(|_| Error::PkInvalidPubkey)?;
+        }).map_err(|_| codes::PkInvalidPubkey)?;
 
         let y = yasna::parse_der(&y.to_bytes(), |r| {
             r.read_biguint()
-        }).map_err(|_| Error::PkInvalidPubkey)?;
+        }).map_err(|_| codes::PkInvalidPubkey)?;
 
         let p = Mpi::from_binary(&p.to_bytes_be()).expect("Success");
         let q = Mpi::from_binary(&q.to_bytes_be()).expect("Success");
@@ -147,7 +149,7 @@ impl DsaPublicKey {
                 let s = rdr.next().read_biguint()?;
                 Ok((r,s))
             })
-        }).map_err(|_| Error::X509InvalidSignature)?;
+        }).map_err(|_| codes::X509InvalidSignature)?;
 
         let r = Mpi::from_binary(&r.to_bytes_be()).expect("Success");
         let s = Mpi::from_binary(&s.to_bytes_be()).expect("Success");
@@ -263,10 +265,10 @@ impl DsaPrivateKey {
                 let x = r.next().read_bytes()?;
                 Ok((p,q,g,x))
             })
-        }).map_err(|_| Error::PkInvalidPubkey)?;
+        }).map_err(|_| codes::PkInvalidPubkey)?;
 
         let x = yasna::parse_der(&x, |r| { r.read_biguint() }).
-            map_err(|_| Error::PkInvalidPubkey)?;
+            map_err(|_| codes::PkInvalidPubkey)?;
 
         let p = Mpi::from_binary(&p.to_bytes_be()).expect("Success");
         let q = Mpi::from_binary(&q.to_bytes_be()).expect("Success");

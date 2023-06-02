@@ -233,7 +233,7 @@ impl<T> Context<T>  {
             // Although got `Error::SslWantWrite` means underlying IO is blocked, but some of `buf` is still saved into c-mbedtls's
             // buffer, so we need to return size of bytes that has been buffered.
             // Since we know before this call `out_left` was 0, all buffer (with in the MBEDTLS_SSL_OUT_CONTENT_LEN part) is buffered
-            Err(Error::SslWantWrite) => Ok(std::cmp::min(unsafe { ssl_get_max_out_record_payload((&*self).into()).into_result()? as usize }, buf.len())),
+            Err(e) if e.high_level() == Some(codes::SslWantWrite) => Ok(std::cmp::min(unsafe { ssl_get_max_out_record_payload((&*self).into()).into_result()? as usize }, buf.len())),
             res => res,
         }
     }
@@ -285,7 +285,8 @@ impl<T> Context<T> {
     pub fn handshake(&mut self) -> Result<()> {
         match self.inner_handshake() {
             Ok(()) => Ok(()),
-            Err(e) if matches!(e.high_level(), Some(codes::SslWantRead | codes::SslWantWrite | codes::SslHelloVerifyRequired)) => {
+            Err(e) if matches!(e.high_level(), Some(codes::SslWantRead | codes::SslWantWrite)) => Err(e),
+            Err(e) if matches!(e.high_level(), Some(codes::SslHelloVerifyRequired)) => {
                     unsafe {
                         // `ssl_session_reset` resets the client ID but the user will call handshake
                         // again in this case and the client ID is required for a DTLS connection setup

@@ -9,7 +9,7 @@
 #![cfg(all(feature = "std", feature = "async"))]
 
 use crate::{
-    error::{Error, Result},
+    error::{Error, Result, codes},
     ssl::{
         context::Context,
         io::{IoCallback, IoCallbackUnsafe},
@@ -76,11 +76,11 @@ impl<T: Unpin + AsyncRead + AsyncWrite + 'static> Context<T> {
             fn poll(mut self: Pin<&mut Self>, ctx: &mut TaskContext) -> std::task::Poll<Self::Output> {
                 self.0
                     .with_bio_async(ctx, |ssl_ctx| match ssl_ctx.handshake() {
-                        Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Poll::Pending,
+                        Err(e) if matches!(e.high_level(), Some(codes::SslWantRead | codes::SslWantWrite)) => Poll::Pending,
                         Err(e) => Poll::Ready(Err(e)),
                         Ok(()) => Poll::Ready(Ok(())),
                     })
-                    .unwrap_or(Poll::Ready(Err(Error::NetSendFailed)))
+                    .unwrap_or(Poll::Ready(Err(Error::from(codes::NetSendFailed))))
             }
         }
 
@@ -100,15 +100,15 @@ where
         }
 
         self.with_bio_async(cx, |ssl_ctx| match ssl_ctx.recv(buf.initialize_unfilled()) {
-            Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(())),
-            Err(Error::SslWantRead) => Poll::Pending,
+            Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Poll::Ready(Ok(())),
+            Err(e) if e.high_level() == Some(codes::SslWantRead) => Poll::Pending,
             Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
             Ok(i) => {
                 buf.advance(i);
                 Poll::Ready(Ok(()))
             }
         })
-        .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetRecvFailed))))
+        .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::from(codes::NetRecvFailed)))))
     }
 }
 
@@ -123,12 +123,12 @@ where
 
         self
             .with_bio_async(cx, |ssl_ctx| match ssl_ctx.async_write(buf) {
-                Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
-                Err(Error::SslWantWrite) => Poll::Pending,
+                Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
+                Err(e) if e.high_level() == Some(codes::SslWantWrite) => Poll::Pending,
                 Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
                 Ok(i) => Poll::Ready(Ok(i)),
             })
-            .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetSendFailed))))
+            .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::from(codes::NetSendFailed)))))
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
@@ -138,9 +138,9 @@ where
 
         match self
             .with_bio_async(cx, Context::flush_output)
-            .unwrap_or(Err(Error::NetSendFailed))
+            .unwrap_or(Err(Error::from(codes::NetSendFailed)))
         {
-            Err(Error::SslWantWrite) => Poll::Pending,
+            Err(e) if e.high_level() == Some(codes::SslWantWrite) => Poll::Pending,
             Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
             Ok(()) => Poll::Ready(Ok(())),
         }
@@ -153,9 +153,9 @@ where
 
         match self
             .with_bio_async(cx, Context::close_notify)
-            .unwrap_or(Err(Error::NetSendFailed))
+            .unwrap_or(Err(Error::from(codes::NetSendFailed)))
         {
-            Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Poll::Pending,
+            Err(e) if matches!(e.high_level(), Some(codes::SslWantRead | codes::SslWantWrite)) => Poll::Pending,
             Err(e) => {
                 self.drop_io();
                 Poll::Ready(Err(crate::private::error_to_io_error(e)))

@@ -25,7 +25,8 @@ use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 
 #[cfg(feature = "std")]
-use crate::error::{Result, Error, codes};
+use crate::error::{Error, codes};
+use crate::error::Result;
 use super::context::Context;
 
 /// A direct representation of the `mbedtls_ssl_send_t` and `mbedtls_ssl_recv_t`
