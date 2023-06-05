@@ -11,6 +11,7 @@ use bindgen;
 use std::fmt::Write as _;
 use std::fs::{self, File};
 use std::io::Write;
+use bindgen::Formatter;
 
 use crate::headers;
 
@@ -104,7 +105,7 @@ impl super::BuildConfig {
         if compiler.is_like_gnu() {
             let output = compiler.to_command().args(&["--print-sysroot"]).output();
             match output {
-                Ok(sysroot) => {
+                Ok(sysroot) if sysroot.status.success() => {
                     let path = std::str::from_utf8(&sysroot.stdout).expect("Malformed sysroot");
                     let trimmed_path = path
                         .strip_suffix("\r\n")
@@ -135,7 +136,7 @@ impl super::BuildConfig {
             .derive_default(true)
             .prepend_enum_name(false)
             .translate_enum_integer_types(true)
-            .rustfmt_bindings(false)
+            .formatter(Formatter::None)
             .raw_line("#![allow(dead_code, deref_nullptr, non_snake_case, non_camel_case_types, non_upper_case_globals, invalid_value)]")
             .generate()
             .expect("bindgen error")

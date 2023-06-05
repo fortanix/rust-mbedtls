@@ -51,7 +51,7 @@
  *      include/mbedtls/bn_mul.h
  *
  * Required by:
- *      MBEDTLS_AESNI_C
+ *      MBEDTLS_AESNI_C (on some platforms)
  *      MBEDTLS_PADLOCK_C
  *
  * Comment to disable the use of assembly code.
@@ -128,7 +128,12 @@
  * MBEDTLS_PLATFORM_TIME_MACRO, MBEDTLS_PLATFORM_TIME_TYPE_MACRO and
  * MBEDTLS_PLATFORM_STD_TIME.
  *
- * Comment if your system does not support time functions
+ * Comment if your system does not support time functions.
+ *
+ * \note If MBEDTLS_TIMING_C is set - to enable the semi-portable timing
+ *       interface - timing.c will include time.h on suitable platforms
+ *       regardless of the setting of MBEDTLS_HAVE_TIME, unless
+ *       MBEDTLS_TIMING_ALT is used. See timing.c for more information.
  */
 #define MBEDTLS_HAVE_TIME
 
@@ -321,7 +326,7 @@
  */
 //#define MBEDTLS_CHECK_PARAMS_ASSERT
 
-/* \} name SECTION: System support */
+/** \} name SECTION: System support */
 
 /**
  * \name SECTION: mbed TLS feature support
@@ -395,7 +400,7 @@
 //#define MBEDTLS_XTEA_ALT
 
 /*
- * When replacing the elliptic curve module, pleace consider, that it is
+ * When replacing the elliptic curve module, please consider, that it is
  * implemented with two .c files:
  *      - ecp.c
  *      - ecp_curves.c
@@ -854,12 +859,37 @@
  * This is useful in non-threaded environments if you want to avoid blocking
  * for too long on ECC (and, hence, X.509 or SSL/TLS) operations.
  *
- * Uncomment this macro to enable restartable ECC computations.
+ * This option:
+ * - Adds xxx_restartable() variants of existing operations in the
+ *   following modules, with corresponding restart context types:
+ *   - ECP (for Short Weierstrass curves only): scalar multiplication (mul),
+ *     linear combination (muladd);
+ *   - ECDSA: signature generation & verification;
+ *   - PK: signature generation & verification;
+ *   - X509: certificate chain verification.
+ * - Adds mbedtls_ecdh_enable_restart() in the ECDH module.
+ * - Changes the behaviour of TLS 1.2 clients (not servers) when using the
+ *   ECDHE-ECDSA key exchange (not other key exchanges) to make all ECC
+ *   computations restartable:
+ *   - ECDH operations from the key exchange, only for Short Weierstrass
+ *     curves;
+ *   - verification of the server's key exchange signature;
+ *   - verification of the server's certificate chain;
+ *   - generation of the client's signature if client authentication is used,
+ *     with an ECC key/certificate.
+ *
+ * \note  In the cases above, the usual SSL/TLS functions, such as
+ *        mbedtls_ssl_handshake(), can now return
+ *        MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS.
  *
  * \note  This option only works with the default software implementation of
  *        elliptic curve functionality. It is incompatible with
- *        MBEDTLS_ECP_ALT, MBEDTLS_ECDH_XXX_ALT, MBEDTLS_ECDSA_XXX_ALT
- *        and MBEDTLS_ECDH_LEGACY_CONTEXT.
+ *        MBEDTLS_ECP_ALT, MBEDTLS_ECDH_XXX_ALT, MBEDTLS_ECDSA_XXX_ALT,
+ *        MBEDTLS_ECDH_LEGACY_CONTEXT, and MBEDTLS_USE_PSA_CRYPTO.
+ *
+ * Requires: MBEDTLS_ECP_C
+ *
+ * Uncomment this macro to enable restartable ECC computations.
  */
 //#define MBEDTLS_ECP_RESTARTABLE
 
@@ -1324,7 +1354,7 @@
  * Include backtrace information with each allocated block.
  *
  * Requires: MBEDTLS_MEMORY_BUFFER_ALLOC_C
- *           GLIBC-compatible backtrace() an backtrace_symbols() support
+ *           GLIBC-compatible backtrace() and backtrace_symbols() support
  *
  * Uncomment this macro to include backtrace information
  */
@@ -1493,7 +1523,7 @@
  * Enable an implementation of SHA-256 that has lower ROM footprint but also
  * lower performance.
  *
- * The default implementation is meant to be a reasonnable compromise between
+ * The default implementation is meant to be a reasonable compromise between
  * performance and size. This version optimizes more aggressively for size at
  * the expense of performance. Eg on Cortex-M4 it reduces the size of
  * mbedtls_sha256_process() from ~2KB to ~0.5KB for a performance hit of about
@@ -1615,6 +1645,8 @@
  * saved after the handshake to allow for more efficient serialization, so if
  * you don't need this feature you'll save RAM by disabling it.
  *
+ * Requires: MBEDTLS_GCM_C or MBEDTLS_CCM_C or MBEDTLS_CHACHAPOLY_C
+ *
  * Comment to disable the context serialization APIs.
  */
 #define MBEDTLS_SSL_CONTEXT_SERIALIZATION
@@ -1658,7 +1690,7 @@
  * Enable support for RFC 7627: Session Hash and Extended Master Secret
  * Extension.
  *
- * This was introduced as "the proper fix" to the Triple Handshake familiy of
+ * This was introduced as "the proper fix" to the Triple Handshake family of
  * attacks, but it is recommended to always use it (even if you disable
  * renegotiation), since it actually fixes a more fundamental issue in the
  * original SSL/TLS design, and has implications beyond Triple Handshake.
@@ -1704,7 +1736,7 @@
  * \note This option has no influence on the protection against the
  *       triple handshake attack. Even if it is disabled, Mbed TLS will
  *       still ensure that certificates do not change during renegotiation,
- *       for exaple by keeping a hash of the peer's certificate.
+ *       for example by keeping a hash of the peer's certificate.
  *
  * Comment this macro to disable storing the peer's certificate
  * after the handshake.
@@ -1909,7 +1941,7 @@
  * unless you know for sure amplification cannot be a problem in the
  * environment in which your server operates.
  *
- * \warning Disabling this can ba a security risk! (see above)
+ * \warning Disabling this can be a security risk! (see above)
  *
  * Requires: MBEDTLS_SSL_PROTO_DTLS
  *
@@ -2162,8 +2194,19 @@
  * This setting allows support for cryptographic mechanisms through the PSA
  * API to be configured separately from support through the mbedtls API.
  *
- * Uncomment this to enable use of PSA Crypto configuration settings which
- * can be found in include/psa/crypto_config.h.
+ * When this option is disabled, the PSA API exposes the cryptographic
+ * mechanisms that can be implemented on top of the `mbedtls_xxx` API
+ * configured with `MBEDTLS_XXX` symbols.
+ *
+ * When this option is enabled, the PSA API exposes the cryptographic
+ * mechanisms requested by the `PSA_WANT_XXX` symbols defined in
+ * include/psa/crypto_config.h. The corresponding `MBEDTLS_XXX` settings are
+ * automatically enabled if required (i.e. if no PSA driver provides the
+ * mechanism). You may still freely enable additional `MBEDTLS_XXX` symbols
+ * in config.h.
+ *
+ * If the symbol #MBEDTLS_PSA_CRYPTO_CONFIG_FILE is defined, it specifies
+ * an alternative header to include instead of include/psa/crypto_config.h.
  *
  * If you enable this option and write your own configuration file, you must
  * include mbedtls/config_psa.h in your configuration file. The default
@@ -2289,7 +2332,7 @@
  * Uncomment to enable use of ZLIB
  */
 //#define MBEDTLS_ZLIB_SUPPORT
-/* \} name SECTION: mbed TLS feature support */
+/** \} name SECTION: mbed TLS feature support */
 
 /**
  * \name SECTION: mbed TLS modules
@@ -2301,14 +2344,32 @@
 /**
  * \def MBEDTLS_AESNI_C
  *
- * Enable AES-NI support on x86-64.
+ * Enable AES-NI support on x86-64 or x86-32.
+ *
+ * \note AESNI is only supported with certain compilers and target options:
+ * - Visual Studio 2013: supported.
+ * - GCC, x86-64, target not explicitly supporting AESNI:
+ *   requires MBEDTLS_HAVE_ASM.
+ * - GCC, x86-32, target not explicitly supporting AESNI:
+ *   not supported.
+ * - GCC, x86-64 or x86-32, target supporting AESNI: supported.
+ *   For this assembly-less implementation, you must currently compile
+ *   `library/aesni.c` and `library/aes.c` with machine options to enable
+ *   SSE2 and AESNI instructions: `gcc -msse2 -maes -mpclmul` or
+ *   `clang -maes -mpclmul`.
+ * - Non-x86 targets: this option is silently ignored.
+ * - Other compilers: this option is silently ignored.
+ *
+ * \note
+ * Above, "GCC" includes compatible compilers such as Clang.
+ * The limitations on target support are likely to be relaxed in the future.
  *
  * Module:  library/aesni.c
  * Caller:  library/aes.c
  *
- * Requires: MBEDTLS_HAVE_ASM
+ * Requires: MBEDTLS_HAVE_ASM (on some platforms, see note)
  *
- * This modules adds support for the AES-NI instructions on x86-64
+ * This modules adds support for the AES-NI instructions on x86.
  */
 #define MBEDTLS_AESNI_C
 
@@ -2409,7 +2470,7 @@
  *      MBEDTLS_TLS_PSK_WITH_RC4_128_SHA
  *
  * \warning   ARC4 is considered a weak cipher and its use constitutes a
- *            security risk. If possible, we recommend avoidng dependencies on
+ *            security risk. If possible, we recommend avoiding dependencies on
  *            it, and considering stronger ciphers instead.
  *
  */
@@ -2722,7 +2783,7 @@
  *
  * PEM_PARSE uses DES/3DES for decrypting encrypted keys.
  *
- * \warning   DES is considered a weak cipher and its use constitutes a
+ * \warning   DES/3DES are considered weak ciphers and their use constitutes a
  *            security risk. We recommend considering stronger ciphers instead.
  */
 #define MBEDTLS_DES_C
@@ -2902,7 +2963,7 @@
  *
  * Requires: MBEDTLS_MD_C
  *
- * Uncomment to enable the HMAC_DRBG random number geerator.
+ * Uncomment to enable the HMAC_DRBG random number generator.
  */
 #define MBEDTLS_HMAC_DRBG_C
 
@@ -3014,7 +3075,7 @@
  *
  * \note See also our Knowledge Base article about porting to a new
  * environment:
- * https://tls.mbed.org/kb/how-to/how-do-i-port-mbed-tls-to-a-new-environment-OS
+ * https://mbed-tls.readthedocs.io/en/latest/kb/how-to/how-do-i-port-mbed-tls-to-a-new-environment-OS
  *
  * Module:  library/net_sockets.c
  *
@@ -3096,7 +3157,7 @@
 /**
  * \def MBEDTLS_PK_C
  *
- * Enable the generic public (asymetric) key layer.
+ * Enable the generic public (asymmetric) key layer.
  *
  * Module:  library/pk.c
  * Caller:  library/ssl_tls.c
@@ -3112,7 +3173,7 @@
 /**
  * \def MBEDTLS_PK_PARSE_C
  *
- * Enable the generic public (asymetric) key parser.
+ * Enable the generic public (asymmetric) key parser.
  *
  * Module:  library/pkparse.c
  * Caller:  library/x509_crt.c
@@ -3127,7 +3188,7 @@
 /**
  * \def MBEDTLS_PK_WRITE_C
  *
- * Enable the generic public (asymetric) key writer.
+ * Enable the generic public (asymmetric) key writer.
  *
  * Module:  library/pkwrite.c
  * Caller:  library/x509write.c
@@ -3384,7 +3445,8 @@
  * Module:  library/ssl_ticket.c
  * Caller:
  *
- * Requires: MBEDTLS_CIPHER_C
+ * Requires: MBEDTLS_CIPHER_C &&
+ *           ( MBEDTLS_GCM_C || MBEDTLS_CCM_C || MBEDTLS_CHACHAPOLY_C )
  */
 #define MBEDTLS_SSL_TICKET_C
 
@@ -3440,7 +3502,7 @@
  * contexts are not shared between threads. If you do intend to use contexts
  * between threads, you will need to enable this layer to prevent race
  * conditions. See also our Knowledge Base article about threading:
- * https://tls.mbed.org/kb/development/thread-safety-and-multi-threading
+ * https://mbed-tls.readthedocs.io/en/latest/kb/development/thread-safety-and-multi-threading
  *
  * Module:  library/threading.c
  *
@@ -3466,9 +3528,13 @@
  * your own implementation of the whole module by setting
  * \c MBEDTLS_TIMING_ALT in the current file.
  *
+ * \note The timing module will include time.h on suitable platforms
+ *       regardless of the setting of MBEDTLS_HAVE_TIME, unless
+ *       MBEDTLS_TIMING_ALT is used. See timing.c for more information.
+ *
  * \note See also our Knowledge Base article about porting to a new
  * environment:
- * https://tls.mbed.org/kb/how-to/how-do-i-port-mbed-tls-to-a-new-environment-OS
+ * https://mbed-tls.readthedocs.io/en/latest/kb/how-to/how-do-i-port-mbed-tls-to-a-new-environment-OS
  *
  * Module:  library/timing.c
  * Caller:  library/havege.c
@@ -3598,7 +3664,88 @@
  */
 #define MBEDTLS_XTEA_C
 
-/* \} name SECTION: mbed TLS modules */
+/** \} name SECTION: mbed TLS modules */
+
+/**
+ * \name SECTION: General configuration options
+ *
+ * This section contains Mbed TLS build settings that are not associated
+ * with a particular module.
+ *
+ * \{
+ */
+
+/**
+ * \def MBEDTLS_CONFIG_FILE
+ *
+ * If defined, this is a header which will be included instead of
+ * `"mbedtls/config.h"`.
+ * This header file specifies the compile-time configuration of Mbed TLS.
+ * Unlike other configuration options, this one must be defined on the
+ * compiler command line: a definition in `config.h` would have no effect.
+ *
+ * This macro is expanded after an <tt>\#include</tt> directive. This is a popular but
+ * non-standard feature of the C language, so this feature is only available
+ * with compilers that perform macro expansion on an <tt>\#include</tt> line.
+ *
+ * The value of this symbol is typically a path in double quotes, either
+ * absolute or relative to a directory on the include search path.
+ */
+//#define MBEDTLS_CONFIG_FILE "mbedtls/config.h"
+
+/**
+ * \def MBEDTLS_USER_CONFIG_FILE
+ *
+ * If defined, this is a header which will be included after
+ * `"mbedtls/config.h"` or #MBEDTLS_CONFIG_FILE.
+ * This allows you to modify the default configuration, including the ability
+ * to undefine options that are enabled by default.
+ *
+ * This macro is expanded after an <tt>\#include</tt> directive. This is a popular but
+ * non-standard feature of the C language, so this feature is only available
+ * with compilers that perform macro expansion on an <tt>\#include</tt> line.
+ *
+ * The value of this symbol is typically a path in double quotes, either
+ * absolute or relative to a directory on the include search path.
+ */
+//#define MBEDTLS_USER_CONFIG_FILE "/dev/null"
+
+/**
+ * \def MBEDTLS_PSA_CRYPTO_CONFIG_FILE
+ *
+ * If defined, this is a header which will be included instead of
+ * `"psa/crypto_config.h"`.
+ * This header file specifies which cryptographic mechanisms are available
+ * through the PSA API when #MBEDTLS_PSA_CRYPTO_CONFIG is enabled, and
+ * is not used when #MBEDTLS_PSA_CRYPTO_CONFIG is disabled.
+ *
+ * This macro is expanded after an <tt>\#include</tt> directive. This is a popular but
+ * non-standard feature of the C language, so this feature is only available
+ * with compilers that perform macro expansion on an <tt>\#include</tt> line.
+ *
+ * The value of this symbol is typically a path in double quotes, either
+ * absolute or relative to a directory on the include search path.
+ */
+//#define MBEDTLS_PSA_CRYPTO_CONFIG_FILE "psa/crypto_config.h"
+
+/**
+ * \def MBEDTLS_PSA_CRYPTO_USER_CONFIG_FILE
+ *
+ * If defined, this is a header which will be included after
+ * `"psa/crypto_config.h"` or #MBEDTLS_PSA_CRYPTO_CONFIG_FILE.
+ * This allows you to modify the default configuration, including the ability
+ * to undefine options that are enabled by default.
+ *
+ * This macro is expanded after an <tt>\#include</tt> directive. This is a popular but
+ * non-standard feature of the C language, so this feature is only available
+ * with compilers that perform macro expansion on an <tt>\#include</tt> line.
+ *
+ * The value of this symbol is typically a path in double quotes, either
+ * absolute or relative to a directory on the include search path.
+ */
+//#define MBEDTLS_PSA_CRYPTO_USER_CONFIG_FILE "/dev/null"
+
+/** \} name SECTION: General configuration options */
 
 /**
  * \name SECTION: Module configuration options
@@ -3609,14 +3756,18 @@
  *
  * Our advice is to enable options and change their values here
  * only if you have a good reason and know the consequences.
- *
- * Please check the respective header file for documentation on these
- * parameters (to prevent duplicate documentation).
  * \{
  */
+/* The Doxygen documentation here is used when a user comments out a
+ * setting and runs doxygen themselves. On the other hand, when we typeset
+ * the full documentation including disabled settings, the documentation
+ * in specific modules' header files is used if present. When editing this
+ * file, make sure that each option is documented in exactly one place,
+ * plus optionally a same-line Doxygen comment here if there is a Doxygen
+ * comment in the specific module. */
 
 /* MPI / BIGNUM options */
-//#define MBEDTLS_MPI_WINDOW_SIZE            6 /**< Maximum window size used. */
+//#define MBEDTLS_MPI_WINDOW_SIZE            2 /**< Maximum window size used. */
 //#define MBEDTLS_MPI_MAX_SIZE            1024 /**< Maximum number of bytes for usable MPIs. */
 
 /* CTR_DRBG options */
@@ -4002,7 +4153,7 @@
  */
 //#define MBEDTLS_ECDH_VARIANT_EVEREST_ENABLED
 
-/* \} name SECTION: Customisation configuration options */
+/** \} name SECTION: Module configuration options */
 
 /* Target and application specific configurations
  *
