@@ -287,25 +287,25 @@ impl<T> Context<T> {
             Ok(()) => Ok(()),
             Err(e) if matches!(e.high_level(), Some(codes::SslWantRead | codes::SslWantWrite)) => Err(e),
             Err(e) if matches!(e.high_level(), Some(codes::SslHelloVerifyRequired)) => {
-                    unsafe {
-                        // `ssl_session_reset` resets the client ID but the user will call handshake
-                        // again in this case and the client ID is required for a DTLS connection setup
-                        // on the server side. So we extract it before and set it after
-                        // `ssl_session_reset`.
-                        let mut client_transport_id = None;
-                        if !self.inner.handle().cli_id.is_null() {
-                            client_transport_id = Some(Vec::from(core::slice::from_raw_parts(self.inner.handle().cli_id, self.inner.handle().cli_id_len)));
-                        }
-                        ssl_session_reset(self.into()).into_result()?;
-                        if let Some(client_id) = client_transport_id.take() {
-                            self.set_client_transport_id(&client_id)?;
-                        }
+                unsafe {
+                    // `ssl_session_reset` resets the client ID but the user will call handshake
+                    // again in this case and the client ID is required for a DTLS connection setup
+                    // on the server side. So we extract it before and set it after
+                    // `ssl_session_reset`.
+                    let mut client_transport_id = None;
+                    if !self.inner.handle().cli_id.is_null() {
+                        client_transport_id = Some(Vec::from(core::slice::from_raw_parts(self.inner.handle().cli_id, self.inner.handle().cli_id_len)));
                     }
-                    Err(codes::SslHelloVerifyRequired.into())
+                    ssl_session_reset(self.into()).into_result()?;
+                    if let Some(client_id) = client_transport_id.take() {
+                        self.set_client_transport_id(&client_id)?;
+                    }
+                }
+                Err(codes::SslHelloVerifyRequired.into())
             },
             Err(e) => {
-                    self.close();
-                    Err(e)
+                self.close();
+                Err(e)
             },
         }
     }
