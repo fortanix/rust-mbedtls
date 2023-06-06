@@ -106,3 +106,10 @@ pub unsafe extern "C" fn mbedtls_time(tp: *mut mbedtls_sys::types::time_t) -> mb
     }
     timestamp
 }
+
+#[cfg(feature = "time")]
+#[no_mangle]
+// needs to be pub for global visibility
+pub unsafe extern "C" fn mbedtls_ms_time() -> mbedtls_sys::types::int64_t {
+    chrono::Utc::now().timestamp_millis() as mbedtls_sys::types::int64_t
+}
