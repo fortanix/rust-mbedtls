@@ -33,7 +33,7 @@ once_cell = "1.17.1"
 rs-libc = "0.2.0"
 
 [dependencies.mbedtls-sys-auto]
-version = "3.4.0"
+version = "3.5.0-alpha.1+0b3de6f"
 default-features = false
 features = ["trusted_cert_callback", "threading"]
 path = "../mbedtls-sys"
