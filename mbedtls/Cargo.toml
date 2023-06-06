@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.9.1"
+version = "0.10.0"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -75,7 +75,7 @@ dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 pkcs12 = ["std", "yasna"]
 pkcs12_rc2 = ["pkcs12", "rc2", "cbc"]
 legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
-async = ["std", "tokio","tokio/net","tokio/io-util", "tokio/macros"]
+async = ["std", "tokio", "tokio/net", "tokio/io-util", "tokio/macros"]
 async-rt = ["async", "tokio/rt", "tokio/sync", "tokio/rt-multi-thread"]
 
 [[example]]

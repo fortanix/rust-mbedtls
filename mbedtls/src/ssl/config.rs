@@ -21,7 +21,9 @@ use mbedtls_sys::types::size_t;
 use crate::alloc::{List as MbedtlsList};
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
-use crate::error::{Error, Result, IntoResult};
+#[cfg(feature = "std")]
+use crate::error::Error;
+use crate::error::{Result, IntoResult, codes};
 use crate::pk::Pk;
 use crate::pk::dhparam::Dhm;
 use crate::private::UnsafeFrom;
@@ -114,10 +116,11 @@ unsafe impl Sync for NullTerminatedStrList {}
 impl NullTerminatedStrList {
     #[cfg(feature = "std")]
     pub fn new(list: &[&str]) -> Result<Self> {
+
         let mut ret = NullTerminatedStrList { c: Vec::with_capacity(list.len() + 1) };
 
         for item in list {
-            ret.c.push(::std::ffi::CString::new(*item).map_err(|_| Error::SslBadInputData)?.into_raw());
+            ret.c.push(::std::ffi::CString::new(*item).map_err(|_| Error::from(codes::SslBadInputData))?.into_raw());
         }
         
         ret.c.push(core::ptr::null_mut()); 
@@ -261,7 +264,7 @@ impl Config {
             Version::Tls1_0 => 1,
             Version::Tls1_1 => 2,
             Version::Tls1_2 => 3,
-            _ => { return Err(Error::SslBadHsProtocolVersion); }
+            _ => { return Err(codes::SslBadHsProtocolVersion.into()); }
         };
 
         unsafe { ssl_conf_min_version(self.into(), 3, minor) };
@@ -274,7 +277,7 @@ impl Config {
             Version::Tls1_0 => 1,
             Version::Tls1_1 => 2,
             Version::Tls1_2 => 3,
-            _ => { return Err(Error::SslBadHsProtocolVersion); }
+            _ => { return Err(codes::SslBadHsProtocolVersion.into()); }
         };
         unsafe { ssl_conf_max_version(self.into(), 3, minor) };
         Ok(())
