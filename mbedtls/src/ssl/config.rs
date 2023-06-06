@@ -212,23 +212,13 @@ define!(
 
 unsafe impl Sync for Config {}
 
-/// you need to call `psa_crypto_init()` before calling any function from the SSL/TLS, X.509 or PK modules
-#[cfg(feature = "tls13")]
-pub fn psa_crypto_init() {
-    use once_cell::sync::OnceCell;
-    static INIT: OnceCell<()> = OnceCell::new();
-
-    INIT.get_or_init(|| {
-        unsafe { psa::crypto_init() };
-        return ();
-    });
-}
-
 impl Config {
     pub fn new(e: Endpoint, t: Transport, p: Preset) -> Self {
-        // PSA crypto need to be initialized for TLS 1.3
+        // `psa_crypto_init()` need to be called before calling any function from the SSL/TLS, X.509
+        // or PK modules. Since we only turn on PSA with TLS 1.3, it just need to be called here so
+        // that TLS could work correctly.
         #[cfg(feature = "tls13")]
-        psa_crypto_init();
+        mbedtls_platform_support::psa_crypto_init();
         
         let mut inner = ssl_config::default();
 

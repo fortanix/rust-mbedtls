@@ -116,3 +116,15 @@ pub unsafe extern "C" fn explicit_bzero(buf: *mut mbedtls_sys::types::raw_types:
     let buffer = core::slice::from_raw_parts_mut(buf as *mut mbedtls_sys::types::raw_types::c_char, len);
     buffer.zeroize();
 }
+
+/// you need to call 
+#[cfg(feature = "tls13")]
+pub fn psa_crypto_init() {
+    use once_cell::sync::OnceCell;
+    static INIT: OnceCell<()> = OnceCell::new();
+
+    INIT.get_or_init(|| {
+        unsafe { mbedtls_sys::psa::crypto_init() };
+        return ();
+    });
+}

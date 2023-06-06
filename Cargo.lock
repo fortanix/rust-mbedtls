@@ -607,7 +607,6 @@ dependencies = [
  "mbedtls-platform-support",
  "mbedtls-sys-auto",
  "num-bigint",
- "once_cell",
  "pin-project-lite",
  "rand 0.4.6",
  "rs-libc",
@@ -629,6 +628,7 @@ dependencies = [
  "cfg-if",
  "chrono",
  "mbedtls-sys-auto",
+ "once_cell",
  "spin",
  "zeroize",
 ]
