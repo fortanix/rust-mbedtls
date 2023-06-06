@@ -203,6 +203,7 @@ define!(
 );
 
 /// Always use into() to convert to i32, do not use 'as i32'. (until issue is fixed: https://github.com/fortanix/rust-mbedtls/issues/129)
+#[cfg(feature = "tls13")]
 define!(
     #[non_exhaustive]
     #[c_ty(c_int)]
@@ -216,6 +217,7 @@ define!(
 );
 
 /// Always use into() to convert to i32, do not use 'as i32'. (until issue is fixed: https://github.com/fortanix/rust-mbedtls/issues/129)
+#[cfg(feature = "tls13")]
 define!(
     #[non_exhaustive]
     #[c_ty(c_int)]
@@ -243,10 +245,11 @@ define!(
 );
 
 /// Always use into() to convert to i32, do not use 'as i32'. (until issue is fixed: https://github.com/fortanix/rust-mbedtls/issues/129)
+#[cfg(feature = "tls13")]
 define!(
     #[non_exhaustive]
     #[c_ty(c_int)]
-    enum TLS13SignatureAlgorithms {
+    enum Tls13SignatureAlgorithms {
         RsaPkcs1Sha256 = TLS1_3_SIG_RSA_PKCS1_SHA256,
         RsaPkcs1Sha384 = TLS1_3_SIG_RSA_PKCS1_SHA384,
         RsaPkcs1Sha512 = TLS1_3_SIG_RSA_PKCS1_SHA512,
@@ -270,17 +273,19 @@ define!(
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 
+#[cfg(feature = "tls13")]
 pub fn tls13_preset_default_sig_algs() -> Vec<u16> {
+    use Tls13SignatureAlgorithms::*;
     vec![
-        Into::<c_int>::into(TLS13SignatureAlgorithms::EcdsaSecp256R1Sha256) as u16,
-        Into::<c_int>::into(TLS13SignatureAlgorithms::EcdsaSecp384R1Sha384) as u16,
-        Into::<c_int>::into(TLS13SignatureAlgorithms::EcdsaSecp521R1Sha512) as u16,
-        Into::<c_int>::into(TLS13SignatureAlgorithms::RsaPkcs1Sha256) as u16,
-        Into::<c_int>::into(TLS13SignatureAlgorithms::RsaPkcs1Sha384) as u16,
-        Into::<c_int>::into(TLS13SignatureAlgorithms::RsaPkcs1Sha512) as u16,
-        Into::<c_int>::into(TLS13SignatureAlgorithms::RsaPssRsaeSha256) as u16,
-        Into::<c_int>::into(TLS13SignatureAlgorithms::RsaPssRsaeSha384) as u16,
-        Into::<c_int>::into(TLS13SignatureAlgorithms::RsaPssRsaeSha512) as u16,
-        Into::<c_int>::into(TLS13SignatureAlgorithms::None) as u16,
+        Into::<c_int>::into(EcdsaSecp256R1Sha256) as u16,
+        Into::<c_int>::into(EcdsaSecp384R1Sha384) as u16,
+        Into::<c_int>::into(EcdsaSecp521R1Sha512) as u16,
+        Into::<c_int>::into(RsaPkcs1Sha256) as u16,
+        Into::<c_int>::into(RsaPkcs1Sha384) as u16,
+        Into::<c_int>::into(RsaPkcs1Sha512) as u16,
+        Into::<c_int>::into(RsaPssRsaeSha256) as u16,
+        Into::<c_int>::into(RsaPssRsaeSha384) as u16,
+        Into::<c_int>::into(RsaPssRsaeSha512) as u16,
+        Into::<c_int>::into(None) as u16,
     ]
 }

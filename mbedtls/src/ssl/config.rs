@@ -33,12 +33,23 @@ use crate::ssl::context::HandshakeContext;
 use crate::ssl::ticket::TicketCallback;
 use crate::x509::{self, Certificate, Crl, Profile, VerifyCallback};
 
+#[cfg(feature = "tls13")]
 define!(
     #[c_ty(ssl_protocol_version)]
     #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Copy, Clone)]
     enum Version {
         Tls12 = SSL_VERSION_TLS1_2,
         Tls13 = SSL_VERSION_TLS1_3,
+        Unknown = SSL_VERSION_UNKNOWN,
+    }
+);
+
+#[cfg(not(feature = "tls13"))]
+define!(
+    #[c_ty(ssl_protocol_version)]
+    #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Copy, Clone)]
+    enum Version {
+        Tls12 = SSL_VERSION_TLS1_2,
         Unknown = SSL_VERSION_UNKNOWN,
     }
 );
@@ -62,6 +73,7 @@ define!(
     }
 );
 
+#[cfg(feature = "tls13")]
 bitflags! {
     pub struct Tls13KeyExchangeMode: c_int {
         const PSK = SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK as c_int;
