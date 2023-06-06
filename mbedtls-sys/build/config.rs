@@ -411,7 +411,6 @@ pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
     ("aes_alt",               ("MBEDTLS_AES_DECRYPT_ALT",                   Defined)),
     ("mpi_force_c_code",      ("MBEDTLS_MPI_FORCE_C_CODE",                  Defined)),
     ("trusted_cert_callback", ("MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK", Defined)),
-    ("pkcs12",                ("MBEDTLS_PKCS12_C",                          Defined)),
     ("tls13",                 ("MBEDTLS_PSA_CRYPTO_C",                                       Defined)),
     ("tls13",                 ("MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG",                            Defined)),
     ("tls13",                 ("MBEDTLS_SSL_PROTO_TLS1_3",                                   Defined)),
