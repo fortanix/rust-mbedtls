@@ -107,9 +107,20 @@ pub unsafe extern "C" fn mbedtls_time(tp: *mut mbedtls_sys::types::time_t) -> mb
     timestamp
 }
 
-#[cfg(feature = "time")]
+#[cfg(all(any(feature = "time", sys_time_component = "custom"), not(feature = "std")))]
+#[doc(hidden)]
 #[no_mangle]
 // needs to be pub for global visibility
 pub unsafe extern "C" fn mbedtls_ms_time() -> mbedtls_sys::types::int64_t {
     chrono::Utc::now().timestamp_millis() as mbedtls_sys::types::int64_t
+}
+
+#[cfg(target_env = "sgx")]
+#[doc(hidden)]
+#[no_mangle]
+// needs to be pub for global visibility
+pub unsafe extern "C" fn explicit_bzero(buf: *mut mbedtls_sys::types::raw_types::c_void, len: mbedtls_sys::types::size_t)  {
+    use zeroize::Zeroize;
+    let buffer = core::slice::from_raw_parts_mut(buf as *mut mbedtls_sys::types::raw_types::c_char, len);
+    buffer.zeroize();
 }
