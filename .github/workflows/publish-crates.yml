@@ -17,6 +17,8 @@ jobs:
         with:
             toolchain: stable
             override: true
-      - uses: katyo/publish-crates@v1
-        with:
-            registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - run: |
+          crate_name=$(python3 -c "print('$GITHUB_REF'.split('/')[2].rsplit('-', 1)[0])")
+          cargo publish --token ${CARGO_REGISTRY_TOKEN} --package "$crate_name"
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
