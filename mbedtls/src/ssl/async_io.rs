@@ -102,7 +102,7 @@ where
 
         self.with_bio_async(cx, |ssl_ctx| loop {
             match ssl_ctx.recv(buf.initialize_unfilled()) {
-                Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Poll::Ready(Ok(())),
+                Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => return Poll::Ready(Ok(())),
                 #[cfg(not(feature = "tls13"))]
                 Err(e) if e.high_level() == Some(codes::SslWantRead) => return Poll::Pending,
                 #[cfg(feature = "tls13")]

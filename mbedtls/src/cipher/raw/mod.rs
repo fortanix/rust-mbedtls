@@ -435,7 +435,7 @@ impl Cipher {
     ///
     /// # Errors
     ///
-    /// * `Error::CipherBadInputData` - If the size of `data_with_tag` minus `tag_len` is less than
+    /// * `codes::CipherBadInputData` - If the size of `data_with_tag` minus `tag_len` is less than
     ///   or equal to zero
     pub fn encrypt_auth_inplace(
         &mut self,
@@ -444,7 +444,7 @@ impl Cipher {
         tag_len: usize,
     ) -> Result<usize> {
         if data_with_tag.len() - tag_len <= 0 {
-            return Err(Error::CipherBadInputData);
+            return Err(codes::CipherBadInputData.into());
         }
         let iv = self.inner.private_iv;
         let iv_len = self.inner.private_iv_size;
@@ -490,7 +490,7 @@ impl Cipher {
     ///
     /// # Errors
     ///
-    /// * `Error::CipherBadInputData` - If the size of `data_with_tag` minus `tag_len` is less than
+    /// * `codes::CipherBadInputData` - If the size of `data_with_tag` minus `tag_len` is less than
     ///   or equal to zero
     pub fn decrypt_auth_inplace(
         &mut self,
@@ -499,7 +499,7 @@ impl Cipher {
         tag_len: usize,
     ) -> Result<usize> {
         if data_with_tag.len() - tag_len <= 0 {
-            return Err(Error::CipherBadInputData);
+            return Err(codes::CipherBadInputData.into());
         }
         let iv = self.inner.private_iv;
         let iv_len = self.inner.private_iv_size;
