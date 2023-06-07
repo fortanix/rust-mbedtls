@@ -39,9 +39,8 @@ pub trait Random: RngCallback {
 
 impl<'r, F: RngCallback> Random for F {}
 
-#[cfg(any(feature = "rdrand", target_env = "sgx"))]
-#[no_mangle]
-pub unsafe extern "C" fn mbedtls_psa_external_get_random(
+#[cfg(all(any(feature = "rdrand", target_env = "sgx"), feature = "tls13"))]
+pub unsafe extern "C" fn psa_external_get_random(
     user_data: *mut mbedtls_sys::types::raw_types::c_void,
     data: *mut c_uchar,
     len: size_t,
@@ -49,3 +48,6 @@ pub unsafe extern "C" fn mbedtls_psa_external_get_random(
     *_olen = len;
     Rdrand::call(user_data, data, len)
 }
+
+#[cfg(all(any(feature = "rdrand", target_env = "sgx"), feature = "tls13"))]
+pub use mbedtls_platform_support::psa_external_rng::set_psa_external_rng_callback;

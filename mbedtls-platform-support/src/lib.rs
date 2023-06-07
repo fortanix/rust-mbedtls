@@ -128,3 +128,6 @@ pub fn psa_crypto_init() {
         return ();
     });
 }
+
+#[cfg(all(any(feature = "rdrand", target_env = "sgx"), feature = "tls13"))]
+pub mod psa_external_rng;

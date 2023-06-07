@@ -415,6 +415,7 @@ impl<T> Context<T> {
     pub fn version(&self) -> Version {
         match unsafe { ssl_get_version_number(self.into()) } {
             SSL_VERSION_TLS1_2 => Version::Tls12,
+            #[cfg(feature = "tls13")]
             SSL_VERSION_TLS1_3 => Version::Tls13,
             SSL_VERSION_UNKNOWN => Version::Unknown,
             _ => unreachable!("unexpected TLS version")

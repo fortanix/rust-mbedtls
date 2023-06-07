@@ -58,8 +58,9 @@ impl From<u32> for Version {
     fn from(value: u32) -> Self {
         use Version::*;
         match value {
-            0 => Tls12,
-            1 => Tls13,
+            SSL_VERSION_TLS1_2 => Tls12,
+            #[cfg(feature = "tls13")]
+            SSL_VERSION_TLS1_3 => Tls13,
             _ => Unknown
         }
     }
@@ -214,6 +215,9 @@ unsafe impl Sync for Config {}
 
 impl Config {
     pub fn new(e: Endpoint, t: Transport, p: Preset) -> Self {
+        #[cfg(all(any(feature = "rdrand", target_env = "sgx"), feature = "tls13"))]
+        crate::rng::set_psa_external_rng_callback(crate::rng::psa_external_get_random);
+
         // `psa_crypto_init()` need to be called before calling any function from the SSL/TLS, X.509
         // or PK modules. Since we only turn on PSA with TLS 1.3, it just need to be called here so
         // that TLS could work correctly.

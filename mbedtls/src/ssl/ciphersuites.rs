@@ -270,7 +270,7 @@ define!(
     }
 );
 
-#[cfg(not(feature = "std"))]
+#[cfg(all(not(feature = "std"), feature = "tls13"))]
 use crate::alloc_prelude::*;
 
 #[cfg(feature = "tls13")]
