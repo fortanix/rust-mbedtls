@@ -26,8 +26,6 @@ mod support;
 use support::entropy::entropy_new;
 use support::rand::test_rng;
 
-use mbedtls::alloc::{List as MbedtlsList};
-
 fn client<F>(conn: TcpStream, ca_callback: F) -> TlsResult<()>
 where
     F: CaCallback + Send + 'static,
@@ -63,7 +61,9 @@ mod test {
     use std::thread;
     use crate::support::net::create_tcp_pair;
     use crate::support::keys;
-    use mbedtls::x509::{Certificate};
+    use mbedtls::alloc::List as MbedtlsList;
+    use mbedtls::Error;
+    use mbedtls::x509::Certificate;
     use mbedtls::error::codes;
 
     // This callback should accept any valid self-signed certificate
