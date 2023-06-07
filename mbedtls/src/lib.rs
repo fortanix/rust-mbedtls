@@ -7,6 +7,8 @@
  * according to those terms. */
 
 #![deny(warnings)]
+// to be removed after migration to rustc 1.70.., issue #277
+#![allow(ambiguous_glob_reexports)]
 #![allow(unused_doc_comments)]
 #![cfg_attr(not(feature = "std"), no_std)]
 

@@ -11,8 +11,6 @@ if [ -z $TRAVIS_RUST_VERSION ]; then
 fi
 export CFLAGS_x86_64_fortanix_unknown_sgx="-isystem/usr/include/x86_64-linux-gnu -mlvi-hardening -mllvm -x86-experimental-lvi-inline-asm-hardening"
 export CC_x86_64_fortanix_unknown_sgx=clang-11
-# to be removed after migration to rustc 1.70.., issue #277
-export RUSTFLAGS="-A ambiguous_glob_reexports"
 
 
 # Setup dependencies and tools
