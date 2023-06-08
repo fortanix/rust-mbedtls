@@ -1,6 +1,5 @@
 
 # To compile on SunOS: add "-lsocket -lnsl" to LDFLAGS
-# To compile with PKCS11: add "-lpkcs11-helper" to LDFLAGS
 
 CFLAGS	?= -O2
 WARNING_CFLAGS ?= -Wall -Wextra -Wformat=2 -Wno-format-nonliteral
@@ -8,6 +7,8 @@ LDFLAGS ?=
 
 # Set this to -v to see the details of failing test cases
 TEST_FLAGS ?= $(if $(filter-out 0 OFF Off off NO No no FALSE False false N n,$(CTEST_OUTPUT_ON_FAILURE)),-v,)
+
+default: all
 
 # Include public header files from ../include, test-specific header files
 # from ./include, and private header files (used by some invasive tests)
@@ -64,15 +65,88 @@ else
 PYTHON ?= $(shell if type python3 >/dev/null 2>/dev/null; then echo python3; else echo python; fi)
 endif
 
-# Zlib shared library extensions:
-ifdef ZLIB
-LOCAL_LDFLAGS += -lz
+.PHONY: generated_files
+GENERATED_BIGNUM_DATA_FILES := $(patsubst tests/%,%,$(shell \
+	$(PYTHON) scripts/generate_bignum_tests.py --list || \
+	echo FAILED \
+))
+ifeq ($(GENERATED_BIGNUM_DATA_FILES),FAILED)
+$(error "$(PYTHON) scripts/generate_bignum_tests.py --list" failed)
 endif
+GENERATED_ECP_DATA_FILES := $(patsubst tests/%,%,$(shell \
+	$(PYTHON) scripts/generate_ecp_tests.py --list || \
+	echo FAILED \
+))
+ifeq ($(GENERATED_ECP_DATA_FILES),FAILED)
+$(error "$(PYTHON) scripts/generate_ecp_tests.py --list" failed)
+endif
+GENERATED_PSA_DATA_FILES := $(patsubst tests/%,%,$(shell \
+	$(PYTHON) scripts/generate_psa_tests.py --list || \
+	echo FAILED \
+))
+ifeq ($(GENERATED_PSA_DATA_FILES),FAILED)
+$(error "$(PYTHON) scripts/generate_psa_tests.py --list" failed)
+endif
+GENERATED_FILES := $(GENERATED_PSA_DATA_FILES) $(GENERATED_ECP_DATA_FILES) $(GENERATED_BIGNUM_DATA_FILES)
+generated_files: $(GENERATED_FILES)
+
+# generate_bignum_tests.py and generate_psa_tests.py spend more time analyzing
+# inputs than generating outputs. Its inputs are the same no matter which files
+# are being generated.
+# It's rare not to want all the outputs. So always generate all of its outputs.
+# Use an intermediate phony dependency so that parallel builds don't run
+# a separate instance of the recipe for each output file.
+.SECONDARY: generated_bignum_test_data generated_ecp_test_data generated_psa_test_data
+$(GENERATED_BIGNUM_DATA_FILES): generated_bignum_test_data
+generated_bignum_test_data: scripts/generate_bignum_tests.py
+generated_bignum_test_data: ../scripts/mbedtls_dev/bignum_common.py
+generated_bignum_test_data: ../scripts/mbedtls_dev/bignum_core.py
+generated_bignum_test_data: ../scripts/mbedtls_dev/bignum_mod_raw.py
+generated_bignum_test_data: ../scripts/mbedtls_dev/bignum_mod.py
+generated_bignum_test_data: ../scripts/mbedtls_dev/test_case.py
+generated_bignum_test_data: ../scripts/mbedtls_dev/test_data_generation.py
+generated_bignum_test_data:
+	echo "  Gen   $(GENERATED_BIGNUM_DATA_FILES)"
+	$(PYTHON) scripts/generate_bignum_tests.py
+
+$(GENERATED_ECP_DATA_FILES): generated_ecp_test_data
+generated_ecp_test_data: scripts/generate_ecp_tests.py
+generated_ecp_test_data: ../scripts/mbedtls_dev/bignum_common.py
+generated_ecp_test_data: ../scripts/mbedtls_dev/ecp.py
+generated_ecp_test_data: ../scripts/mbedtls_dev/test_case.py
+generated_ecp_test_data: ../scripts/mbedtls_dev/test_data_generation.py
+generated_ecp_test_data:
+	echo "  Gen   $(GENERATED_ECP_DATA_FILES)"
+	$(PYTHON) scripts/generate_ecp_tests.py
+
+$(GENERATED_PSA_DATA_FILES): generated_psa_test_data
+generated_psa_test_data: scripts/generate_psa_tests.py
+generated_psa_test_data: ../scripts/mbedtls_dev/crypto_knowledge.py
+generated_psa_test_data: ../scripts/mbedtls_dev/macro_collector.py
+generated_psa_test_data: ../scripts/mbedtls_dev/psa_storage.py
+generated_psa_test_data: ../scripts/mbedtls_dev/test_case.py
+generated_psa_test_data: ../scripts/mbedtls_dev/test_data_generation.py
+## The generated file only depends on the options that are present in
+## crypto_config.h, not on which options are set. To avoid regenerating this
+## file all the time when switching between configurations, don't declare
+## crypto_config.h as a dependency. Remove this file from your working tree
+## if you've just added or removed an option in crypto_config.h.
+#generated_psa_test_data: ../include/psa/crypto_config.h
+generated_psa_test_data: ../include/psa/crypto_values.h
+generated_psa_test_data: ../include/psa/crypto_extra.h
+generated_psa_test_data: suites/test_suite_psa_crypto_metadata.data
+generated_psa_test_data:
+	echo "  Gen   $(GENERATED_PSA_DATA_FILES) ..."
+	$(PYTHON) scripts/generate_psa_tests.py
 
 # A test application is built for each suites/test_suite_*.data file.
 # Application name is same as .data file's base name and can be
 # constructed by stripping path 'suites/' and extension .data.
-APPS = $(basename $(subst suites/,,$(wildcard suites/test_suite_*.data)))
+DATA_FILES := $(wildcard suites/test_suite_*.data)
+# Make sure that generated data files are included even if they don't
+# exist yet when the makefile is parsed.
+DATA_FILES += $(filter-out $(DATA_FILES),$(GENERATED_FILES))
+APPS = $(basename $(subst suites/,,$(DATA_FILES)))
 
 # Construct executable name by adding OS specific suffix $(EXEXT).
 BINARIES := $(addsuffix $(EXEXT),$(APPS))
@@ -149,7 +223,9 @@ ifndef WINDOWS
 	rm -rf $(BINARIES) *.c *.datax
 	rm -f src/*.o src/drivers/*.o src/test_helpers/*.o src/libmbed*
 	rm -f include/test/instrument_record_status.h
+	rm -f include/alt-extra/*/*_alt.h
 	rm -rf libtestdriver1
+	rm -f ../library/libtestdriver1.a
 else
 	if exist *.c del /Q /F *.c
 	if exist *.exe del /Q /F *.exe
@@ -161,11 +237,22 @@ else
 	if exist include/test/instrument_record_status.h del /Q /F include/test/instrument_record_status.h
 endif
 
+neat: clean
+ifndef WINDOWS
+	rm -f $(GENERATED_FILES)
+else
+	for %f in ($(subst /,\,$(GENERATED_FILES))) if exist %f del /Q /F %f
+endif
+
 # Test suites caught by SKIP_TEST_SUITES are built but not executed.
 check: $(BINARIES)
 	perl scripts/run-test-suites.pl $(TEST_FLAGS) --skip=$(SKIP_TEST_SUITES)
 
 test: check
+
+# Generate variants of some headers for testing
+include/alt-extra/%_alt.h: ../include/%.h
+	perl -p -e 's/^(# *(define|ifndef) +\w+_)H\b/$${1}ALT_H/' $< >$@
 
 # Generate test library
 
@@ -186,11 +273,12 @@ libtestdriver1.a:
 	mkdir ./libtestdriver1
 	cp -Rf ../library ./libtestdriver1
 	cp -Rf ../include ./libtestdriver1
+	cp -Rf ../scripts ./libtestdriver1
 	mkdir ./libtestdriver1/3rdparty
 	touch ./libtestdriver1/3rdparty/Makefile.inc
 
 	# Set the test driver base (minimal) configuration.
-	cp ./include/test/drivers/config_test_driver.h ./libtestdriver1/include/mbedtls/config.h
+	cp ./include/test/drivers/config_test_driver.h ./libtestdriver1/include/mbedtls/mbedtls_config.h
 
 	# Set the PSA cryptography configuration for the test library.
 	# It is set from the copied include/psa/crypto_config.h of the Mbed TLS

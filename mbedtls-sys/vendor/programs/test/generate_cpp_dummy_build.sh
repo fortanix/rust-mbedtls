@@ -56,20 +56,22 @@ print_cpp () {
  *  limitations under the License.
  */
 
-#include "mbedtls/config.h"
+#include "mbedtls/build_info.h"
 
 EOF
 
-  for header in include/mbedtls/*.h include/psa/*.h; do
-    case ${header#include/} in
-      psa/crypto_config.h) :;; # not meant for direct inclusion
-      # Some of the psa/crypto_*.h headers are not meant to be included directly.
-      # They do have include guards that make them no-ops if psa/crypto.h
-      # has been included before. Since psa/crypto.h comes before psa/crypto_*.h
-      # in the wildcard enumeration, we don't need to skip those headers.
-      *) echo "#include \"${header#include/}\"";;
-    esac
-  done
+    for header in include/mbedtls/*.h include/psa/*.h; do
+        case ${header#include/} in
+            mbedtls/mbedtls_config.h) :;; # not meant for direct inclusion
+            psa/crypto_config.h) :;; # not meant for direct inclusion
+            # Some of the psa/crypto_*.h headers are not meant to be included
+            # directly. They do have include guards that make them no-ops if
+            # psa/crypto.h has been included before. Since psa/crypto.h comes
+            # before psa/crypto_*.h in the wildcard enumeration, we don't need
+            # to skip those headers.
+            *) echo "#include \"${header#include/}\"";;
+        esac
+    done
 
     cat <<'EOF'
 

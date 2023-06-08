@@ -159,7 +159,10 @@ class KeyTypeNotSupported:
 
     ALWAYS_SUPPORTED = frozenset([
         'PSA_KEY_TYPE_DERIVE',
+        'PSA_KEY_TYPE_PASSWORD',
+        'PSA_KEY_TYPE_PASSWORD_HASH',
         'PSA_KEY_TYPE_RAW_DATA',
+        'PSA_KEY_TYPE_HMAC'
     ])
     def test_cases_for_key_type_not_supported(
             self,
@@ -482,7 +485,7 @@ class StorageTestData(StorageKey):
     ) -> None:
         """Prepare to generate test data
 
-        * `description`   : used for the the test case names
+        * `description`   : used for the test case names
         * `expected_usage`: the usage flags generated as the expected usage flags
                             in the test cases. CAn differ from the usage flags
                             stored in the keys because of the usage flags extension.
@@ -535,9 +538,6 @@ class StorageFormat:
         # Raw data keys have no useful exercise anyway so there is no
         # loss of test coverage.
         if key_type.string == 'PSA_KEY_TYPE_RAW_DATA':
-            return False
-        # Mbed TLS only supports 128-bit keys for RC4.
-        if key_type.string == 'PSA_KEY_TYPE_ARC4' and bits != 128:
             return False
         # OAEP requires room for two hashes plus wrapping
         m = cls.RSA_OAEP_RE.match(alg.string)

@@ -21,14 +21,22 @@
 #ifndef PSA_CRYPTO_CORE_H
 #define PSA_CRYPTO_CORE_H
 
-#if !defined(MBEDTLS_CONFIG_FILE)
-#include "mbedtls/config.h"
-#else
-#include MBEDTLS_CONFIG_FILE
-#endif
+#include "mbedtls/build_info.h"
 
 #include "psa/crypto.h"
 #include "psa/crypto_se_driver.h"
+
+/**
+ * Tell if PSA is ready for this hash.
+ *
+ * \note            For now, only checks the state of the driver subsystem,
+ *                  not the algorithm. Might do more in the future.
+ *
+ * \param hash_alg  The hash algorithm (ignored for now).
+ *
+ * \return 1 if the driver subsytem is ready, 0 otherwise.
+ */
+int psa_can_do_hash(psa_algorithm_t hash_alg);
 
 /** Constant-time buffer comparison
  *
@@ -514,5 +522,350 @@ psa_status_t psa_verify_hash_builtin(
     const uint8_t *key_buffer, size_t key_buffer_size,
     psa_algorithm_t alg, const uint8_t *hash, size_t hash_length,
     const uint8_t *signature, size_t signature_length);
+
+/**
+ * \brief Validate the key bit size for unstructured keys.
+ *
+ * \note  Check that the bit size is acceptable for a given key type for
+ *        unstructured keys.
+ *
+ * \param[in]  type  The key type
+ * \param[in]  bits  The number of bits of the key
+ *
+ * \retval #PSA_SUCCESS
+ *         The key type and size are valid.
+ * \retval #PSA_ERROR_INVALID_ARGUMENT
+ *         The size in bits of the key is not valid.
+ * \retval #PSA_ERROR_NOT_SUPPORTED
+ *         The type and/or the size in bits of the key or the combination of
+ *         the two is not supported.
+ */
+psa_status_t psa_validate_unstructured_key_bit_size(psa_key_type_t type,
+                                                    size_t bits);
+
+/** Perform a key agreement and return the raw shared secret, using
+    built-in raw key agreement functions.
+ *
+ * \note The signature of this function is that of a PSA driver
+ *       key_agreement entry point. This function behaves as a key_agreement
+ *       entry point as defined in the PSA driver interface specification for
+ *       transparent drivers.
+ *
+ * \param[in]  attributes           The attributes of the key to use for the
+ *                                  operation.
+ * \param[in]  key_buffer           The buffer containing the private key
+ *                                  context.
+ * \param[in]  key_buffer_size      Size of the \p key_buffer buffer in
+ *                                  bytes.
+ * \param[in]  alg                  A key agreement algorithm that is
+ *                                  compatible with the type of the key.
+ * \param[in]  peer_key             The buffer containing the key context
+ *                                  of the peer's public key.
+ * \param[in]  peer_key_length      Size of the \p peer_key buffer in
+ *                                  bytes.
+ * \param[out] shared_secret        The buffer to which the shared secret
+ *                                  is to be written.
+ * \param[in]  shared_secret_size   Size of the \p shared_secret buffer in
+ *                                  bytes.
+ * \param[out] shared_secret_length On success, the number of bytes that make
+ *                                  up the returned shared secret.
+ * \retval #PSA_SUCCESS
+ *         Success. Shared secret successfully calculated.
+ * \retval #PSA_ERROR_INVALID_HANDLE \emptydescription
+ * \retval #PSA_ERROR_NOT_PERMITTED \emptydescription
+ * \retval #PSA_ERROR_INVALID_ARGUMENT
+ *         \p alg is not a key agreement algorithm, or
+ *         \p private_key is not compatible with \p alg,
+ *         or \p peer_key is not valid for \p alg or not compatible with
+ *         \p private_key.
+ * \retval #PSA_ERROR_BUFFER_TOO_SMALL
+ *         \p shared_secret_size is too small
+ * \retval #PSA_ERROR_NOT_SUPPORTED
+ *         \p alg is not a supported key agreement algorithm.
+ * \retval #PSA_ERROR_INSUFFICIENT_MEMORY \emptydescription
+ * \retval #PSA_ERROR_COMMUNICATION_FAILURE \emptydescription
+ * \retval #PSA_ERROR_HARDWARE_FAILURE \emptydescription
+ * \retval #PSA_ERROR_CORRUPTION_DETECTED \emptydescription
+ * \retval #PSA_ERROR_STORAGE_FAILURE \emptydescription
+ * \retval #PSA_ERROR_BAD_STATE \emptydescription
+ */
+psa_status_t psa_key_agreement_raw_builtin(
+    const psa_key_attributes_t *attributes,
+    const uint8_t *key_buffer,
+    size_t key_buffer_size,
+    psa_algorithm_t alg,
+    const uint8_t *peer_key,
+    size_t peer_key_length,
+    uint8_t *shared_secret,
+    size_t shared_secret_size,
+    size_t *shared_secret_length);
+
+/**
+ * \brief Set the maximum number of ops allowed to be executed by an
+ *        interruptible function in a single call.
+ *
+ * \note The signature of this function is that of a PSA driver
+ *       interruptible_set_max_ops entry point. This function behaves as an
+ *       interruptible_set_max_ops entry point as defined in the PSA driver
+ *       interface specification for transparent drivers.
+ *
+ * \param[in]  max_ops          The maximum number of ops to be executed in a
+ *                              single call, this can be a number from 0 to
+ *                              #PSA_INTERRUPTIBLE_MAX_OPS_UNLIMITED, where 0
+ *                              is obviously the least amount of work done per
+ *                              call.
+ */
+void mbedtls_psa_interruptible_set_max_ops(uint32_t max_ops);
+
+/**
+ * \brief Get the maximum number of ops allowed to be executed by an
+ *        interruptible function in a single call.
+ *
+ * \note The signature of this function is that of a PSA driver
+ *       interruptible_get_max_ops entry point. This function behaves as an
+ *       interruptible_get_max_ops entry point as defined in the PSA driver
+ *       interface specification for transparent drivers.
+ *
+ * \return                      Maximum number of ops allowed to be executed
+ *                              by an interruptible function in a single call.
+ */
+uint32_t mbedtls_psa_interruptible_get_max_ops(void);
+
+/**
+ * \brief Get the number of ops that a hash signing operation has taken for the
+ *        previous call. If no call or work has taken place, this will return
+ *        zero.
+ *
+ * \note The signature of this function is that of a PSA driver
+ *       sign_hash_get_num_ops entry point. This function behaves as an
+ *       sign_hash_get_num_ops entry point as defined in the PSA driver
+ *       interface specification for transparent drivers.
+ *
+ * \param   operation           The \c
+ *                              mbedtls_psa_sign_hash_interruptible_operation_t
+ *                              to use. This must be initialized first.
+ *
+ * \return                      Number of ops that were completed
+ *                              in the last call to \c
+ *                              mbedtls_psa_sign_hash_complete().
+ */
+uint32_t mbedtls_psa_sign_hash_get_num_ops(
+    const mbedtls_psa_sign_hash_interruptible_operation_t *operation);
+
+/**
+ * \brief Get the number of ops that a hash verification operation has taken for
+ *        the previous call. If no call or work has taken place, this will
+ *        return zero.
+ *
+ * \note The signature of this function is that of a PSA driver
+ *       verify_hash_get_num_ops entry point. This function behaves as an
+ *       verify_hash_get_num_ops entry point as defined in the PSA driver
+ *       interface specification for transparent drivers.
+ *
+ * \param   operation           The \c
+ *                              mbedtls_psa_verify_hash_interruptible_operation_t
+ *                              to use. This must be initialized first.
+ *
+ * \return                      Number of ops that were completed
+ *                              in the last call to \c
+ *                              mbedtls_psa_verify_hash_complete().
+ */
+uint32_t mbedtls_psa_verify_hash_get_num_ops(
+    const mbedtls_psa_verify_hash_interruptible_operation_t *operation);
+
+/**
+ * \brief  Start signing a hash or short message with a private key, in an
+ *         interruptible manner.
+ *
+ * \note The signature of this function is that of a PSA driver
+ *       sign_hash_start entry point. This function behaves as a
+ *       sign_hash_start entry point as defined in the PSA driver interface
+ *       specification for transparent drivers.
+ *
+ * \param[in]  operation        The \c
+ *                              mbedtls_psa_sign_hash_interruptible_operation_t
+ *                              to use. This must be initialized first.
+ * \param[in]  attributes       The attributes of the key to use for the
+ *                              operation.
+ * \param[in]  key_buffer       The buffer containing the key context.
+ * \param[in]  key_buffer_size  Size of the \p key_buffer buffer in bytes.
+ * \param[in]  alg              A signature algorithm that is compatible with
+ *                              the type of the key.
+ * \param[in] hash              The hash or message to sign.
+ * \param hash_length           Size of the \p hash buffer in bytes.
+ *
+ * \retval #PSA_SUCCESS
+ *         The operation started successfully - call \c psa_sign_hash_complete()
+ *         with the same context to complete the operation
+ * \retval #PSA_ERROR_INVALID_ARGUMENT
+ *         An unsupported, incorrectly formatted or incorrect type of key was
+ *         used.
+ * \retval #PSA_ERROR_NOT_SUPPORTED Either no internal interruptible operations
+ *         are currently supported, or the key type is currently unsupported.
+ * \retval #PSA_ERROR_INSUFFICIENT_MEMORY
+ *         There was insufficient memory to load the key representation.
+ */
+psa_status_t mbedtls_psa_sign_hash_start(
+    mbedtls_psa_sign_hash_interruptible_operation_t *operation,
+    const psa_key_attributes_t *attributes, const uint8_t *key_buffer,
+    size_t key_buffer_size, psa_algorithm_t alg,
+    const uint8_t *hash, size_t hash_length);
+
+/**
+ * \brief Continue and eventually complete the action of signing a hash or
+ *        short message with a private key, in an interruptible manner.
+ *
+ * \note The signature of this function is that of a PSA driver
+ *       sign_hash_complete entry point. This function behaves as a
+ *       sign_hash_complete entry point as defined in the PSA driver interface
+ *       specification for transparent drivers.
+ *
+ * \param[in]  operation        The \c
+ *                              mbedtls_psa_sign_hash_interruptible_operation_t
+ *                              to use. This must be initialized first.
+ *
+ * \param[out] signature        Buffer where the signature is to be written.
+ * \param signature_size        Size of the \p signature buffer in bytes. This
+ *                              must be appropriate for the selected
+ *                              algorithm and key.
+ * \param[out] signature_length On success, the number of bytes that make up
+ *                              the returned signature value.
+ *
+ * \retval #PSA_SUCCESS
+ *         Operation completed successfully
+ *
+ * \retval #PSA_OPERATION_INCOMPLETE
+ *         Operation was interrupted due to the setting of \c
+ *         psa_interruptible_set_max_ops(), there is still work to be done,
+ *         please call this function again with the same operation object.
+ *
+ * \retval #PSA_ERROR_BUFFER_TOO_SMALL
+ *         The size of the \p signature buffer is too small. You can
+ *         determine a sufficient buffer size by calling
+ *         #PSA_SIGN_OUTPUT_SIZE(\c key_type, \c key_bits, \p alg)
+ *         where \c key_type and \c key_bits are the type and bit-size
+ *         respectively of \p key.
+ *
+ * \retval #PSA_ERROR_NOT_SUPPORTED \emptydescription
+ * \retval #PSA_ERROR_INVALID_ARGUMENT \emptydescription
+ * \retval #PSA_ERROR_INSUFFICIENT_MEMORY \emptydescription
+ * \retval #PSA_ERROR_CORRUPTION_DETECTED \emptydescription
+ * \retval #PSA_ERROR_INSUFFICIENT_ENTROPY \emptydescription
+ */
+psa_status_t mbedtls_psa_sign_hash_complete(
+    mbedtls_psa_sign_hash_interruptible_operation_t *operation,
+    uint8_t *signature, size_t signature_size,
+    size_t *signature_length);
+
+/**
+ * \brief Abort a sign hash operation.
+ *
+ * \note The signature of this function is that of a PSA driver sign_hash_abort
+ *       entry point. This function behaves as a sign_hash_abort entry point as
+ *       defined in the PSA driver interface specification for transparent
+ *       drivers.
+ *
+ * \param[in]  operation        The \c
+ *                              mbedtls_psa_sign_hash_interruptible_operation_t
+ *                              to abort.
+ *
+ * \retval #PSA_SUCCESS
+ *         The operation was aborted successfully.
+ */
+psa_status_t mbedtls_psa_sign_hash_abort(
+    mbedtls_psa_sign_hash_interruptible_operation_t *operation);
+
+/**
+ * \brief  Start reading and verifying a hash or short message, in an
+ *         interruptible manner.
+ *
+ * \note The signature of this function is that of a PSA driver
+ *       verify_hash_start entry point. This function behaves as a
+ *       verify_hash_start entry point as defined in the PSA driver interface
+ *       specification for transparent drivers.
+ *
+ * \param[in]  operation        The \c
+ *                              mbedtls_psa_verify_hash_interruptible_operation_t
+ *                              to use. This must be initialized first.
+ * \param[in]  attributes       The attributes of the key to use for the
+ *                              operation.
+ * \param[in]  key_buffer       The buffer containing the key context.
+ * \param[in]  key_buffer_size  Size of the \p key_buffer buffer in bytes.
+ * \param[in]  alg              A signature algorithm that is compatible with
+ *                              the type of the key.
+ * \param[in] hash              The hash whose signature is to be verified.
+ * \param hash_length           Size of the \p hash buffer in bytes.
+ * \param[in] signature         Buffer containing the signature to verify.
+ * \param signature_length      Size of the \p signature buffer in bytes.
+ *
+ * \retval #PSA_SUCCESS
+ *         The operation started successfully - call \c psa_sign_hash_complete()
+ *         with the same context to complete the operation
+ * \retval #PSA_ERROR_INVALID_ARGUMENT
+ *         An unsupported or incorrect type of key was used.
+ * \retval #PSA_ERROR_NOT_SUPPORTED
+ *        Either no internal interruptible operations are currently supported,
+ *         or the key type is currently unsupported.
+ * \retval #PSA_ERROR_INSUFFICIENT_MEMORY
+ *        There was insufficient memory either to load the key representation,
+ *        or to prepare the operation.
+ */
+psa_status_t mbedtls_psa_verify_hash_start(
+    mbedtls_psa_verify_hash_interruptible_operation_t *operation,
+    const psa_key_attributes_t *attributes,
+    const uint8_t *key_buffer, size_t key_buffer_size,
+    psa_algorithm_t alg,
+    const uint8_t *hash, size_t hash_length,
+    const uint8_t *signature, size_t signature_length);
+
+/**
+ * \brief Continue and eventually complete the action of signing a hash or
+ *        short message with a private key, in an interruptible manner.
+ *
+ * \note The signature of this function is that of a PSA driver
+ *       sign_hash_complete entry point. This function behaves as a
+ *       sign_hash_complete entry point as defined in the PSA driver interface
+ *       specification for transparent drivers.
+ *
+ * \param[in]  operation        The \c
+ *                              mbedtls_psa_sign_hash_interruptible_operation_t
+ *                              to use. This must be initialized first.
+ *
+ * \retval #PSA_SUCCESS
+ *         Operation completed successfully, and the passed signature is valid.
+ *
+ * \retval #PSA_OPERATION_INCOMPLETE
+ *         Operation was interrupted due to the setting of \c
+ *         psa_interruptible_set_max_ops(), there is still work to be done,
+ *         please call this function again with the same operation object.
+ *
+ * \retval #PSA_ERROR_INVALID_SIGNATURE
+ *         The calculation was performed successfully, but the passed
+ *         signature is not a valid signature.
+ *
+ * \retval #PSA_ERROR_NOT_SUPPORTED \emptydescription
+ * \retval #PSA_ERROR_INVALID_ARGUMENT \emptydescription
+ * \retval #PSA_ERROR_INSUFFICIENT_MEMORY \emptydescription
+ */
+psa_status_t mbedtls_psa_verify_hash_complete(
+    mbedtls_psa_verify_hash_interruptible_operation_t *operation);
+
+/**
+ * \brief Abort a verify signed hash operation.
+ *
+ * \note The signature of this function is that of a PSA driver
+ *       verify_hash_abort entry point. This function behaves as a
+ *       verify_hash_abort entry point as defined in the PSA driver interface
+ *       specification for transparent drivers.
+ *
+ * \param[in]  operation        The \c
+ *                              mbedtls_psa_verify_hash_interruptible_operation_t
+ *                              to abort.
+ *
+ * \retval #PSA_SUCCESS
+ *         The operation was aborted successfully.
+ */
+psa_status_t mbedtls_psa_verify_hash_abort(
+    mbedtls_psa_verify_hash_interruptible_operation_t *operation);
 
 #endif /* PSA_CRYPTO_CORE_H */
