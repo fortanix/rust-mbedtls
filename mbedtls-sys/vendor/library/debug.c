@@ -104,7 +104,7 @@ void mbedtls_debug_print_ret(const mbedtls_ssl_context *ssl, int level,
     /*
      * With non-blocking I/O and examples that just retry immediately,
      * the logs would be quickly flooded with WANT_READ, so ignore that.
-     * Don't ignore WANT_WRITE however, since is is usually rare.
+     * Don't ignore WANT_WRITE however, since it is usually rare.
      */
     if (ret == MBEDTLS_ERR_SSL_WANT_READ) {
         return;
@@ -245,7 +245,7 @@ void mbedtls_debug_print_mpi(const mbedtls_ssl_context *ssl, int level,
 }
 #endif /* MBEDTLS_BIGNUM_C */
 
-#if defined(MBEDTLS_X509_CRT_PARSE_C)
+#if defined(MBEDTLS_X509_CRT_PARSE_C) && !defined(MBEDTLS_X509_REMOVE_INFO)
 static void debug_print_pk(const mbedtls_ssl_context *ssl, int level,
                            const char *file, int line,
                            const char *text, const mbedtls_pk_context *pk)
@@ -336,7 +336,7 @@ void mbedtls_debug_print_crt(const mbedtls_ssl_context *ssl, int level,
         crt = crt->next;
     }
 }
-#endif /* MBEDTLS_X509_CRT_PARSE_C */
+#endif /* MBEDTLS_X509_CRT_PARSE_C && MBEDTLS_X509_REMOVE_INFO */
 
 #if defined(MBEDTLS_ECDH_C)
 static void mbedtls_debug_printf_ecdh_internal(const mbedtls_ssl_context *ssl,

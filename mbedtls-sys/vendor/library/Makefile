@@ -1,5 +1,5 @@
 
-# Also see "include/mbedtls/config.h"
+# Also see "include/mbedtls/mbedtls_config.h"
 
 CFLAGS	?= -O2
 WARNING_CFLAGS ?=  -Wall -Wextra -Wformat=2 -Wno-format-nonliteral
@@ -22,6 +22,14 @@ endif
 # To compile on Plan9:
 # CFLAGS += -D_BSD_EXTENSION
 
+PERL ?= perl
+
+ifdef WINDOWS
+PYTHON ?= python
+else
+PYTHON ?= $(shell if type python3 >/dev/null 2>/dev/null; then echo python3; else echo python; fi)
+endif
+
 # if were running on Windows build for Windows
 ifdef WINDOWS
 WINDOWS_BUILD=1
@@ -39,9 +47,9 @@ LOCAL_CFLAGS += -fPIC -fpic
 endif
 endif
 
-SOEXT_TLS=so.14
-SOEXT_X509=so.1
-SOEXT_CRYPTO=so.7
+SOEXT_TLS?=so.19
+SOEXT_X509?=so.5
+SOEXT_CRYPTO?=so.14
 
 # Set AR_DASH= (empty string) to use an ar implementation that does not accept
 # the - prefix for command line options (e.g. llvm-ar)
@@ -70,13 +78,15 @@ endif
 OBJS_CRYPTO= \
 	     aes.o \
 	     aesni.o \
-	     arc4.o \
+	     aesce.o \
 	     aria.o \
 	     asn1parse.o \
 	     asn1write.o \
 	     base64.o \
 	     bignum.o \
-	     blowfish.o \
+	     bignum_core.o \
+	     bignum_mod.o \
+	     bignum_mod_raw.o \
 	     camellia.o \
 	     ccm.o \
 	     chacha20.o \
@@ -97,16 +107,14 @@ OBJS_CRYPTO= \
 	     entropy_poll.o \
 	     error.o \
 	     gcm.o \
-	     havege.o \
+	     hash_info.o \
 	     hkdf.o \
 	     hmac_drbg.o \
+	     lmots.o \
+	     lms.o \
 	     md.o \
-	     md2.o \
-	     md4.o \
 	     md5.o \
 	     memory_buffer_alloc.o \
-	     mps_reader.o \
-	     mps_trace.o \
 	     nist_kw.o \
 	     oid.o \
 	     padlock.o \
@@ -128,14 +136,16 @@ OBJS_CRYPTO= \
 	     psa_crypto_ecp.o \
 	     psa_crypto_hash.o \
 	     psa_crypto_mac.o \
+	     psa_crypto_pake.o \
 	     psa_crypto_rsa.o \
 	     psa_crypto_se.o \
 	     psa_crypto_slot_management.o \
 	     psa_crypto_storage.o \
 	     psa_its_file.o \
+	     psa_util.o \
 	     ripemd160.o \
 	     rsa.o \
-	     rsa_internal.o \
+	     rsa_alt_helpers.o \
 	     sha1.o \
 	     sha256.o \
 	     sha512.o \
@@ -143,7 +153,6 @@ OBJS_CRYPTO= \
 	     timing.o \
 	     version.o \
 	     version_features.o \
-	     xtea.o \
 	     # This line is intentionally left blank
 
 include ../3rdparty/Makefile.inc
@@ -151,8 +160,6 @@ LOCAL_CFLAGS+=$(THIRDPARTY_INCLUDES)
 OBJS_CRYPTO+=$(THIRDPARTY_CRYPTO_OBJECTS)
 
 OBJS_X509= \
-	   certs.o \
-	   pkcs11.o \
 	   x509.o \
 	   x509_create.o \
 	   x509_crl.o \
@@ -160,20 +167,28 @@ OBJS_X509= \
 	   x509_csr.o \
 	   x509write_crt.o \
 	   x509write_csr.o \
+	   pkcs7.o \
 	   # This line is intentionally left blank
 
 OBJS_TLS= \
 	  debug.o \
+	  mps_reader.o \
+	  mps_trace.o \
 	  net_sockets.o \
 	  ssl_cache.o \
 	  ssl_ciphersuites.o \
-	  ssl_cli.o \
+	  ssl_client.o \
 	  ssl_cookie.o \
+	  ssl_debug_helpers_generated.o \
 	  ssl_msg.o \
-	  ssl_srv.o \
 	  ssl_ticket.o \
 	  ssl_tls.o \
+	  ssl_tls12_client.o \
+	  ssl_tls12_server.o \
 	  ssl_tls13_keys.o \
+	  ssl_tls13_client.o \
+	  ssl_tls13_server.o \
+	  ssl_tls13_generic.o \
 	  # This line is intentionally left blank
 
 .SILENT:
@@ -184,13 +199,6 @@ ifndef SHARED
 all: static
 else
 all: shared static
-endif
-
-ifdef TEST_TIMING_ALT_IMPL
-OBJS_CRYPTO += external_timing_for_test.o
-external_timing_for_test.o: ../tests/src/external_timing/external_timing_for_test.c
-	echo "  CC    $<"
-	$(CC) $(LOCAL_CFLAGS) $(CFLAGS) -o $@ -c $<
 endif
 
 static: libmbedcrypto.a libmbedx509.a libmbedtls.a
@@ -221,9 +229,11 @@ libmbedtls.$(SOEXT_TLS): $(OBJS_TLS) libmbedx509.so
 	echo "  LD    $@"
 	$(CC) -shared -Wl,-soname,$@ -o $@ $(OBJS_TLS) -L. -lmbedx509 -lmbedcrypto $(LOCAL_LDFLAGS) $(LDFLAGS)
 
+ifneq ($(SOEXT_TLS),so)
 libmbedtls.so: libmbedtls.$(SOEXT_TLS)
 	echo "  LN    $@ -> $<"
 	ln -sf $< $@
+endif
 
 libmbedtls.dylib: $(OBJS_TLS) libmbedx509.dylib
 	echo "  LD    $@"
@@ -248,9 +258,11 @@ libmbedx509.$(SOEXT_X509): $(OBJS_X509) libmbedcrypto.so
 	echo "  LD    $@"
 	$(CC) -shared -Wl,-soname,$@ -o $@ $(OBJS_X509) -L. -lmbedcrypto $(LOCAL_LDFLAGS) $(LDFLAGS)
 
+ifneq ($(SOEXT_X509),so)
 libmbedx509.so: libmbedx509.$(SOEXT_X509)
 	echo "  LN    $@ -> $<"
 	ln -sf $< $@
+endif
 
 libmbedx509.dylib: $(OBJS_X509) libmbedcrypto.dylib
 	echo "  LD    $@"
@@ -275,9 +287,11 @@ libmbedcrypto.$(SOEXT_CRYPTO): $(OBJS_CRYPTO)
 	echo "  LD    $@"
 	$(CC) -shared -Wl,-soname,$@ -o $@ $(OBJS_CRYPTO) $(LOCAL_LDFLAGS) $(LDFLAGS)
 
+ifneq ($(SOEXT_CRYPTO),so)
 libmbedcrypto.so: libmbedcrypto.$(SOEXT_CRYPTO)
 	echo "  LN    $@ -> $<"
 	ln -sf $< $@
+endif
 
 libmbedcrypto.dylib: $(OBJS_CRYPTO)
 	echo "  LD    $@"
@@ -291,6 +305,44 @@ libmbedcrypto.dll: $(OBJS_CRYPTO)
 	echo "  CC    $<"
 	$(CC) $(LOCAL_CFLAGS) $(CFLAGS) -o $@ -c $<
 
+.PHONY: generated_files
+GENERATED_FILES = \
+	error.c version_features.c \
+	ssl_debug_helpers_generated.c \
+        psa_crypto_driver_wrappers.c
+generated_files: $(GENERATED_FILES)
+
+error.c: ../scripts/generate_errors.pl
+error.c: ../scripts/data_files/error.fmt
+error.c: $(filter-out %config%,$(wildcard ../include/mbedtls/*.h))
+error.c:
+	echo "  Gen   $@"
+	$(PERL) ../scripts/generate_errors.pl
+
+ssl_debug_helpers_generated.c: ../scripts/generate_ssl_debug_helpers.py
+ssl_debug_helpers_generated.c: $(filter-out %config%,$(wildcard ../include/mbedtls/*.h))
+ssl_debug_helpers_generated.c:
+	echo "  Gen   $@"
+	$(PYTHON) ../scripts/generate_ssl_debug_helpers.py --mbedtls-root .. .
+
+version_features.c: ../scripts/generate_features.pl
+version_features.c: ../scripts/data_files/version_features.fmt
+## The generated file only depends on the options that are present in mbedtls_config.h,
+## not on which options are set. To avoid regenerating this file all the time
+## when switching between configurations, don't declare mbedtls_config.h as a
+## dependency. Remove this file from your working tree if you've just added or
+## removed an option in mbedtls_config.h.
+#version_features.c: ../include/mbedtls/mbedtls_config.h
+version_features.c:
+	echo "  Gen   $@"
+	$(PERL) ../scripts/generate_features.pl
+
+psa_crypto_driver_wrappers.c: ../scripts/generate_driver_wrappers.py
+psa_crypto_driver_wrappers.c: ../scripts/data_files/driver_templates/psa_crypto_driver_wrappers.c.jinja
+psa_crypto_driver_wrappers.c:
+	echo "  Gen   $@"
+	$(PYTHON) ../scripts/generate_driver_wrappers.py
+
 clean:
 ifndef WINDOWS
 	rm -f *.o libmbed*
@@ -299,4 +351,11 @@ else
 	if exist *.o del /Q /F *.o
 	if exist libmbed* del /Q /F libmbed*
 	del /Q /F del_errors_out_if_the_file_list_is_empty_but_not_if_a_file_does_not_exist $(subst /,\,$(THIRDPARTY_CRYPTO_OBJECTS))
+endif
+
+neat: clean
+ifndef WINDOWS
+	rm -f $(GENERATED_FILES)
+else
+	for %f in ($(subst /,\,$(GENERATED_FILES))) if exist %f del /Q /F %f
 endif

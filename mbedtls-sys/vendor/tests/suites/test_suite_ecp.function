@@ -1,14 +1,15 @@
 /* BEGIN_HEADER */
 #include "mbedtls/ecp.h"
+#include "ecp_invasive.h"
 #include "mbedtls/ecdsa.h"
 #include "mbedtls/ecdh.h"
 
+#include "bignum_core.h"
 #include "ecp_invasive.h"
+#include "bignum_mod_raw_invasive.h"
 
 #if defined(MBEDTLS_TEST_HOOKS) &&                  \
-    (defined(MBEDTLS_ECP_DP_SECP224R1_ENABLED) ||  \
-    defined(MBEDTLS_ECP_DP_SECP256R1_ENABLED) ||  \
-    defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED))
+    defined(MBEDTLS_ECP_DP_SECP384R1_ENABLED)
 #define HAVE_FIX_NEGATIVE
 #endif
 
@@ -79,349 +80,28 @@ inline static int mbedtls_ecp_group_cmp(mbedtls_ecp_group *grp1,
  */
 
 /* BEGIN_CASE */
-void ecp_valid_param()
-{
-    TEST_VALID_PARAM(mbedtls_ecp_group_free(NULL));
-    TEST_VALID_PARAM(mbedtls_ecp_keypair_free(NULL));
-    TEST_VALID_PARAM(mbedtls_ecp_point_free(NULL));
-
-#if defined(MBEDTLS_ECP_RESTARTABLE)
-    TEST_VALID_PARAM(mbedtls_ecp_restart_free(NULL));
-#endif /* MBEDTLS_ECP_RESTARTABLE */
-
-exit:
-    return;
-}
-/* END_CASE */
-
-/* BEGIN_CASE depends_on:MBEDTLS_CHECK_PARAMS:!MBEDTLS_PARAM_FAILED_ALT */
 void ecp_invalid_param()
 {
     mbedtls_ecp_group grp;
-    mbedtls_ecp_keypair kp;
     mbedtls_ecp_point P;
-    mbedtls_mpi m;
-    const char *x = "deadbeef";
-    int valid_fmt   = MBEDTLS_ECP_PF_UNCOMPRESSED;
     int invalid_fmt = 42;
     size_t olen;
     unsigned char buf[42] = { 0 };
-    const unsigned char *null_buf = NULL;
-    mbedtls_ecp_group_id valid_group = MBEDTLS_ECP_DP_SECP192R1;
-#if defined(MBEDTLS_ECP_RESTARTABLE)
-    mbedtls_ecp_restart_ctx restart_ctx;
-#endif /* MBEDTLS_ECP_RESTARTABLE */
 
     mbedtls_ecp_group_init(&grp);
     mbedtls_ecp_point_init(&P);
 
-    TEST_INVALID_PARAM(mbedtls_ecp_point_init(NULL));
-    TEST_INVALID_PARAM(mbedtls_ecp_keypair_init(NULL));
-    TEST_INVALID_PARAM(mbedtls_ecp_group_init(NULL));
-
-#if defined(MBEDTLS_ECP_RESTARTABLE)
-    TEST_INVALID_PARAM(mbedtls_ecp_restart_init(NULL));
-    TEST_INVALID_PARAM(mbedtls_ecp_check_budget(NULL, &restart_ctx, 42));
-#endif /* MBEDTLS_ECP_RESTARTABLE */
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_copy(NULL, &P));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_copy(&P, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_group_copy(NULL, &grp));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_group_copy(&grp, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_gen_privkey(NULL,
-                                                   &m,
-                                                   mbedtls_test_rnd_std_rand,
-                                                   NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_gen_privkey(&grp,
-                                                   NULL,
-                                                   mbedtls_test_rnd_std_rand,
-                                                   NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_gen_privkey(&grp,
-                                                   &m,
-                                                   NULL,
-                                                   NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_set_zero(NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_is_zero(NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_point_cmp(NULL, &P));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_point_cmp(&P, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_point_read_string(NULL, 2,
-                                                         x, x));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_point_read_string(&P, 2,
-                                                         NULL, x));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_point_read_string(&P, 2,
-                                                         x, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_point_write_binary(NULL, &P,
-                                                          valid_fmt,
-                                                          &olen,
-                                                          buf, sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_point_write_binary(&grp, NULL,
-                                                          valid_fmt,
-                                                          &olen,
-                                                          buf, sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_point_write_binary(&grp, &P,
-                                                          invalid_fmt,
-                                                          &olen,
-                                                          buf, sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_point_write_binary(&grp, &P,
-                                                          valid_fmt,
-                                                          NULL,
-                                                          buf, sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_point_write_binary(&grp, &P,
-                                                          valid_fmt,
-                                                          &olen,
-                                                          NULL, sizeof(buf)));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_point_read_binary(NULL, &P, buf,
-                                                         sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_point_read_binary(&grp, NULL, buf,
-                                                         sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_point_read_binary(&grp, &P, NULL,
-                                                         sizeof(buf)));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_read_point(NULL, &P,
-                                                      (const unsigned char **) &buf,
-                                                      sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_read_point(&grp, NULL,
-                                                      (const unsigned char **) &buf,
-                                                      sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_read_point(&grp, &P, &null_buf,
-                                                      sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_read_point(&grp, &P, NULL,
-                                                      sizeof(buf)));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_write_point(NULL, &P,
-                                                       valid_fmt,
-                                                       &olen,
-                                                       buf,
-                                                       sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_write_point(&grp, NULL,
-                                                       valid_fmt,
-                                                       &olen,
-                                                       buf,
-                                                       sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_write_point(&grp, &P,
-                                                       invalid_fmt,
-                                                       &olen,
-                                                       buf,
-                                                       sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_write_point(&grp, &P,
-                                                       valid_fmt,
-                                                       NULL,
-                                                       buf,
-                                                       sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_write_point(&grp, &P,
-                                                       valid_fmt,
-                                                       &olen,
-                                                       NULL,
-                                                       sizeof(buf)));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_group_load(NULL, valid_group));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_read_group(NULL,
-                                                      (const unsigned char **) &buf,
-                                                      sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_read_group(&grp, NULL,
-                                                      sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_read_group(&grp, &null_buf,
-                                                      sizeof(buf)));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_read_group_id(NULL,
-                                                         (const unsigned char **) &buf,
-                                                         sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_read_group_id(&valid_group, NULL,
-                                                         sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_read_group_id(&valid_group,
-                                                         &null_buf,
-                                                         sizeof(buf)));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_write_group(NULL, &olen,
-                                                       buf, sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_write_group(&grp, NULL,
-                                                       buf, sizeof(buf)));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_tls_write_group(&grp, &olen,
-                                                       NULL, sizeof(buf)));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_mul(NULL, &P, &m, &P,
-                                           mbedtls_test_rnd_std_rand,
-                                           NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_mul(&grp, NULL, &m, &P,
-                                           mbedtls_test_rnd_std_rand,
-                                           NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_mul(&grp, &P, NULL, &P,
-                                           mbedtls_test_rnd_std_rand,
-                                           NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_mul(&grp, &P, &m, NULL,
-                                           mbedtls_test_rnd_std_rand,
-                                           NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_mul_restartable(NULL, &P, &m, &P,
-                                                       mbedtls_test_rnd_std_rand,
-                                                       NULL, NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_mul_restartable(&grp, NULL, &m, &P,
-                                                       mbedtls_test_rnd_std_rand,
-                                                       NULL, NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_mul_restartable(&grp, &P, NULL, &P,
-                                                       mbedtls_test_rnd_std_rand,
-                                                       NULL, NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_mul_restartable(&grp, &P, &m, NULL,
-                                                       mbedtls_test_rnd_std_rand,
-                                                       NULL, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_muladd(NULL, &P, &m, &P,
-                                              &m, &P));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_muladd(&grp, NULL, &m, &P,
-                                              &m, &P));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_muladd(&grp, &P, NULL, &P,
-                                              &m, &P));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_muladd(&grp, &P, &m, NULL,
-                                              &m, &P));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_muladd(&grp, &P, &m, &P,
-                                              NULL, &P));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_muladd(&grp, &P, &m, &P,
-                                              &m, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_muladd_restartable(NULL, &P, &m, &P,
-                                                          &m, &P, NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_muladd_restartable(&grp, NULL, &m, &P,
-                                                          &m, &P, NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_muladd_restartable(&grp, &P, NULL, &P,
-                                                          &m, &P, NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_muladd_restartable(&grp, &P, &m, NULL,
-                                                          &m, &P, NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_muladd_restartable(&grp, &P, &m, &P,
-                                                          NULL, &P, NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_muladd_restartable(&grp, &P, &m, &P,
-                                                          &m, NULL, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_check_pubkey(NULL, &P));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_check_pubkey(&grp, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_check_pub_priv(NULL, &kp));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_check_pub_priv(&kp, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_check_privkey(NULL, &m));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_check_privkey(&grp, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_gen_keypair_base(NULL, &P, &m, &P,
-                                                        mbedtls_test_rnd_std_rand, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_gen_keypair_base(&grp, NULL, &m, &P,
-                                                        mbedtls_test_rnd_std_rand, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_gen_keypair_base(&grp, &P, NULL, &P,
-                                                        mbedtls_test_rnd_std_rand, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_gen_keypair_base(&grp, &P, &m, NULL,
-                                                        mbedtls_test_rnd_std_rand, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_gen_keypair_base(&grp, &P, &m, &P, NULL, NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_gen_keypair(NULL,
-                                                   &m, &P,
-                                                   mbedtls_test_rnd_std_rand,
-                                                   NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_gen_keypair(&grp,
-                                                   NULL, &P,
-                                                   mbedtls_test_rnd_std_rand,
-                                                   NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_gen_keypair(&grp,
-                                                   &m, NULL,
-                                                   mbedtls_test_rnd_std_rand,
-                                                   NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_gen_keypair(&grp,
-                                                   &m, &P,
-                                                   NULL,
-                                                   NULL));
-
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_gen_key(valid_group, NULL,
-                                               mbedtls_test_rnd_std_rand,
-                                               NULL));
-    TEST_INVALID_PARAM_RET(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
-                           mbedtls_ecp_gen_key(valid_group, &kp,
-                                               NULL, NULL));
+    TEST_EQUAL(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
+               mbedtls_ecp_point_write_binary(&grp, &P,
+                                              invalid_fmt,
+                                              &olen,
+                                              buf, sizeof(buf)));
+    TEST_EQUAL(MBEDTLS_ERR_ECP_BAD_INPUT_DATA,
+               mbedtls_ecp_tls_write_point(&grp, &P,
+                                           invalid_fmt,
+                                           &olen,
+                                           buf,
+                                           sizeof(buf)));
 
 exit:
     return;
@@ -503,12 +183,14 @@ void ecp_test_vect_restart(int id,
     mbedtls_mpi dA, xA, yA, dB, xZ, yZ;
     int cnt_restarts;
     int ret;
+    mbedtls_test_rnd_pseudo_info rnd_info;
 
     mbedtls_ecp_restart_init(&ctx);
     mbedtls_ecp_group_init(&grp);
     mbedtls_ecp_point_init(&R); mbedtls_ecp_point_init(&P);
     mbedtls_mpi_init(&dA); mbedtls_mpi_init(&xA); mbedtls_mpi_init(&yA);
     mbedtls_mpi_init(&dB); mbedtls_mpi_init(&xZ); mbedtls_mpi_init(&yZ);
+    memset(&rnd_info, 0x00, sizeof(mbedtls_test_rnd_pseudo_info));
 
     TEST_ASSERT(mbedtls_ecp_group_load(&grp, id) == 0);
 
@@ -526,7 +208,8 @@ void ecp_test_vect_restart(int id,
     cnt_restarts = 0;
     do {
         ECP_PT_RESET(&R);
-        ret = mbedtls_ecp_mul_restartable(&grp, &R, &dA, &grp.G, NULL, NULL, &ctx);
+        ret = mbedtls_ecp_mul_restartable(&grp, &R, &dA, &grp.G,
+                                          &mbedtls_test_rnd_pseudo_rand, &rnd_info, &ctx);
     } while (ret == MBEDTLS_ERR_ECP_IN_PROGRESS && ++cnt_restarts);
 
     TEST_ASSERT(ret == 0);
@@ -541,7 +224,8 @@ void ecp_test_vect_restart(int id,
     cnt_restarts = 0;
     do {
         ECP_PT_RESET(&R);
-        ret = mbedtls_ecp_mul_restartable(&grp, &R, &dB, &P, NULL, NULL, &ctx);
+        ret = mbedtls_ecp_mul_restartable(&grp, &R, &dB, &P,
+                                          &mbedtls_test_rnd_pseudo_rand, &rnd_info, &ctx);
     } while (ret == MBEDTLS_ERR_ECP_IN_PROGRESS && ++cnt_restarts);
 
     TEST_ASSERT(ret == 0);
@@ -554,7 +238,8 @@ void ecp_test_vect_restart(int id,
     /* Do we leak memory when aborting an operation?
      * This test only makes sense when we actually restart */
     if (min_restarts > 0) {
-        ret = mbedtls_ecp_mul_restartable(&grp, &R, &dB, &P, NULL, NULL, &ctx);
+        ret = mbedtls_ecp_mul_restartable(&grp, &R, &dB, &P,
+                                          &mbedtls_test_rnd_pseudo_rand, &rnd_info, &ctx);
         TEST_ASSERT(ret == MBEDTLS_ERR_ECP_IN_PROGRESS);
     }
 
@@ -671,12 +356,14 @@ void ecp_test_vect(int id, char *dA_str, char *xA_str, char *yA_str,
     TEST_ASSERT(mbedtls_mpi_cmp_mpi(&R.X, &xA) == 0);
     TEST_ASSERT(mbedtls_mpi_cmp_mpi(&R.Y, &yA) == 0);
     TEST_ASSERT(mbedtls_ecp_check_pubkey(&grp, &R) == 0);
-    TEST_ASSERT(mbedtls_ecp_mul(&grp, &R, &dB, &R, NULL, NULL) == 0);
+    TEST_ASSERT(mbedtls_ecp_mul(&grp, &R, &dB, &R,
+                                &mbedtls_test_rnd_pseudo_rand, &rnd_info) == 0);
     TEST_ASSERT(mbedtls_mpi_cmp_mpi(&R.X, &xZ) == 0);
     TEST_ASSERT(mbedtls_mpi_cmp_mpi(&R.Y, &yZ) == 0);
     TEST_ASSERT(mbedtls_ecp_check_pubkey(&grp, &R) == 0);
 
-    TEST_ASSERT(mbedtls_ecp_mul(&grp, &R, &dB, &grp.G, NULL, NULL) == 0);
+    TEST_ASSERT(mbedtls_ecp_mul(&grp, &R, &dB, &grp.G,
+                                &mbedtls_test_rnd_pseudo_rand, &rnd_info) == 0);
     TEST_ASSERT(mbedtls_mpi_cmp_mpi(&R.X, &xB) == 0);
     TEST_ASSERT(mbedtls_mpi_cmp_mpi(&R.Y, &yB) == 0);
     TEST_ASSERT(mbedtls_ecp_check_pubkey(&grp, &R) == 0);
@@ -728,11 +415,13 @@ void ecp_test_vec_x(int id, char *dA_hex, char *xA_hex, char *dB_hex,
     TEST_ASSERT(mbedtls_ecp_check_pubkey(&grp, &R) == 0);
     TEST_ASSERT(mbedtls_mpi_cmp_mpi(&R.X, &xS) == 0);
 
-    TEST_ASSERT(mbedtls_ecp_mul(&grp, &R, &dB, &grp.G, NULL, NULL) == 0);
+    TEST_ASSERT(mbedtls_ecp_mul(&grp, &R, &dB, &grp.G,
+                                &mbedtls_test_rnd_pseudo_rand, &rnd_info) == 0);
     TEST_ASSERT(mbedtls_ecp_check_pubkey(&grp, &R) == 0);
     TEST_ASSERT(mbedtls_mpi_cmp_mpi(&R.X, &xB) == 0);
 
-    TEST_ASSERT(mbedtls_ecp_mul(&grp, &R, &dA, &R, NULL, NULL) == 0);
+    TEST_ASSERT(mbedtls_ecp_mul(&grp, &R, &dA, &R,
+                                &mbedtls_test_rnd_pseudo_rand, &rnd_info) == 0);
     TEST_ASSERT(mbedtls_ecp_check_pubkey(&grp, &R) == 0);
     TEST_ASSERT(mbedtls_mpi_cmp_mpi(&R.X, &xS) == 0);
 
@@ -961,6 +650,18 @@ void ecp_read_binary(int id, data_t *buf, char *x, char *y, char *z,
         } else {
             TEST_ASSERT(mbedtls_mpi_cmp_mpi(&P.Y, &Y) == 0);
             TEST_ASSERT(mbedtls_mpi_cmp_mpi(&P.Z, &Z) == 0);
+
+            if (buf->x[0] == 0x04 &&
+                /* (reading compressed format supported only for
+                 *  Short Weierstrass curves with prime p where p = 3 mod 4) */
+                id != MBEDTLS_ECP_DP_SECP224R1 &&
+                id != MBEDTLS_ECP_DP_SECP224K1) {
+                /* re-encode in compressed format and test read again */
+                mbedtls_mpi_free(&P.Y);
+                buf->x[0] = 0x02 + mbedtls_mpi_get_bit(&Y, 0);
+                TEST_ASSERT(mbedtls_ecp_point_read_binary(&grp, &P, buf->x, buf->len/2+1) == 0);
+                TEST_ASSERT(mbedtls_mpi_cmp_mpi(&P.Y, &Y) == 0);
+            }
         }
     }
 
@@ -1021,8 +722,10 @@ void ecp_tls_write_read_point(int id)
     memset(buf, 0x00, sizeof(buf)); vbuf = buf;
     TEST_ASSERT(mbedtls_ecp_tls_write_point(&grp, &grp.G,
                                             MBEDTLS_ECP_PF_COMPRESSED, &olen, buf, 256) == 0);
-    TEST_ASSERT(mbedtls_ecp_tls_read_point(&grp, &pt, &vbuf, olen)
-                == MBEDTLS_ERR_ECP_FEATURE_UNAVAILABLE);
+    TEST_ASSERT(mbedtls_ecp_tls_read_point(&grp, &pt, &vbuf, olen) == 0);
+    TEST_ASSERT(mbedtls_mpi_cmp_mpi(&grp.G.X, &pt.X) == 0);
+    TEST_ASSERT(mbedtls_mpi_cmp_mpi(&grp.G.Y, &pt.Y) == 0);
+    TEST_ASSERT(mbedtls_mpi_cmp_mpi(&grp.G.Z, &pt.Z) == 0);
     TEST_ASSERT(vbuf == buf + olen);
 
     memset(buf, 0x00, sizeof(buf)); vbuf = buf;
@@ -1109,7 +812,7 @@ exit:
 }
 /* END_CASE */
 
-/* BEGIN_CASE depends_on:MBEDTLS_ECDH_C:MBEDTLS_ECDSA_C */
+/* BEGIN_CASE */
 void mbedtls_ecp_group_metadata(int id, int bit_size, int crv_type,
                                 char *P, char *A, char *B,
                                 char *G_x, char *G_y, char *N,
@@ -1201,9 +904,13 @@ void mbedtls_ecp_group_metadata(int id, int bit_size, int crv_type,
 
     // Check curve type, and if it can be used for ECDH/ECDSA
     TEST_EQUAL(mbedtls_ecp_get_type(&grp), crv_type);
+#if defined(MBEDTLS_ECDH_C)
     TEST_EQUAL(mbedtls_ecdh_can_do(id), 1);
+#endif
+#if defined(MBEDTLS_ECDSA_C)
     TEST_EQUAL(mbedtls_ecdsa_can_do(id),
                crv_type == MBEDTLS_ECP_TYPE_SHORT_WEIERSTRASS);
+#endif
 
     // Copy group and compare with original
     TEST_EQUAL(mbedtls_ecp_group_copy(&grp_cpy, &grp), 0);
@@ -1259,9 +966,11 @@ void mbedtls_ecp_check_pub_priv(int id_pub, char *Qx_pub, char *Qy_pub,
                                 int ret)
 {
     mbedtls_ecp_keypair pub, prv;
+    mbedtls_test_rnd_pseudo_info rnd_info;
 
     mbedtls_ecp_keypair_init(&pub);
     mbedtls_ecp_keypair_init(&prv);
+    memset(&rnd_info, 0x00, sizeof(mbedtls_test_rnd_pseudo_info));
 
     if (id_pub != MBEDTLS_ECP_DP_NONE) {
         TEST_ASSERT(mbedtls_ecp_group_load(&pub.grp, id_pub) == 0);
@@ -1274,7 +983,8 @@ void mbedtls_ecp_check_pub_priv(int id_pub, char *Qx_pub, char *Qy_pub,
     TEST_ASSERT(mbedtls_ecp_point_read_string(&prv.Q, 16, Qx, Qy) == 0);
     TEST_ASSERT(mbedtls_test_read_mpi(&prv.d, d) == 0);
 
-    TEST_ASSERT(mbedtls_ecp_check_pub_priv(&pub, &prv) == ret);
+    TEST_ASSERT(mbedtls_ecp_check_pub_priv(&pub, &prv,
+                                           &mbedtls_test_rnd_pseudo_rand, &rnd_info) == ret);
 
 exit:
     mbedtls_ecp_keypair_free(&pub);
@@ -1531,6 +1241,43 @@ void ecp_selftest()
 /* END_CASE */
 
 /* BEGIN_CASE */
+void ecp_export(int id, char *Qx, char *Qy, char *d, int expected_ret, int invalid_grp)
+{
+    mbedtls_ecp_keypair key;
+    mbedtls_ecp_group export_grp;
+    mbedtls_mpi export_d;
+    mbedtls_ecp_point export_Q;
+
+    mbedtls_ecp_group_init(&export_grp);
+    mbedtls_ecp_group_init(&key.grp);
+    mbedtls_mpi_init(&export_d);
+    mbedtls_ecp_point_init(&export_Q);
+
+    mbedtls_ecp_keypair_init(&key);
+    if (invalid_grp == 0) {
+        TEST_ASSERT(mbedtls_ecp_group_load(&key.grp, id) == 0);
+    }
+    TEST_ASSERT(mbedtls_ecp_point_read_string(&key.Q, 16, Qx, Qy) == 0);
+    TEST_ASSERT(mbedtls_test_read_mpi(&key.d, d) == 0);
+
+    TEST_EQUAL(mbedtls_ecp_export(&key, &export_grp,
+                                  &export_d, &export_Q), expected_ret);
+
+    if (expected_ret == 0) {
+        TEST_EQUAL(mbedtls_ecp_point_cmp(&key.Q, &export_Q), 0);
+        TEST_EQUAL(mbedtls_mpi_cmp_mpi(&key.d, &export_d), 0);
+        TEST_EQUAL(mbedtls_ecp_group_cmp(&key.grp, &export_grp), 0);
+    }
+
+exit:
+    mbedtls_ecp_keypair_free(&key);
+    mbedtls_ecp_group_free(&export_grp);
+    mbedtls_mpi_free(&export_d);
+    mbedtls_ecp_point_free(&export_Q);
+}
+/* END_CASE */
+
+/* BEGIN_CASE */
 void ecp_check_order(int id, char *expected_order_hex)
 {
     mbedtls_ecp_group grp;
@@ -1551,5 +1298,217 @@ void ecp_check_order(int id, char *expected_order_hex)
 exit:
     mbedtls_ecp_group_free(&grp);
     mbedtls_mpi_free(&expected_n);
+}
+/* END_CASE */
+
+/* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS */
+void ecp_mod_p192_raw(char *input_N,
+                      char *input_X,
+                      char *result)
+{
+    mbedtls_mpi_uint *X = NULL;
+    mbedtls_mpi_uint *N = NULL;
+    mbedtls_mpi_uint *res = NULL;
+    size_t limbs_X;
+    size_t limbs_N;
+    size_t limbs_res;
+
+    mbedtls_mpi_mod_modulus m;
+    mbedtls_mpi_mod_modulus_init(&m);
+
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&X,   &limbs_X,   input_X), 0);
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&N,   &limbs_N,   input_N), 0);
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&res, &limbs_res, result),  0);
+
+    size_t limbs = limbs_N;
+    size_t bytes = limbs * sizeof(mbedtls_mpi_uint);
+
+    TEST_EQUAL(limbs_X, 2 * limbs);
+    TEST_EQUAL(limbs_res, limbs);
+
+    TEST_EQUAL(mbedtls_mpi_mod_modulus_setup(
+                   &m, N, limbs,
+                   MBEDTLS_MPI_MOD_REP_MONTGOMERY), 0);
+
+    TEST_EQUAL(mbedtls_ecp_mod_p192_raw(X, limbs_X), 0);
+    TEST_LE_U(mbedtls_mpi_core_bitlen(X, limbs_X), 192);
+    mbedtls_mpi_mod_raw_fix_quasi_reduction(X, &m);
+    ASSERT_COMPARE(X, bytes, res, bytes);
+
+exit:
+    mbedtls_free(X);
+    mbedtls_free(res);
+
+    mbedtls_mpi_mod_modulus_free(&m);
+    mbedtls_free(N);
+}
+/* END_CASE */
+
+/* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS */
+void ecp_mod_p224_raw(char *input_N,
+                      char *input_X,
+                      char *result)
+{
+    mbedtls_mpi_uint *X = NULL;
+    mbedtls_mpi_uint *N = NULL;
+    mbedtls_mpi_uint *res = NULL;
+    size_t limbs_X;
+    size_t limbs_N;
+    size_t limbs_res;
+
+    mbedtls_mpi_mod_modulus m;
+    mbedtls_mpi_mod_modulus_init(&m);
+
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&X,   &limbs_X,   input_X), 0);
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&N,   &limbs_N,   input_N), 0);
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&res, &limbs_res, result),  0);
+
+    size_t limbs = limbs_N;
+    size_t bytes = limbs * sizeof(mbedtls_mpi_uint);
+
+    TEST_EQUAL(limbs_X, 448 / biL);
+    TEST_EQUAL(limbs_res, limbs);
+
+    TEST_EQUAL(mbedtls_mpi_mod_modulus_setup(
+                   &m, N, limbs,
+                   MBEDTLS_MPI_MOD_REP_MONTGOMERY), 0);
+
+    TEST_EQUAL(mbedtls_ecp_mod_p224_raw(X, limbs_X), 0);
+    TEST_LE_U(mbedtls_mpi_core_bitlen(X, limbs_X), 224);
+    mbedtls_mpi_mod_raw_fix_quasi_reduction(X, &m);
+    ASSERT_COMPARE(X, bytes, res, bytes);
+
+exit:
+    mbedtls_free(X);
+    mbedtls_free(res);
+
+    mbedtls_mpi_mod_modulus_free(&m);
+    mbedtls_free(N);
+}
+/* END_CASE */
+
+/* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS */
+void ecp_mod_p256_raw(char *input_N,
+                      char *input_X,
+                      char *result)
+{
+    mbedtls_mpi_uint *X = NULL;
+    mbedtls_mpi_uint *N = NULL;
+    mbedtls_mpi_uint *res = NULL;
+    size_t limbs_X;
+    size_t limbs_N;
+    size_t limbs_res;
+
+    mbedtls_mpi_mod_modulus m;
+    mbedtls_mpi_mod_modulus_init(&m);
+
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&X,   &limbs_X,   input_X), 0);
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&N,   &limbs_N,   input_N), 0);
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&res, &limbs_res, result),  0);
+
+    size_t limbs = limbs_N;
+    size_t bytes = limbs * sizeof(mbedtls_mpi_uint);
+
+    TEST_EQUAL(limbs_X, 2 * limbs);
+    TEST_EQUAL(limbs_res, limbs);
+
+    TEST_EQUAL(mbedtls_mpi_mod_modulus_setup(
+                   &m, N, limbs,
+                   MBEDTLS_MPI_MOD_REP_MONTGOMERY), 0);
+
+    TEST_EQUAL(mbedtls_ecp_mod_p256_raw(X, limbs_X), 0);
+    TEST_LE_U(mbedtls_mpi_core_bitlen(X, limbs_X), 256);
+    mbedtls_mpi_mod_raw_fix_quasi_reduction(X, &m);
+    ASSERT_COMPARE(X, bytes, res, bytes);
+
+exit:
+    mbedtls_free(X);
+    mbedtls_free(res);
+
+    mbedtls_mpi_mod_modulus_free(&m);
+    mbedtls_free(N);
+}
+/* END_CASE */
+
+/* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS */
+void ecp_mod_p521_raw(char *input_N,
+                      char *input_X,
+                      char *result)
+{
+    mbedtls_mpi_uint *X = NULL;
+    mbedtls_mpi_uint *N = NULL;
+    mbedtls_mpi_uint *res = NULL;
+    size_t limbs_X;
+    size_t limbs_N;
+    size_t limbs_res;
+
+    mbedtls_mpi_mod_modulus m;
+    mbedtls_mpi_mod_modulus_init(&m);
+
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&X,   &limbs_X,   input_X), 0);
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&N,   &limbs_N,   input_N), 0);
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&res, &limbs_res, result),  0);
+
+    size_t limbs = limbs_N;
+    size_t bytes = limbs * sizeof(mbedtls_mpi_uint);
+
+    TEST_EQUAL(limbs_X, 2 * limbs);
+    TEST_EQUAL(limbs_res, limbs);
+
+    TEST_EQUAL(mbedtls_mpi_mod_modulus_setup(
+                   &m, N, limbs,
+                   MBEDTLS_MPI_MOD_REP_MONTGOMERY), 0);
+
+    TEST_EQUAL(mbedtls_ecp_mod_p521_raw(X, limbs_X), 0);
+    TEST_LE_U(mbedtls_mpi_core_bitlen(X, limbs_X), 522);
+    mbedtls_mpi_mod_raw_fix_quasi_reduction(X, &m);
+    ASSERT_COMPARE(X, bytes, res, bytes);
+
+exit:
+    mbedtls_free(X);
+    mbedtls_free(res);
+
+    mbedtls_mpi_mod_modulus_free(&m);
+    mbedtls_free(N);
+}
+/* END_CASE */
+
+/* BEGIN_CASE depends_on:MBEDTLS_TEST_HOOKS */
+void ecp_mod_setup(char *input_A, int id, int ctype, int iret)
+{
+    int ret;
+    mbedtls_mpi_mod_modulus m;
+    mbedtls_mpi_mod_modulus_init(&m);
+    mbedtls_mpi_uint *p = NULL;
+    size_t p_limbs;
+    size_t bytes;
+
+    TEST_EQUAL(mbedtls_test_read_mpi_core(&p, &p_limbs, input_A), 0);
+
+    ret = mbedtls_ecp_modulus_setup(&m, id, ctype);
+    TEST_EQUAL(ret, iret);
+
+    if (ret == 0) {
+
+        /* Test for limb sizes */
+        TEST_EQUAL(m.limbs, p_limbs);
+        bytes = p_limbs * sizeof(mbedtls_mpi_uint);
+
+        /* Test for validity of moduli by the presence of Montgomery consts */
+
+        TEST_ASSERT(m.rep.mont.mm != 0);
+        TEST_ASSERT(m.rep.mont.rr != NULL);
+
+
+        /* Compare output byte-by-byte */
+        ASSERT_COMPARE(p, bytes, m.p, bytes);
+
+        /* Test for user free-ing allocated memory */
+        mbedtls_mpi_mod_modulus_free(&m);
+    }
+
+exit:
+    mbedtls_mpi_mod_modulus_free(&m);
+    mbedtls_free(p);
 }
 /* END_CASE */
