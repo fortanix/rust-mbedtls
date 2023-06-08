@@ -295,10 +295,12 @@ mod test {
 
         if is_dtls {
             // DTLS 1.3 is not yet supported, ref: https://github.com/Mbed-TLS/mbedtls/blob/v3.4.0/library/ssl_tls.c#L1303-L1313
+            #[cfg(feature = "tls13")]
             if min_c == Version::Tls13 || min_s == Version::Tls13 {
                 return;
             }
             // DTLS not yet supported in Hybrid TLS 1.3 + TLS 1.2
+            #[cfg(feature = "tls13")]
             if min_c == Version::Tls12 && max_c == Version::Tls13 || min_s == Version::Tls12 && max_s == Version::Tls13 {
                 return;
             }
@@ -316,8 +318,8 @@ mod test {
             server.join().unwrap();
             client.join().unwrap();
         } else {
-            // TODO: PSK in TLS 1.3 only means session ticket, so test code above need to be
-            // updated to handle this
+            // TODO: PSK in TLS 1.3 only means session ticket, we haven't support it yet
+            #[cfg(feature = "tls13")]
             if use_psk && exp_ver == Some(Version::Tls13) {
                 return;
             }
