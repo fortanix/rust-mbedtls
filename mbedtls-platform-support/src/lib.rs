@@ -117,7 +117,15 @@ pub unsafe extern "C" fn explicit_bzero(buf: *mut mbedtls_sys::types::raw_types:
     buffer.zeroize();
 }
 
-/// you need to call 
+#[cfg(target_env = "sgx")]
+#[doc(hidden)]
+#[no_mangle]
+// needs to be pub for global visibility
+pub unsafe extern "C" fn mbedtls_ms_time() -> mbedtls_sys::ms_time_t {
+    chrono::Utc::now().timestamp_millis() as mbedtls_sys::ms_time_t
+}
+
+/// you need to call `psa_crypto_init()` before calling any function from the SSL/TLS, X.509 or PK modules
 #[cfg(feature = "tls13")]
 pub fn psa_crypto_init() {
     use once_cell::sync::OnceCell;
