@@ -107,12 +107,12 @@ where
                 Err(e) if e.high_level() == Some(codes::SslWantRead) => return Poll::Pending,
                 #[cfg(feature = "tls13")]
                 Err(e) if e.high_level() == Some(codes::SslWantRead) => {
+                    // In TLS 1.3, mbedtls decided to leave user to handle logic of saving `NewSessionTicket`
                     // When using a client, it's possible that we were waiting for application data
                     // but got a NewSessionTicket instead. In this case, mbedtls
-                    // might return SslWantRead to indicate to read incoming data of
-                    // NewSessionTicket Please check code of function
-                    // `mbedtls_ssl_read` & `ssl_handle_hs_message_post_handshake` in
-                    // `mbedtls-sys/vendor/library/ssl_msg.c` for more info.
+                    // might return `SslWantRead` to indicate to read incoming data of
+                    // `NewSessionTicket`.
+                    // There is an issue for tracking: https://github.com/Mbed-TLS/mbedtls/issues/6640
                     if ssl_ctx.config().handle().private_endpoint as c_int == super::config::Endpoint::Client.into()
                         && ssl_ctx.handle().private_state as mbedtls_sys::ssl_states
                             == super::ssl_states::SslStates::Tls13NewSessionTicket.into()
@@ -121,13 +121,11 @@ where
                     }
                     return Poll::Pending;
                 }
-                // When using a client, it's possible that we were waiting for application data but got a NewSessionTicket
-                // instead. In this case, mbedtls will return SslReceivedNewSessionTicket, here we catch it and
+                // In TLS 1.3, mbedtls decided to leave user to handle logic of saving `NewSessionTicket`
+                // When using a client, it's possible that we were waiting for application data but got a `NewSessionTicket`
+                // instead. In this case, mbedtls will return `SslReceivedNewSessionTicket` Error, here we catch it and
                 // continue reading since we accept session resumption.
-                // Please check code of function `mbedtls_ssl_tls13_handshake_client_step` in
-                // `mbedtls-sys/vendor/library/ssl_tls13_client.c`
-                // and `case MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET` in example code
-                // `mbedtls-sys/vendor/programs/ssl/ssl_client2.c` for more info.
+                // There is an issue for tracking: https://github.com/Mbed-TLS/mbedtls/issues/6640
                 #[cfg(feature = "tls13")]
                 Err(e) if e.high_level() == Some(codes::SslReceivedNewSessionTicket) => continue,
                 Err(e) => return Poll::Ready(Err(crate::private::error_to_io_error(e))),
