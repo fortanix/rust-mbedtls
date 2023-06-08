@@ -8,9 +8,9 @@ export RUST_BACKTRACE=1
 export TRAVIS_HOME=$HOME
 
 targets=()
-targets+=("x86_64-unknown-linux-gnu")
-targets+=("aarch64-unknown-linux-musl")
 targets+=("x86_64-fortanix-unknown-sgx")
+targets+=("aarch64-unknown-linux-musl")
+targets+=("x86_64-unknown-linux-gnu")
 
 versions=()
 versions+=("beta")

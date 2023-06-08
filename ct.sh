@@ -49,14 +49,15 @@ if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" 
     # Install the rust toolchain
     rustup default $TRAVIS_RUST_VERSION
     rustup target add --toolchain $TRAVIS_RUST_VERSION $TARGET
+    printenv
 
     # The SGX target cannot be run under test like a ELF binary
-    if [ "$TARGET" != "x86_64-fortanix-unknown-sgx" ]; then 
+    if [ "$TARGET" != "x86_64-fortanix-unknown-sgx" ]; then
         # make sure that explicitly providing the default target works
         cargo nextest run --target $TARGET --release
         cargo nextest run --features dsa --target $TARGET
         cargo nextest run --features async-rt,tls13 --target $TARGET
-        
+
         # If AES-NI is supported, test the feature
         if [ -n "$AES_NI_SUPPORT" ]; then
             cargo nextest run --features force_aesni_support,tls13 --target $TARGET
