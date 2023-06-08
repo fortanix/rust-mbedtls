@@ -430,6 +430,7 @@ pub const PLATFORM_DEFINES: &'static [(&'static str, &'static str, CDefine)] = &
     ("time",      "custom",   ("MBEDTLS_PLATFORM_TIME_MACRO",               DefinedAs("mbedtls_time"))),
     ("time",      "custom",   ("MBEDTLS_PLATFORM_TIME_TYPE_MACRO",          DefinedAs("long long"))),
     ("time",      "custom",   ("MBEDTLS_PLATFORM_GMTIME_R_ALT",             Defined)),
+    ("time",      "custom",   ("MBEDTLS_PLATFORM_MS_TIME_ALT",              Defined)),
     ("threading", "pthread",  ("MBEDTLS_THREADING_PTHREAD",                 Defined)),
     ("threading", "custom",   ("MBEDTLS_THREADING_IMPL",                    Defined)),
     ("std",       "net",      ("MBEDTLS_NET_C",                             Defined)),

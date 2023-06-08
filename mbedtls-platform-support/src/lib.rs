@@ -117,7 +117,7 @@ pub unsafe extern "C" fn explicit_bzero(buf: *mut mbedtls_sys::types::raw_types:
     buffer.zeroize();
 }
 
-#[cfg(target_env = "sgx")]
+#[cfg(any(all(feature = "time", feature = "custom_time"), sys_time_component = "custom"))]
 #[doc(hidden)]
 #[no_mangle]
 // needs to be pub for global visibility
