@@ -62,7 +62,6 @@ mod test {
     use crate::support::net::create_tcp_pair;
     use crate::support::keys;
     use mbedtls::alloc::List as MbedtlsList;
-    use mbedtls::Error;
     use mbedtls::x509::Certificate;
     use mbedtls::error::codes;
 

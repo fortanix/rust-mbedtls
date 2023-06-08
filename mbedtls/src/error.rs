@@ -482,9 +482,9 @@ mod tests {
         assert_eq!(Error::from(0), Error::Other(0));
         assert_eq!(Error::from(1), Error::Other(1));
         // Lo, Hi, HiAndLo cases
-        assert_eq!(Error::from(-1), Error::LowLevel(LoError::Unknown(-1)));
+        assert_eq!(Error::from(-1), Error::LowLevel(LoError::ErrorGenericError));
         assert_eq!(Error::from(-0x80), Error::HighLevel(HiError::Unknown(-0x80)));
-        assert_eq!(Error::from(-0x81), Error::HighAndLowLevel(HiError::Unknown(-0x80), LoError::Unknown(-1)));
+        assert_eq!(Error::from(-0x81), Error::HighAndLowLevel(HiError::Unknown(-0x80), LoError::ErrorGenericError));
         assert_eq!(Error::from(-24993), Error::HighAndLowLevel(HiError::CipherAllocFailed, LoError::AesBadInputData));
         assert_eq!(Error::from(-24960), Error::HighLevel(HiError::CipherAllocFailed));
         assert_eq!(Error::from(-33), Error::LowLevel(LoError::AesBadInputData ));
