@@ -26,13 +26,14 @@
 #include "psa_crypto_core.h"
 #include "psa_crypto_ecp.h"
 #include "psa_crypto_random_impl.h"
-#include "psa_crypto_hash.h"
+#include "hash_info.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include "mbedtls/platform.h"
 
 #include <mbedtls/ecdsa.h>
+#include <mbedtls/ecdh.h>
 #include <mbedtls/ecp.h>
 #include <mbedtls/error.h>
 
@@ -365,8 +366,7 @@ psa_status_t mbedtls_psa_ecdsa_sign_hash(
     if (PSA_ALG_ECDSA_IS_DETERMINISTIC(alg)) {
 #if defined(MBEDTLS_PSA_BUILTIN_ALG_DETERMINISTIC_ECDSA)
         psa_algorithm_t hash_alg = PSA_ALG_SIGN_GET_HASH(alg);
-        const mbedtls_md_info_t *md_info = mbedtls_md_info_from_psa(hash_alg);
-        mbedtls_md_type_t md_alg = mbedtls_md_get_type(md_info);
+        mbedtls_md_type_t md_alg = mbedtls_hash_info_md_from_psa(hash_alg);
         MBEDTLS_MPI_CHK(mbedtls_ecdsa_sign_det_ext(
                             &ecp->grp, &r, &s,
                             &ecp->d, hash,
@@ -404,6 +404,21 @@ cleanup:
     return mbedtls_to_psa_error(ret);
 }
 
+psa_status_t mbedtls_psa_ecp_load_public_part(mbedtls_ecp_keypair *ecp)
+{
+    int ret = 0;
+
+    /* Check whether the public part is loaded. If not, load it. */
+    if (mbedtls_ecp_is_zero(&ecp->Q)) {
+        ret = mbedtls_ecp_mul(&ecp->grp, &ecp->Q,
+                              &ecp->d, &ecp->grp.G,
+                              mbedtls_psa_get_random,
+                              MBEDTLS_PSA_RANDOM_STATE);
+    }
+
+    return mbedtls_to_psa_error(ret);
+}
+
 psa_status_t mbedtls_psa_ecdsa_verify_hash(
     const psa_key_attributes_t *attributes,
     const uint8_t *key_buffer, size_t key_buffer_size,
@@ -412,7 +427,6 @@ psa_status_t mbedtls_psa_ecdsa_verify_hash(
 {
     psa_status_t status = PSA_ERROR_CORRUPTION_DETECTED;
     mbedtls_ecp_keypair *ecp = NULL;
-    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t curve_bytes;
     mbedtls_mpi r, s;
 
@@ -432,37 +446,122 @@ psa_status_t mbedtls_psa_ecdsa_verify_hash(
     mbedtls_mpi_init(&s);
 
     if (signature_length != 2 * curve_bytes) {
-        ret = MBEDTLS_ERR_ECP_VERIFY_FAILED;
+        status = PSA_ERROR_INVALID_SIGNATURE;
         goto cleanup;
     }
 
-    MBEDTLS_MPI_CHK(mbedtls_mpi_read_binary(&r,
-                                            signature,
-                                            curve_bytes));
-    MBEDTLS_MPI_CHK(mbedtls_mpi_read_binary(&s,
-                                            signature + curve_bytes,
-                                            curve_bytes));
-
-    /* Check whether the public part is loaded. If not, load it. */
-    if (mbedtls_ecp_is_zero(&ecp->Q)) {
-        MBEDTLS_MPI_CHK(
-            mbedtls_ecp_mul(&ecp->grp, &ecp->Q, &ecp->d, &ecp->grp.G,
-                            mbedtls_psa_get_random, MBEDTLS_PSA_RANDOM_STATE));
+    status = mbedtls_to_psa_error(mbedtls_mpi_read_binary(&r,
+                                                          signature,
+                                                          curve_bytes));
+    if (status != PSA_SUCCESS) {
+        goto cleanup;
     }
 
-    ret = mbedtls_ecdsa_verify(&ecp->grp, hash, hash_length,
-                               &ecp->Q, &r, &s);
+    status = mbedtls_to_psa_error(mbedtls_mpi_read_binary(&s,
+                                                          signature + curve_bytes,
+                                                          curve_bytes));
+    if (status != PSA_SUCCESS) {
+        goto cleanup;
+    }
 
+    status = mbedtls_psa_ecp_load_public_part(ecp);
+    if (status != PSA_SUCCESS) {
+        goto cleanup;
+    }
+
+    status = mbedtls_to_psa_error(mbedtls_ecdsa_verify(&ecp->grp, hash,
+                                                       hash_length, &ecp->Q,
+                                                       &r, &s));
 cleanup:
     mbedtls_mpi_free(&r);
     mbedtls_mpi_free(&s);
     mbedtls_ecp_keypair_free(ecp);
     mbedtls_free(ecp);
 
-    return mbedtls_to_psa_error(ret);
+    return status;
 }
 
 #endif /* defined(MBEDTLS_PSA_BUILTIN_ALG_ECDSA) || \
         * defined(MBEDTLS_PSA_BUILTIN_ALG_DETERMINISTIC_ECDSA) */
+
+/****************************************************************/
+/* ECDH Key Agreement */
+/****************************************************************/
+
+#if defined(MBEDTLS_PSA_BUILTIN_ALG_ECDH)
+psa_status_t mbedtls_psa_key_agreement_ecdh(
+    const psa_key_attributes_t *attributes,
+    const uint8_t *key_buffer, size_t key_buffer_size,
+    psa_algorithm_t alg, const uint8_t *peer_key, size_t peer_key_length,
+    uint8_t *shared_secret, size_t shared_secret_size,
+    size_t *shared_secret_length)
+{
+    psa_status_t status;
+    if (!PSA_KEY_TYPE_IS_ECC_KEY_PAIR(attributes->core.type) ||
+        !PSA_ALG_IS_ECDH(alg)) {
+        return PSA_ERROR_INVALID_ARGUMENT;
+    }
+    mbedtls_ecp_keypair *ecp = NULL;
+    status = mbedtls_psa_ecp_load_representation(
+        attributes->core.type,
+        attributes->core.bits,
+        key_buffer,
+        key_buffer_size,
+        &ecp);
+    if (status != PSA_SUCCESS) {
+        return status;
+    }
+    mbedtls_ecp_keypair *their_key = NULL;
+    mbedtls_ecdh_context ecdh;
+    size_t bits = 0;
+    psa_ecc_family_t curve = mbedtls_ecc_group_to_psa(ecp->grp.id, &bits);
+    mbedtls_ecdh_init(&ecdh);
+
+    status = mbedtls_psa_ecp_load_representation(
+        PSA_KEY_TYPE_ECC_PUBLIC_KEY(curve),
+        bits,
+        peer_key,
+        peer_key_length,
+        &their_key);
+    if (status != PSA_SUCCESS) {
+        goto exit;
+    }
+
+    status = mbedtls_to_psa_error(
+        mbedtls_ecdh_get_params(&ecdh, their_key, MBEDTLS_ECDH_THEIRS));
+    if (status != PSA_SUCCESS) {
+        goto exit;
+    }
+    status = mbedtls_to_psa_error(
+        mbedtls_ecdh_get_params(&ecdh, ecp, MBEDTLS_ECDH_OURS));
+    if (status != PSA_SUCCESS) {
+        goto exit;
+    }
+
+    status = mbedtls_to_psa_error(
+        mbedtls_ecdh_calc_secret(&ecdh,
+                                 shared_secret_length,
+                                 shared_secret, shared_secret_size,
+                                 mbedtls_psa_get_random,
+                                 MBEDTLS_PSA_RANDOM_STATE));
+    if (status != PSA_SUCCESS) {
+        goto exit;
+    }
+    if (PSA_BITS_TO_BYTES(bits) != *shared_secret_length) {
+        status = PSA_ERROR_CORRUPTION_DETECTED;
+    }
+exit:
+    if (status != PSA_SUCCESS) {
+        mbedtls_platform_zeroize(shared_secret, shared_secret_size);
+    }
+    mbedtls_ecdh_free(&ecdh);
+    mbedtls_ecp_keypair_free(their_key);
+    mbedtls_free(their_key);
+    mbedtls_ecp_keypair_free(ecp);
+    mbedtls_free(ecp);
+    return status;
+}
+#endif /* MBEDTLS_PSA_BUILTIN_ALG_ECDH */
+
 
 #endif /* MBEDTLS_PSA_CRYPTO_C */

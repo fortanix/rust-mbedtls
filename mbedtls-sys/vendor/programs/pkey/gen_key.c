@@ -17,11 +17,7 @@
  *  limitations under the License.
  */
 
-#if !defined(MBEDTLS_CONFIG_FILE)
-#include "mbedtls/config.h"
-#else
-#include MBEDTLS_CONFIG_FILE
-#endif
+#include "mbedtls/build_info.h"
 
 #include "mbedtls/platform.h"
 
@@ -371,10 +367,10 @@ usage:
     if (mbedtls_pk_get_type(&key) == MBEDTLS_PK_ECKEY) {
         mbedtls_ecp_keypair *ecp = mbedtls_pk_ec(key);
         mbedtls_printf("curve: %s\n",
-                       mbedtls_ecp_curve_info_from_grp_id(ecp->grp.id)->name);
-        mbedtls_mpi_write_file("X_Q:   ", &ecp->Q.X, 16, NULL);
-        mbedtls_mpi_write_file("Y_Q:   ", &ecp->Q.Y, 16, NULL);
-        mbedtls_mpi_write_file("D:     ", &ecp->d, 16, NULL);
+                       mbedtls_ecp_curve_info_from_grp_id(ecp->MBEDTLS_PRIVATE(grp).id)->name);
+        mbedtls_mpi_write_file("X_Q:   ", &ecp->MBEDTLS_PRIVATE(Q).MBEDTLS_PRIVATE(X), 16, NULL);
+        mbedtls_mpi_write_file("Y_Q:   ", &ecp->MBEDTLS_PRIVATE(Q).MBEDTLS_PRIVATE(Y), 16, NULL);
+        mbedtls_mpi_write_file("D:     ", &ecp->MBEDTLS_PRIVATE(d), 16, NULL);
     } else
 #endif
     mbedtls_printf("  ! key type not supported\n");
@@ -411,11 +407,6 @@ exit:
     mbedtls_pk_free(&key);
     mbedtls_ctr_drbg_free(&ctr_drbg);
     mbedtls_entropy_free(&entropy);
-
-#if defined(_WIN32)
-    mbedtls_printf("  + Press Enter to exit this program.\n");
-    fflush(stdout); getchar();
-#endif
 
     mbedtls_exit(exit_code);
 }

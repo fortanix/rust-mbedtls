@@ -19,15 +19,11 @@
  */
 
 /* Enable definition of fileno() even when compiling with -std=c99. Must be
- * set before config.h, which pulls in glibc's features.h indirectly.
+ * set before mbedtls_config.h, which pulls in glibc's features.h indirectly.
  * Harmless on other platforms. */
 #define _POSIX_C_SOURCE 200112L
 
-#if !defined(MBEDTLS_CONFIG_FILE)
-#include "mbedtls/config.h"
-#else
-#include MBEDTLS_CONFIG_FILE
-#endif
+#include "mbedtls/build_info.h"
 
 #include "mbedtls/platform.h"
 
@@ -116,7 +112,7 @@ int main(int argc, char *argv[])
         list = mbedtls_cipher_list();
         while (*list) {
             cipher_info = mbedtls_cipher_info_from_type(*list);
-            mbedtls_printf("  %s\n", cipher_info->name);
+            mbedtls_printf("  %s\n", mbedtls_cipher_info_get_name(cipher_info));
             list++;
         }
 
@@ -127,11 +123,6 @@ int main(int argc, char *argv[])
             mbedtls_printf("  %s\n", mbedtls_md_get_name(md_info));
             list++;
         }
-
-#if defined(_WIN32)
-        mbedtls_printf("\n  Press Enter to exit this program.\n");
-        fflush(stdout); getchar();
-#endif
 
         goto exit;
     }
@@ -157,6 +148,10 @@ int main(int argc, char *argv[])
         mbedtls_fprintf(stderr, "fopen(%s,wb+) failed\n", argv[3]);
         goto exit;
     }
+
+    /* Ensure no stdio buffering of secrets, as such buffers cannot be wiped. */
+    mbedtls_setbuf(fin, NULL);
+    mbedtls_setbuf(fout, NULL);
 
     /*
      * Read the Cipher and MD from the command line
@@ -310,7 +305,9 @@ int main(int argc, char *argv[])
 
         }
 
-        if (mbedtls_cipher_setkey(&cipher_ctx, digest, cipher_info->key_bitlen,
+        if (mbedtls_cipher_setkey(&cipher_ctx,
+                                  digest,
+                                  (int) mbedtls_cipher_info_get_key_bitlen(cipher_info),
                                   MBEDTLS_ENCRYPT) != 0) {
             mbedtls_fprintf(stderr, "mbedtls_cipher_setkey() returned error\n");
             goto exit;
@@ -408,7 +405,7 @@ int main(int argc, char *argv[])
         /*
          * Check the file size.
          */
-        if (cipher_info->mode != MBEDTLS_MODE_GCM &&
+        if (mbedtls_cipher_info_get_mode(cipher_info) != MBEDTLS_MODE_GCM &&
             ((filesize - mbedtls_md_get_size(md_info)) %
              mbedtls_cipher_get_block_size(&cipher_ctx)) != 0) {
             mbedtls_fprintf(stderr, "File content not a multiple of the block size (%u).\n",
@@ -457,7 +454,9 @@ int main(int argc, char *argv[])
             }
         }
 
-        if (mbedtls_cipher_setkey(&cipher_ctx, digest, cipher_info->key_bitlen,
+        if (mbedtls_cipher_setkey(&cipher_ctx,
+                                  digest,
+                                  (int) mbedtls_cipher_info_get_key_bitlen(cipher_info),
                                   MBEDTLS_DECRYPT) != 0) {
             mbedtls_fprintf(stderr, "mbedtls_cipher_setkey() returned error\n");
             goto exit;

@@ -38,14 +38,6 @@ my %configs = (
         'opt_needs_debug' => 1,
         'test_again_with_use_psa' => 1
     },
-    'config-mini-tls1_1.h' => {
-        'compat' => '-m tls1_1 -f \'^DES-CBC3-SHA$\|^TLS-RSA-WITH-3DES-EDE-CBC-SHA$\'', #',
-        ## Skip ssl-opt testing for now because ssl-opt.sh is missing a lot
-        ## of requires_xxx so it would try to run tests that don't apply.
-        # 'opt' => ' ',
-        # 'opt_needs_debug' => 1,
-        'test_again_with_use_psa' => 1
-    },
     'config-no-entropy.h' => {
     },
     'config-suite-b.h' => {
@@ -77,7 +69,7 @@ if ($#ARGV >= 0) {
 
 -d 'library' && -d 'include' && -d 'tests' or die "Must be run from root\n";
 
-my $config_h = 'include/mbedtls/config.h';
+my $config_h = 'include/mbedtls/mbedtls_config.h';
 
 system( "cp $config_h $config_h.bak" ) and die;
 sub abort {

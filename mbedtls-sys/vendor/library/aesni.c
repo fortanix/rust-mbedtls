@@ -26,15 +26,9 @@
 
 #if defined(MBEDTLS_AESNI_C)
 
-#include "mbedtls/aesni.h"
+#include "aesni.h"
 
 #include <string.h>
-
-/* *INDENT-OFF* */
-#ifndef asm
-#define asm __asm
-#endif
-/* *INDENT-ON* */
 
 #if defined(MBEDTLS_AESNI_HAVE_CODE)
 
@@ -45,7 +39,6 @@
 #include <immintrin.h>
 #endif
 
-#if !defined(MBEDTLS_CUSTOM_HAS_AESNI)
 /*
  * AES-NI support detection routine
  */
@@ -75,7 +68,6 @@ int mbedtls_aesni_has_support(unsigned int what)
 
     return (c & what) != 0;
 }
-#endif
 
 #if MBEDTLS_AESNI_HAVE_CODE == 2
 
@@ -87,7 +79,7 @@ int mbedtls_aesni_crypt_ecb(mbedtls_aes_context *ctx,
                             const unsigned char input[16],
                             unsigned char output[16])
 {
-    const __m128i *rk = (const __m128i *) (ctx->rk);
+    const __m128i *rk = (const __m128i *) (ctx->buf + ctx->rk_offset);
     unsigned nr = ctx->nr; // Number of remaining rounds
 
     // Load round key 0
@@ -469,7 +461,7 @@ int mbedtls_aesni_crypt_ecb(mbedtls_aes_context *ctx,
          "3:                        \n\t"
          "movdqu    %%xmm0, (%4)    \n\t" // export output
          :
-         : "r" (ctx->nr), "r" (ctx->rk), "r" (mode), "r" (input), "r" (output)
+         : "r" (ctx->nr), "r" (ctx->buf + ctx->rk_offset), "r" (mode), "r" (input), "r" (output)
          : "memory", "cc", "xmm0", "xmm1");
 
 

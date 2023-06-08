@@ -336,7 +336,7 @@ The layout of a key file is:
 Mbed TLS 2.25.0
 ---------------
 
-Tags: `mbedtls-2.25.0`, `mbedtls-2.26.0`, `mbedtls-2.27.0`, `mbedtls-2.28.0` (continued in early 3.x releases)
+Tags: `mbedtls-2.25.0`, `mbedtls-2.26.0`, `mbedtls-2.27.0`, `mbedtls-2.28.0`, `mbedtls-3.0.0`, `mbedtls-3.1.0`
 
 First released in December 2020.
 
