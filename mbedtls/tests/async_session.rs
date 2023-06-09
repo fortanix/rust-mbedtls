@@ -255,6 +255,27 @@ mod test {
         Version::Tls13,
         Some(Version::Tls13)
     ))]
+    #[case::client1_2_server_mix(TestConfig::new(
+        Version::Tls12,
+        Version::Tls12,
+        Version::Tls12,
+        Version::Tls13,
+        Some(Version::Tls12)
+    ))]
+    #[case::client1_3_server_mix(TestConfig::new(
+        Version::Tls13,
+        Version::Tls13,
+        Version::Tls12,
+        Version::Tls13,
+        Some(Version::Tls13)
+    ))]
+    #[case::client_mix_server_mix(TestConfig::new(
+        Version::Tls12,
+        Version::Tls13,
+        Version::Tls12,
+        Version::Tls13,
+        Some(Version::Tls13)
+    ))]
     #[tokio::test]
     async fn async_session_client_server_tls13_test(#[case] config: TestConfig) {
         run_async_session_client_server_test(config).await;

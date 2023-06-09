@@ -35,6 +35,10 @@ where
     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
     config.set_rng(rng);
     config.set_ca_callback(ca_callback);
+    // The certificates in this test now only support TLS 1.2
+    // TODO: update tests to cover TLS 1.3
+    config.set_min_version(mbedtls::ssl::Version::Tls12)?;
+    config.set_max_version(mbedtls::ssl::Version::Tls12)?;
     let mut ctx = Context::new(Arc::new(config));
     ctx.establish(conn, None).map(|_| ())
 }
@@ -47,6 +51,10 @@ fn server(conn: TcpStream, cert: &[u8], key: &[u8]) -> TlsResult<()> {
     let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
     config.set_rng(rng);
     config.push_cert(cert, key)?;
+    // The certificates in this test now only support TLS 1.2
+    // TODO: update tests to cover TLS 1.3
+    config.set_min_version(mbedtls::ssl::Version::Tls12)?;
+    config.set_max_version(mbedtls::ssl::Version::Tls12)?;
     let mut ctx = Context::new(Arc::new(config));
 
     let _ = ctx.establish(conn, None);
