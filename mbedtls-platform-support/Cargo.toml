@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls-platform-support"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Yuxiang Cao <yuxiang.cao@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -29,7 +29,7 @@ chrono = "0.4"
 zeroize = { version = "1.6.0", default-features = false }
 
 [dependencies.mbedtls-sys-auto]
-version = "3.4.0"
+version = "3.5.0-alpha.1+0b3de6f"
 default-features = false
 features = ["threading", "custom_printf"]
 path = "../mbedtls-sys"
