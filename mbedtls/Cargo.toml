@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.10.0"
+version = "0.11.0"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -32,13 +32,13 @@ tokio = { version = "1.16.1", optional = true }
 rs-libc = "0.2.4"
 
 [dependencies.mbedtls-sys-auto]
-version = "3.4.0"
+version = "3.5.0-alpha.1+0b3de6f"
 default-features = false
 features = ["trusted_cert_callback", "threading"]
 path = "../mbedtls-sys"
 
 [dependencies.mbedtls-platform-support]
-version = "0.2"
+version = "0.3"
 path = "../mbedtls-platform-support"
 
 [dev-dependencies]
