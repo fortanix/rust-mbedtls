@@ -100,12 +100,14 @@ impl super::BuildConfig {
             };
         }
 
-        
+
         // generate static function wrappers without any other rust related parameters to ensure
         // correctness of result C code
         bindgen::builder()
             .clang_args(cc.get_compiler().args().iter().map(|arg| arg.to_str().unwrap()))
             .header_contents("bindgen-input.h", &header)
+            .allowlist_function("^(?i)mbedtls_.*")
+            .allowlist_function("^(?i)psa_.*")
             .wrap_static_fns(true)
             .wrap_static_fns_path(&self.static_wrappers_c)
             .generate().expect("bindgen error");
