@@ -107,6 +107,14 @@ pub unsafe extern "C" fn mbedtls_time(tp: *mut mbedtls_sys::types::time_t) -> mb
     timestamp
 }
 
+#[cfg(any(all(feature = "time", feature = "custom_time"), sys_time_component = "custom"))]
+#[doc(hidden)]
+#[no_mangle]
+// needs to be pub for global visibility
+pub unsafe extern "C" fn mbedtls_ms_time() -> mbedtls_sys::ms_time_t {
+    chrono::Utc::now().timestamp_millis() as mbedtls_sys::ms_time_t
+}
+
 /// You need to call `psa_crypto_init()` before calling any function from the SSL/TLS, X.509 or PK modules.
 /// This function is fine to be called mutiple times while ensure underlying initilization function is only
 /// been called only once.
