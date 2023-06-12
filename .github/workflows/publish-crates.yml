@@ -9,8 +9,9 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest  
+  crate_publish:
+    environment: "publish to crates.io"
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
