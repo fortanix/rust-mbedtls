@@ -29,7 +29,7 @@ jobs:
       - run: |
           export crate_name=$(python3 -c "print('$GITHUB_REF'.split('/')[2].rsplit('_v', 1)[0])")
           echo "Publishing crate: $crate_name"
-          cargo publish --locked --token ${CARGO_REGISTRY_TOKEN} --package "$crate_name" --dry-run
+          cargo publish --locked --token ${CARGO_REGISTRY_TOKEN} --package "$crate_name"
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           RUSTFLAGS: "-A ambiguous_glob_reexports"
