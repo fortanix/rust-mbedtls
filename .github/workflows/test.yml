@@ -9,6 +9,7 @@ on:
 
 env:
   RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
 
 jobs:
   build:
@@ -32,9 +33,10 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Install dependencies
+      if: matrix.target == 'aarch64-unknown-linux-musl'
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake qemu-user
+        sudo apt-get install -y qemu-user
 
     - name: Setup Rust toolchain
       uses: actions-rs/toolchain@v1
@@ -45,11 +47,9 @@ jobs:
 
     - name: Run tests
       run: |
-        if [[ "${TARGET}" == "x86_64-unknown-linux-gnu" ]]; then
-          export ZLIB_INSTALLED=true
-          export AES_NI_SUPPORT=true
-        fi
         ./ct.sh
       env:
         TRAVIS_RUST_VERSION: ${{ matrix.rust }}
         TARGET: ${{ matrix.target }}
+        ZLIB_INSTALLED: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'true' || '' }}
+        AES_NI_SUPPORT: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'true' || '' }}
