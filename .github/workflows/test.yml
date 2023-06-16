@@ -1,0 +1,55 @@
+name: Test
+
+on:
+  pull_request:
+    branches:
+      - master
+      - 'v0.*'
+  merge_group:
+
+env:
+  RUST_BACKTRACE: 1
+
+jobs:
+  build:
+    name: test
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        include:
+          - rust: stable
+            target: x86_64-unknown-linux-gnu
+          - rust: stable
+            target: aarch64-unknown-linux-musl
+          - rust: stable
+            target: x86_64-fortanix-unknown-sgx
+          - rust: beta
+            target: x86_64-unknown-linux-gnu
+          - rust: nightly
+            target: x86_64-unknown-linux-gnu
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake qemu-user
+
+    - name: Setup Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        target: ${{ matrix.target }}
+        override: true
+
+    - name: Run tests
+      run: |
+        if [[ "${TARGET}" == "x86_64-unknown-linux-gnu" ]]; then
+          export ZLIB_INSTALLED=true
+          export AES_NI_SUPPORT=true
+        fi
+        ./ct.sh
+      env:
+        TRAVIS_RUST_VERSION: ${{ matrix.rust }}
+        TARGET: ${{ matrix.target }}
