@@ -36,6 +36,9 @@ impl Features {
             env_have_target_cfg("env", "sgx") ||
             env_have_target_cfg("os", "none") {
             self.with_feature("c_compiler").unwrap().insert("freestanding");
+            if let Some(components) = self.with_feature("tls13") {
+                components.insert("external_entropy");
+            }
         }
         if let Some(components) = self.with_feature("threading") {
             if !have_custom_threading && env_have_target_cfg("family", "unix") {
