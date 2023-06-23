@@ -9,7 +9,7 @@
 #![cfg(all(feature = "std", feature = "async"))]
 
 use crate::{
-    error::{Error, Result, codes},
+    error::{Result, codes},
     ssl::{
         context::Context,
         io::{IoCallback, IoCallbackUnsafe},
@@ -80,7 +80,7 @@ impl<T: Unpin + AsyncRead + AsyncWrite + 'static> Context<T> {
                         Err(e) => Poll::Ready(Err(e)),
                         Ok(()) => Poll::Ready(Ok(())),
                     })
-                    .unwrap_or(Poll::Ready(Err(Error::from(codes::NetSendFailed))))
+                    .unwrap_or(Poll::Ready(Err(codes::NetSendFailed.into())))
             }
         }
 
@@ -110,7 +110,7 @@ where
                     }
             }
         )
-        .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::from(codes::NetRecvFailed)))))
+        .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(codes::NetRecvFailed.into()))))
     }
 }
 
@@ -130,7 +130,7 @@ where
                 Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
                 Ok(i) => Poll::Ready(Ok(i)),
             })
-            .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::from(codes::NetSendFailed)))))
+            .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(codes::NetSendFailed.into()))))
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
@@ -140,7 +140,7 @@ where
 
         match self
             .with_bio_async(cx, Context::flush_output)
-            .unwrap_or(Err(Error::from(codes::NetSendFailed)))
+            .unwrap_or(Err(codes::NetSendFailed.into()))
         {
             Err(e) if e.high_level() == Some(codes::SslWantWrite) => Poll::Pending,
             Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
@@ -155,7 +155,7 @@ where
 
         match self
             .with_bio_async(cx, Context::close_notify)
-            .unwrap_or(Err(Error::from(codes::NetSendFailed)))
+            .unwrap_or(Err(codes::NetSendFailed.into()))
         {
             Err(e) if matches!(e.high_level(), Some(codes::SslWantRead | codes::SslWantWrite)) => Poll::Pending,
             Err(e) => {

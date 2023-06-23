@@ -6,6 +6,8 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+use core::convert::TryFrom;
+
 use mbedtls_sys::*;
 
 use crate::error::{IntoResult, Result, codes};
@@ -29,19 +31,20 @@ define!(
     }
 );
 
-impl From<cipher_id_t> for CipherId {
-    fn from(inner: cipher_id_t) -> Self {
+impl TryFrom<cipher_id_t> for CipherId {
+    type Error =  crate::error::Error;
+
+    fn try_from(inner: cipher_id_t) -> Result<Self> {
         match inner {
-            CIPHER_ID_NONE => CipherId::None,
-            CIPHER_ID_NULL => CipherId::Null,
-            CIPHER_ID_AES => CipherId::Aes,
-            CIPHER_ID_DES => CipherId::Des,
-            CIPHER_ID_3DES => CipherId::Des3,
-            CIPHER_ID_CAMELLIA => CipherId::Camellia,
-            CIPHER_ID_ARIA => CipherId::Aria,
-            CIPHER_ID_CHACHA20 => CipherId::ChaCha20,
-            // This should be replaced with TryFrom once it is stable.
-            _ => panic!("Invalid cipher_id_t"),
+            CIPHER_ID_NONE => Ok(CipherId::None),
+            CIPHER_ID_NULL => Ok(CipherId::Null),
+            CIPHER_ID_AES => Ok(CipherId::Aes),
+            CIPHER_ID_DES => Ok(CipherId::Des),
+            CIPHER_ID_3DES => Ok(CipherId::Des3),
+            CIPHER_ID_CAMELLIA => Ok(CipherId::Camellia),
+            CIPHER_ID_ARIA => Ok(CipherId::Aria),
+            CIPHER_ID_CHACHA20 => Ok(CipherId::ChaCha20),
+            _ => Err(codes::CipherBadInputData.into()),
         }
     }
 }
@@ -433,7 +436,7 @@ impl Cipher {
                 .map_or(true, |cipher_len| cipher_len < plain_text.len()) {
             return Err(codes::CipherBadInputData.into());
         }
-        let iv = self.iv.as_ref().ok_or(crate::Error::from(codes::CipherBadInputData))?;
+        let iv = self.iv.as_ref().ok_or(codes::CipherBadInputData)?;
         let iv_len = iv.len();
         let mut cipher_len = cipher_and_tag.len();
         unsafe {
@@ -493,7 +496,7 @@ impl Cipher {
             return Err(codes::CipherBadInputData.into());
         }
 
-        let iv = self.iv.as_ref().ok_or(crate::Error::from(codes::CipherBadInputData))?;
+        let iv = self.iv.as_ref().ok_or(codes::CipherBadInputData)?;
         let iv_len = iv.len();
         let mut plain_len = plain_text.len();
         unsafe {
@@ -544,7 +547,7 @@ impl Cipher {
         if data_with_tag.len() - tag_len <= 0 {
             return Err(codes::CipherBadInputData.into());
         }
-        let iv = self.iv.as_ref().ok_or(crate::Error::from(codes::CipherBadInputData))?;
+        let iv = self.iv.as_ref().ok_or(codes::CipherBadInputData)?;
         let iv_len = iv.len();
         let mut olen = data_with_tag.len();
         unsafe {
@@ -598,7 +601,7 @@ impl Cipher {
         if data_with_tag.len() - tag_len <= 0 {
             return Err(codes::CipherBadInputData.into());
         }
-        let iv = self.iv.as_ref().ok_or(crate::Error::from(codes::CipherBadInputData))?;
+        let iv = self.iv.as_ref().ok_or(codes::CipherBadInputData)?;
         let iv_len = iv.len();
         let mut plain_len = data_with_tag.len();
         unsafe {

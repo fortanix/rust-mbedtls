@@ -25,7 +25,7 @@ use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 
 #[cfg(feature = "std")]
-use crate::error::{Error, codes};
+use crate::error::codes;
 use crate::error::Result;
 use super::context::Context;
 
@@ -118,15 +118,15 @@ impl<IO: Io> IoCallback<AnyIo> for IO {
 impl<IO: Read + Write> IoCallback<Stream> for IO {
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.read(buf).map_err(|e| match e {
-            ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::from(codes::SslWantRead),
-            _ => Error::from(codes::NetRecvFailed)
+            ref e if e.kind() == std::io::ErrorKind::WouldBlock => codes::SslWantRead.into(),
+            _ => codes::NetRecvFailed.into()
         })
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<usize> {
         self.write(buf).map_err(|e| match e {
-            ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::from(codes::SslWantWrite),
-            _ => Error::from(codes::NetSendFailed)
+            ref e if e.kind() == std::io::ErrorKind::WouldBlock => codes::SslWantWrite.into(),
+            _ => codes::NetSendFailed.into()
         })
     }
 }

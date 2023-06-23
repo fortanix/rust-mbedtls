@@ -17,7 +17,7 @@ use mbedtls_sys::*;
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 use crate::alloc::List as MbedtlsList;
-use crate::error::{Error, Result, IntoResult, codes};
+use crate::error::{Result, IntoResult, codes};
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
 use crate::ssl::config::{Config, Version, AuthMode};
@@ -351,7 +351,7 @@ impl<T> Context<T> {
     #[cfg(feature = "std")]
     fn set_hostname(&mut self, hostname: Option<&str>) -> Result<()> {
         if let Some(s) = hostname {
-            let cstr = ::std::ffi::CString::new(s).map_err(|_| Error::from(codes::SslBadInputData))?;
+            let cstr = ::std::ffi::CString::new(s).map_err(|_| codes::SslBadInputData)?;
             unsafe {
                 ssl_set_hostname(self.into(), cstr.as_ptr())
                     .into_result()
@@ -439,7 +439,7 @@ impl<T> Context<T> {
 
         unsafe {
             // We cannot call the peer cert function as we need a pointer to a pointer to create the MbedtlsList, we need something in the heap / cannot use any local variable for that.
-            let peer_cert : &MbedtlsList<Certificate> = UnsafeFrom::from(&((*self.handle().private_session).private_peer_cert) as *const *mut x509_crt as *const *const x509_crt).ok_or(Error::from(codes::SslBadInputData))?;
+            let peer_cert : &MbedtlsList<Certificate> = UnsafeFrom::from(&((*self.handle().private_session).private_peer_cert) as *const *mut x509_crt as *const *const x509_crt).ok_or(codes::SslBadInputData)?;
             Ok(Some(peer_cert))
         }
     }
