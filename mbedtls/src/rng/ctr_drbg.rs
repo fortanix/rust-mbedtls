@@ -90,13 +90,8 @@ impl CtrDrbg {
         Ok(CtrDrbg { inner, entropy: EntropyHolder::Unique(entropy) })
     }
 
-    
     pub fn prediction_resistance(&self) -> bool {
-        if self.inner.private_prediction_resistance == CTR_DRBG_PR_OFF {
-            false
-        } else {
-            true
-        }
+        self.inner.private_prediction_resistance != CTR_DRBG_PR_OFF
     }
 
     pub fn set_prediction_resistance(&mut self, pr: bool) {

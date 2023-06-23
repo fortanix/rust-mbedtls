@@ -256,7 +256,7 @@ impl EcPoint {
     }
 
     pub fn from_binary(group: &EcGroup, bin: &[u8]) -> Result<EcPoint> {
-        let prefix = *bin.get(0).ok_or(Error::from(codes::EcpBadInputData))?;
+        let prefix = *bin.get(0).ok_or(codes::EcpBadInputData)?;
 
         if prefix == 0x02 || prefix == 0x03 {
             // Compressed point, which mbedtls does not understand

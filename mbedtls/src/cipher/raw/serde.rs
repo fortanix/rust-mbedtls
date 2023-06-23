@@ -9,6 +9,7 @@
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 use crate::cipher::*;
+use core::convert::TryInto;
 use core::fmt;
 use core::marker::PhantomData;
 use core::mem::size_of;
@@ -208,7 +209,7 @@ unsafe fn deserialize_raw_cipher(raw: SavedRawCipher, padding: raw::CipherPaddin
     -> Result<raw::Cipher, (&'static str, &'static str)> {
 
     let mut raw_cipher = match raw::Cipher::setup(
-        raw.cipher_id.into(),
+        raw.cipher_id.try_into().map_err(|_| ("bad cipher_id", "valid parameters"))?,
         raw.cipher_mode.into(),
         raw.key_bit_len,
     ) {

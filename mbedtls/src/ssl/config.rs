@@ -21,8 +21,6 @@ use mbedtls_sys::types::size_t;
 use crate::alloc::List as MbedtlsList;
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
-#[cfg(feature = "std")]
-use crate::error::Error;
 use crate::error::{Result, IntoResult};
 use crate::pk::Pk;
 use crate::pk::dhparam::Dhm;
@@ -146,7 +144,7 @@ impl NullTerminatedStrList {
         let mut ret = NullTerminatedStrList { c: Vec::with_capacity(list.len() + 1) };
 
         for item in list {
-            ret.c.push(::std::ffi::CString::new(*item).map_err(|_| Error::from(crate::error::codes::SslBadInputData))?.into_raw());
+            ret.c.push(::std::ffi::CString::new(*item).map_err(|_| crate::error::codes::SslBadInputData)?.into_raw());
         }
 
         ret.c.push(core::ptr::null_mut());
