@@ -1,6 +1,12 @@
 name: Test
 
 on:
+  push:
+    branches:
+      - master
+      - 'v0.*'
+      - staging
+      - trying
   pull_request:
     branches:
       - master
