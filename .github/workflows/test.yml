@@ -18,8 +18,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-    name: test
+  cargo-test:
+    name: cargo-test
     runs-on: ubuntu-20.04
     strategy:
       matrix:

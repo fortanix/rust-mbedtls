@@ -1,4 +1,4 @@
 status = [
-  "test",
+  "cargo-test"
 ]
-timeout_sec = 36000 # ten hours
+timeout_sec = 3600 # ten hours
