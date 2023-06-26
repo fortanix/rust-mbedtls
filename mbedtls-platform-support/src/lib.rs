@@ -107,16 +107,6 @@ pub unsafe extern "C" fn mbedtls_time(tp: *mut mbedtls_sys::types::time_t) -> mb
     timestamp
 }
 
-#[cfg(target_env = "sgx")]
-#[doc(hidden)]
-#[no_mangle]
-// needs to be pub for global visibility
-pub unsafe extern "C" fn explicit_bzero(buf: *mut mbedtls_sys::types::raw_types::c_void, len: mbedtls_sys::types::size_t)  {
-    use zeroize::Zeroize;
-    let buffer = core::slice::from_raw_parts_mut(buf as *mut mbedtls_sys::types::raw_types::c_char, len);
-    buffer.zeroize();
-}
-
 /// You need to call `psa_crypto_init()` before calling any function from the SSL/TLS, X.509 or PK modules.
 /// This function is fine to be called mutiple times while ensure underlying initilization function is only
 /// been called only once.

@@ -879,11 +879,12 @@ checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
 
 [[package]]
 name = "rs-libc"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "914c985b921cf571d950d17ca33221ed54fed3c2001a329ee6fd5b15dd433260"
+checksum = "683e8c8e8aac6ffa4b2287bac3c69575d5346accac4f218ae1e084303bb174ca"
 dependencies = [
  "cc",
+ "zeroize",
 ]
 
 [[package]]
