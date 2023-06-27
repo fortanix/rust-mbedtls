@@ -35,8 +35,8 @@ where
     let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
     config.set_rng(rng);
     config.set_ca_callback(ca_callback);
-    // The certificates in this test now only support TLS 1.2
-    // TODO: update tests to cover TLS 1.3
+    // `set_ca_callback` for TLS client is only available in TLS 1.2
+    // In TLS 1.3, TLS client no longer support CA callback.
     config.set_min_version(mbedtls::ssl::Version::Tls12)?;
     config.set_max_version(mbedtls::ssl::Version::Tls12)?;
     let mut ctx = Context::new(Arc::new(config));
