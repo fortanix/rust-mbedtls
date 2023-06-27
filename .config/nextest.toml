@@ -19,7 +19,7 @@ serial-integration = { max-threads = 1 }
 # * retries = 3
 # * retries = { backoff = "fixed", count = 2, delay = "1s" }
 # * retries = { backoff = "exponential", count = 10, delay = "1s", jitter = true, max-delay = "10s" }
-retries = 0
+retries = 2
 
 # The number of threads to run tests with. Supported values are either an integer or
 # the string "num-cpus". Can be overridden through the `--test-threads` option.
