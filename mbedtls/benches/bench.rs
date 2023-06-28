@@ -11,30 +11,29 @@ extern crate bencher;
 
 use bencher::{black_box, Bencher};
 
-const PBKDF2_NUM_ITERATIONS: u32 = 100000;
-const PBKDF2_SALT_LEN: usize = 32;
-const PBKDF2_KEY_LEN: usize = 32;
+use mbedtls::hash::Type as MdType;
+use mbedtls::hash::pbkdf2_hmac;
 
-use mbedtls::hash;
+fn test_pbkdf2() {
+    let mut output = [0u8; 48];
+
+    let salt = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07];
+
+    let iterations = 10000;
+    let passphrase = b"xyz";
+
+    pbkdf2_hmac(MdType::Sha256, passphrase, &salt, iterations, &mut output).unwrap();
+
+    assert_eq!(output[0..4], [0xDE, 0xFD, 0x29, 0x87]);
+
+    assert_eq!(output[44..48], [0xE7, 0x0B, 0x72, 0xD0]);
+}
+
 
 fn bench_pbkdf2_hmac(b: &mut Bencher) {
-    let password = "password".as_bytes();
-    let salt = vec![123u8; PBKDF2_SALT_LEN];
-
-    let mut key_val: Vec<u8> = vec![0; PBKDF2_KEY_LEN];
-
     b.iter(|| {
         // Inner closure, the actual test
-        black_box(
-            hash::pbkdf2_hmac(
-                hash::Type::Sha512,
-                password,
-                &salt,
-                PBKDF2_NUM_ITERATIONS,
-                key_val.as_mut_slice(),
-            )
-            .unwrap(),
-        );
+        black_box(test_pbkdf2());
     });
 }
 
