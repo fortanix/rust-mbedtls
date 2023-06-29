@@ -63,7 +63,12 @@ impl BuildConfig {
                 if FEATURES.have_platform_component("time", "custom") {
                     writeln!(f, "long long mbedtls_time(long long*);")?;
                 }
-                f.write_all(config::SUFFIX.as_bytes())
+                f.write_all(config::SUFFIX.as_bytes())?;
+
+                if features::env_have_target_cfg("env", "sgx") {
+                    f.write_all(config::INLINE_MEMCPY_SUFFIX.as_bytes())?;
+                }
+                Ok(())
             })
             .expect("config.h I/O error");
     }
@@ -104,6 +109,11 @@ impl BuildConfig {
             cflags.push("-U_FORTIFY_SOURCE".into());
             cflags.push("-D_FORTIFY_SOURCE=0".into());
             cflags.push("-fno-stack-protector".into());
+        }
+        if features::env_have_target_cfg("env", "sgx") {
+            // In SGX, define memcpy to another string, so could ensure the inline functions added above in config.h
+            // always take effect. This is necessary because source file may include `string.h` before include `config.h`.
+            cflags.push("-Dmemcpy=not_memcpy_".into());
         }
 
         BuildConfig {

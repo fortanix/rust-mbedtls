@@ -91,7 +91,7 @@ impl Features {
     }
 }
 
-fn env_have_target_cfg(var: &'static str, value: &'static str) -> bool {
+pub(super) fn env_have_target_cfg(var: &'static str, value: &'static str) -> bool {
     let env = format!("CARGO_CFG_TARGET_{}", var).to_uppercase().replace("-", "_");
     env::var_os(env).map_or(false, |s| s == value)
 }
