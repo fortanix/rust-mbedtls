@@ -444,3 +444,17 @@ pub const SUFFIX: &'static str = r#"
 #include "mbedtls/target_config.h"
 #endif
 "#;
+
+pub const INLINE_MEMCPY_SUFFIX: &'static str = r#"
+// In SGX, use following macro to ensure all calls to memcpy is calling __builtin_memcpy
+// so that ensure compiler can optimize it
+#define memcpy not_memcpy_
+#include <string.h>
+#undef memcpy
+#ifndef MEMCPY_WRAPPER_
+#define MEMCPY_WRAPPER_
+static inline void memcpy(void *dst, const void *src, size_t n) {
+    __builtin_memcpy(dst, src, n);
+}
+#endif
+"#;
