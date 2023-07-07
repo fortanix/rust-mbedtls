@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.11.0"
+version = "0.11.1"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -74,7 +74,9 @@ padlock = ["mbedtls-sys-auto/padlock"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 async = ["std", "tokio", "tokio/net", "tokio/io-util", "tokio/macros"]
 async-rt = ["async", "tokio/rt", "tokio/sync", "tokio/rt-multi-thread"]
-tls13 = ["mbedtls-sys-auto/tls13", "mbedtls-platform-support/tls13"]
+fips = ["mbedtls-sys-auto/fips", "mbedtls-platform-support/fips"]
+# depracated, TLS 1.3 now is always enabled except `fips` feature is specified
+tls13 = []
 
 [[example]]
 name = "client"

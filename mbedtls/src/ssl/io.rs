@@ -201,9 +201,9 @@ impl<T> Context<T> {
         loop {
             match self.recv(buf) {
                 Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => return Ok(0),
-                #[cfg(not(feature = "tls13"))]
+                #[cfg(not(not(feature = "fips")))]
                 Err(e) if matches!(e.high_level(), Some(codes::SslWantRead | codes::SslWantWrite)) => return Err(IoErrorKind::WouldBlock.into()),
-                #[cfg(feature = "tls13")]
+                #[cfg(not(feature = "fips"))]
                 Err(e) if e.high_level() == Some(codes::SslWantRead) => {
                     // In TLS 1.3, mbedtls delegates the responsibility of handling and
                     // saving the `NewSessionTicket` to the user. When using the client
@@ -228,7 +228,7 @@ impl<T> Context<T> {
                 // since we now just does not support client side session resumption.
                 // Refer to the following issue for more details:
                 // https://github.com/Mbed-TLS/mbedtls/issues/6640
-                #[cfg(feature = "tls13")]
+                #[cfg(not(feature = "fips"))]
                 Err(e) if e.high_level() == Some(codes::SslReceivedNewSessionTicket) => continue,
                 Err(e) => return Err(crate::private::error_to_io_error(e)),
                 Ok(i) => return Ok(i),

@@ -70,11 +70,11 @@ if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" 
         # make sure that explicitly providing the default target works
         cargo nextest run --target $TARGET --release
         cargo nextest run --features dsa --target $TARGET
-        cargo nextest run --features async-rt,tls13 --target $TARGET
+        cargo nextest run --features async-rt --target $TARGET
 
         # If AES-NI is supported, test the feature
         if [ -n "$AES_NI_SUPPORT" ]; then
-            cargo nextest run --features force_aesni_support,tls13 --target $TARGET
+            cargo nextest run --features force_aesni_support --target $TARGET
         fi
 
         # no_std tests only are able to run on x86 platform
@@ -84,7 +84,8 @@ if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" 
         fi
     else
         cargo +$TRAVIS_RUST_VERSION test --no-run --target=$TARGET
-        cargo +$TRAVIS_RUST_VERSION test --no-default-features --features dsa,force_aesni_support,mpi_force_c_code,rdrand,std,time,tls13 --no-run --target=$TARGET
+        cargo +$TRAVIS_RUST_VERSION test --no-default-features --features dsa,force_aesni_support,mpi_force_c_code,rdrand,std,time --no-run --target=$TARGET
+        cargo +$TRAVIS_RUST_VERSION test --no-default-features --features dsa,force_aesni_support,mpi_force_c_code,rdrand,std,time,fips --no-run --target=$TARGET
     fi
 
 else

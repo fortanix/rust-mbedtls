@@ -26,6 +26,9 @@ impl Features {
             self.automatic_features.insert("aes_alt");
             self.automatic_features.insert("aesni");
         }
+        if !self.have_feature("fips") {
+            self.platform_components.entry("tls_support").or_insert_with(HashSet::new).insert("tls13");
+        }
         self.automatic_features.insert("c_compiler");
 
         // deprecated, needed for backcompat
@@ -36,8 +39,8 @@ impl Features {
             env_have_target_cfg("env", "sgx") ||
             env_have_target_cfg("os", "none") {
             self.with_feature("c_compiler").unwrap().insert("freestanding");
-            if let Some(components) = self.with_feature("tls13") {
-                components.insert("external_entropy");
+            if self.have_platform_component("tls_support", "tls13") {
+                self.platform_components.get_mut("tls_support").expect("validated").insert("external_entropy");
             }
         }
         if let Some(components) = self.with_feature("threading") {

@@ -203,7 +203,7 @@ define!(
 );
 
 /// Always use into() to convert to i32, do not use 'as i32'. (until issue is fixed: https://github.com/fortanix/rust-mbedtls/issues/129)
-#[cfg(feature = "tls13")]
+#[cfg(not(feature = "fips"))]
 define!(
     #[non_exhaustive]
     #[c_ty(c_int)]
@@ -217,7 +217,7 @@ define!(
 );
 
 /// Always use into() to convert to i32, do not use 'as i32'. (until issue is fixed: https://github.com/fortanix/rust-mbedtls/issues/129)
-#[cfg(feature = "tls13")]
+#[cfg(not(feature = "fips"))]
 define!(
     #[non_exhaustive]
     #[c_ty(c_int)]
@@ -245,7 +245,7 @@ define!(
 );
 
 /// Always use into() to convert to i32, do not use 'as i32'. (until issue is fixed: https://github.com/fortanix/rust-mbedtls/issues/129)
-#[cfg(feature = "tls13")]
+#[cfg(not(feature = "fips"))]
 define!(
     #[non_exhaustive]
     #[c_ty(c_int)]
@@ -270,10 +270,10 @@ define!(
     }
 );
 
-#[cfg(all(not(feature = "std"), feature = "tls13"))]
+#[cfg(all(not(feature = "std"), not(feature = "fips")))]
 use crate::alloc_prelude::*;
 
-#[cfg(feature = "tls13")]
+#[cfg(not(feature = "fips"))]
 pub fn tls13_preset_default_sig_algs() -> Vec<u16> {
     use Tls13SignatureAlgorithms::*;
     vec![

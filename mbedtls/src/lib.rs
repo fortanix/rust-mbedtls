@@ -86,7 +86,7 @@ mod mbedtls {
 /// This function is fine to be called mutiple times while ensure underlying initilization function is only
 /// been called only once.
 /// Re-export here for convenience.
-#[cfg(feature = "tls13")]
+#[cfg(not(feature = "fips"))]
 pub use mbedtls_platform_support::psa_crypto_init;
 
 #[cfg(not(feature = "std"))]

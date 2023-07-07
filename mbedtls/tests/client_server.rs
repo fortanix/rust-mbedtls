@@ -151,7 +151,7 @@ fn server<C: IoCallback<T> + TransportType, T>(
     config.set_rng(rng);
     config.set_min_version(min_version)?;
     config.set_max_version(max_version)?;
-    #[cfg(feature = "tls13")]
+    #[cfg(not(feature = "fips"))]
     if min_version == Version::Tls13 || max_version == Version::Tls13 {
         let sig_algs = Arc::new(mbedtls::ssl::tls13_preset_default_sig_algs());
         config.set_signature_algorithms(sig_algs);
@@ -295,12 +295,12 @@ mod test {
 
         if is_dtls {
             // DTLS 1.3 is not yet supported, ref: https://github.com/Mbed-TLS/mbedtls/blob/v3.4.0/library/ssl_tls.c#L1303-L1313
-            #[cfg(feature = "tls13")]
+            #[cfg(not(feature = "fips"))]
             if min_c == Version::Tls13 || min_s == Version::Tls13 {
                 return;
             }
             // DTLS not yet supported in Hybrid TLS 1.3 + TLS 1.2
-            #[cfg(feature = "tls13")]
+            #[cfg(not(feature = "fips"))]
             if min_c == Version::Tls12 && max_c == Version::Tls13 || min_s == Version::Tls12 && max_s == Version::Tls13 {
                 return;
             }
@@ -319,7 +319,7 @@ mod test {
             client.join().unwrap();
         } else {
             // TODO: PSK in TLS 1.3 only means session ticket, we haven't support it yet
-            #[cfg(feature = "tls13")]
+            #[cfg(not(feature = "fips"))]
             if use_psk && exp_ver == Some(Version::Tls13) {
                 return;
             }
@@ -348,7 +348,7 @@ mod test {
         run_client_server_test(&config, use_psk, is_dtls);
     }
 
-    #[cfg(feature = "tls13")]
+    #[cfg(not(feature = "fips"))]
     #[rstest]
     #[case::client1_2_server1_2(TestConfig::new(
         Version::Tls12,

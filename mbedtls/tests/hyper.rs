@@ -179,7 +179,7 @@ mod tests {
     use mbedtls::ssl::Config;
     use mbedtls::ssl::TicketContext;
     use mbedtls::ssl::Tls12CipherSuite::*;
-    #[cfg(feature = "tls13")]
+    #[cfg(not(feature = "fips"))]
     use mbedtls::ssl::Tls13CipherSuite::*;
     use mbedtls::x509::{Certificate, VerifyError};
     use rstest::rstest;
@@ -229,7 +229,7 @@ mod tests {
     fn test_simple_request_tls12(#[case] ver: Version) {
         run_test_simple_request(ver);
     }
-    #[cfg(feature = "tls13")]
+    #[cfg(not(feature = "fips"))]
     #[rstest]
     #[case::tls13(Version::Tls13)]
     fn test_simple_request_tls13(#[case] ver: Version) {
@@ -265,7 +265,7 @@ mod tests {
         run_test_multiple_request(ver);
     }
 
-    #[cfg(feature = "tls13")]
+    #[cfg(not(feature = "fips"))]
     #[rstest]
     #[case::tls13(Version::Tls13)]
     fn test_multiple_request_tls13(#[case] ver: Version) {
@@ -319,7 +319,7 @@ mod tests {
     fn test_hyper_multithread_tls12(#[case] ver: Version) {
         run_test_hyper_multithread(ver);
     }
-    #[cfg(feature = "tls13")]
+    #[cfg(not(feature = "fips"))]
     #[rstest]
     #[case::tls13(Version::Tls13)]
     fn test_hyper_multithread_tls13(#[case] ver: Version) {
@@ -374,7 +374,7 @@ mod tests {
     fn test_verify_tls12(#[case] ver: Version) {
         run_test_verify(ver);
     }
-    #[cfg(feature = "tls13")]
+    #[cfg(not(feature = "fips"))]
     #[rstest]
     #[case::tls13(Version::Tls13)]
     fn test_verify_tls13(#[case] ver: Version) {
@@ -416,7 +416,7 @@ mod tests {
     fn test_hyper_server_tls12(#[case] ver: Version) {
         run_test_hyper_server(ver);
     }
-    #[cfg(feature = "tls13")]
+    #[cfg(not(feature = "fips"))]
     #[rstest]
     #[case::tls13(Version::Tls13)]
     fn test_hyper_server_tls13(#[case] ver: Version) {
@@ -433,7 +433,7 @@ mod tests {
         config.set_min_version(ver).unwrap();
         config.set_max_version(ver).unwrap();
 
-        #[cfg(feature = "tls13")]
+        #[cfg(not(feature = "fips"))]
         {
             let sig_algs = Arc::new(mbedtls::ssl::tls13_preset_default_sig_algs());
             config.set_signature_algorithms(sig_algs);
@@ -499,7 +499,7 @@ mod tests {
     fn test_sni_hyper_server_tls12(#[case] ver: Version) {
         run_test_sni_hyper_server(ver);
     }
-    #[cfg(feature = "tls13")]
+    #[cfg(not(feature = "fips"))]
     #[rstest]
     #[case::tls13(Version::Tls13)]
     fn test_sni_hyper_server_tls13(#[case] ver: Version) {
@@ -518,7 +518,7 @@ mod tests {
             config.set_min_version(ver).unwrap();
             config.set_max_version(ver).unwrap();
 
-            #[cfg(feature = "tls13")]
+            #[cfg(not(feature = "fips"))]
             {
                 let sig_algs = Arc::new(mbedtls::ssl::tls13_preset_default_sig_algs());
                 config.set_signature_algorithms(sig_algs);
@@ -528,7 +528,7 @@ mod tests {
             let key = Arc::new(Pk::from_private_key(&mut test_rng(), PEM_KEY, None).unwrap());
 
             cfg_if::cfg_if! {
-                if #[cfg(feature = "tls13")] {
+                if #[cfg(not(feature = "fips"))] {
                     let cipher_suites: Vec<i32> = vec![
                         RsaWithAes128GcmSha256.into(),
                         DheRsaWithAes128GcmSha256.into(),

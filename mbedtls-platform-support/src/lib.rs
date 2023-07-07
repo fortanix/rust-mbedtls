@@ -121,7 +121,7 @@ pub unsafe extern "C" fn mbedtls_ms_time() -> mbedtls_sys::ms_time_t {
 /// Although this function is documented to be safely called multiple times, it still throws error in muti-thread case.
 /// Upstream document: https://arm-software.github.io/psa-api/crypto/1.1/api/library/library.html#c.psa_crypto_init
 /// See tracking issue: https://github.com/fortanix/rust-mbedtls/issues/285
-#[cfg(feature = "tls13")]
+#[cfg(not(feature = "fips"))]
 pub fn psa_crypto_init() {
     use once_cell::sync::OnceCell;
     static INIT: OnceCell<()> = OnceCell::new();
@@ -144,7 +144,7 @@ pub fn psa_crypto_init() {
 ///
 /// # Notes
 /// * This function uses the hardware `RDRAND` instruction, if available (x86 only), as a source of randomness.
-#[cfg(sys_tls13_component = "external_entropy")]
+#[cfg(any(sys_tls13_component = "external_entropy", sys_tls_support_component = "external_entropy"))]
 #[no_mangle]
 pub unsafe extern "C" fn mbedtls_psa_external_get_random(
     _user_data: *mut mbedtls_sys::types::raw_types::c_void,

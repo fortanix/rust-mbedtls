@@ -36,7 +36,7 @@ define!(
     #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Copy, Clone)]
     enum Version {
         Tls12 = SSL_VERSION_TLS1_2,
-        #[cfg(feature = "tls13")]
+        #[cfg(not(feature = "fips"))]
         Tls13 = SSL_VERSION_TLS1_3,
         Unknown = SSL_VERSION_UNKNOWN,
     }
@@ -47,7 +47,7 @@ impl From<u32> for Version {
         use Version::*;
         match value {
             SSL_VERSION_TLS1_2 => Tls12,
-            #[cfg(feature = "tls13")]
+            #[cfg(not(feature = "fips"))]
             SSL_VERSION_TLS1_3 => Tls13,
             _ => Unknown
         }
@@ -62,7 +62,7 @@ define!(
     }
 );
 
-#[cfg(feature = "tls13")]
+#[cfg(not(feature = "fips"))]
 bitflags! {
     pub struct Tls13KeyExchangeMode: c_int {
         const PSK = SSL_TLS1_3_KEY_EXCHANGE_MODE_PSK as c_int;
@@ -207,7 +207,7 @@ impl Config {
         // `psa_crypto_init()` need to be called before calling any function from the SSL/TLS, X.509
         // or PK modules. Since we only turn on PSA with TLS 1.3, it just need to be called here so
         // that TLS could work correctly.
-        #[cfg(feature = "tls13")]
+        #[cfg(not(feature = "fips"))]
         mbedtls_platform_support::psa_crypto_init();
 
         let mut inner = ssl_config::default();
@@ -268,7 +268,7 @@ impl Config {
         self.signature_algorithms = Some(list);
     }
 
-    #[cfg(feature = "tls13")]
+    #[cfg(not(feature = "fips"))]
     pub fn set_tls13_key_exchange_modes(&mut self, mode: Tls13KeyExchangeMode) {
         unsafe { ssl_conf_tls13_key_exchange_modes(self.into(), mode.bits()) }
     }

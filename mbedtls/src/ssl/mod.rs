@@ -17,7 +17,7 @@ pub mod ssl_states;
 
 #[doc(inline)]
 pub use self::ciphersuites::Tls12CipherSuite;
-#[cfg(feature = "tls13")]
+#[cfg(not(feature = "fips"))]
 pub use self::ciphersuites::Tls13CipherSuite;
 #[doc(inline)]
 pub use self::config::{Config, Version, UseSessionTickets};
@@ -31,7 +31,7 @@ pub use self::io::Io;
 pub use self::ticket::TicketContext;
 
 #[doc(inline)]
-#[cfg(feature = "tls13")]
+#[cfg(not(feature = "fips"))]
 pub use self::ciphersuites::Tls13SignatureAlgorithms;
-#[cfg(feature = "tls13")]
+#[cfg(not(feature = "fips"))]
 pub use self::ciphersuites::tls13_preset_default_sig_algs;

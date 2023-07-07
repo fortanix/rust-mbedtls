@@ -96,7 +96,7 @@ async fn server(conn: TcpStream, min_version: Version, max_version: Version, exp
     config.set_rng(rng);
     config.set_min_version(min_version)?;
     config.set_max_version(max_version)?;
-    #[cfg(feature = "tls13")]
+    #[cfg(not(feature = "fips"))]
     if min_version == Version::Tls13 || max_version == Version::Tls13 {
         let sig_algs = Arc::new(mbedtls::ssl::tls13_preset_default_sig_algs());
         config.set_signature_algorithms(sig_algs);
@@ -232,7 +232,7 @@ mod test {
         run_async_session_client_server_test(config).await;
     }
 
-    #[cfg(feature = "tls13")]
+    #[cfg(not(feature = "fips"))]
     #[rstest]
     #[case::client_mix_server1_2(TestConfig::new(
         Version::Tls12,
