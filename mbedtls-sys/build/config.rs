@@ -421,6 +421,8 @@ pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
     ("tls13",                 ("MBEDTLS_SSL_TLS1_3_TICKET_AGE_TOLERANCE",                    DefinedAs("6000"))),
     ("tls13",                 ("MBEDTLS_SSL_TLS1_3_TICKET_NONCE_LENGTH",                     DefinedAs("32"))),
     ("tls13",                 ("MBEDTLS_SSL_TLS1_3_DEFAULT_NEW_SESSION_TICKETS",             DefinedAs("1"))),
+    // TODO: This is a temporary fix for issue: #293
+    ("tls13",                 ("MBEDTLS_SSL_OUT_CONTENT_LEN",                                DefinedAs("15360"))),
 ];
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
