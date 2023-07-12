@@ -19,7 +19,7 @@ serial-integration = { max-threads = 1 }
 # * retries = 3
 # * retries = { backoff = "fixed", count = 2, delay = "1s" }
 # * retries = { backoff = "exponential", count = 10, delay = "1s", jitter = true, max-delay = "10s" }
-retries = 2
+retries = 0
 
 # The number of threads to run tests with. Supported values are either an integer or
 # the string "num-cpus". Can be overridden through the `--test-threads` option.
@@ -111,8 +111,10 @@ store-success-output = false
 store-failure-output = true
 
 [[profile.default.overrides]]
-filter = 'binary(=hyper)'
-retries = { backoff = "fixed", count = 6, delay = "1s" }
+# `hyper` test targeting external Google's service, it would sometomes failed because of rate limit
+# `is_probably_prime` test heavily use rdrand, sometimes the VM where test is running has shortage on it
+filter = 'binary(=hyper) or test(=is_probably_prime)'
+retries = { backoff = "exponential", count = 4, delay = "1s", jitter = true, max-delay = "10s" }
 test-group = 'serial-integration'
 
 [[profile.default.overrides]]
