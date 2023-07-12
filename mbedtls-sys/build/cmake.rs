@@ -17,6 +17,8 @@ impl super::BuildConfig {
         ))
         .define("ENABLE_PROGRAMS", "OFF")
         .define("ENABLE_TESTING", "OFF")
+        // Prefer unix-style over Apple-style Python3 on macOS, required for the Github Actions CI
+        .define("Python3_FIND_FRAMEWORK", "LAST")
         .build_target("lib");
         for cflag in &self.cflags {
             cmk.cflag(cflag);
