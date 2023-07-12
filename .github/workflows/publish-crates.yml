@@ -31,8 +31,6 @@ jobs:
           echo "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-11 main" | sudo tee -a /etc/apt/sources.list
           sudo apt-get update
           sudo apt-get install -y clang-11 cmake
-          # Create a symbolic link to ensure correct usage of libclang
-          sudo ln -s /lib/x86_64-linux-gnu/libclang-11.so.1 /lib/x86_64-linux-gnu/libclang.so
           if [ -f mbedtls-sys/vendor/scripts/basic.requirements.txt ]; then
             sudo apt-get install -y python3-pip
             python3 -m pip install -r mbedtls-sys/vendor/scripts/basic.requirements.txt
