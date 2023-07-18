@@ -44,7 +44,7 @@ path = "../mbedtls-platform-support"
 [dev-dependencies]
 libc = "0.2.0"
 rand = "0.4.0"
-serde_cbor = "0.6"
+serde_cbor = "0.10"
 hex = "0.3"
 hyper = { version = "0.10.16", default-features = false }
 async-stream = "0.3.0"
