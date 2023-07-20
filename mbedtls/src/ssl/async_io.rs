@@ -48,8 +48,8 @@ impl<'a, 'b, 'c, IO: AsyncRead + AsyncWrite + std::marker::Unpin + 'static> IoCa
         match io.poll_read(self.0, &mut buf) {
             Poll::Ready(Ok(())) => Ok(buf.filled().len()),
             Poll::Ready(Err(e)) => {
-                eprintln!("poll_read err: {:?}",e);
-                Err(codes::NetRecvFailed.into())
+                println!("poll_read err: {:?}",e);
+                Err(e.raw_os_error().map(|os_err_code| crate::Error::Other(os_err_code)).unwrap_or(codes::NetRecvFailed.into()))
             },
             Poll::Pending => Err(codes::SslWantRead.into()),
         }
