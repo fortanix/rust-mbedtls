@@ -33,6 +33,9 @@ jobs:
           - rust: stable
             target: x86_64-fortanix-unknown-sgx
             os: ubuntu-20.04
+          - rust: stable
+            target: thumbv7em-none-eabihf
+            os: ubuntu-20.04
           - rust: beta
             target: x86_64-unknown-linux-gnu
             os: ubuntu-20.04
@@ -48,11 +51,17 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Install dependencies
+    - name: Install qemu for aarch64-unknown-linux-musl
       if: matrix.target == 'aarch64-unknown-linux-musl'
       run: |
         sudo apt-get update
         sudo apt-get install -y qemu-user
+
+    - name: Install arm-none-eabi-gcc toolchain for thumbv7em-none-eabihf
+      if: matrix.target == 'thumbv7em-none-eabihf'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-arm-none-eabi
 
     - name: Setup Rust toolchain
       uses: actions-rs/toolchain@v1

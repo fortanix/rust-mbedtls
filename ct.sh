@@ -87,8 +87,14 @@ if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" 
     rustup target add --toolchain $TRAVIS_RUST_VERSION $TARGET
     printenv
 
-    # The SGX target cannot be run under test like a ELF binary
-    if [ "$TARGET" != "x86_64-fortanix-unknown-sgx" ]; then
+    if [ "$TARGET" == "x86_64-fortanix-unknown-sgx" ]; then
+        # The SGX target cannot be run under test like a ELF binary
+        cargo +$TRAVIS_RUST_VERSION test --no-run --target=$TARGET
+        cargo +$TRAVIS_RUST_VERSION test --no-default-features --features dsa,force_aesni_support,mpi_force_c_code,rdrand,std,time,tls13 --no-run --target=$TARGET
+    elif [ "$TARGET" == "thumbv7em-none-eabihf" ]; then
+        # thumbv7em-none-eabihf is a no_std target, the tests can not be run, we can only check that it builds successfully
+        cargo build --no-default-features --features no_std_deps --target $TARGET
+    else
         # make sure that explicitly providing the default target works
         cargo nextest run --target $TARGET --release
         cargo nextest run --features dsa --target $TARGET
@@ -107,9 +113,6 @@ if [ "$TRAVIS_RUST_VERSION" == "stable" ] || [ "$TRAVIS_RUST_VERSION" == "beta" 
         if [ "$TARGET" == "x86_64-apple-darwin" ]; then
             cargo nextest run --no-default-features --features no_std_deps --target $TARGET
         fi
-    else
-        cargo +$TRAVIS_RUST_VERSION test --no-run --target=$TARGET
-        cargo +$TRAVIS_RUST_VERSION test --no-default-features --features dsa,force_aesni_support,mpi_force_c_code,rdrand,std,time,tls13 --no-run --target=$TARGET
     fi
 
 else
