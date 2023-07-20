@@ -31,7 +31,7 @@ zeroize = { version = "1.6.0", default-features = false }
 [dependencies.mbedtls-sys-auto]
 version = "3.5.0-alpha.1+0b3de6f"
 default-features = false
-features = ["threading", "custom_printf"]
+features = ["custom_printf"]
 path = "../mbedtls-sys"
 
 [build-dependencies]

@@ -28,7 +28,7 @@ use crate::features::FEATURES;
 #[cfg_attr(rustfmt, rustfmt_skip)]
 pub const ORDERED: &'static [(Option<&'static str>, &'static str)] = &[
     (None,                 "build_info.h"),
-    (None,                 "platform_time.h"),
+    (Some("time"),         "platform_time.h"),
     (None,                 "private_access.h"),
     (None,                 "platform_util.h"),
     (None,                 "bignum.h"),

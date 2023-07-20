@@ -34,7 +34,7 @@ rs-libc = "0.2.4"
 [dependencies.mbedtls-sys-auto]
 version = "3.5.0-alpha.1+0b3de6f"
 default-features = false
-features = ["trusted_cert_callback", "threading"]
+features = ["trusted_cert_callback"]
 path = "../mbedtls-sys"
 
 [dependencies.mbedtls-platform-support]
@@ -61,7 +61,7 @@ cc = "1.0"
 
 [features]
 # Features are documented in the README
-default = ["std", "aesni", "time", "padlock"]
+default = ["std", "aesni", "time", "threading", "padlock"]
 std = ["byteorder/std", "mbedtls-sys-auto/std", "serde/std", "yasna", "mbedtls-platform-support/std"]
 debug = ["mbedtls-sys-auto/debug"]
 no_std_deps = ["mbedtls-platform-support/no_std_deps", "serde/alloc"]
@@ -70,6 +70,7 @@ mpi_force_c_code = ["mbedtls-sys-auto/mpi_force_c_code"]
 rdrand = ["mbedtls-platform-support/rdrand"]
 aesni = ["mbedtls-platform-support/aesni"]
 time = ["mbedtls-platform-support/time"]
+threading = ["mbedtls-sys-auto/threading"]
 padlock = ["mbedtls-sys-auto/padlock"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
 async = ["std", "tokio", "tokio/net", "tokio/io-util", "tokio/macros"]
