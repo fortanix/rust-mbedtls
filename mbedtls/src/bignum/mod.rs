@@ -13,7 +13,7 @@ use crate::error::{IntoResult, Result, codes};
 use mbedtls_sys::*;
 
 #[cfg(not(feature = "std"))]
-use crate::alloc_prelude::*;
+use crate::no_std_prelude::*;
 
 use core::cmp::Ordering;
 use core::fmt::{Binary, Debug, Display, Formatter, Octal, Result as FmtResult, UpperHex};

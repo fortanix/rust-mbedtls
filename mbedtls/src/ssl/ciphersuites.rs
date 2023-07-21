@@ -271,7 +271,7 @@ define!(
 );
 
 #[cfg(all(not(feature = "std"), feature = "tls13"))]
-use crate::alloc_prelude::*;
+use crate::no_std_prelude::*;
 
 #[cfg(feature = "tls13")]
 pub fn tls13_preset_default_sig_algs() -> Vec<u16> {

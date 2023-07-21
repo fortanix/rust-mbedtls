@@ -15,7 +15,7 @@ use mbedtls_sys::types::raw_types::{c_char, c_void};
 
 use crate::alloc::{List as MbedtlsList, Box as MbedtlsBox, mbedtls_calloc};
 #[cfg(not(feature = "std"))]
-use crate::alloc_prelude::*;
+use crate::no_std_prelude::*;
 use crate::error::{IntoResult, Result, codes};
 use crate::hash::Type as MdType;
 use crate::pk::Pk;

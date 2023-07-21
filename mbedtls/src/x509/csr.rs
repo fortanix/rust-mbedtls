@@ -9,7 +9,7 @@
 use core::fmt;
 
 #[cfg(not(feature = "std"))]
-use crate::alloc_prelude::*;
+use crate::no_std_prelude::*;
 
 use mbedtls_sys::*;
 

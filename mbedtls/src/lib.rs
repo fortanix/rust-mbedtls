@@ -94,15 +94,16 @@ pub use mbedtls_platform_support::psa_crypto_init;
 extern crate alloc as rust_alloc;
 
 #[cfg(not(feature = "std"))]
-mod alloc_prelude {
+/// Contains types which are normally part of std::prelude
+/// (see https://doc.rust-lang.org/std/prelude/index.html) so they can easiliy be used in no_std
+/// builds with `use no_std_prelude::*`
+mod no_std_prelude {
     #![allow(unused)]
     pub(crate) use rust_alloc::borrow::ToOwned;
     pub(crate) use rust_alloc::boxed::Box;
-    pub(crate) use rust_alloc::sync::Arc;
     pub(crate) use rust_alloc::string::String;
     pub(crate) use rust_alloc::string::ToString;
     pub(crate) use rust_alloc::vec::Vec;
-    pub(crate) use rust_alloc::borrow::Cow;
 }
 
 cfg_if::cfg_if! {

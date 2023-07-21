@@ -1,7 +1,12 @@
-#[cfg(not(feature = "std"))]
-use crate::alloc_prelude::*;
 #[cfg(feature = "std")]
 use std::sync::Arc;
+
+#[cfg(not(feature = "std"))]
+use rust_alloc::sync::Arc;
+
+#[cfg(not(feature = "std"))]
+#[allow(unused)]
+use crate::no_std_prelude::*;
 
 use mbedtls_sys::types::raw_types::*;
 use mbedtls_sys::types::size_t;

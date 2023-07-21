@@ -9,12 +9,17 @@
 #[cfg(feature = "std")]
 use std::sync::Arc;
 
+#[cfg(not(feature = "std"))]
+use rust_alloc::sync::Arc;
+
 use mbedtls_sys::*;
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 
 #[cfg(not(feature = "std"))]
-use crate::alloc_prelude::*;
+#[allow(unused)]
+use crate::no_std_prelude::*;
+
 use crate::cipher::raw::CipherType;
 use crate::error::{IntoResult, Result};
 use crate::rng::RngCallback;

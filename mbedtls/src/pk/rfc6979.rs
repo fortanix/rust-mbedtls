@@ -7,7 +7,7 @@
  * according to those terms. */
 
 #[cfg(not(feature = "std"))]
-use crate::alloc_prelude::*;
+use crate::no_std_prelude::*;
 
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;

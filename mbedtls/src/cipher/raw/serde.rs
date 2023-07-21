@@ -7,7 +7,7 @@
  * according to those terms. */
 
 #[cfg(not(feature = "std"))]
-use crate::alloc_prelude::*;
+use crate::no_std_prelude::*;
 use crate::cipher::*;
 use core::convert::TryInto;
 use core::fmt;

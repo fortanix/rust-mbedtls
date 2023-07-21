@@ -8,6 +8,8 @@
 
 #[cfg(feature = "std")]
 use std::sync::Arc;
+#[cfg(not(feature = "std"))]
+use rust_alloc::sync::Arc;
 
 pub use mbedtls_sys::CTR_DRBG_RESEED_INTERVAL as RESEED_INTERVAL;
 use mbedtls_sys::*;
@@ -15,7 +17,7 @@ use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 
 #[cfg(not(feature = "std"))]
-use crate::alloc_prelude::*;
+use crate::no_std_prelude::*;
 use crate::error::{IntoResult, Result};
 use crate::rng::{EntropyCallback, EntropyCallbackMut, RngCallback, RngCallbackMut};
 

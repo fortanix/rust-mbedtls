@@ -11,6 +11,9 @@ use std::sync::Arc;
 #[cfg(feature = "std")]
 use std::borrow::Cow;
 
+#[cfg(not(feature = "std"))]
+use rust_alloc::sync::Arc;
+
 use core::slice::from_raw_parts;
 
 use mbedtls_sys::*;
@@ -20,7 +23,7 @@ use mbedtls_sys::types::size_t;
 
 use crate::alloc::List as MbedtlsList;
 #[cfg(not(feature = "std"))]
-use crate::alloc_prelude::*;
+use crate::no_std_prelude::*;
 use crate::error::{Result, IntoResult};
 use crate::pk::Pk;
 use crate::pk::dhparam::Dhm;

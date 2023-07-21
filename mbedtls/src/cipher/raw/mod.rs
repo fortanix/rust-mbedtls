@@ -13,7 +13,7 @@ use mbedtls_sys::*;
 use crate::error::{IntoResult, Result, codes};
 
 #[cfg(not(feature = "std"))]
-use crate::alloc_prelude::*;
+use crate::no_std_prelude::*;
 
 mod serde;
 

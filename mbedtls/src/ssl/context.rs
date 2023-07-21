@@ -11,11 +11,14 @@ use core::result::Result as StdResult;
 #[cfg(feature = "std")]
 use std::sync::Arc;
 
+#[cfg(not(feature = "std"))]
+use rust_alloc::sync::Arc;
+
 use mbedtls_sys::types::raw_types::{c_int, c_void};
 use mbedtls_sys::*;
 
 #[cfg(not(feature = "std"))]
-use crate::alloc_prelude::*;
+use crate::no_std_prelude::*;
 use crate::alloc::List as MbedtlsList;
 use crate::error::{Result, IntoResult, codes};
 use crate::pk::Pk;
