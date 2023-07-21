@@ -38,21 +38,21 @@ pub const ERR_UTF8_INVALID: c_int = -0x10000;
 macro_rules! error_enum {
     {
         const MASK: c_int = $mask:literal;
-        enum $n:ident {$($rust:ident = $c:ident,)*}
+        enum $n:ident {$($(#[$attribute:meta])*$rust:ident = $c:ident,)*}
     } => {
         #[non_exhaustive]
         #[derive(Debug, Eq, PartialEq, Copy, Clone)]
         pub enum $n {
-            $($rust,)*
+            $($(#[$attribute])* $rust,)*
             Unknown(c_int)
         }
 
         impl From<c_int> for $n {
             fn from(code: c_int) -> $n {
                 // check against mask here (not in match blook) to make it compile-time
-                $(const $c: c_int = $n::assert_in_mask(::mbedtls_sys::$c);)*
+                $($(#[$attribute])* const $c: c_int = $n::assert_in_mask(::mbedtls_sys::$c);)*
                 match -code {
-                    $($c => return $n::$rust),*,
+                    $($(#[$attribute])* $c => return $n::$rust),*,
                     _ => return $n::Unknown(-code)
                 }
             }
@@ -61,7 +61,7 @@ macro_rules! error_enum {
         impl From<$n> for c_int {
             fn from(error: $n) -> c_int {
                 match error {
-                    $($n::$rust => return ::mbedtls_sys::$c,)*
+                    $($(#[$attribute])* $n::$rust => return ::mbedtls_sys::$c,)*
                     $n::Unknown(code) => return code,
                 }
             }
@@ -79,7 +79,7 @@ macro_rules! error_enum {
 
             pub fn as_str(&self)-> &'static str {
                 match self {
-                    $($n::$rust => concat!("mbedTLS error ", stringify!($n::$rust)),)*
+                    $($(#[$attribute])* $n::$rust => concat!("mbedTLS error ", stringify!($n::$rust)),)*
                     $n::Unknown(_) => concat!("mbedTLS unknown ", stringify!($n), " error")
                 }
             }
@@ -445,7 +445,9 @@ error_enum!(
         Sha1BadInputData = ERR_SHA1_BAD_INPUT_DATA,
         Sha256BadInputData = ERR_SHA256_BAD_INPUT_DATA,
         Sha512BadInputData = ERR_SHA512_BAD_INPUT_DATA,
+        #[cfg(feature = "threading")]
         ThreadingBadInputData = ERR_THREADING_BAD_INPUT_DATA,
+        #[cfg(feature = "threading")]
         ThreadingMutexError = ERR_THREADING_MUTEX_ERROR,
     }
 );
