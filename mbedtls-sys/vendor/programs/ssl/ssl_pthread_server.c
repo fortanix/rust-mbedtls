@@ -21,6 +21,7 @@
 #include "mbedtls/build_info.h"
 
 #include "mbedtls/platform.h"
+#include "mbedtls/debug.h"
 
 #if !defined(MBEDTLS_BIGNUM_C)  || !defined(MBEDTLS_ENTROPY_C) ||         \
     !defined(MBEDTLS_SSL_TLS_C) || !defined(MBEDTLS_SSL_SRV_C) ||         \
@@ -299,6 +300,16 @@ int main(void)
     mbedtls_x509_crt srvcert;
     mbedtls_x509_crt cachain;
     mbedtls_pk_context pkey;
+#if defined(MBEDTLS_USE_PSA_CRYPTO) || defined(MBEDTLS_SSL_PROTO_TLS1_3)
+    psa_status_t status;
+    status = psa_crypto_init();
+    if (status != PSA_SUCCESS) {
+        mbedtls_printf("Failed to initialize PSA Crypto implementation: %d\n",
+                        (int) status);
+        ret = MBEDTLS_ERR_SSL_HW_ACCEL_FAILED;
+        goto exit;
+    }
+#endif  /* MBEDTLS_USE_PSA_CRYPTO || MBEDTLS_SSL_PROTO_TLS1_3 */
 #if defined(MBEDTLS_MEMORY_BUFFER_ALLOC_C)
     unsigned char alloc_buf[100000];
 #endif
@@ -396,9 +407,12 @@ int main(void)
                        (unsigned int) -ret);
         goto exit;
     }
-
+    mbedtls_ssl_conf_max_tls_version(&conf, MBEDTLS_SSL_VERSION_TLS1_3);
     mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
     mbedtls_ssl_conf_dbg(&conf, my_mutexed_debug, stdout);
+#if defined(MBEDTLS_DEBUG_C)
+    mbedtls_debug_set_threshold(DEBUG_LEVEL);
+#endif
 
     /* mbedtls_ssl_cache_get() and mbedtls_ssl_cache_set() are thread-safe if
      * MBEDTLS_THREADING_C is set.
