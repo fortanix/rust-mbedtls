@@ -494,6 +494,85 @@ mod tests {
         handler.close().unwrap();
     }
 
+    #[cfg(feature = "tls13")]
+    #[test]
+    fn test_hyper_server_tls13_multithread() {
+        let ver = Version::Tls13;
+        init_env_logger();
+
+        let mut config = Config::new(Endpoint::Server, Transport::Stream, Preset::Default);
+        set_config_debug(&mut config, "[Server]");
+
+        config.set_rng(rng_new());
+        config.set_authmode(AuthMode::None);
+        config.set_min_version(ver).unwrap();
+        config.set_max_version(ver).unwrap();
+
+        let cert = Arc::new(Certificate::from_pem_multiple(PEM_CERT).unwrap());
+        let key = Arc::new(Pk::from_private_key(&mut test_rng(), PEM_KEY, None).unwrap());
+        config.push_cert(cert, key).unwrap();
+
+        let ssl = MbedSSLServer {
+            rc_config: Arc::new(config),
+        };
+
+        // Random port is intentional
+        let mut listener = HttpListener::new("127.0.0.1:0").unwrap();
+        let local_addr = listener.local_addr().unwrap();
+
+        let server = hyper::Server::new(HttpsListener::with_listener(listener, ssl));
+
+        let mut handler = server
+            .handle_threads(
+                move |mut _req: hyper::server::Request, mut res: hyper::server::Response| {
+                    *res.status_mut() = StatusCode::MethodNotAllowed;
+                },
+                3,
+            )
+            .unwrap();
+
+        std::thread::sleep(core::time::Duration::from_millis(10));
+
+        
+        let mut handler_vec = vec![];
+
+        for i in 0..2 {
+            let mut config = Config::new(Endpoint::Client, Transport::Stream, Preset::Default);
+            set_config_debug(&mut config, format!("[client_{}]",i).as_str());
+
+            config.set_authmode(AuthMode::Required);
+            config.set_rng(rng_new());
+            config.set_min_version(ver).unwrap();
+            config.set_max_version(ver).unwrap();
+            config.set_ca_list(Arc::new(Certificate::from_pem_multiple(ROOT_CA_CERT).unwrap()), None);
+
+            let ssl = MbedSSLClient::new(Arc::new(config), false);
+            let client = Arc::new(hyper::Client::with_connector(Pool::with_connector(
+                Default::default(),
+                HttpsConnector::new(ssl.clone()),
+            )));
+
+            // If this fails due to EWOULDBLOCK it means not enough threads were created.
+            let t1 = std::thread::Builder::new().name(format!("client_{}",i))
+                .spawn(move || {
+                    let response = client.post(&format!("https://{}/path", local_addr)).body("foo=bar").send();
+                    assert!(response.is_ok(), "{:?}", response);
+                })
+                .unwrap();
+            handler_vec.push(t1);
+        }
+        for t in handler_vec {
+            match t.join() {
+                Ok(_) => continue,
+                Err(e) => {
+                    handler.close().unwrap();
+                    panic!("{:?}", e);
+                },
+            }
+        }
+        handler.close().unwrap();
+    }
+
     #[rstest]
     #[case::tls12(Version::Tls12)]
     fn test_sni_hyper_server_tls12(#[case] ver: Version) {
