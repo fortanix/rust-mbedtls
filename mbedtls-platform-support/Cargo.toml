@@ -22,7 +22,7 @@ links = "mbedtls-platform-support"
 cfg-if = "1.0.0"
 spin = { version = "0.4.0", default-features = false, optional = true }
 chrono = { version = "0.4", optional = true }
-once_cell = "1.17.1"
+once_cell = { version = "1.17.1", default-features = false }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 chrono = "0.4"
@@ -39,7 +39,7 @@ cc = "1.0"
 
 [features]
 time = ["mbedtls-sys-auto/time"]
-std = ["mbedtls-sys-auto/std"]
+std = ["mbedtls-sys-auto/std", "once_cell/std"]
 force_aesni_support = ["mbedtls-sys-auto/custom_has_support", "mbedtls-sys-auto/aes_alt", "aesni"]
 aesni = ["mbedtls-sys-auto/aesni"]
 tls13 = ["mbedtls-sys-auto/tls13"]
