@@ -141,7 +141,6 @@ impl BuildConfig {
             cc.flag("-ffreestanding");
         }
         cc
-        .flag_if_supported("-flto=thin")
         .file(&self.static_wrappers_c)
         .compile("libstatic-wrappers.a");
     }
