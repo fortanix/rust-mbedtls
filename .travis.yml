@@ -6,6 +6,7 @@ branches:
     - trying
     # Not really necessary, just to get a green badge on “master”
     - master
+    - v0.9
 language: rust
 os: linux
 dist: focal
