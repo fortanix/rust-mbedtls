@@ -167,27 +167,6 @@ impl<'a> Builder<'a> {
         )
     }
 
-    pub fn write_pem<'buf, F: Random>(
-        &mut self,
-        buf: &'buf mut [u8],
-        rng: &mut F,
-    ) -> Result<Option<&'buf [u8]>> {
-        match unsafe {
-            x509write_csr_der(
-                &mut self.inner,
-                buf.as_mut_ptr(),
-                buf.len(),
-                Some(F::call),
-                rng.data_ptr(),
-            )
-            .into_result()
-        } {
-            Err(e) if e.low_level() == Some(codes::Base64BufferTooSmall) => Ok(None),
-            Err(e) => Err(e),
-            Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
-        }
-    }
-
     pub fn write_pem_string<F: Random>(&mut self, rng: &mut F) -> Result<String> {
         alloc_string_repeat(|buf, size| unsafe {
             match x509write_csr_pem(
