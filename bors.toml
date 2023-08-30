@@ -1,4 +1,4 @@
 status = [
-  "test",
+  "ci",
 ]
 timeout_sec = 36000 # ten hours

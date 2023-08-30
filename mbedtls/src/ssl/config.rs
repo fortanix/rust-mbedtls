@@ -338,6 +338,9 @@ impl Config {
     }
 
     pub fn push_cert(&mut self, own_cert: Arc<MbedtlsList<Certificate>>, own_pk: Arc<Pk>) -> Result<()> {
+        if own_cert.is_empty() {
+            return Err(crate::error::codes::SslBadInputData.into());
+        }
         // Need to ensure own_cert/pk_key outlive the config.
         self.own_cert.push(own_cert.clone());
         self.own_pk.push(own_pk.clone());

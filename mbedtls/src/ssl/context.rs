@@ -573,7 +573,7 @@ impl HandshakeContext {
         key: Arc<Pk>,
     ) -> Result<()> {
         // mbedtls_ssl_set_hs_own_cert does not check for NULL handshake.
-        if self.inner.private_handshake as *const _ == ::core::ptr::null() {
+        if self.inner.private_handshake as *const _ == ::core::ptr::null() || chain.is_empty() {
             return Err(codes::SslBadInputData.into());
         }
 
