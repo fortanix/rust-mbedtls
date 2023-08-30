@@ -228,6 +228,9 @@ impl Certificate {
     where
         F: VerifyCallback + 'static,
     {
+        if chain.is_empty() {
+            return Err(Error::X509BadInputData);
+        }
         let (f_vrfy, p_vrfy): (Option<unsafe extern "C" fn(_, _, _, _) -> _>, _) = if let Some(cb) = cb.as_ref() {
             (Some(x509::verify_callback::<F>),
             cb as *const _ as *mut c_void)
@@ -1034,7 +1037,59 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             Err(e) => panic!("Failed to verify, error: {}, err_str: {}", e, err_str),
         };
     }
-    
+
+    #[test]
+    fn empty_cert_chain_test() {
+        const C_LEAF: &'static str = concat!(include_str!("../../tests/data/chain-leaf.crt"),"\0");
+        const C_INT1: &'static str = concat!(include_str!("../../tests/data/chain-int1.crt"),"\0");
+        const C_INT2: &'static str = concat!(include_str!("../../tests/data/chain-int2.crt"),"\0");
+        const C_ROOT: &'static str = concat!(include_str!("../../tests/data/chain-root.crt"),"\0");
+
+        let c_leaf = Certificate::from_pem(C_LEAF.as_bytes()).unwrap();
+        let c_int1 = Certificate::from_pem(C_INT1.as_bytes()).unwrap();
+        let c_int2 = Certificate::from_pem(C_INT2.as_bytes()).unwrap();
+        let c_root = Certificate::from_pem_multiple(C_ROOT.as_bytes()).unwrap();
+
+        // Certificate C_INT2 is missing at the beginning so the verification should fail at first
+        let mut chain = MbedtlsList::<Certificate>::new();
+        chain.push(c_leaf.clone());
+        chain.push(c_int1.clone());
+        chain.push(c_int2.clone());
+
+        // The certificates used for this test are expired so we remove the CERT_EXPIRED flag with the callback
+        let verify_callback = |_crt: &Certificate, _depth: i32, verify_flags: &mut VerifyError| {
+            verify_flags.remove(VerifyError::CERT_EXPIRED);
+            Ok(())
+        };
+
+        let mut err_str = String::new();
+
+        let res = Certificate::verify_with_callback(&chain, &c_root, Some(&mut err_str), verify_callback);
+
+        match res {
+            Ok(()) => (),
+            Err(e) => panic!("Failed to verify, error: {}, err_str: {}", e, err_str),
+        };
+
+        let empty_certs = MbedtlsList::<Certificate>::new();
+        assert_eq!(
+            Certificate::verify(&empty_certs, &empty_certs, None).unwrap_err(),
+            Error::X509BadInputData
+        );
+        assert_eq!(
+            Certificate::verify_with_callback(&empty_certs, &empty_certs, Some(&mut err_str), verify_callback).unwrap_err(),
+            Error::X509BadInputData
+        );
+        assert_eq!(
+            Certificate::verify_with_callback(&chain, &empty_certs, Some(&mut err_str), verify_callback).unwrap_err(),
+            Error::X509CertVerifyFailed
+        );
+        assert_eq!(
+            Certificate::verify_with_callback(&empty_certs, &c_root, Some(&mut err_str), verify_callback).unwrap_err(),
+            Error::X509BadInputData
+        );
+    }
+
     #[test]
     fn clone_test() {
         let cert_chain = Certificate::from_pem(TEST_CERT_PEM.as_bytes()).unwrap();
