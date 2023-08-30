@@ -229,6 +229,9 @@ impl Certificate {
     where
         F: VerifyCallback + 'static,
     {
+        if chain.is_empty() {
+            return Err(Error::X509BadInputData);
+        }
         let (f_vrfy, p_vrfy): (Option<unsafe extern "C" fn(_, _, _, _) -> _>, _) = if let Some(cb) = cb.as_ref() {
             (Some(x509::verify_callback::<F>),
             cb as *const _ as *mut c_void)
@@ -1418,6 +1421,34 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         assert!(crate::tests::TestTrait::<dyn Sync, Certificate>::new().impls_trait(), "Certificate should be Sync");
         assert!(crate::tests::TestTrait::<dyn Sync, MbedtlsBox<Certificate>>::new().impls_trait(), "MbedtlsBox<Certificate> should be Sync");
         assert!(crate::tests::TestTrait::<dyn Sync, MbedtlsList<Certificate>>::new().impls_trait(), "MbedtlsList<Certificate> should be Sync");
+    }
+
+    #[test]
+    fn empty_cert_chain_test() {
+        const C_CERT: &'static str = concat!(include_str!("../../tests/data/certificate.crt"), "\0");
+        const C_ROOT: &'static str = concat!(include_str!("../../tests/data/root.crt"), "\0");
+
+        let mut certs = MbedtlsList::new();
+        certs.push(Certificate::from_pem(&C_CERT.as_bytes()).unwrap());
+        let mut roots = MbedtlsList::new();
+        roots.push(Certificate::from_pem(&C_ROOT.as_bytes()).unwrap());
+
+        assert!(Certificate::verify(&certs, &roots, None, None).is_ok());
+
+        let empty_certs = MbedtlsList::new();
+
+        assert_eq!(
+            Certificate::verify(&certs, &empty_certs, None, None).unwrap_err(),
+            Error::X509CertVerifyFailed
+        );
+        assert_eq!(
+            Certificate::verify(&empty_certs, &empty_certs, None, None).unwrap_err(),
+            Error::X509BadInputData
+        );
+        assert_eq!(
+            Certificate::verify(&empty_certs, &roots, None, None).unwrap_err(),
+            Error::X509BadInputData
+        );
     }
 
     #[test]
