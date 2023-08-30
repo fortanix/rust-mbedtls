@@ -6,7 +6,6 @@ branches:
     - trying
     # Not really necessary, just to get a green badge on “master”
     - master
-    - v0.9
 language: rust
 os: linux
 dist: focal
@@ -19,20 +18,30 @@ addons:
     - clang-11
     - cmake
     - qemu-user
+before_script:
+  - printenv
+  - whereis clang && clang --version
+  # remove clang-16 path from PATH
+  - export PATH=$(echo $PATH | sed -e 's|:/usr/local/clang-16.0.0/bin||')
+  # setup clang-11 as default clang
+  - sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-11 100
+  - whereis clang && clang --version
 rust:
    - stable
 env:
-  jobs:
-    # Matrix build of 3 targets against Rust stable
-    - TARGET=x86_64-unknown-linux-gnu ZLIB_INSTALLED=true AES_NI_SUPPORT=true
-    - TARGET=aarch64-unknown-linux-musl
-    - TARGET=x86_64-fortanix-unknown-sgx
   global:
     - RUST_BACKTRACE=1
 jobs:
   include:
-    # Test additional Rust toolchains on x86_64
-    - rust: beta
-    - rust: nightly
+    - env: TARGET=x86_64-fortanix-unknown-sgx
+      rust: stable
+    - env: TARGET=aarch64-unknown-linux-musl
+      rust: stable
+    - env: TARGET=x86_64-unknown-linux-gnu ZLIB_INSTALLED=true AES_NI_SUPPORT=true
+      rust: nightly
+    - env: TARGET=x86_64-unknown-linux-gnu ZLIB_INSTALLED=true AES_NI_SUPPORT=true
+      rust: beta
+    - env: TARGET=x86_64-unknown-linux-gnu ZLIB_INSTALLED=true AES_NI_SUPPORT=true
+      rust: stable
 script:
   - ./ct.sh
