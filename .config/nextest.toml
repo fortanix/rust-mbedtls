@@ -113,8 +113,8 @@ store-failure-output = true
 [[profile.default.overrides]]
 # `hyper` test targeting external Google's service, it would sometomes failed because of rate limit
 # `is_probably_prime` test heavily use rdrand, sometimes the VM where test is running has shortage on it
-filter = 'binary(=hyper) or test(=is_probably_prime)'
-retries = { backoff = "exponential", count = 4, delay = "1s", jitter = true, max-delay = "10s" }
+filter = 'binary(=hyper) or test(is_prime_tests::)'
+retries = { backoff = "exponential", count = 4, delay = "1s", jitter = true }
 test-group = 'serial-integration'
 
 [[profile.default.overrides]]
