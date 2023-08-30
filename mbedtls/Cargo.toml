@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls"
-version = "0.8.3"
+version = "0.8.4"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
