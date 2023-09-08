@@ -45,7 +45,7 @@ define!(
 impl From<u32> for Version {
     fn from(value: u32) -> Self {
         use Version::*;
-        match value {
+        match value as ssl_protocol_version {
             SSL_VERSION_TLS1_2 => Tls12,
             #[cfg(feature = "tls13")]
             SSL_VERSION_TLS1_3 => Tls13,
