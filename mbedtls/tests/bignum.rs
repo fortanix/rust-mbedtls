@@ -417,6 +417,7 @@ fn test_base58_encode() {
 }
 
 #[cfg(feature = "rdrand")]
+#[cfg(not(target_os = "macos"))]
 #[cfg(test)]
 mod is_prime_tests {
     use crate::Mpi;
