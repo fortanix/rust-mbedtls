@@ -371,6 +371,11 @@ impl Config {
         set_session_tickets(u: UseSessionTickets) = ssl_conf_session_tickets
     );
 
+    #[cfg(feature = "tls13")]
+    setter!(
+        set_new_session_tickets_count(cnt: u16) = ssl_conf_new_session_tickets
+    );
+
     setter!(set_renegotiation(u: Renegotiation) = ssl_conf_renegotiation);
 
     setter!(
