@@ -634,7 +634,7 @@ dependencies = [
 
 [[package]]
 name = "mbedtls-platform-support"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "cc",
  "cfg-if",
@@ -647,7 +647,7 @@ dependencies = [
 
 [[package]]
 name = "mbedtls-sys-auto"
-version = "3.5.0-alpha.3+0b3de6f"
+version = "3.5.0-alpha.4+0b3de6f"
 dependencies = [
  "bindgen",
  "cc",
