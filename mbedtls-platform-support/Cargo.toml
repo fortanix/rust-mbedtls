@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls-platform-support"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Yuxiang Cao <yuxiang.cao@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
