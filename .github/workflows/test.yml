@@ -54,11 +54,19 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Install dependencies
+    - name: Install qemu-user for aarch64 target
       if: matrix.target == 'aarch64-unknown-linux-musl'
       run: |
         sudo apt-get update
         sudo apt-get install -y qemu-user
+
+    - name: Install clang11 on windows-2019
+      if: matrix.os == 'windows-2019'
+      uses: KyleMayes/install-llvm-action@v1
+      with:
+        version: "11.0"
+      # run: pacman -S mingw-w64-x86_64-clang
+      # shell: bash
 
     - name: Cache Dependencies
       uses: Swatinem/rust-cache@988c164c3d0e93c4dbab36aaf5bbeb77425b2894
