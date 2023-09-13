@@ -62,11 +62,11 @@ jobs:
 
     - name: Install clang11 on windows-2019
       if: matrix.os == 'windows-2019'
-      uses: KyleMayes/install-llvm-action@v1
-      with:
-        version: "11.0"
-      # run: pacman -S mingw-w64-x86_64-clang
-      # shell: bash
+      # uses: KyleMayes/install-llvm-action@v1
+      # with:
+      #   version: "11.0"
+      run: pacman -S mingw-w64-x86_64-clang
+      shell: bash
 
     - name: Cache Dependencies
       uses: Swatinem/rust-cache@988c164c3d0e93c4dbab36aaf5bbeb77425b2894
