@@ -62,11 +62,10 @@ jobs:
 
     - name: Install clang11 on windows-2019
       if: matrix.os == 'windows-2019'
-      # uses: KyleMayes/install-llvm-action@v1
-      # with:
-      #   version: "11.0"
-      run: pacman -S mingw-w64-x86_64-clang
-      shell: bash
+      uses: KyleMayes/install-llvm-action@v1
+      with:
+        version: "11.0"
+
 
     - name: Cache Dependencies
       uses: Swatinem/rust-cache@988c164c3d0e93c4dbab36aaf5bbeb77425b2894
@@ -89,6 +88,7 @@ jobs:
         TARGET: ${{ matrix.target }}
         ZLIB_INSTALLED: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'true' || '' }}
         AES_NI_SUPPORT: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'true' || '' }}
+        LIBCLANG_PATH: ${{ matrix.os == 'windows-2019' && 'C:\Program Files\LLVM\bin' || '' }}
       shell: bash
   ci-success:
     name: ci
