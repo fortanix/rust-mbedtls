@@ -24,30 +24,30 @@ jobs:
     strategy:
       matrix:
         include:
-          # - rust: stable
-          #   target: x86_64-unknown-linux-gnu
-          #   os: ubuntu-20.04
-          # - rust: stable
-          #   target: x86_64-fortanix-unknown-sgx
-          #   os: ubuntu-20.04
-          # - rust: stable
-          #   target: x86_64-pc-windows-msvc
-          #   os: windows-latest
-          # - rust: stable
-          #   target: x86_64-pc-windows-msvc
-          #   os: windows-latest
+          - rust: stable
+            target: x86_64-unknown-linux-gnu
+            os: ubuntu-20.04
+          - rust: stable
+            target: x86_64-fortanix-unknown-sgx
+            os: ubuntu-20.04
+          - rust: stable
+            target: x86_64-pc-windows-msvc
+            os: windows-latest
+          - rust: stable
+            target: x86_64-pc-windows-msvc
+            os: windows-latest
           - rust: stable
             target: x86_64-pc-windows-msvc
             os: windows-2019
-          # - rust: stable
-          #   target: aarch64-unknown-linux-musl
-          #   os: ubuntu-20.04
-          # - rust: beta
-          #   target: x86_64-unknown-linux-gnu
-          #   os: ubuntu-20.04
-          # - rust: nightly
-          #   target: x86_64-unknown-linux-gnu
-          #   os: ubuntu-20.04
+          - rust: stable
+            target: aarch64-unknown-linux-musl
+            os: ubuntu-20.04
+          - rust: beta
+            target: x86_64-unknown-linux-gnu
+            os: ubuntu-20.04
+          - rust: nightly
+            target: x86_64-unknown-linux-gnu
+            os: ubuntu-20.04
 
     runs-on: ${{ matrix.os }}
 
@@ -60,12 +60,11 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y qemu-user
 
-    - name: Install clang11 on windows-2019
+    - name: Install clang-11 on windows-2019
       if: matrix.os == 'windows-2019'
       uses: KyleMayes/install-llvm-action@v1
       with:
         version: "11.0"
-
 
     - name: Cache Dependencies
       uses: Swatinem/rust-cache@988c164c3d0e93c4dbab36aaf5bbeb77425b2894
