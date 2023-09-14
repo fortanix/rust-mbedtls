@@ -48,14 +48,14 @@ impl Features {
             }
         }
         if let Some(components) = self.with_feature("std") {
-            if env_have_target_cfg("family", "unix") {
+            if env_have_target_cfg("family", "unix") || env_have_target_cfg("family", "windows") {
                 components.insert("net");
                 components.insert("fs");
                 components.insert("entropy");
             }
         }
         if let Some(components) = self.with_feature("time") {
-            if !have_custom_gmtime_r && env_have_target_cfg("family", "unix") {
+            if !have_custom_gmtime_r && (env_have_target_cfg("family", "unix") || env_have_target_cfg("family", "windows")) {
                 components.insert("libc");
             } else {
                 components.insert("custom");

@@ -40,18 +40,17 @@ cfg_if::cfg_if! {
         }
     }
 }
-cfg_if::cfg_if! {
-    if #[cfg(any(not(feature = "std"), target_env = "sgx"))] {
-        #[allow(non_upper_case_globals)]
-        static mut rand_f: Option<fn() -> c_int> = None;
 
-        // needs to be pub for global visiblity
-        #[doc(hidden)]
-        #[no_mangle]
-        pub unsafe extern "C" fn rand() -> c_int {
-            rand_f.expect("Called self-test rand without enabling self-test")()
-        }
-    }
+#[cfg(any(not(feature = "std"), target_env = "sgx"))] 
+#[allow(non_upper_case_globals)]
+static mut rand_f: Option<fn() -> c_int> = None;
+
+// needs to be pub for global visiblity
+#[cfg(all(any(not(feature = "std"), target_env = "sgx"), not(target_env = "msvc")))] 
+#[doc(hidden)]
+#[no_mangle]
+pub unsafe extern "C" fn rand() -> c_int {
+    rand_f.expect("Called self-test rand without enabling self-test")()
 }
 
 /// Set callback functions to enable the MbedTLS self tests.

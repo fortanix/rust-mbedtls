@@ -28,20 +28,23 @@ jobs:
             target: x86_64-unknown-linux-gnu
             os: ubuntu-20.04
           - rust: stable
+            target: x86_64-fortanix-unknown-sgx
+            os: ubuntu-20.04
+          - rust: stable
+            target: x86_64-pc-windows-msvc
+            os: windows-latest
+          - rust: stable
             target: aarch64-unknown-linux-musl
             os: ubuntu-20.04
           - rust: stable
-            target: x86_64-fortanix-unknown-sgx
-            os: ubuntu-20.04
+            target: x86_64-apple-darwin
+            os: macos-latest
           - rust: beta
             target: x86_64-unknown-linux-gnu
             os: ubuntu-20.04
           - rust: nightly
             target: x86_64-unknown-linux-gnu
             os: ubuntu-20.04
-          - rust: stable
-            target: x86_64-apple-darwin
-            os: macos-latest
 
     runs-on: ${{ matrix.os }}
 
@@ -54,6 +57,18 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y qemu-user
 
+    # python version is read from .python-version
+    - name: Setup python
+      uses: actions/setup-python@v4
+
+    - name: Install python dependencies
+      run: python3 -m pip install -r mbedtls-sys/vendor/scripts/basic.requirements.txt
+
+    - name: Cache Dependencies
+      uses: Swatinem/rust-cache@988c164c3d0e93c4dbab36aaf5bbeb77425b2894
+      with:
+        key: ${{ matrix.rust }}
+
     - name: Setup Rust toolchain
       uses: actions-rs/toolchain@v1
       with:
@@ -61,19 +76,16 @@ jobs:
         target: ${{ matrix.target }}
         override: true
 
-    - name: Cache Dependencies
-      uses: Swatinem/rust-cache@988c164c3d0e93c4dbab36aaf5bbeb77425b2894
-      with:
-        key: ${{ matrix.rust }}
-
     - name: Run tests
       run: |
-        ./ct.sh
+        ./ci_tools.sh
+        ./ci.sh
       env:
         TRAVIS_RUST_VERSION: ${{ matrix.rust }}
         TARGET: ${{ matrix.target }}
         ZLIB_INSTALLED: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'true' || '' }}
         AES_NI_SUPPORT: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'true' || '' }}
+      shell: bash
   ci-success:
     name: ci
     if: always()

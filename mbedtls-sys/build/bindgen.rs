@@ -72,12 +72,13 @@ impl super::BuildConfig {
         header.push_str("#include <psa/crypto.h>\n");
 
         let mut cc = cc::Build::new();
-        cc.include(&self.mbedtls_include)
-        .flag(&format!(
-            "-DMBEDTLS_CONFIG_FILE=\"{}\"",
-            self.config_h.to_str().expect("config.h UTF-8 error")
-        ));
-
+        if cc.get_compiler().is_like_msvc() {
+            cc.flag("--driver-mode=cl");
+        }
+        cc.include(&self.mbedtls_include).define(
+            "MBEDTLS_CONFIG_FILE",
+            Some(format!(r#""{}""#, self.config_h.to_str().expect("config.h UTF-8 error")).as_str()),
+        );
         for cflag in &self.cflags {
             cc.flag(cflag);
         }
@@ -107,7 +108,6 @@ impl super::BuildConfig {
             .clang_args(cc.get_compiler().args().iter().map(|arg| arg.to_str().unwrap()))
             .header_contents("bindgen-input.h", &header)
             .allowlist_function("^(?i)mbedtls_.*")
-            .allowlist_function("^(?i)psa_.*")
             .wrap_static_fns(true)
             .wrap_static_fns_path(&self.static_wrappers_c)
             .generate().expect("bindgen error");
@@ -159,6 +159,7 @@ fn bindgen_builder(cc: &cc::Build, header: &String) -> bindgen::Builder {
         .header_contents("bindgen-input.h", header)
         .allowlist_recursively(false)
         .blocklist_type("^mbedtls_time_t$")
+        .blocklist_item("^(?i)mbedtls_.*vsnprintf")
         .use_core()
         .ctypes_prefix("::types::raw_types")
         .parse_callbacks(Box::new(MbedtlsParseCallbacks))
