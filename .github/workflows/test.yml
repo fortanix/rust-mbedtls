@@ -66,6 +66,10 @@ jobs:
       with:
         version: "11.0"
 
+    - name: Set LIBCLANG_PATH on windows-2019
+      if: matrix.os == 'windows-2019'
+      run: echo "LIBCLANG_PATH='C:\Program Files\LLVM\bin'" >> "$GITHUB_ENV"
+
     - name: Cache Dependencies
       uses: Swatinem/rust-cache@988c164c3d0e93c4dbab36aaf5bbeb77425b2894
       with:
@@ -87,8 +91,8 @@ jobs:
         TARGET: ${{ matrix.target }}
         ZLIB_INSTALLED: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'true' || '' }}
         AES_NI_SUPPORT: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'true' || '' }}
-        LIBCLANG_PATH: ${{ matrix.os == 'windows-2019' && 'C:\Program Files\LLVM\bin' || '' }}
       shell: bash
+
   ci-success:
     name: ci
     if: always()
