@@ -66,10 +66,6 @@ jobs:
       with:
         version: "11.0"
 
-    - name: Set LIBCLANG_PATH on windows-2019
-      if: matrix.os == 'windows-2019'
-      run: echo "LIBCLANG_PATH='C:\Program Files\LLVM\bin'" >> "$GITHUB_ENV"
-
     - name: Cache Dependencies
       uses: Swatinem/rust-cache@988c164c3d0e93c4dbab36aaf5bbeb77425b2894
       with:
@@ -84,11 +80,17 @@ jobs:
 
     - name: Run tests
       run: |
+        # Set LIBCLANG_PATH for bindgen to access clang library under windows-2019
+        if [ "$MATRIX_OS" == "windows-2019" ]; then
+          export LIBCLANG_PATH="C:\Program Files\LLVM\bin"
+          echo "$LIBCLANG_PATH"
+        fi
         ./ci_tools.sh
         ./ci.sh
       env:
         TRAVIS_RUST_VERSION: ${{ matrix.rust }}
         TARGET: ${{ matrix.target }}
+        MATRIX_OS: ${{ matrix.os }}
         ZLIB_INSTALLED: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'true' || '' }}
         AES_NI_SUPPORT: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'true' || '' }}
       shell: bash
