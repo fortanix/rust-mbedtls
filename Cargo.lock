@@ -527,7 +527,7 @@ dependencies = [
 
 [[package]]
 name = "mbedtls-sys-auto"
-version = "2.28.3+patch1"
+version = "2.28.4+mbedtls-2.28.3"
 dependencies = [
  "bindgen",
  "cc",
