@@ -10,9 +10,9 @@ if [ -z $TRAVIS_RUST_VERSION ]; then
 fi
 
 # According to `mbedtls-sys/vendor/README.md`, need to install needed pkgs
-python3 -m venv venv
+python -m venv venv
 source venv/bin/activate || source venv/Scripts/activate
-python3 -m pip install -r ./mbedtls-sys/vendor/scripts/basic.requirements.txt
+python -m pip install -r ./mbedtls-sys/vendor/scripts/basic.requirements.txt
 
 # Test logic start from here
 export CFLAGS_x86_64_fortanix_unknown_sgx="-isystem/usr/include/x86_64-linux-gnu -mlvi-hardening -mllvm -x86-experimental-lvi-inline-asm-hardening"
