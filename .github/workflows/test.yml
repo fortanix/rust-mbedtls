@@ -60,11 +60,6 @@ jobs:
     # python version is read from .python-version
     - name: Setup python
       uses: actions/setup-python@v4
-      with:
-        cache: 'pip'
-        cache-dependency-path: |
-          mbedtls-sys/vendor/scripts/basic.requirements.txt
-          mbedtls-sys/vendor/scripts/driver.requirements.txt
 
     - name: Install python dependencies
       run: python3 -m pip install -r mbedtls-sys/vendor/scripts/basic.requirements.txt

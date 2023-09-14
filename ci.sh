@@ -9,6 +9,9 @@ if [ -z $TRAVIS_RUST_VERSION ]; then
     exit 1
 fi
 
+# According to `mbedtls-sys/vendor/README.md`, need to install needed pkgs
+python3 -m venv venv
+source venv/bin/activate || source venv/Scripts/activate
 python3 -m pip install -r ./mbedtls-sys/vendor/scripts/basic.requirements.txt
 
 # Test logic start from here
