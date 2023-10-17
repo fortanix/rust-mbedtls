@@ -60,6 +60,10 @@ cc = "1.0"
 
 [features]
 # Features are documented in the README
+
+x509 = []
+ssl = ["x509"]
+
 default = ["std", "aesni", "time", "padlock"]
 std = ["byteorder/std", "mbedtls-sys-auto/std", "serde/std", "yasna", "mbedtls-platform-support/std"]
 debug = ["mbedtls-sys-auto/debug"]
@@ -72,46 +76,45 @@ zlib = ["mbedtls-sys-auto/zlib"]
 time = ["mbedtls-platform-support/time"]
 padlock = ["mbedtls-sys-auto/padlock"]
 dsa = ["std", "yasna", "num-bigint", "bit-vec"]
-pkcs12 = ["std", "yasna"]
+pkcs12 = ["std", "yasna", "x509"]
 pkcs12_rc2 = ["pkcs12", "rc2", "cbc"]
-legacy_protocols = ["mbedtls-sys-auto/legacy_protocols"]
+legacy_protocols = ["mbedtls-sys-auto/legacy_protocols", "ssl"]
 async = ["std", "tokio","tokio/net","tokio/io-util", "tokio/macros"]
 async-rt = ["async", "tokio/rt", "tokio/sync", "tokio/rt-multi-thread"]
 
 [[example]]
 name = "client"
-required-features = ["std"]
+required-features = ["std", "ssl"]
 
 [[example]]
 name = "client_dtls"
-required-features = ["std"]
+required-features = ["std", "ssl"]
 
 [[example]]
 name = "client_psk"
-required-features = ["std"]
+required-features = ["std", "ssl"]
 
 [[example]]
 name = "server"
-required-features = ["std"]
+required-features = ["std", "ssl"]
 
 [[test]]
 name = "client_server"
-required-features = ["std"]
+required-features = ["std", "ssl"]
 
 [[test]]
 name = "ssl_conf_ca_cb"
-required-features = ["std"]
+required-features = ["std", "ssl"]
 
 [[test]]
 name = "ssl_conf_verify"
-required-features = ["std"]
+required-features = ["std", "ssl"]
 
 [[test]]
 name = "hyper"
-required-features = ["std"]
-
+required-features = ["std", "ssl"]
 
 [[test]]
 name = "async_session"
 path = "tests/async_session.rs"
-required-features = ["async-rt"]
+required-features = ["async-rt", "ssl"]

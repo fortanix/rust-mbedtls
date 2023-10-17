@@ -561,6 +561,7 @@ impl MbedtlsList<Certificate> {
         Self { inner: None }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn into_raw(mut self) -> *mut x509_crt {
         // This leaks a *mut Certificate that we can cast to x509_crt as it's transparent and has no extra fields.
         self.inner.take().map(|x| x.into_raw()).unwrap_or(core::ptr::null_mut()) as *mut x509_crt

@@ -15,8 +15,6 @@ compile_error!("Either the `std` or `no_std_deps` feature needs to be enabled");
 
 
 #[macro_use]
-extern crate bitflags;
-#[macro_use]
 extern crate serde_derive;
 // required explicitly to force inclusion at link time
 #[cfg(target_env = "sgx")]
@@ -37,8 +35,11 @@ pub mod hash;
 pub mod pk;
 pub mod rng;
 pub use mbedtls_platform_support::self_test as self_test;
+#[cfg(feature = "ssl")]
 pub mod ssl;
+#[cfg(feature = "x509")]
 pub mod x509;
+#[cfg(any(feature = "x509", feature = "ssl"))]
 pub mod alloc;
 
 #[cfg(feature = "pkcs12")]
