@@ -1,5 +1,5 @@
 > [!WARNING]
-> The state of this repertory is changed to maintenance . We will not accept more feature request. Please check [Change of status](#change-of-status) for details
+> The state of this repertory is changed to maintenance. We will not accept any more feature requests. Please check [Change of status](#change-of-status) for details
 
 
 # mbedtls
@@ -17,7 +17,7 @@ used in a no_std environment.
 ## Change of status
 
 We discovered that `mbedtls 3.X` is not thread safe and will not work properly with multiple threads.
-And new PSA approach does not match our needs. So we now decided to stay on mbedtls `2.28.X`. And state of this repertory is changed to maintenance . We will not accept more feature request.
+And the new PSA approach does not match our needs. So we now decided to stay on mbedtls `2.28.X`; and the state of this repertory is changed to maintenance. We will not accept any more feature requests.
 
 Related issue: [#320](https://github.com/fortanix/rust-mbedtls/issues/320)
 
