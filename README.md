@@ -1,6 +1,11 @@
+> [!WARNING]
+> The state of this repertory is changed to maintenance. We will not accept any more feature requests. Please check [Change of status](#change-of-status) for details
+
+
 # mbedtls
 
 [![Build Status](https://travis-ci.com/fortanix/rust-mbedtls.svg?branch=master)](https://travis-ci.com/fortanix/rust-mbedtls)
+
 
 This is an idiomatic Rust wrapper for MbedTLS, allowing you to use MbedTLS with
 only safe code while being able to use such great Rust features like error
@@ -8,6 +13,22 @@ handling and closures.
 
 Additionally, building on MbedTLS's focus on embedded use, this crate can be
 used in a no_std environment.
+
+## Change of status
+
+We discovered that `mbedtls 3.X` is not thread safe and will not work properly with multiple threads.
+And the new PSA approach does not match our needs. So we now decided to stay on mbedtls `2.28.X`; and the state of this repertory is changed to maintenance. We will not accept any more feature requests.
+
+Related issue: [#320](https://github.com/fortanix/rust-mbedtls/issues/320)
+
+Reference links:
+
+- Design changes:
+  - https://lists.trustedfirmware.org/archives/list/mbed-tls@lists.trustedfirmware.org/message/RJ7YPNBNWUNW2ICQJ72H2JMKPDKGQOLT/
+- Bugs
+  - https://github.com/fortanix/rust-mbedtls/issues/301
+  - https://github.com/fortanix/rust-mbedtls/issues/293
+  - https://github.com/Mbed-TLS/mbedtls/issues/3263
 
 ## Building
 
