@@ -1,20 +1,6 @@
-# Notice
-
 > [!WARNING]
-> The state of this repertory is changed to maintenance . We will not accept more feature request.
+> The state of this repertory is changed to maintenance . We will not accept more feature request. Please check [Change of status](#change-of-status) for details
 
-We discovered that `mbedtls 3.X` is not thread safe and will not work properly with multiple threads.
-And new PSA approach does not match our needs. So we now decided to stay on mbedtls `2.28.X`. And state of this repertory is changed to maintenance . We will not accept more feature request.
-
-
-Reference links:
-
-- Design changes:
-  - https://lists.trustedfirmware.org/archives/list/mbed-tls@lists.trustedfirmware.org/message/RJ7YPNBNWUNW2ICQJ72H2JMKPDKGQOLT/
-- Bugs
-  - https://github.com/fortanix/rust-mbedtls/issues/301
-  - https://github.com/fortanix/rust-mbedtls/issues/293
-  - https://github.com/Mbed-TLS/mbedtls/issues/3263
 
 # mbedtls
 
@@ -27,6 +13,22 @@ handling and closures.
 
 Additionally, building on MbedTLS's focus on embedded use, this crate can be
 used in a no_std environment.
+
+## Change of status
+
+We discovered that `mbedtls 3.X` is not thread safe and will not work properly with multiple threads.
+And new PSA approach does not match our needs. So we now decided to stay on mbedtls `2.28.X`. And state of this repertory is changed to maintenance . We will not accept more feature request.
+
+Related issue: [#320](https://github.com/fortanix/rust-mbedtls/issues/320)
+
+Reference links:
+
+- Design changes:
+  - https://lists.trustedfirmware.org/archives/list/mbed-tls@lists.trustedfirmware.org/message/RJ7YPNBNWUNW2ICQJ72H2JMKPDKGQOLT/
+- Bugs
+  - https://github.com/fortanix/rust-mbedtls/issues/301
+  - https://github.com/fortanix/rust-mbedtls/issues/293
+  - https://github.com/Mbed-TLS/mbedtls/issues/3263
 
 ## Building
 
