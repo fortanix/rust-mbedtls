@@ -19,6 +19,8 @@ used in a no_std environment.
 We discovered that `mbedtls 3.X` is not thread safe and will not work properly with multiple threads.
 And the new PSA approach does not match our needs. So we now decided to stay on mbedtls `2.28.X`; and the state of this repertory is changed to maintenance. We will not accept any more feature requests.
 
+Old code of `mbedtls 3.X` on `master` branch has been moved to branch `mbedtls-3`.
+
 Related issue: [#320](https://github.com/fortanix/rust-mbedtls/issues/320)
 
 Reference links:
