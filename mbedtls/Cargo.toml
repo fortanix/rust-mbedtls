@@ -1,6 +1,8 @@
 [package]
 name = "mbedtls"
-version = "0.9.3"
+# We jumped from v0.9 to v0.12 because v0.10 and v0.11 were based on mbedtls 3.X, which
+# we decided not to support.
+version = "0.12.0"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
