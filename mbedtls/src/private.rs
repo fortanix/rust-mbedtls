@@ -92,6 +92,7 @@ pub unsafe fn cstr_to_slice<'a>(ptr: *const c_char) -> &'a [u8] {
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 
 #[cfg(feature = "std")]
+#[allow(dead_code)]
 pub fn error_to_io_error(e: Error) -> IoError {
     IoError::new(IoErrorKind::Other, e.to_string())
 }
