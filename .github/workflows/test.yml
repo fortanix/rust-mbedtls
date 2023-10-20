@@ -110,9 +110,9 @@ jobs:
           toolchain: stable
           components: rustfmt
       - name: Enforce formatting
-        # rustfmt has issues with the mbedtls-platform-support crate, so we'll skip it for now.
         run: |
           cargo fmt --check -p mbedtls
+          cargo fmt --check -p mbedtls-platform-support
           cargo fmt --check -p mbedtls-sys-auto
   ci-success:
     name: ci
