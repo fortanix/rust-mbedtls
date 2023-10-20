@@ -49,6 +49,7 @@ download_cargo_nextest() {
 
 aarch64_cross_toolchain_hash=c8ee0e7fd58f5ec6811e3cec5fcdd8fc47cb2b49fb50e9d7717696ddb69c812547b5f389558f62dfbf9db7d6ad808a5a515cc466b8ea3e9ab3daeb20ba1adf33
 # save to directory that will be cached
+mkdir -p ${repo_root}/target
 aarch64_cross_toolchain_save_path=${repo_root}/target/aarch64-linux-musl-cross.tgz
 if [ "$TARGET" == "aarch64-unknown-linux-musl" ]; then
     if ! check_sha512 ${aarch64_cross_toolchain_hash} ${aarch64_cross_toolchain_save_path}; then
