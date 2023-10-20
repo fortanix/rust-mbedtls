@@ -14,8 +14,8 @@ use mbedtls_sys::types::size_t;
 
 use crate::rng::{HmacDrbg, Random, RngCallbackMut};
 
-use crate::error::Result;
 use crate::bignum::Mpi;
+use crate::error::Result;
 use crate::hash::{MdInfo, Type};
 
 pub(crate) fn generate_rfc6979_nonce(md: &MdInfo, x: &Mpi, q: &Mpi, digest_bytes: &[u8]) -> Result<Vec<u8>> {
@@ -72,13 +72,7 @@ pub(crate) struct Rfc6979Rng {
 
 /// An RNG which first outputs the k for RFC 6797 followed by random data
 impl Rfc6979Rng {
-    pub fn new(
-        md_type: Type,
-        q: &Mpi,
-        x: &Mpi,
-        digest_bytes: &[u8],
-        random_seed: &[u8],
-    ) -> Result<Rfc6979Rng> {
+    pub fn new(md_type: Type, q: &Mpi, x: &Mpi, digest_bytes: &[u8], random_seed: &[u8]) -> Result<Rfc6979Rng> {
         let md: MdInfo = match md_type.into() {
             Some(md) => md,
             None => panic!("no such digest"),
@@ -111,11 +105,7 @@ impl Rfc6979Rng {
 }
 
 impl RngCallbackMut for Rfc6979Rng {
-    unsafe extern "C" fn call_mut(
-        user_data: *mut c_void,
-        data_ptr: *mut c_uchar,
-        len: size_t,
-    ) -> c_int {
+    unsafe extern "C" fn call_mut(user_data: *mut c_void, data_ptr: *mut c_uchar, len: size_t) -> c_int {
         let rng: &mut Rfc6979Rng = (user_data as *mut Rfc6979Rng).as_mut().unwrap();
         let slice = ::core::slice::from_raw_parts_mut(data_ptr, len);
         let result = rng.random_callback(slice);

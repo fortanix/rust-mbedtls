@@ -6,9 +6,9 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+use core::convert::Infallible;
 use core::fmt;
 use core::str::Utf8Error;
-use core::convert::Infallible;
 #[cfg(feature = "std")]
 use std::error::Error as StdError;
 
@@ -98,9 +98,7 @@ impl From<Infallible> for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Error::Utf8Error(Some(ref e)) => {
-                f.write_fmt(format_args!("Error converting to UTF-8: {}", e))
-            }
+            &Error::Utf8Error(Some(ref e)) => f.write_fmt(format_args!("Error converting to UTF-8: {}", e)),
             &Error::Utf8Error(None) => f.write_fmt(format_args!("Error converting to UTF-8")),
             &Error::Other(i) => f.write_fmt(format_args!("mbedTLS unknown error ({})", i)),
             &Error::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),

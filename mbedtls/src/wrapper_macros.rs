@@ -34,7 +34,7 @@ macro_rules! callback {
 
         pub trait $m: Send + Sync {
             unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized;
-            
+
             fn data_ptr(&self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
         }
 
@@ -172,7 +172,7 @@ macro_rules! define_struct {
         unsafe impl<$($l)*> Send for $name<$($l)*> {}
         );
     };
-    
+
     { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> const init: fn() -> Self = $ctor:ident $({ $($member:ident: $member_init:expr,)* })?; $($defs:tt)* } => {
         define_struct!(init $name () init $ctor $(lifetime $l)* members $($($member: $member_init,)*)* );
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
@@ -297,8 +297,6 @@ macro_rules! getter {
     };
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use crate::tests::{TestTrait, Testable};
@@ -313,24 +311,51 @@ mod tests {
     #[test]
     fn callback_sync() {
         fn test_closure<T: RustTest>() {
-            assert!(TestTrait::<dyn Send + Sync, T>::new().impls_trait(), "RustTest should be Send + Sync");
+            assert!(
+                TestTrait::<dyn Send + Sync, T>::new().impls_trait(),
+                "RustTest should be Send + Sync"
+            );
         }
         fn test_native_closure<T: NativeTest>() {
-            assert!(TestTrait::<dyn Send + Sync, T>::new().impls_trait(), "NativeTest should be Send + Sync");
+            assert!(
+                TestTrait::<dyn Send + Sync, T>::new().impls_trait(),
+                "NativeTest should be Send + Sync"
+            );
         }
         fn test_native_mut_closure<T: NativeTestMut>() {
-            assert!(TestTrait::<dyn Send + Sync, T>::new().impls_trait(), "NativeTestMut should be Send + Sync");
+            assert!(
+                TestTrait::<dyn Send + Sync, T>::new().impls_trait(),
+                "NativeTestMut should be Send + Sync"
+            );
         }
 
-        test_closure::<fn()->()>();
-        test_native_closure::<fn()->()>();
-        test_native_mut_closure::<fn()->()>();
+        test_closure::<fn() -> ()>();
+        test_native_closure::<fn() -> ()>();
+        test_native_mut_closure::<fn() -> ()>();
 
-        assert!(!TestTrait::<dyn RustTest, &dyn Fn()->()>::new().impls_trait(), "non-Sync closure shouldn't be RustTest");
-        assert!(TestTrait::<dyn RustTest, &(dyn Fn()->() + Send + Sync)>::new().impls_trait(), "Sync closure should be RustTest");
-        assert!(!TestTrait::<dyn NativeTest, &dyn Fn()->()>::new().impls_trait(), "non-Sync closure shouldn't be NativeTest");
-        assert!(TestTrait::<dyn NativeTest, &(dyn Fn()->() + Send + Sync)>::new().impls_trait(), "Sync closure should be NativeTest");
-        assert!(!TestTrait::<dyn NativeTestMut, &dyn Fn()->()>::new().impls_trait(), "non-Sync closure shouldn't be NativeTestMut");
-        assert!(TestTrait::<dyn NativeTestMut, &(dyn Fn()->() + Send + Sync)>::new().impls_trait(), "Sync closure should be NativeTestMut");
+        assert!(
+            !TestTrait::<dyn RustTest, &dyn Fn() -> ()>::new().impls_trait(),
+            "non-Sync closure shouldn't be RustTest"
+        );
+        assert!(
+            TestTrait::<dyn RustTest, &(dyn Fn() -> () + Send + Sync)>::new().impls_trait(),
+            "Sync closure should be RustTest"
+        );
+        assert!(
+            !TestTrait::<dyn NativeTest, &dyn Fn() -> ()>::new().impls_trait(),
+            "non-Sync closure shouldn't be NativeTest"
+        );
+        assert!(
+            TestTrait::<dyn NativeTest, &(dyn Fn() -> () + Send + Sync)>::new().impls_trait(),
+            "Sync closure should be NativeTest"
+        );
+        assert!(
+            !TestTrait::<dyn NativeTestMut, &dyn Fn() -> ()>::new().impls_trait(),
+            "non-Sync closure shouldn't be NativeTestMut"
+        );
+        assert!(
+            TestTrait::<dyn NativeTestMut, &(dyn Fn() -> () + Send + Sync)>::new().impls_trait(),
+            "Sync closure should be NativeTestMut"
+        );
     }
 }

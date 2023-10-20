@@ -51,14 +51,10 @@ fn sign_verify() {
     let mut signature2 = [0u8; ECDSA_MAX_LEN];
 
     let mut rng = test_rng();
-    let len = k
-        .sign(Sha256, data, &mut signature1, &mut rng)
-        .unwrap();
+    let len = k.sign(Sha256, data, &mut signature1, &mut rng).unwrap();
     k.verify(Sha256, data, &signature1[0..len]).unwrap();
 
-    let len = k
-        .sign(Sha256, data, &mut signature2, &mut rng)
-        .unwrap();
+    let len = k.sign(Sha256, data, &mut signature2, &mut rng).unwrap();
     k.verify(Sha256, data, &signature2[0..len]).unwrap();
 
     // Default ECDSA is randomized
@@ -72,9 +68,7 @@ fn verify_failure() {
     let data = b"SIGNATURE TEST SIGNATURE TEST SI";
     let mut signature = [0u8; ECDSA_MAX_LEN];
 
-    let len = k
-        .sign(Sha256, data, &mut signature, &mut test_rng())
-        .unwrap();
+    let len = k.sign(Sha256, data, &mut signature, &mut test_rng()).unwrap();
     k.verify(Sha256, data, &signature[0..len]).unwrap();
     signature[0] ^= 1u8;
     k.verify(Sha256, data, &signature[0..len])
@@ -103,8 +97,7 @@ fn sign_verify_rfc6979_sig() {
 
         assert_eq!(to_hex(&signature[0..sig_len]), expected);
 
-        pk.verify(md, &digest[0..digest_len], &signature[0..sig_len])
-            .unwrap();
+        pk.verify(md, &digest[0..digest_len], &signature[0..sig_len]).unwrap();
     }
 
     let mut p256 = Pk::from_private_key(RFC6979_P256_KEY.as_bytes(), None).unwrap();

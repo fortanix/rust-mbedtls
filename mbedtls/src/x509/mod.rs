@@ -17,8 +17,6 @@ pub mod profile;
 // write_crt
 // write_csr
 
-use crate::error::Error;
-use crate::private::UnsafeFrom;
 #[doc(inline)]
 pub use self::certificate::Certificate;
 pub use self::crl::Crl;
@@ -26,10 +24,12 @@ pub use self::crl::Crl;
 pub use self::csr::Csr;
 #[doc(inline)]
 pub use self::profile::Profile;
+use crate::error::Error;
+use crate::private::UnsafeFrom;
 
 use bitflags::bitflags;
-use mbedtls_sys::*;
 use mbedtls_sys::types::raw_types::{c_int, c_uint, c_void};
+use mbedtls_sys::*;
 bitflags! {
     pub struct KeyUsage: c_uint {
         const DIGITAL_SIGNATURE  = X509_KU_DIGITAL_SIGNATURE as c_uint;
@@ -93,7 +93,7 @@ impl VerifyError {
             }}
         }
         let mut v = Vec::new();
-        map!{
+        map! {
             self, v,
             CERT_BAD_KEY       -> "The certificate is signed with an unacceptable key (eg bad curve, RSA too short).",
             CERT_BAD_MD        -> "The certificate is signed with an unacceptable hash.",
@@ -194,15 +194,7 @@ impl fmt::Write for TimeWriter {
 
 impl Time {
     pub fn new(year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) -> Option<Time> {
-        if year < 10000
-            && month >= 1
-            && month <= 12
-            && day >= 1
-            && day <= 31
-            && hour < 24
-            && minute < 60
-            && second < 60
-        {
+        if year < 10000 && month >= 1 && month <= 12 && day >= 1 && day <= 31 && hour < 24 && minute < 60 && second < 60 {
             Some(Time {
                 year: year,
                 month: month,
@@ -217,10 +209,7 @@ impl Time {
     }
 
     fn to_x509_time(&self) -> [u8; 15] {
-        let mut writer = TimeWriter {
-            buf: [0; 15],
-            idx: 0,
-        };
+        let mut writer = TimeWriter { buf: [0; 15], idx: 0 };
         write!(
             writer,
             "{:04}{:02}{:02}{:02}{:02}{:02}",

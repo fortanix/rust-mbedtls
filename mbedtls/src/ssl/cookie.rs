@@ -40,16 +40,18 @@ pub trait CookieCallback {
     where
         Self: Sized;
 
-    /// Returns a mutable pointer to this shared reference which will be used as first argument to
-    /// the other two methods
+    /// Returns a mutable pointer to this shared reference which will be used as
+    /// first argument to the other two methods
     ///
-    /// A mutable pointer is required because the underlying cookie implementation should be
-    /// allowed to store some information, e.g. mbedtls' implementation uses an internal counter.
-    /// We only have a shared reference because in general, the `CookieCallback` will be behind an
-    /// `Arc<dyn CookieCallback>` (in [`Config`](crate::ssl::Config)). So we need to remove
-    /// const-ness here which is unsafe in general. Each respective implementation has to
-    /// guarantee that shared accesses are safe. mbedtls' implementation uses internal mutexes in
-    /// multithreaded contexts (when the `threading` feature is activated) to do so.
+    /// A mutable pointer is required because the underlying cookie
+    /// implementation should be allowed to store some information, e.g.
+    /// mbedtls' implementation uses an internal counter. We only have a
+    /// shared reference because in general, the `CookieCallback` will be behind
+    /// an `Arc<dyn CookieCallback>` (in [`Config`](crate::ssl::Config)). So
+    /// we need to remove const-ness here which is unsafe in general. Each
+    /// respective implementation has to guarantee that shared accesses are
+    /// safe. mbedtls' implementation uses internal mutexes in multithreaded
+    /// contexts (when the `threading` feature is activated) to do so.
     fn data_ptr(&self) -> *mut c_void;
 }
 

@@ -172,15 +172,7 @@ impl Hmac {
             if out.len() < olen {
                 return Err(Error::MdBadInputData);
             }
-            md_hmac(
-                md.inner,
-                key.as_ptr(),
-                key.len(),
-                data.as_ptr(),
-                data.len(),
-                out.as_mut_ptr(),
-            )
-            .into_result()?;
+            md_hmac(md.inner, key.as_ptr(), key.len(), data.as_ptr(), data.len(), out.as_mut_ptr()).into_result()?;
             Ok(olen)
         }
     }
@@ -227,13 +219,7 @@ impl Clone for Md {
     }
 }
 
-pub fn pbkdf2_hmac(
-    md: Type,
-    password: &[u8],
-    salt: &[u8],
-    iterations: u32,
-    key: &mut [u8],
-) -> Result<()> {
+pub fn pbkdf2_hmac(md: Type, password: &[u8], salt: &[u8], iterations: u32, key: &mut [u8]) -> Result<()> {
     let md: MdInfo = match md.into() {
         Some(md) => md,
         None => return Err(Error::MdBadInputData),
@@ -257,14 +243,7 @@ pub fn pbkdf2_hmac(
     }
 }
 
-pub fn pbkdf_pkcs12(
-    md: Type,
-    password: &[u8],
-    salt: &[u8],
-    id: u8,
-    iterations: u32,
-    key: &mut [u8],
-) -> Result<()> {
+pub fn pbkdf_pkcs12(md: Type, password: &[u8], salt: &[u8], id: u8, iterations: u32, key: &mut [u8]) -> Result<()> {
     unsafe {
         pkcs12_derivation(
             key.as_mut_ptr(),

@@ -16,7 +16,7 @@
 
 #[cfg(feature = "std")]
 use std::{
-    io::{Read, Write, Result as IoResult, Error as IoError, ErrorKind as IoErrorKind},
+    io::{Error as IoError, ErrorKind as IoErrorKind, Read, Result as IoResult, Write},
     net::UdpSocket,
     result::Result as StdResult,
 };
@@ -24,18 +24,22 @@ use std::{
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 
+use super::context::Context;
 #[cfg(feature = "std")]
 use crate::error::Error;
 use crate::error::Result;
-use super::context::Context;
 
 /// A direct representation of the `mbedtls_ssl_send_t` and `mbedtls_ssl_recv_t`
 /// callback function pointers.
 ///
 /// You probably want to implement `IoCallback` instead.
 pub trait IoCallbackUnsafe<T> {
-    unsafe extern "C" fn call_recv(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int where Self: Sized;
-    unsafe extern "C" fn call_send(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int where Self: Sized;
+    unsafe extern "C" fn call_recv(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int
+    where
+        Self: Sized;
+    unsafe extern "C" fn call_send(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int
+    where
+        Self: Sized;
     fn data_ptr(&mut self) -> *mut c_void;
 }
 
@@ -119,14 +123,14 @@ impl<IO: Read + Write> IoCallback<Stream> for IO {
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.read(buf).map_err(|e| match e {
             ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::SslWantRead,
-            _ => Error::NetRecvFailed
+            _ => Error::NetRecvFailed,
         })
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<usize> {
         self.write(buf).map_err(|e| match e {
             ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::SslWantWrite,
-            _ => Error::NetSendFailed
+            _ => Error::NetSendFailed,
         })
     }
 }
@@ -143,9 +147,7 @@ pub struct ConnectedUdpSocket {
 impl ConnectedUdpSocket {
     pub fn connect<A: std::net::ToSocketAddrs>(socket: UdpSocket, addr: A) -> StdResult<Self, (IoError, UdpSocket)> {
         match socket.connect(addr) {
-            Ok(_) => Ok(ConnectedUdpSocket {
-                socket,
-            }),
+            Ok(_) => Ok(ConnectedUdpSocket { socket }),
             Err(e) => Err((e, socket)),
         }
     }
@@ -161,7 +163,7 @@ impl Io for ConnectedUdpSocket {
         match self.socket.recv(buf) {
             Ok(i) => Ok(i),
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Err(Error::SslWantRead),
-            Err(_) => Err(Error::NetRecvFailed)
+            Err(_) => Err(Error::NetRecvFailed),
         }
     }
 
@@ -181,10 +183,11 @@ impl<T: IoCallbackUnsafe<AnyIo>> Io for Context<T> {
 }
 
 #[cfg(feature = "std")]
-/// Implements [`std::io::Read`] whenever T implements `Read`, too. This ensures that
-/// `Read`, which is designated for byte-oriented sources, is only implemented when the
-/// underlying [`IoCallbackUnsafe`] is byte-oriented, too. Specifically, this means that it is implemented
-/// for `Context<TcpStream>`, i.e. TLS connections but not for DTLS connections.
+/// Implements [`std::io::Read`] whenever T implements `Read`, too. This ensures
+/// that `Read`, which is designated for byte-oriented sources, is only
+/// implemented when the underlying [`IoCallbackUnsafe`] is byte-oriented, too.
+/// Specifically, this means that it is implemented for `Context<TcpStream>`,
+/// i.e. TLS connections but not for DTLS connections.
 impl<T: IoCallbackUnsafe<Stream>> Read for Context<T> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match self.recv(buf) {
@@ -197,10 +200,11 @@ impl<T: IoCallbackUnsafe<Stream>> Read for Context<T> {
 }
 
 #[cfg(feature = "std")]
-/// Implements [`std::io::Write`] whenever T implements `Write`, too. This ensures that
-/// `Write`, which is designated for byte-oriented sinks, is only implemented when the
-/// underlying [`IoCallbackUnsafe`] is byte-oriented, too. Specifically, this means that it is implemented
-/// for `Context<TcpStream>`, i.e. TLS connections but not for DTLS connections.
+/// Implements [`std::io::Write`] whenever T implements `Write`, too. This
+/// ensures that `Write`, which is designated for byte-oriented sinks, is only
+/// implemented when the underlying [`IoCallbackUnsafe`] is byte-oriented, too.
+/// Specifically, this means that it is implemented for `Context<TcpStream>`,
+/// i.e. TLS connections but not for DTLS connections.
 impl<T: IoCallbackUnsafe<Stream>> Write for Context<T> {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
         match self.send(buf) {

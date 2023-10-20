@@ -9,10 +9,10 @@
 #[cfg(feature = "std")]
 use std::sync::Arc;
 
-pub use mbedtls_sys::CTR_DRBG_RESEED_INTERVAL as RESEED_INTERVAL;
-use mbedtls_sys::*;
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
+pub use mbedtls_sys::CTR_DRBG_RESEED_INTERVAL as RESEED_INTERVAL;
+use mbedtls_sys::*;
 
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
@@ -46,14 +46,14 @@ define!(
 // That function has an internal mutex to guarantee thread safety.
 //
 // The other potential conflict is a mutable reference changing class.
-// That is avoided by having any users of the callback hold an 'Arc' to this class.
-// Rust will then ensure that a mutable reference cannot be aquired if more then 1 Arc exists to the same class.
+// That is avoided by having any users of the callback hold an 'Arc' to this
+// class. Rust will then ensure that a mutable reference cannot be aquired if
+// more then 1 Arc exists to the same class.
 //
 unsafe impl Sync for CtrDrbg {}
 
 #[allow(dead_code)]
 impl CtrDrbg {
-
     pub fn new<T: EntropyCallback + 'static>(entropy: Arc<T>, additional_entropy: Option<&[u8]>) -> Result<Self> {
         let mut inner = Box::new(ctr_drbg_context::default());
 
@@ -64,11 +64,15 @@ impl CtrDrbg {
                 Some(T::call),
                 entropy.data_ptr(),
                 additional_entropy.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
-                additional_entropy.map(<[_]>::len).unwrap_or(0)
-            ).into_result()?;
+                additional_entropy.map(<[_]>::len).unwrap_or(0),
+            )
+            .into_result()?;
         }
 
-        Ok(CtrDrbg { inner, entropy: EntropyHolder::Shared(entropy) })
+        Ok(CtrDrbg {
+            inner,
+            entropy: EntropyHolder::Shared(entropy),
+        })
     }
 
     pub fn with_mut_entropy<T: EntropyCallbackMut + 'static>(entropy: T, additional_entropy: Option<&[u8]>) -> Result<Self> {
@@ -83,14 +87,17 @@ impl CtrDrbg {
                 Some(T::call_mut),
                 entropy.data_ptr_mut(),
                 additional_entropy.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
-                additional_entropy.map(<[_]>::len).unwrap_or(0)
-            ).into_result()?;
+                additional_entropy.map(<[_]>::len).unwrap_or(0),
+            )
+            .into_result()?;
         }
 
-        Ok(CtrDrbg { inner, entropy: EntropyHolder::Unique(entropy) })
+        Ok(CtrDrbg {
+            inner,
+            entropy: EntropyHolder::Unique(entropy),
+        })
     }
 
-    
     pub fn prediction_resistance(&self) -> bool {
         if self.inner.prediction_resistance == CTR_DRBG_PR_OFF {
             false
@@ -100,12 +107,7 @@ impl CtrDrbg {
     }
 
     pub fn set_prediction_resistance(&mut self, pr: bool) {
-        unsafe {
-            ctr_drbg_set_prediction_resistance(
-                &mut *self.inner,
-                if pr { CTR_DRBG_PR_ON } else { CTR_DRBG_PR_OFF },
-            )
-        }
+        unsafe { ctr_drbg_set_prediction_resistance(&mut *self.inner, if pr { CTR_DRBG_PR_ON } else { CTR_DRBG_PR_OFF }) }
     }
 
     getter!(entropy_len() -> size_t = .entropy_len);
@@ -117,10 +119,8 @@ impl CtrDrbg {
         unsafe {
             ctr_drbg_reseed(
                 &mut *self.inner,
-                additional_entropy
-                    .map(<[_]>::as_ptr)
-                    .unwrap_or(::core::ptr::null()),
-                additional_entropy.map(<[_]>::len).unwrap_or(0)
+                additional_entropy.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
+                additional_entropy.map(<[_]>::len).unwrap_or(0),
             )
             .into_result()?
         };
@@ -141,8 +141,12 @@ impl CtrDrbg {
 
 impl RngCallbackMut for CtrDrbg {
     #[inline(always)]
-    unsafe extern "C" fn call_mut(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int where Self: Sized {
-        // Mutex used in ctr_drbg_random at: ../../../mbedtls-sys/vendor/crypto/library/ctr_drbg.c:546
+    unsafe extern "C" fn call_mut(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int
+    where
+        Self: Sized,
+    {
+        // Mutex used in ctr_drbg_random at:
+        // ../../../mbedtls-sys/vendor/crypto/library/ctr_drbg.c:546
         ctr_drbg_random(user_data, data, len)
     }
 
@@ -153,11 +157,15 @@ impl RngCallbackMut for CtrDrbg {
 
 impl RngCallback for CtrDrbg {
     #[inline(always)]
-    unsafe extern "C" fn call(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int where Self: Sized {
-        // Mutex used in ctr_drbg_random at: ../../../mbedtls-sys/vendor/crypto/library/ctr_drbg.c:546
+    unsafe extern "C" fn call(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int
+    where
+        Self: Sized,
+    {
+        // Mutex used in ctr_drbg_random at:
+        // ../../../mbedtls-sys/vendor/crypto/library/ctr_drbg.c:546
         ctr_drbg_random(user_data, data, len)
     }
-    
+
     fn data_ptr(&self) -> *mut c_void {
         self.handle() as *const _ as *mut _
     }

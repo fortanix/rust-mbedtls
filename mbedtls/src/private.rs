@@ -31,7 +31,7 @@ where
     with malformed datastructures, mbedtls may return a too-small error regardless of how much
     buffer space is provided. This causes a loop which terminates with a out of memory panic.
     */
-    const MAX_VECTOR_ALLOCATION : usize = 4 * 1024 * 1024;
+    const MAX_VECTOR_ALLOCATION: usize = 4 * 1024 * 1024;
 
     let mut vec = Vec::with_capacity(2048 /* big because of bug in x509write */);
     loop {

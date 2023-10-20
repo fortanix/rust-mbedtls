@@ -81,14 +81,14 @@ PVTB987Vm6hLu5/oHF+JVW05ZdXID1BZvukBYXnwY9OHvU7fin8N/eT/SBTd2HxO
 d1SSYr2U5pj0tNqbDQ==
 -----END CERTIFICATE-----\0";
 
-pub const PEM_KEY: &'static str = concat!(include_str!("./keys/user.key"),"\0");
+pub const PEM_KEY: &'static str = concat!(include_str!("./keys/user.key"), "\0");
 pub const PEM_CERT_SUBJECT: &'static str = "CN=mbedtls.example";
-pub const PEM_CERT: &'static str = concat!(include_str!("./keys/user.crt"),"\0");
+pub const PEM_CERT: &'static str = concat!(include_str!("./keys/user.crt"), "\0");
 
 pub const ROOT_CA_CERT_SUBJECT: &'static str = "CN=RootCA";
-pub const ROOT_CA_CERT: &'static str = concat!(include_str!("./keys/ca.crt"),"\0");
-pub const ROOT_CA_KEY: &'static str = concat!(include_str!("./keys/ca.key"),"\0");
+pub const ROOT_CA_CERT: &'static str = concat!(include_str!("./keys/ca.crt"), "\0");
+pub const ROOT_CA_KEY: &'static str = concat!(include_str!("./keys/ca.key"), "\0");
 
 pub const EXPIRED_CERT_SUBJECT: &'static str = "CN=ExpiredNode";
-pub const EXPIRED_CERT: &'static str = concat!(include_str!("./keys/expired.crt"),"\0");
-pub const EXPIRED_KEY: &'static str = concat!(include_str!("./keys/expired.key"),"\0");
+pub const EXPIRED_CERT: &'static str = concat!(include_str!("./keys/expired.crt"), "\0");
+pub const EXPIRED_KEY: &'static str = concat!(include_str!("./keys/expired.key"), "\0");

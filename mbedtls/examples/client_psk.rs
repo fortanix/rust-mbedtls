@@ -43,10 +43,5 @@ fn result_main(addr: &str) -> TlsResult<()> {
 fn main() {
     let mut args = std::env::args();
     args.next();
-    result_main(
-        &args
-            .next()
-            .expect("supply destination in command-line argument"),
-    )
-    .unwrap();
+    result_main(&args.next().expect("supply destination in command-line argument")).unwrap();
 }

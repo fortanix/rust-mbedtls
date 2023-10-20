@@ -6,18 +6,18 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+pub mod async_io;
 pub mod ciphersuites;
 pub mod config;
 pub mod context;
 pub mod cookie;
 pub mod io;
-pub mod async_io;
 pub mod ticket;
 
 #[doc(inline)]
 pub use self::ciphersuites::CipherSuite;
 #[doc(inline)]
-pub use self::config::{Config, Version, UseSessionTickets};
+pub use self::config::{Config, UseSessionTickets, Version};
 #[doc(inline)]
 pub use self::context::Context;
 #[doc(inline)]

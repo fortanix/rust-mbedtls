@@ -29,12 +29,12 @@ use yasna::tags::*;
 pub use yasna::{ASN1Error, ASN1ErrorKind};
 use yasna::{ASN1Result, BERDecodable, BERReader, BERReaderSeq, Tag};
 
+use crate::alloc::Box as MbedtlsBox;
 use crate::cipher::raw::{CipherId, CipherMode};
 use crate::cipher::{Cipher, Decryption, Fresh, Traditional};
 use crate::hash::{pbkdf_pkcs12, Hmac, MdInfo, Type as MdType};
 use crate::pk::Pk;
 use crate::x509::Certificate;
-use crate::alloc::{Box as MbedtlsBox};
 use crate::Error as MbedtlsError;
 
 // Constants for various object identifiers used in PKCS12:
@@ -86,8 +86,7 @@ fn read_string_type(der: &[u8]) -> ASN1Result<String> {
                 // IA5 is (roughly speaking) equivalent to ASCII
                 reader.read_tagged_implicit(TAG_IA5STRING, |reader| {
                     let bytes = reader.read_bytes()?;
-                    Ok(String::from_utf8(bytes)
-                        .map_err(|_| ASN1Error::new(ASN1ErrorKind::Invalid))?)
+                    Ok(String::from_utf8(bytes).map_err(|_| ASN1Error::new(ASN1ErrorKind::Invalid))?)
                 })
             }
 
@@ -97,10 +96,7 @@ fn read_string_type(der: &[u8]) -> ASN1Result<String> {
                     return Err(ASN1Error::new(ASN1ErrorKind::Invalid));
                 }
 
-                let utf16 = bytes
-                    .chunks(2)
-                    .map(|c| (c[0] as u16) * 256 + c[1] as u16)
-                    .collect::<Vec<_>>();
+                let utf16 = bytes.chunks(2).map(|c| (c[0] as u16) * 256 + c[1] as u16).collect::<Vec<_>>();
 
                 Ok(String::from_utf16_lossy(&utf16))
             }),
@@ -290,9 +286,7 @@ impl BERDecodable for ContentInfo {
     fn decode_ber(reader: BERReader) -> ASN1Result<Self> {
         reader.read_sequence(|reader| {
             let oid = reader.next().read_oid()?;
-            let contents = reader
-                .next()
-                .read_tagged(Tag::context(0), |reader| reader.read_bytes())?;
+            let contents = reader.next().read_tagged(Tag::context(0), |reader| reader.read_bytes())?;
             let contents = read_seq_of::<AuthenticatedSafe>(&contents)?;
             Ok(ContentInfo { oid, contents })
         })
@@ -310,9 +304,7 @@ impl BERDecodable for AuthenticatedSafe {
     fn decode_ber(reader: BERReader) -> ASN1Result<Self> {
         let r = reader.read_sequence(|reader| {
             let oid = reader.next().read_oid()?;
-            let blob = reader
-                .next()
-                .read_tagged(Tag::context(0), |reader| reader.read_der())?;
+            let blob = reader.next().read_tagged(Tag::context(0), |reader| reader.read_der())?;
             Ok((oid, blob))
         })?;
 
@@ -342,10 +334,7 @@ impl BERDecodable for EncryptedData {
         reader.read_sequence(|reader| {
             let version = reader.next().read_u32()?;
             let content_info = read_struct::<EncryptedContentInfo>(reader)?;
-            Ok(EncryptedData {
-                version,
-                content_info,
-            })
+            Ok(EncryptedData { version, content_info })
         })
     }
 }
@@ -387,13 +376,8 @@ impl BERDecodable for CertTypes {
     fn decode_ber(reader: BERReader) -> ASN1Result<Self> {
         reader.read_sequence(|reader| {
             let cert_type = reader.next().read_oid()?;
-            let cert_blob = reader
-                .next()
-                .read_tagged(Tag::context(0), |reader| reader.read_bytes())?;
-            Ok(CertTypes {
-                cert_type,
-                cert_blob,
-            })
+            let cert_blob = reader.next().read_tagged(Tag::context(0), |reader| reader.read_bytes())?;
+            Ok(CertTypes { cert_type, cert_blob })
         })
     }
 }
@@ -483,9 +467,7 @@ impl BERDecodable for SafeBag {
     fn decode_ber(reader: BERReader) -> ASN1Result<Self> {
         reader.read_sequence(|reader| {
             let bag_id = reader.next().read_oid()?;
-            let bag_blob = reader
-                .next()
-                .read_tagged(Tag::context(0), |reader| reader.read_der())?;
+            let bag_blob = reader.next().read_tagged(Tag::context(0), |reader| reader.read_der())?;
 
             let mut bag_attributes = Vec::new();
             if let Ok(attr) = reader.next().read_der() {
@@ -551,21 +533,13 @@ fn format_passphrase_for_pkcs12(passphrase: &str) -> Vec<u8> {
 
 fn decrypt_contents(data: &EncryptedData, passphrase: &[u8]) -> Pkcs12Result<SafeContents> {
     if data.version != 0 {
-        return Err(Pkcs12Error::Custom(format!(
-            "Unknown EncryptedData version {}",
-            data.version
-        )));
+        return Err(Pkcs12Error::Custom(format!("Unknown EncryptedData version {}", data.version)));
     }
 
     let encryption_algo = &data.content_info.encryption_algo.algo;
     let pbe_params: Pkcs12PbeParams = yasna::decode_der(&data.content_info.encryption_algo.params)?;
 
-    let pt = decrypt_data(
-        &data.content_info.encrypted_content,
-        &pbe_params,
-        encryption_algo,
-        passphrase,
-    )?;
+    let pt = decrypt_data(&data.content_info.encrypted_content, &pbe_params, encryption_algo, passphrase)?;
 
     let sc = read_struct_from_bytes::<SafeContents>(&pt)?;
     return Ok(sc);
@@ -578,8 +552,7 @@ fn decrypt_pkcs8(pkcs8: &[u8], passphrase: &[u8]) -> Pkcs12Result<Vec<u8>> {
             let pbe_params = read_struct_from_bytes::<Pkcs12PbeParams>(&alg_id.params)?;
             let enc_p8 = reader.next().read_bytes()?;
 
-            decrypt_data(&enc_p8, &pbe_params, &alg_id.algo, passphrase)
-                .map_err(|_| ASN1Error::new(ASN1ErrorKind::Invalid))
+            decrypt_data(&enc_p8, &pbe_params, &alg_id.algo, passphrase).map_err(|_| ASN1Error::new(ASN1ErrorKind::Invalid))
         })
     })?;
 
@@ -587,11 +560,7 @@ fn decrypt_pkcs8(pkcs8: &[u8], passphrase: &[u8]) -> Pkcs12Result<Vec<u8>> {
 }
 
 fn decrypt_3des(ciphertext: &[u8], key: &[u8], iv: &[u8]) -> Pkcs12Result<Vec<u8>> {
-    let cipher = Cipher::<Decryption, Traditional, Fresh>::new(
-        CipherId::Des3,
-        CipherMode::CBC,
-        (key.len() * 8) as u32,
-    )?;
+    let cipher = Cipher::<Decryption, Traditional, Fresh>::new(CipherId::Des3, CipherMode::CBC, (key.len() * 8) as u32)?;
     let cipher = cipher.set_key_iv(&key, &iv)?;
     let mut plaintext = vec![0; ciphertext.len() + 8];
     let len = cipher.decrypt(&ciphertext, &mut plaintext)?;
@@ -603,9 +572,7 @@ fn decrypt_3des(ciphertext: &[u8], key: &[u8], iv: &[u8]) -> Pkcs12Result<Vec<u8
 fn decrypt_rc2(ciphertext: &[u8], key: &[u8], iv: &[u8]) -> Pkcs12Result<Vec<u8>> {
     use rc2::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
 
-    let cipher =
-        cbc::Decryptor::<rc2::Rc2>::new_from_slices(key, iv)
-            .map_err(|e| Pkcs12Error::Custom(format!("{:?}", e)))?;
+    let cipher = cbc::Decryptor::<rc2::Rc2>::new_from_slices(key, iv).map_err(|e| Pkcs12Error::Custom(format!("{:?}", e)))?;
 
     let mut pt = ciphertext.to_vec();
     let pt = cipher
@@ -616,9 +583,7 @@ fn decrypt_rc2(ciphertext: &[u8], key: &[u8], iv: &[u8]) -> Pkcs12Result<Vec<u8>
 
 #[cfg(not(feature = "pkcs12_rc2"))]
 fn decrypt_rc2(_ciphertext: &[u8], _key: &[u8], _iv: &[u8]) -> Pkcs12Result<Vec<u8>> {
-    return Err(Pkcs12Error::Custom(
-        "RC2 not supported in this build".to_owned(),
-    ));
+    return Err(Pkcs12Error::Custom("RC2 not supported in this build".to_owned()));
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -651,10 +616,7 @@ fn decrypt_data(
             PKCS12_PBE_SHA_3DES_112 => Ok(Pkcs12EncryptionAlgo::TDES_112_SHA),
             PKCS12_PBE_SHA_RC2_128 => Ok(Pkcs12EncryptionAlgo::RC2_128_SHA),
             PKCS12_PBE_SHA_RC2_40 => Ok(Pkcs12EncryptionAlgo::RC2_40_SHA),
-            _ => Err(Pkcs12Error::Custom(format!(
-                "Unknown encryption algo {}",
-                oid
-            ))),
+            _ => Err(Pkcs12Error::Custom(format!("Unknown encryption algo {}", oid))),
         }
     }
 
@@ -708,10 +670,7 @@ impl Pfx {
         let pfx: Pfx = yasna::decode_der(data)?;
 
         if pfx.version != 3 {
-            return Err(Pkcs12Error::Custom(format!(
-                "Unknown PKCS12 version {}",
-                pfx.version
-            )));
+            return Err(Pkcs12Error::Custom(format!("Unknown PKCS12 version {}", pfx.version)));
         }
 
         Ok(pfx)
@@ -785,10 +744,7 @@ impl Pfx {
             }
         }
 
-        fn decrypt_data(
-            data: &AuthenticatedSafe,
-            passphrase: &[u8],
-        ) -> Pkcs12Result<AuthenticatedSafe> {
+        fn decrypt_data(data: &AuthenticatedSafe, passphrase: &[u8]) -> Pkcs12Result<AuthenticatedSafe> {
             match data {
                 &AuthenticatedSafe::Data(ref sc) => {
                     let mut contents = Vec::new();
@@ -825,33 +781,45 @@ impl Pfx {
         Ok(decrypted)
     }
 
-    fn authsafe_decrypted_contents(&self) -> impl Iterator<Item=&SafeBag> {
-        self.authsafe.contents.iter()
-            .flat_map(|d| if let AuthenticatedSafe::Data(ref d) = d { d.0.as_slice() } else { &[] })
+    fn authsafe_decrypted_contents(&self) -> impl Iterator<Item = &SafeBag> {
+        self.authsafe.contents.iter().flat_map(|d| {
+            if let AuthenticatedSafe::Data(ref d) = d {
+                d.0.as_slice()
+            } else {
+                &[]
+            }
+        })
     }
 
-    /// Return the certificates stored in this Pfx along with a possibly empty list
-    /// of "friendly names" which are associated with said certificate.
-    /// Some or all of the certificates stored in a Pfx may be encrypted in which case
-    /// decrypt must be called to access them.
-    pub fn certificates<'a>(&'a self) -> impl Iterator<Item=(Result<MbedtlsBox<Certificate>, crate::Error>, Vec<String>)> + 'a {
-        self.authsafe_decrypted_contents()
-            .filter_map(|sb| if let Pkcs12BagSet::Cert(CertBag(Some(cert))) = &sb.bag_value {
+    /// Return the certificates stored in this Pfx along with a possibly empty
+    /// list of "friendly names" which are associated with said certificate.
+    /// Some or all of the certificates stored in a Pfx may be encrypted in
+    /// which case decrypt must be called to access them.
+    pub fn certificates<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = (Result<MbedtlsBox<Certificate>, crate::Error>, Vec<String>)> + 'a {
+        self.authsafe_decrypted_contents().filter_map(|sb| {
+            if let Pkcs12BagSet::Cert(CertBag(Some(cert))) = &sb.bag_value {
                 Some((Certificate::from_der(cert), sb.friendly_name()))
-            } else { None })
+            } else {
+                None
+            }
+        })
     }
 
-    /// Return the private keys stored in this Pfx along with a possibly empty list
-    /// of "friendly names" which are associated with said private key.
-    pub fn private_keys<'a>(&'a self) -> impl Iterator<Item=(Result<Pk, crate::Error>, Vec<String>)> + 'a {
-        self.authsafe_decrypted_contents()
-            .filter_map(|sb|
-                match &sb.bag_value {
-                    Pkcs12BagSet::Pkcs8(pkcs8) | Pkcs12BagSet::Key(KeyBag { pkcs8 }) =>
-                        Some((Pk::from_private_key(pkcs8, None), sb.friendly_name())),
-                    _ => /* not a private key */ None
-                }
-            )
+    /// Return the private keys stored in this Pfx along with a possibly empty
+    /// list of "friendly names" which are associated with said private key.
+    pub fn private_keys<'a>(&'a self) -> impl Iterator<Item = (Result<Pk, crate::Error>, Vec<String>)> + 'a {
+        self.authsafe_decrypted_contents().filter_map(|sb| match &sb.bag_value {
+            Pkcs12BagSet::Pkcs8(pkcs8) | Pkcs12BagSet::Key(KeyBag { pkcs8 }) => {
+                Some((Pk::from_private_key(pkcs8, None), sb.friendly_name()))
+            }
+            _ =>
+            /* not a private key */
+            {
+                None
+            }
+        })
     }
 }
 
@@ -874,9 +842,7 @@ impl BERDecodable for Pfx {
             let raw_data = yasna::parse_der(&raw_safe, |reader| {
                 reader.read_sequence(|reader| {
                     let _oid = reader.next().read_oid()?;
-                    let contents = reader
-                        .next()
-                        .read_tagged(Tag::context(0), |reader| reader.read_bytes())?;
+                    let contents = reader.next().read_tagged(Tag::context(0), |reader| reader.read_bytes())?;
                     Ok(contents)
                 })
             })?;
@@ -1049,24 +1015,19 @@ mod tests {
         let pfx_bits = include_bytes!("../../tests/data/nomac_pass.pfx");
         let correct_password = "xyzzy";
         let wrong_password = "unicorn";
-        // This password happens to produce a correct CBC padding so causes a different error
+        // This password happens to produce a correct CBC padding so causes a different
+        // error
         let wrong_password_correct_padding = "zork#364";
 
         let parsed_pfx = Pfx::parse(pfx_bits).unwrap();
 
         let pfx = parsed_pfx.decrypt(&wrong_password, None);
         assert!(pfx.is_err());
-        assert_eq!(
-            pfx.unwrap_err(),
-            Pkcs12Error::Crypto(crate::Error::CipherInvalidPadding)
-        );
+        assert_eq!(pfx.unwrap_err(), Pkcs12Error::Crypto(crate::Error::CipherInvalidPadding));
 
         let pfx = parsed_pfx.decrypt(&wrong_password_correct_padding, None);
         assert!(pfx.is_err());
-        assert_eq!(
-            pfx.unwrap_err(),
-            Pkcs12Error::ASN1(ASN1Error::new(ASN1ErrorKind::Eof))
-        );
+        assert_eq!(pfx.unwrap_err(), Pkcs12Error::ASN1(ASN1Error::new(ASN1ErrorKind::Eof)));
 
         let pfx = parsed_pfx.decrypt(&correct_password, None).unwrap();
 
@@ -1169,9 +1130,7 @@ mod tests {
         let parsed_pfx = Pfx::parse(pfx_bits).unwrap();
 
         // Test that decrypting an already decrypted Pfx works:
-        let pfx = parsed_pfx
-            .decrypt(&enc_password, Some(&mac_password))
-            .unwrap();
+        let pfx = parsed_pfx.decrypt(&enc_password, Some(&mac_password)).unwrap();
         let pfx = pfx.decrypt(&enc_password, Some(&mac_password)).unwrap();
 
         let certs = pfx.certificates().collect::<Vec<_>>();
@@ -1220,5 +1179,4 @@ mod tests {
         assert_eq!(pk.name().unwrap(), "RSA");
         assert_eq!(pk.len(), 2048);
     }
-
 }
