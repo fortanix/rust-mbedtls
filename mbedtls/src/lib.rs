@@ -39,7 +39,7 @@ pub use mbedtls_platform_support::self_test as self_test;
 pub mod ssl;
 #[cfg(feature = "x509")]
 pub mod x509;
-#[cfg(any(feature = "x509", feature = "ssl"))]
+#[cfg(any(feature = "x509", feature = "ssl", feature = "pkcs12"))]
 pub mod alloc;
 
 #[cfg(feature = "pkcs12")]
