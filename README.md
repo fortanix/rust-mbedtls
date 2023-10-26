@@ -78,8 +78,7 @@ crypto (or PKI) only library.
 * **time** Enable time support in mbedtls-sys.
 * *zlib* Enable zlib support in mbedtls-sys.
 * *async-rt* Enable async support for SSL.
-
-PRs adding new features are encouraged.
+* *chrono* Enable [`chrono`](https://docs.rs/chrono/) support (e.g., implementation of conversion traits between `x509::Time` and `chrono` types)
 
 # mbedtls-sys-auto
 
