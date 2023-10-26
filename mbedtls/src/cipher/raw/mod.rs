@@ -330,13 +330,7 @@ impl Cipher {
         self.do_crypto(cipher, plain)
     }
 
-    pub fn encrypt_auth(
-        &mut self,
-        ad: &[u8],
-        plain: &[u8],
-        cipher_and_tag: &mut [u8],
-        tag_len: usize,
-    ) -> Result<usize> {
+    pub fn encrypt_auth(&mut self, ad: &[u8], plain: &[u8], cipher_and_tag: &mut [u8], tag_len: usize) -> Result<usize> {
         if cipher_and_tag
             .len()
             .checked_sub(tag_len)
@@ -402,12 +396,7 @@ impl Cipher {
         Ok(plain_len)
     }
 
-    pub fn encrypt_auth_inplace(
-        &mut self,
-        ad: &[u8],
-        data: &mut [u8],
-        tag: &mut [u8],
-    ) -> Result<usize> {
+    pub fn encrypt_auth_inplace(&mut self, ad: &[u8], data: &mut [u8], tag: &mut [u8]) -> Result<usize> {
         let iv = self.inner.iv;
         let iv_len = self.inner.iv_size;
         let mut olen = data.len();
@@ -431,12 +420,7 @@ impl Cipher {
         Ok(olen)
     }
 
-    pub fn decrypt_auth_inplace(
-        &mut self,
-        ad: &[u8],
-        data: &mut [u8],
-        tag: &[u8],
-    ) -> Result<usize> {
+    pub fn decrypt_auth_inplace(&mut self, ad: &[u8], data: &mut [u8], tag: &[u8]) -> Result<usize> {
         let iv = self.inner.iv;
         let iv_len = self.inner.iv_size;
         let mut plain_len = data.len();
@@ -538,8 +522,5 @@ fn cmac_test() {
         &mut out,
     )
     .expect("Success in CMAC");
-    assert_eq!(
-        &out,
-        b"\x38\x7b\x36\x22\x8b\xa7\x77\x44\x5b\xaf\xa0\x36\x45\xb9\x40\x10"
-    );
+    assert_eq!(&out, b"\x38\x7b\x36\x22\x8b\xa7\x77\x44\x5b\xaf\xa0\x36\x45\xb9\x40\x10");
 }

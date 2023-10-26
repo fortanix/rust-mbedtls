@@ -458,13 +458,11 @@ fn aes_kwp() {
     assert_eq!(p, &p_out[..out_len]);
 }
 
-
 #[test]
 fn aes_gcm() {
     let k = [
-        0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e,
-        0x4f, 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d,
-        0x4e, 0x4f,
+        0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f, 0x40, 0x41, 0x42, 0x43,
+        0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f,
     ];
     let iv = [0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16];
 
@@ -475,23 +473,14 @@ fn aes_gcm() {
     let mut p_out = [0u8; 4];
     let mut c_out = [0u8; 8];
 
-    let cipher = Cipher::<Encryption, Authenticated, Fresh>::new(
-        raw::CipherId::Aes,
-        raw::CipherMode::GCM,
-        (k.len() * 8) as _,
-    )
-    .unwrap();
+    let cipher =
+        Cipher::<Encryption, Authenticated, Fresh>::new(raw::CipherId::Aes, raw::CipherMode::GCM, (k.len() * 8) as _).unwrap();
     let cipher = cipher.set_key_iv(&k, &iv).unwrap();
 
     cipher.encrypt_auth(&ad, &p, &mut c_out, 4).unwrap();
     assert_eq!(c, c_out[0..4]);
     assert_eq!(t, c_out[4..8]);
-    let cipher = Cipher::<_, Authenticated, _>::new(
-        raw::CipherId::Aes,
-        raw::CipherMode::GCM,
-        (k.len() * 8) as _,
-    )
-    .unwrap();
+    let cipher = Cipher::<_, Authenticated, _>::new(raw::CipherId::Aes, raw::CipherMode::GCM, (k.len() * 8) as _).unwrap();
     let cipher = cipher.set_key_iv(&k, &iv).unwrap();
     cipher.decrypt_auth(&ad, &c_out, &mut p_out, 4).unwrap();
     assert_eq!(p, p_out);
