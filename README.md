@@ -1,6 +1,11 @@
+> [!WARNING]
+> The state of this repertory is changed to maintenance. We will not accept any more feature requests. Please check [Change of status](#change-of-status) for details
+
+
 # mbedtls
 
 [![Build Status](https://travis-ci.com/fortanix/rust-mbedtls.svg?branch=master)](https://travis-ci.com/fortanix/rust-mbedtls)
+
 
 This is an idiomatic Rust wrapper for MbedTLS, allowing you to use MbedTLS with
 only safe code while being able to use such great Rust features like error
@@ -9,6 +14,25 @@ handling and closures.
 Additionally, building on MbedTLS's focus on embedded use, this crate can be
 used in a no_std environment.
 
+## Change of status
+
+We discovered that `mbedtls 3.4.X` is not thread safe and will not work properly with multiple threads. This problem will not be fixed in short time. And the new PSA approach does not match our needs.
+
+So we now decided to stay on mbedtls `2.28.X`; and the state of this repertory is changed to maintenance. We will not accept any more feature requests.
+
+Old code of `mbedtls 3.X` on `master` branch has been moved to branch `mbedtls-3`.
+
+Related issue: [#320](https://github.com/fortanix/rust-mbedtls/issues/320)
+
+Reference links:
+
+- Design changes:
+  - https://lists.trustedfirmware.org/archives/list/mbed-tls@lists.trustedfirmware.org/message/RJ7YPNBNWUNW2ICQJ72H2JMKPDKGQOLT/
+- Bugs
+  - https://github.com/fortanix/rust-mbedtls/issues/301
+  - https://github.com/fortanix/rust-mbedtls/issues/293
+  - https://github.com/Mbed-TLS/mbedtls/issues/3263
+
 ## Building
 
 This crate depends on the mbedtls-sys-auto crate, see below for build details.
@@ -16,6 +40,16 @@ This crate depends on the mbedtls-sys-auto crate, see below for build details.
 ### Features
 
 This is a list of the Cargo features available for mbedtls. Features in
+
+* *x509* Enable PKI functionality. The main code enabled by this feature is in
+         the `x509` module.
+
+* *ssl* Enable ssl/tls functionality. The main code enabled by this feature is
+        in the `ssl` module.
+
+Note: The above features were introduced so that this crate could be used as a
+crypto (or PKI) only library.
+
 **bold** are enabled by default.
 
 * **aesni** Enable support for the AES-NI instructions. On SGX, this feature is
@@ -29,12 +63,12 @@ This is a list of the Cargo features available for mbedtls. Features in
                         unsupported processors. On SGX, this feature is
                         enabled automatically.
 * *mpi_force_c_code* Enables the `mpi_force_c_code` feature in mbedtls-sys
-* *legacy_protocols* Enable support for SSLv3, TLSv1.0 and TLSv1.1
+* *legacy_protocols* Enable support for SSLv3, TLSv1.0 and TLSv1.1. Implies *ssl*.
 * *no_std_deps* On no_std, you must enable this feature. It enables optional
                 dependencies needed on no_std. If the `std` feature is enabled,
                 this feature is ignored.
 * **padlock** Enable support for VIA padlock.
-* *pkcs12* Enable code to parse PKCS12 files using yasna
+* *pkcs12* Enable code to parse PKCS12 files using yasna. Implies *x509*.
 * *pkcs12_rc2* Enable use of RC2 crate to decrypt RC2-encrypted PKCS12 files
 * *rdrand* Enable the RDRAND random number generator. On SGX, this feature is
            enabled automatically.

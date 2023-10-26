@@ -27,6 +27,7 @@ pub use self::csr::Csr;
 #[doc(inline)]
 pub use self::profile::Profile;
 
+use bitflags::bitflags;
 use mbedtls_sys::*;
 use mbedtls_sys::types::raw_types::{c_int, c_uint, c_void};
 bitflags! {
