@@ -8,12 +8,12 @@
 
 use std::sync::Arc;
 
-use mbedtls_sys::*;
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
+use mbedtls_sys::*;
 
 use crate::error::{IntoResult, Result};
-use crate::rng::{EntropyCallback,EntropyCallbackMut};
+use crate::rng::{EntropyCallback, EntropyCallbackMut};
 
 callback!(EntropySourceCallbackMut,EntropySourceCallback(data: *mut c_uchar, size: size_t, out: *mut size_t) -> c_int);
 
@@ -33,8 +33,9 @@ define!(
 // That function has an internal mutex to guarantee thread safety.
 //
 // The other potential conflict is a mutable reference changing class.
-// That is avoided by having any users of the callback hold an 'Arc' to this class.
-// Rust will then ensure that a mutable reference cannot be aquired if more then 1 Arc exists to the same class.
+// That is avoided by having any users of the callback hold an 'Arc' to this
+// class. Rust will then ensure that a mutable reference cannot be aquired if
+// more then 1 Arc exists to the same class.
 //
 unsafe impl Sync for OsEntropy {}
 
@@ -47,14 +48,16 @@ impl OsEntropy {
         strong: bool,
     ) -> Result<()> {
         unsafe {
-            // add_source is guarded with internal mutex: mbedtls-sys/vendor/crypto/library/entropy.c:143
-            // all sources are called at later points via 'entropy_gather_internal' which in turn is called with internal mutex locked.
+            // add_source is guarded with internal mutex:
+            // mbedtls-sys/vendor/crypto/library/entropy.c:143 all sources are
+            // called at later points via 'entropy_gather_internal' which in turn is called
+            // with internal mutex locked.
             entropy_add_source(
                 self.inner_ffi_mut(),
                 Some(F::call),
                 source.data_ptr(),
                 threshold,
-                if strong { ENTROPY_SOURCE_STRONG } else { ENTROPY_SOURCE_WEAK }
+                if strong { ENTROPY_SOURCE_STRONG } else { ENTROPY_SOURCE_WEAK },
             )
             .into_result()?
         };
@@ -65,17 +68,18 @@ impl OsEntropy {
     }
 
     pub fn gather(&self) -> Result<()> {
-        // function is guarded with internal mutex: mbedtls-sys/vendor/crypto/library/entropy.c:310
+        // function is guarded with internal mutex:
+        // mbedtls-sys/vendor/crypto/library/entropy.c:310
         unsafe { entropy_gather(self.inner_ffi_mut()) }.into_result()?;
         Ok(())
     }
 
     pub fn update_manual(&self, data: &[u8]) -> Result<()> {
-        // function is guarded with internal mutex: mbedtls-sys/vendor/crypto/library/entropy.c:241
+        // function is guarded with internal mutex:
+        // mbedtls-sys/vendor/crypto/library/entropy.c:241
         unsafe { entropy_update_manual(self.inner_ffi_mut(), data.as_ptr(), data.len()) }.into_result()?;
         Ok(())
     }
-
 
     // TODO
     // entropy_write_seed_file
@@ -86,8 +90,10 @@ impl OsEntropy {
 impl EntropyCallback for OsEntropy {
     #[inline(always)]
     unsafe extern "C" fn call(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
-        // mutex used in entropy_func: ../../../mbedtls-sys/vendor/crypto/library/entropy.c:348
-        // note: we're not using MBEDTLS_ENTROPY_NV_SEED so the initialization is not present or a race condition.
+        // mutex used in entropy_func:
+        // ../../../mbedtls-sys/vendor/crypto/library/entropy.c:348 note: we're
+        // not using MBEDTLS_ENTROPY_NV_SEED so the initialization is not present or a
+        // race condition.
         entropy_func(user_data, data, len)
     }
 
@@ -99,8 +105,10 @@ impl EntropyCallback for OsEntropy {
 impl EntropyCallbackMut for OsEntropy {
     #[inline(always)]
     unsafe extern "C" fn call_mut(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
-        // mutex used in entropy_func: ../../../mbedtls-sys/vendor/crypto/library/entropy.c:348
-        // note: we're not using MBEDTLS_ENTROPY_NV_SEED so the initialization is not present or a race condition.
+        // mutex used in entropy_func:
+        // ../../../mbedtls-sys/vendor/crypto/library/entropy.c:348 note: we're
+        // not using MBEDTLS_ENTROPY_NV_SEED so the initialization is not present or a
+        // race condition.
         entropy_func(user_data, data, len)
     }
 

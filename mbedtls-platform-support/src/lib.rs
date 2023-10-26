@@ -16,13 +16,13 @@ extern crate alloc as rust_alloc;
 #[cfg(not(feature = "std"))]
 mod alloc_prelude {
     #![allow(unused)]
+    pub(crate) use rust_alloc::borrow::Cow;
     pub(crate) use rust_alloc::borrow::ToOwned;
     pub(crate) use rust_alloc::boxed::Box;
-    pub(crate) use rust_alloc::sync::Arc;
     pub(crate) use rust_alloc::string::String;
     pub(crate) use rust_alloc::string::ToString;
+    pub(crate) use rust_alloc::sync::Arc;
     pub(crate) use rust_alloc::vec::Vec;
-    pub(crate) use rust_alloc::borrow::Cow;
 }
 
 pub mod self_test;
@@ -43,9 +43,11 @@ pub extern "C" fn mbedtls_aesni_has_support(_what: u32) -> i32 {
 #[doc(hidden)]
 #[no_mangle]
 // needs to be pub for global visibility
-pub extern "C" fn mbedtls_internal_aes_encrypt(_ctx: *mut mbedtls_sys::types::raw_types::c_void,
-                                                _input: *const u8,
-                                                _output: *mut u8) -> i32 {
+pub extern "C" fn mbedtls_internal_aes_encrypt(
+    _ctx: *mut mbedtls_sys::types::raw_types::c_void,
+    _input: *const u8,
+    _output: *mut u8,
+) -> i32 {
     panic!("AES-NI support is forced but the T-tables code was invoked")
 }
 
@@ -53,43 +55,47 @@ pub extern "C" fn mbedtls_internal_aes_encrypt(_ctx: *mut mbedtls_sys::types::ra
 #[doc(hidden)]
 #[no_mangle]
 // needs to be pub for global visibility
-pub extern "C" fn mbedtls_internal_aes_decrypt(_ctx: *mut mbedtls_sys::types::raw_types::c_void,
-                                                _input: *const u8,
-                                                _output: *mut u8) -> i32 {
+pub extern "C" fn mbedtls_internal_aes_decrypt(
+    _ctx: *mut mbedtls_sys::types::raw_types::c_void,
+    _input: *const u8,
+    _output: *mut u8,
+) -> i32 {
     panic!("AES-NI support is forced but the T-tables code was invoked")
 }
-
 
 #[cfg(any(all(feature = "time", feature = "custom_gmtime_r"), sys_time_component = "custom"))]
 #[doc(hidden)]
 #[no_mangle]
 // needs to be pub for global visibility
-pub unsafe extern "C" fn mbedtls_platform_gmtime_r(tt: *const mbedtls_sys::types::time_t, tp: *mut mbedtls_sys::types::tm) -> *mut mbedtls_sys::types::tm {
+pub unsafe extern "C" fn mbedtls_platform_gmtime_r(
+    tt: *const mbedtls_sys::types::time_t,
+    tp: *mut mbedtls_sys::types::tm,
+) -> *mut mbedtls_sys::types::tm {
     use chrono::prelude::*;
 
     //0 means no TZ offset
     let naive = if tp.is_null() {
-        return core::ptr::null_mut()
+        return core::ptr::null_mut();
     } else {
         match NaiveDateTime::from_timestamp_opt(*tt, 0) {
             Some(t) => t,
-            None => return core::ptr::null_mut()
+            None => return core::ptr::null_mut(),
         }
     };
     let utc = DateTime::<Utc>::from_utc(naive, Utc);
 
     let tp = &mut *tp;
-    tp.tm_sec   = utc.second()   as i32;
-    tp.tm_min   = utc.minute()   as i32;
-    tp.tm_hour  = utc.hour()     as i32;
-    tp.tm_mday  = utc.day()      as i32;
-    tp.tm_mon   = utc.month0()   as i32;
-    tp.tm_year  = match (utc.year() as i32).checked_sub(1900) {
+    tp.tm_sec = utc.second() as i32;
+    tp.tm_min = utc.minute() as i32;
+    tp.tm_hour = utc.hour() as i32;
+    tp.tm_mday = utc.day() as i32;
+    tp.tm_mon = utc.month0() as i32;
+    tp.tm_year = match (utc.year() as i32).checked_sub(1900) {
         Some(year) => year,
-        None => return core::ptr::null_mut()
+        None => return core::ptr::null_mut(),
     };
-    tp.tm_wday  = utc.weekday().num_days_from_sunday() as i32;
-    tp.tm_yday  = utc.ordinal0() as i32;
+    tp.tm_wday = utc.weekday().num_days_from_sunday() as i32;
+    tp.tm_yday = utc.ordinal0() as i32;
     tp.tm_isdst = 0;
 
     tp

@@ -19,11 +19,11 @@ mod mod_bindgen;
 #[path = "cmake.rs"]
 mod mod_cmake;
 
+use features::FEATURES;
 use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use features::FEATURES;
 
 struct BuildConfig {
     out_dir: PathBuf,
@@ -69,24 +69,13 @@ impl BuildConfig {
 
     fn print_rerun_files(&self) {
         println!("cargo:rerun-if-env-changed=RUST_MBEDTLS_SYS_SOURCE");
-        println!(
-            "cargo:rerun-if-changed={}",
-            self.mbedtls_src.join("CMakeLists.txt").display()
-        );
+        println!("cargo:rerun-if-changed={}", self.mbedtls_src.join("CMakeLists.txt").display());
         let include = self.mbedtls_src.join(Path::new("include").join("mbedtls"));
         for h in headers::enabled_ordered() {
             println!("cargo:rerun-if-changed={}", include.join(h).display());
         }
-        for f in self
-            .mbedtls_src
-            .join("library")
-            .read_dir()
-            .expect("read_dir failed")
-        {
-            println!(
-                "cargo:rerun-if-changed={}",
-                f.expect("DirEntry failed").path().display()
-            );
+        for f in self.mbedtls_src.join("library").read_dir().expect("read_dir failed") {
+            println!("cargo:rerun-if-changed={}", f.expect("DirEntry failed").path().display());
         }
     }
 

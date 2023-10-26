@@ -2,11 +2,19 @@ name: CI
 
 on:
   push:
+    paths-ignore:
+      - '*.md'
+      - 'LICENSE-APACHE'
+      - 'LICENSE-GPL'
     branches:
       - 'v0.*'
       - staging
       - trying
   pull_request:
+    paths-ignore:
+      - '*.md'
+      - 'LICENSE-APACHE'
+      - 'LICENSE-GPL'
     branches:
       - mbedtls-3
       - main
@@ -36,9 +44,6 @@ jobs:
             os: windows-latest
           - rust: stable
             target: x86_64-pc-windows-msvc
-            os: windows-latest
-          - rust: stable
-            target: x86_64-pc-windows-msvc
             os: windows-2019
           - rust: stable
             target: aarch64-unknown-linux-musl
@@ -53,7 +58,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Install qemu-user for aarch64 target
       if: matrix.target == 'aarch64-unknown-linux-musl'
@@ -73,11 +78,10 @@ jobs:
         key: ${{ matrix.rust }}
 
     - name: Setup Rust toolchain
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ matrix.rust }}
-        target: ${{ matrix.target }}
-        override: true
+        targets: ${{ matrix.target }}
 
     - name: Run tests
       run: |
@@ -96,12 +100,27 @@ jobs:
         AES_NI_SUPPORT: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'true' || '' }}
       shell: bash
 
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: rustfmt
+      - name: Enforce formatting
+        run: |
+          cargo fmt --check -p mbedtls
+          cargo fmt --check -p mbedtls-platform-support
+          cargo fmt --check -p mbedtls-sys-auto
   ci-success:
     name: ci
     if: always()
     needs:
       - test
-    runs-on: ubuntu-20.04
+      - fmt
+    runs-on: ubuntu-latest
     steps:
       - run: jq --exit-status 'all(.result == "success")' <<< '${{ toJson(needs) }}'
       - name: Done

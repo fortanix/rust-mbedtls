@@ -12,11 +12,11 @@ use mbedtls_sys::*;
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 
+use crate::rng::Random;
 use core::cmp::Ordering;
 use core::fmt::{Binary, Debug, Display, Formatter, Octal, Result as FmtResult, UpperHex};
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
 use core::ops::{Shl, ShlAssign, Shr, ShrAssign};
-use crate::rng::Random;
 
 pub use mbedtls_sys::mpi_sint;
 
@@ -81,7 +81,7 @@ impl ::core::str::FromStr for Mpi {
     }
 }
 
-#[derive(Debug,Copy,Clone,Eq,PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Sign {
     Negative,
     Zero,
@@ -161,8 +161,7 @@ impl Mpi {
 
     pub fn to_string_radix(&self, radix: i32) -> Result<String> {
         let mut olen = 0;
-        let r =
-            unsafe { mpi_write_string(&self.inner, radix, ::core::ptr::null_mut(), 0, &mut olen) };
+        let r = unsafe { mpi_write_string(&self.inner, radix, ::core::ptr::null_mut(), 0, &mut olen) };
 
         if r != ERR_MPI_BUFFER_TOO_SMALL {
             return Err(Error::from_mbedtls_code(r));
@@ -170,16 +169,7 @@ impl Mpi {
 
         let mut buf = vec![0u8; olen];
 
-        unsafe {
-            mpi_write_string(
-                &self.inner,
-                radix,
-                buf.as_mut_ptr() as *mut _,
-                buf.len(),
-                &mut olen,
-            )
-        }
-        .into_result()?;
+        unsafe { mpi_write_string(&self.inner, radix, buf.as_mut_ptr() as *mut _, buf.len(), &mut olen) }.into_result()?;
 
         // There is a null terminator plus (possibly) some garbage data. Remove it
         if let Some(idx) = buf.iter().position(|&b| b == 0) {
@@ -197,16 +187,14 @@ impl Mpi {
         Ok(ret)
     }
 
-    /// Serialize the MPI as big endian binary data, padding to at least min_len bytes
+    /// Serialize the MPI as big endian binary data, padding to at least min_len
+    /// bytes
     pub fn to_binary_padded(&self, min_len: usize) -> Result<Vec<u8>> {
         let len = self.byte_length()?;
         let larger_len = if len < min_len { min_len } else { len };
         let mut ret = vec![0u8; larger_len];
         let pad_len = ret.len() - len;
-        unsafe {
-            mpi_write_binary(&self.inner, ret.as_mut_ptr().offset(pad_len as isize), len)
-                .into_result()
-        }?;
+        unsafe { mpi_write_binary(&self.inner, ret.as_mut_ptr().offset(pad_len as isize), len).into_result() }?;
         Ok(ret)
     }
 
@@ -225,8 +213,7 @@ impl Mpi {
     pub fn divrem(&self, other: &Mpi) -> Result<(Mpi, Mpi)> {
         let mut q = Self::init();
         let mut r = Self::init();
-        unsafe { mpi_div_mpi(&mut q.inner, &mut r.inner, &self.inner, &other.inner) }
-            .into_result()?;
+        unsafe { mpi_div_mpi(&mut q.inner, &mut r.inner, &self.inner, &other.inner) }.into_result()?;
         Ok((q, r))
     }
 
@@ -264,7 +251,8 @@ impl Mpi {
             return Ok(zero);
         }
 
-        // This ignores p=2 (for which this algorithm is valid), as not cryptographically interesting.
+        // This ignores p=2 (for which this algorithm is valid), as not
+        // cryptographically interesting.
         if p.get_bit(0) == false || p <= &zero {
             return Err(Error::MpiBadInputData);
         }
@@ -415,13 +403,7 @@ impl Mpi {
     /// mbedtls_mpi_is_prime.
     pub fn is_probably_prime<F: Random>(&self, k: u32, rng: &mut F) -> Result<()> {
         unsafe {
-            mpi_is_prime_ext(
-                &self.inner,
-                k as i32,
-                Some(F::call),
-                rng.data_ptr(),
-            )
-            .into_result()?;
+            mpi_is_prime_ext(&self.inner, k as i32, Some(F::call), rng.data_ptr()).into_result()?;
         }
         Ok(())
     }
@@ -510,15 +492,7 @@ impl<'a, 'b> Div<&'b Mpi> for &'a Mpi {
 
     fn div(self, other: &Mpi) -> Result<Mpi> {
         let mut q = Mpi::init();
-        unsafe {
-            mpi_div_mpi(
-                &mut q.inner,
-                ::core::ptr::null_mut(),
-                &self.inner,
-                other.handle(),
-            )
-        }
-        .into_result()?;
+        unsafe { mpi_div_mpi(&mut q.inner, ::core::ptr::null_mut(), &self.inner, other.handle()) }.into_result()?;
         Ok(q)
     }
 }
@@ -528,15 +502,7 @@ impl<'a> Div<Mpi> for &'a Mpi {
 
     fn div(self, other: Mpi) -> Result<Mpi> {
         let mut q = Mpi::init();
-        unsafe {
-            mpi_div_mpi(
-                &mut q.inner,
-                ::core::ptr::null_mut(),
-                &self.inner,
-                other.handle(),
-            )
-        }
-        .into_result()?;
+        unsafe { mpi_div_mpi(&mut q.inner, ::core::ptr::null_mut(), &self.inner, other.handle()) }.into_result()?;
         Ok(q)
     }
 }
@@ -546,8 +512,7 @@ impl<'a> Div<mpi_sint> for &'a Mpi {
 
     fn div(self, other: mpi_sint) -> Result<Mpi> {
         let mut q = Mpi::init();
-        unsafe { mpi_div_int(&mut q.inner, ::core::ptr::null_mut(), &self.inner, other) }
-            .into_result()?;
+        unsafe { mpi_div_int(&mut q.inner, ::core::ptr::null_mut(), &self.inner, other) }.into_result()?;
         Ok(q)
     }
 }
@@ -555,18 +520,12 @@ impl<'a> Div<mpi_sint> for &'a Mpi {
 /// Note this will panic if other == 0
 impl<'a> DivAssign<&'a Mpi> for Mpi {
     fn div_assign(&mut self, other: &Mpi) {
-        // mpi_div_mpi produces incorrect output when arguments alias, so avoid doing that
+        // mpi_div_mpi produces incorrect output when arguments alias, so avoid doing
+        // that
         let mut q = Mpi::init();
-        unsafe {
-            mpi_div_mpi(
-                &mut q.inner,
-                ::core::ptr::null_mut(),
-                &self.inner,
-                other.handle(),
-            )
-        }
-        .into_result()
-        .expect("mpi_div_mpi success");
+        unsafe { mpi_div_mpi(&mut q.inner, ::core::ptr::null_mut(), &self.inner, other.handle()) }
+            .into_result()
+            .expect("mpi_div_mpi success");
         *self = q;
     }
 }
@@ -574,18 +533,12 @@ impl<'a> DivAssign<&'a Mpi> for Mpi {
 /// Note this will panic if other == 0
 impl DivAssign<Mpi> for Mpi {
     fn div_assign(&mut self, other: Mpi) {
-        // mpi_div_mpi produces incorrect output when arguments alias, so avoid doing that
+        // mpi_div_mpi produces incorrect output when arguments alias, so avoid doing
+        // that
         let mut q = Mpi::init();
-        unsafe {
-            mpi_div_mpi(
-                &mut q.inner,
-                ::core::ptr::null_mut(),
-                &self.inner,
-                other.handle(),
-            )
-        }
-        .into_result()
-        .expect("mpi_div_mpi success");
+        unsafe { mpi_div_mpi(&mut q.inner, ::core::ptr::null_mut(), &self.inner, other.handle()) }
+            .into_result()
+            .expect("mpi_div_mpi success");
         *self = q;
     }
 }
@@ -611,15 +564,7 @@ impl<'a, 'b> Rem<&'b Mpi> for &'a Mpi {
 
     fn rem(self, other: &Mpi) -> Result<Mpi> {
         let mut r = Mpi::init();
-        unsafe {
-            mpi_div_mpi(
-                ::core::ptr::null_mut(),
-                &mut r.inner,
-                &self.inner,
-                other.handle(),
-            )
-        }
-        .into_result()?;
+        unsafe { mpi_div_mpi(::core::ptr::null_mut(), &mut r.inner, &self.inner, other.handle()) }.into_result()?;
         Ok(r)
     }
 }
@@ -629,15 +574,7 @@ impl<'a> Rem<Mpi> for &'a Mpi {
 
     fn rem(self, other: Mpi) -> Result<Mpi> {
         let mut r = Mpi::init();
-        unsafe {
-            mpi_div_mpi(
-                ::core::ptr::null_mut(),
-                &mut r.inner,
-                &self.inner,
-                other.handle(),
-            )
-        }
-        .into_result()?;
+        unsafe { mpi_div_mpi(::core::ptr::null_mut(), &mut r.inner, &self.inner, other.handle()) }.into_result()?;
         Ok(r)
     }
 }
@@ -647,8 +584,7 @@ impl Rem<mpi_sint> for Mpi {
 
     fn rem(self, other: mpi_sint) -> Result<Mpi> {
         let mut r = Mpi::init();
-        unsafe { mpi_div_int(::core::ptr::null_mut(), &mut r.inner, &self.inner, other) }
-            .into_result()?;
+        unsafe { mpi_div_int(::core::ptr::null_mut(), &mut r.inner, &self.inner, other) }.into_result()?;
         Ok(r)
     }
 }
@@ -658,8 +594,7 @@ impl<'a> Rem<mpi_sint> for &'a Mpi {
 
     fn rem(self, other: mpi_sint) -> Result<Mpi> {
         let mut r = Mpi::init();
-        unsafe { mpi_div_int(::core::ptr::null_mut(), &mut r.inner, &self.inner, other) }
-            .into_result()?;
+        unsafe { mpi_div_int(::core::ptr::null_mut(), &mut r.inner, &self.inner, other) }.into_result()?;
         Ok(r)
     }
 }
@@ -667,18 +602,12 @@ impl<'a> Rem<mpi_sint> for &'a Mpi {
 /// Note this will panic if other == 0
 impl<'a> RemAssign<&'a Mpi> for Mpi {
     fn rem_assign(&mut self, other: &Mpi) {
-        // mpi_div_mpi produces incorrect output when arguments alias, so avoid doing that
+        // mpi_div_mpi produces incorrect output when arguments alias, so avoid doing
+        // that
         let mut r = Mpi::init();
-        unsafe {
-            mpi_div_mpi(
-                ::core::ptr::null_mut(),
-                &mut r.inner,
-                &self.inner,
-                other.handle(),
-            )
-        }
-        .into_result()
-        .expect("mpi_div_mpi success");
+        unsafe { mpi_div_mpi(::core::ptr::null_mut(), &mut r.inner, &self.inner, other.handle()) }
+            .into_result()
+            .expect("mpi_div_mpi success");
         *self = r;
     }
 }
@@ -686,18 +615,12 @@ impl<'a> RemAssign<&'a Mpi> for Mpi {
 /// Note this will panic if other == 0
 impl RemAssign<Mpi> for Mpi {
     fn rem_assign(&mut self, other: Mpi) {
-        // mpi_div_mpi produces incorrect output when arguments alias, so avoid doing that
+        // mpi_div_mpi produces incorrect output when arguments alias, so avoid doing
+        // that
         let mut r = Mpi::init();
-        unsafe {
-            mpi_div_mpi(
-                ::core::ptr::null_mut(),
-                &mut r.inner,
-                &self.inner,
-                other.handle(),
-            )
-        }
-        .into_result()
-        .expect("mpi_div_mpi success");
+        unsafe { mpi_div_mpi(::core::ptr::null_mut(), &mut r.inner, &self.inner, other.handle()) }
+            .into_result()
+            .expect("mpi_div_mpi success");
         *self = r;
     }
 }

@@ -13,7 +13,6 @@
 #[cfg(not(any(feature = "std", feature = "no_std_deps")))]
 compile_error!("Either the `std` or `no_std_deps` feature needs to be enabled");
 
-
 #[macro_use]
 extern crate serde_derive;
 // required explicitly to force inclusion at link time
@@ -34,13 +33,13 @@ pub mod ecp;
 pub mod hash;
 pub mod pk;
 pub mod rng;
-pub use mbedtls_platform_support::self_test as self_test;
+pub use mbedtls_platform_support::self_test;
+#[cfg(any(feature = "x509", feature = "ssl", feature = "pkcs12"))]
+pub mod alloc;
 #[cfg(feature = "ssl")]
 pub mod ssl;
 #[cfg(feature = "x509")]
 pub mod x509;
-#[cfg(any(feature = "x509", feature = "ssl", feature = "pkcs12"))]
-pub mod alloc;
 
 #[cfg(feature = "pkcs12")]
 pub mod pkcs12;
@@ -86,13 +85,13 @@ extern crate alloc as rust_alloc;
 #[cfg(not(feature = "std"))]
 mod alloc_prelude {
     #![allow(unused)]
+    pub(crate) use rust_alloc::borrow::Cow;
     pub(crate) use rust_alloc::borrow::ToOwned;
     pub(crate) use rust_alloc::boxed::Box;
-    pub(crate) use rust_alloc::sync::Arc;
     pub(crate) use rust_alloc::string::String;
     pub(crate) use rust_alloc::string::ToString;
+    pub(crate) use rust_alloc::sync::Arc;
     pub(crate) use rust_alloc::vec::Vec;
-    pub(crate) use rust_alloc::borrow::Cow;
 }
 
 cfg_if::cfg_if! {
@@ -139,7 +138,7 @@ mod tests {
         use core::marker::PhantomData;
 
         pub struct NonImplTrait<T> {
-            inner: PhantomData<T>
+            inner: PhantomData<T>,
         }
 
         pub struct TestTrait<TraitObj: ?Sized, Type> {
@@ -151,7 +150,10 @@ mod tests {
 
         impl<TraitObj: ?Sized, Type> TestTrait<TraitObj, Type> {
             pub fn new() -> Self {
-                TestTrait { non_impl: NonImplTrait { inner: PhantomData }, phantom: PhantomData }
+                TestTrait {
+                    non_impl: NonImplTrait { inner: PhantomData },
+                    phantom: PhantomData,
+                }
             }
         }
 

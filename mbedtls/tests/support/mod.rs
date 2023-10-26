@@ -7,11 +7,11 @@
  * according to those terms. */
 
 #![allow(dead_code)]
+#[cfg(all(feature = "std", feature = "async"))]
+pub mod custom_write_all;
 pub mod entropy;
 pub mod keys;
 #[cfg(unix)]
 #[cfg(sys_std_component = "net")]
 pub mod net;
 pub mod rand;
-#[cfg(all(feature = "std", feature = "async"))]
-pub mod custom_write_all;

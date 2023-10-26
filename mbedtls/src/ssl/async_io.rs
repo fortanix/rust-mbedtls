@@ -121,14 +121,13 @@ where
             return Poll::Ready(Err(IoError::new(IoErrorKind::Other, "stream has been shutdown")));
         }
 
-        self
-            .with_bio_async(cx, |ssl_ctx| match ssl_ctx.async_write(buf) {
-                Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
-                Err(Error::SslWantWrite) => Poll::Pending,
-                Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
-                Ok(i) => Poll::Ready(Ok(i)),
-            })
-            .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetSendFailed))))
+        self.with_bio_async(cx, |ssl_ctx| match ssl_ctx.async_write(buf) {
+            Err(Error::SslPeerCloseNotify) => Poll::Ready(Ok(0)),
+            Err(Error::SslWantWrite) => Poll::Pending,
+            Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
+            Ok(i) => Poll::Ready(Ok(i)),
+        })
+        .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::NetSendFailed))))
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {

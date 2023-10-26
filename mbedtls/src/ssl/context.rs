@@ -14,26 +14,24 @@ use std::sync::Arc;
 use mbedtls_sys::types::raw_types::{c_int, c_void};
 use mbedtls_sys::*;
 
+use crate::alloc::List as MbedtlsList;
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
-use crate::alloc::List as MbedtlsList;
-use crate::error::{Error, Result, IntoResult};
+use crate::error::{Error, IntoResult, Result};
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
-use crate::ssl::config::{Config, Version, AuthMode};
+use crate::ssl::config::{AuthMode, Config, Version};
 use crate::ssl::io::IoCallbackUnsafe;
 use crate::x509::{Certificate, Crl, VerifyError};
 
 pub trait TimerCallback: Send + Sync {
-    unsafe extern "C" fn set_timer(
-        p_timer: *mut c_void,
-        int_ms: u32,
-        fin_ms: u32,
-    ) where Self: Sized;
+    unsafe extern "C" fn set_timer(p_timer: *mut c_void, int_ms: u32, fin_ms: u32)
+    where
+        Self: Sized;
 
-    unsafe extern "C" fn get_timer(
-        p_timer: *mut c_void,
-    ) -> c_int where Self: Sized;
+    unsafe extern "C" fn get_timer(p_timer: *mut c_void) -> c_int
+    where
+        Self: Sized;
 
     fn data_ptr(&mut self) -> *mut c_void;
 }
@@ -58,20 +56,20 @@ impl Timer {
 
 #[cfg(feature = "std")]
 impl TimerCallback for Timer {
-    unsafe extern "C" fn set_timer(
-        p_timer: *mut c_void,
-        int_ms: u32,
-        fin_ms: u32,
-    ) where Self: Sized {
+    unsafe extern "C" fn set_timer(p_timer: *mut c_void, int_ms: u32, fin_ms: u32)
+    where
+        Self: Sized,
+    {
         let slf = (p_timer as *mut Timer).as_mut().unwrap();
         slf.timer_start = std::time::Instant::now();
         slf.timer_int_ms = int_ms;
         slf.timer_fin_ms = fin_ms;
     }
 
-    unsafe extern "C" fn get_timer(
-        p_timer: *mut c_void,
-    ) -> c_int where Self: Sized {
+    unsafe extern "C" fn get_timer(p_timer: *mut c_void) -> c_int
+    where
+        Self: Sized,
+    {
         let slf = (p_timer as *mut Timer).as_mut().unwrap();
         if slf.timer_int_ms == 0 || slf.timer_fin_ms == 0 {
             return 0;
@@ -97,7 +95,7 @@ define!(
     struct HandshakeContext {
         handshake_ca_cert: Option<Arc<MbedtlsList<Certificate>>>,
         handshake_crl: Option<Arc<Crl>>,
-        
+
         handshake_cert: Vec<Arc<MbedtlsList<Certificate>>>,
         handshake_pk: Vec<Arc<Pk>>,
     };
@@ -111,17 +109,18 @@ define!(
 pub struct Context<T> {
     // Base structure used in SNI callback where we cannot determine the io type.
     inner: HandshakeContext,
-    
+
     // config is used read-only for multiple contexts and is immutable once configured.
-    config: Arc<Config>, 
-    
+    config: Arc<Config>,
+
     // Must be held in heap and pointer to it as pointer is sent to MbedSSL and can't be re-allocated.
     io: Option<Box<T>>,
 
     timer_callback: Option<Box<dyn TimerCallback>>,
 
-    /// Stores the client identification on the DTLS server-side for the current connection. Must
-    /// be stored in [`Context`] first so that it can be set after the `ssl_session_reset` in the
+    /// Stores the client identification on the DTLS server-side for the current
+    /// connection. Must be stored in [`Context`] first so that it can be
+    /// set after the `ssl_session_reset` in the
     /// [`establish`](Context::establish) call.
     client_transport_id: Option<Vec<u8>>,
 }
@@ -149,7 +148,7 @@ impl<'a, T> Into<*mut ssl_context> for &'a mut Context<T> {
 impl<T> Context<T> {
     pub fn new(config: Arc<Config>) -> Self {
         let mut inner = ssl_context::default();
-        
+
         unsafe {
             ssl_init(&mut inner);
             ssl_setup(&mut inner, (&*config).into());
@@ -160,7 +159,7 @@ impl<T> Context<T> {
                 inner,
                 handshake_ca_cert: None,
                 handshake_crl: None,
-                
+
                 handshake_cert: vec![],
                 handshake_pk: vec![],
             },
@@ -183,29 +182,30 @@ impl<T> Context<T> {
 /// # Safety
 /// `io` must live as long as `ctx` or the next time bio is set/cleared.
 unsafe fn set_bio_raw<IoType, T: IoCallbackUnsafe<IoType>>(ctx: *mut ssl_context, io: &mut T) {
-    ssl_set_bio(
-        ctx,
-        io as *mut T as *mut c_void,
-        Some(T::call_send),
-        Some(T::call_recv),
-        None,
-    );
+    ssl_set_bio(ctx, io as *mut T as *mut c_void, Some(T::call_send), Some(T::call_recv), None);
 }
 
-/// This function provides a way to apply async context to bio before running 
+/// This function provides a way to apply async context to bio before running
 /// any logic.
-/// Note: `bio` is a concept in common TLS implementation which refers to basic IO.
-/// openssl and mbedtls both use this concept.
+/// Note: `bio` is a concept in common TLS implementation which refers to basic
+/// IO. openssl and mbedtls both use this concept.
 /// Ref: https://stackoverflow.com/questions/51672133/what-are-openssl-bios-how-do-they-work-how-are-bios-used-in-openssl
 #[cfg(all(feature = "std", feature = "async"))]
-impl<T> Context<T>  {
-    pub(super) fn with_bio_async<'cx, R, IoType>(&mut self, cx: &mut std::task::Context<'cx>, f: impl FnOnce(&mut Self) -> R) -> Option<R> where for<'c> (&'c mut std::task::Context<'cx>, &'c mut T): IoCallbackUnsafe<IoType> {
+impl<T> Context<T> {
+    pub(super) fn with_bio_async<'cx, R, IoType>(
+        &mut self,
+        cx: &mut std::task::Context<'cx>,
+        f: impl FnOnce(&mut Self) -> R,
+    ) -> Option<R>
+    where
+        for<'c> (&'c mut std::task::Context<'cx>, &'c mut T): IoCallbackUnsafe<IoType>,
+    {
         let ret;
 
         struct BioGuard<'a, T> {
             context: &'a mut Context<T>,
         }
-        
+
         impl<'a, T> Drop for BioGuard<'a, T> {
             fn drop(&mut self) {
                 self.context.clear_bio();
@@ -217,7 +217,7 @@ impl<T> Context<T>  {
         unsafe {
             // Points to `self.inner`, so safe to borrow at the same time as `self.io`
             let ctx = self.into();
-            let mut user_data = (cx, &mut**self.io.as_mut()?);
+            let mut user_data = (cx, &mut **self.io.as_mut()?);
             set_bio_raw(ctx, &mut user_data);
 
             let guard = BioGuard { context: self };
@@ -231,17 +231,22 @@ impl<T> Context<T>  {
     // This function is created to handle the odd behavior of `mbedtls_ssl_write()`
     // Please check this https://github.com/Mbed-TLS/mbedtls/issues/4183 to learn more about how `mbedtls_ssl_write()` works in c-mbedtls 2.28
     // This function ultimately ensure the semantics:
-    // Returned value `Ok(n)` always means n bytes of data has been sent into c-mbedtls's buffer (some of them might be sent out through underlying IO)
+    // Returned value `Ok(n)` always means n bytes of data has been sent into
+    // c-mbedtls's buffer (some of them might be sent out through underlying IO)
     pub(super) fn async_write(&mut self, buf: &[u8]) -> Result<usize> {
         while self.handle().out_left > 0 {
             self.flush_output()?;
         }
         // when calling `send()` here, already ensured that `ssl_context.out_left` == 0
         match self.send(buf) {
-            // Although got `Error::SslWantWrite` means underlying IO is blocked, but some of `buf` is still saved into c-mbedtls's
-            // buffer, so we need to return size of bytes that has been buffered.
-            // Since we know before this call `out_left` was 0, all buffer (with in the MBEDTLS_SSL_OUT_CONTENT_LEN part) is buffered
-            Err(Error::SslWantWrite) => Ok(std::cmp::min(unsafe { ssl_get_max_out_record_payload((&*self).into()).into_result()? as usize }, buf.len())),
+            // Although got `Error::SslWantWrite` means underlying IO is blocked, but some of `buf` is still saved into
+            // c-mbedtls's buffer, so we need to return size of bytes that has been buffered.
+            // Since we know before this call `out_left` was 0, all buffer (with in the MBEDTLS_SSL_OUT_CONTENT_LEN part) is
+            // buffered
+            Err(Error::SslWantWrite) => Ok(std::cmp::min(
+                unsafe { ssl_get_max_out_record_payload((&*self).into()).into_result()? as usize },
+                buf.len(),
+            )),
             res => res,
         }
     }
@@ -253,13 +258,16 @@ impl<T> Context<T> {
     /// Upon successful return, the context can be communicated with using the
     /// `std::io::Read` and `std::io::Write` traits if `io` implements those as
     /// well, and using the `mbedtls::ssl::io::Io` trait otherwise.
-    pub fn establish<IoType>(&mut self, io: T, hostname: Option<&str>) -> Result<()> where T: IoCallbackUnsafe<IoType> {
+    pub fn establish<IoType>(&mut self, io: T, hostname: Option<&str>) -> Result<()>
+    where
+        T: IoCallbackUnsafe<IoType>,
+    {
         // SAFETY: In the call to `set_bio_raw`, `self.io` must live as long as
         // `self`, or until the bio is cleared from `ctx`. It lives as long as
         // `self` since it is stored in self and never cleared.
         unsafe {
             self.prepare_handshake(io, hostname)?;
-            set_bio_raw(self.into(), &mut**self.io.as_mut().unwrap());
+            set_bio_raw(self.into(), &mut **self.io.as_mut().unwrap());
         }
         self.handshake()
     }
@@ -281,15 +289,19 @@ impl<T> Context<T> {
 impl<T> Context<T> {
     /// Try to complete the handshake procedure to set up a (D)TLS connection
     ///
-    /// In general, this should not be called directly. Instead, [`establish`](Context::establish)
-    /// should be used which properly sets up the [`IoCallbackUnsafe`] and resets any previous sessions.
+    /// In general, this should not be called directly. Instead,
+    /// [`establish`](Context::establish) should be used which properly sets
+    /// up the [`IoCallbackUnsafe`] and resets any previous sessions.
     ///
-    /// This should only be used directly if the handshake could not be completed successfully in
-    /// `establish`, i.e.:
-    /// - If using non-blocking operation and `establish` failed with [`Error::SslWantRead`] or
+    /// This should only be used directly if the handshake could not be
+    /// completed successfully in `establish`, i.e.:
+    /// - If using non-blocking operation and `establish` failed with
+    ///   [`Error::SslWantRead`] or
     /// [`Error::SslWantWrite`]
-    /// - If running a DTLS server and it answers the first `ClientHello` (without cookie) with a
-    /// `HelloVerifyRequest`, i.e. `establish` failed with [`Error::SslHelloVerifyRequired`]
+    /// - If running a DTLS server and it answers the first `ClientHello`
+    ///   (without cookie) with a
+    /// `HelloVerifyRequest`, i.e. `establish` failed with
+    /// [`Error::SslHelloVerifyRequired`]
     pub fn handshake(&mut self) -> Result<()> {
         match self.inner_handshake() {
             Ok(()) => Ok(()),
@@ -303,7 +315,10 @@ impl<T> Context<T> {
                     // `ssl_session_reset`.
                     let mut client_transport_id = None;
                     if !self.inner.handle().cli_id.is_null() {
-                        client_transport_id = Some(Vec::from(core::slice::from_raw_parts(self.inner.handle().cli_id, self.inner.handle().cli_id_len)));
+                        client_transport_id = Some(Vec::from(core::slice::from_raw_parts(
+                            self.inner.handle().cli_id,
+                            self.inner.handle().cli_id_len,
+                        )));
                     }
                     ssl_session_reset(self.into()).into_result()?;
                     if let Some(client_id) = client_transport_id.take() {
@@ -315,15 +330,13 @@ impl<T> Context<T> {
             Err(e) => {
                 self.close();
                 Err(e)
-            },
+            }
         }
     }
 
     fn inner_handshake(&mut self) -> Result<()> {
         self.flush_output()?;
-        unsafe {
-            ssl_handshake(self.into()).into_result_discard()
-        }
+        unsafe { ssl_handshake(self.into()).into_result_discard() }
     }
 
     pub(super) fn flush_output(&mut self) -> Result<()> {
@@ -345,11 +358,7 @@ impl<T> Context<T> {
     fn set_hostname(&mut self, hostname: Option<&str>) -> Result<()> {
         if let Some(s) = hostname {
             let cstr = ::std::ffi::CString::new(s).map_err(|_| Error::SslBadInputData)?;
-            unsafe {
-                ssl_set_hostname(self.into(), cstr.as_ptr())
-                    .into_result()
-                    .map(|_| ())
-            }
+            unsafe { ssl_set_hostname(self.into(), cstr.as_ptr()).into_result().map(|_| ()) }
         } else {
             Ok(())
         }
@@ -367,9 +376,7 @@ impl<T> Context<T> {
     }
 
     pub(super) fn close_notify(&mut self) -> Result<()> {
-        unsafe {
-            ssl_close_notify(self.into()).into_result().map(|_| ())
-        }
+        unsafe { ssl_close_notify(self.into()).into_result().map(|_| ()) }
     }
 
     pub fn close(&mut self) {
@@ -378,14 +385,14 @@ impl<T> Context<T> {
     }
 
     pub(super) fn clear_bio(&mut self) {
-        // It is safe to set the bio to null using the `ssl_set_bio` function. If the bio
-        // is null, mbedtls can handle this case and will return an error if you attempt
-        // to continue using SSL after calling this function.
+        // It is safe to set the bio to null using the `ssl_set_bio` function. If the
+        // bio is null, mbedtls can handle this case and will return an error if
+        // you attempt to continue using SSL after calling this function.
         unsafe {
             ssl_set_bio(self.into(), ::core::ptr::null_mut(), None, None, None);
         }
     }
-    
+
     pub(super) fn drop_io(&mut self) {
         self.clear_bio();
         self.io = None;
@@ -394,11 +401,11 @@ impl<T> Context<T> {
     pub fn io(&self) -> Option<&T> {
         self.io.as_ref().map(|v| &**v)
     }
-    
+
     pub fn io_mut(&mut self) -> Option<&mut T> {
         self.io.as_mut().map(|v| &mut **v)
     }
-    
+
     /// Return the minor number of the negotiated TLS version
     pub fn minor_version(&self) -> i32 {
         self.handle().minor_ver
@@ -424,13 +431,12 @@ impl<T> Context<T> {
             1 => Version::Tls1_0,
             2 => Version::Tls1_1,
             3 => Version::Tls1_2,
-            _ => unreachable!("unexpected TLS version")
+            _ => unreachable!("unexpected TLS version"),
         }
     }
 
-
     // Session specific functions
-    
+
     /// Return the 16-bit ciphersuite identifier.
     /// All assigned ciphersuites are listed by the IANA in
     /// <https://www.iana.org/assignments/tls-parameters/tls-parameters.txt>
@@ -438,7 +444,7 @@ impl<T> Context<T> {
         if self.handle().session.is_null() {
             return Err(Error::SslBadInputData);
         }
-        
+
         Ok(unsafe { self.handle().session.as_ref().unwrap().ciphersuite as u16 })
     }
 
@@ -448,12 +454,15 @@ impl<T> Context<T> {
         }
 
         unsafe {
-            // We cannot call the peer cert function as we need a pointer to a pointer to create the MbedtlsList, we need something in the heap / cannot use any local variable for that.
-            let peer_cert : &MbedtlsList<Certificate> = UnsafeFrom::from(&((*self.handle().session).peer_cert) as *const *mut x509_crt as *const *const x509_crt).ok_or(Error::SslBadInputData)?;
+            // We cannot call the peer cert function as we need a pointer to a pointer to
+            // create the MbedtlsList, we need something in the heap / cannot use any local
+            // variable for that.
+            let peer_cert: &MbedtlsList<Certificate> =
+                UnsafeFrom::from(&((*self.handle().session).peer_cert) as *const *mut x509_crt as *const *const x509_crt)
+                    .ok_or(Error::SslBadInputData)?;
             Ok(Some(peer_cert))
         }
     }
-
 
     #[cfg(feature = "std")]
     pub fn get_alpn_protocol(&self) -> Result<Option<&str>> {
@@ -490,23 +499,28 @@ impl<T> Context<T> {
     ///
     /// See `mbedtls_ssl_set_client_transport_id`
     ///
-    /// The `info` is used only for the next connection, i.e. it will be used for the next
-    /// [`establish`](Context::establish) call. Afterwards, it will be unset again. This is to
-    /// ensure that no client identification is accidentally reused if this [`Context`] is reused
-    /// for further connections.
+    /// The `info` is used only for the next connection, i.e. it will be used
+    /// for the next [`establish`](Context::establish) call. Afterwards, it
+    /// will be unset again. This is to ensure that no client identification
+    /// is accidentally reused if this [`Context`] is reused for further
+    /// connections.
     pub fn set_client_transport_id_once(&mut self, info: &[u8]) {
         self.client_transport_id = Some(info.into());
     }
 
     pub(super) fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
         unsafe {
-            ssl_read(self.into(), buf.as_mut_ptr(), buf.len()).into_result().map(|r| r as usize)
+            ssl_read(self.into(), buf.as_mut_ptr(), buf.len())
+                .into_result()
+                .map(|r| r as usize)
         }
     }
 
     pub(super) fn send(&mut self, buf: &[u8]) -> Result<usize> {
         unsafe {
-            ssl_write(self.into(), buf.as_ptr(), buf.len()).into_result().map(|w| w as usize)
+            ssl_write(self.into(), buf.as_ptr(), buf.len())
+                .into_result()
+                .map(|w| w as usize)
         }
     }
 }
@@ -522,15 +536,18 @@ impl<T> Drop for Context<T> {
 
 //
 // Class exists only during SNI callback that is configured from Config.
-// SNI Callback must provide input whose lifetime exceeds the SNI closure to avoid memory corruptions.
-// That can be achieved easily by storing certificate chains/CRLs inside the closure for the lifetime of the closure.
+// SNI Callback must provide input whose lifetime exceeds the SNI closure to
+// avoid memory corruptions. That can be achieved easily by storing certificate
+// chains/CRLs inside the closure for the lifetime of the closure.
 //
 // That is due to SNI being held by an Arc inside Config.
 // Config lives longer then Context. Context lives longer then Handshake.
 //
 // Alternatives are not possible due to:
 // - mbedtls not providing any callbacks on handshake finish.
-// - no reasonable way to obtain a storage within the sni callback tied to the handshake or to the rust Context. (without resorting to a unscalable map or pointer magic that mbedtls may invalidate)
+// - no reasonable way to obtain a storage within the sni callback tied to the
+//   handshake or to the rust Context. (without resorting to a unscalable map or
+//   pointer magic that mbedtls may invalidate)
 //
 impl HandshakeContext {
     fn reset_handshake(&mut self) {
@@ -539,21 +556,17 @@ impl HandshakeContext {
         self.handshake_ca_cert = None;
         self.handshake_crl = None;
     }
-    
+
     pub fn set_authmode(&mut self, am: AuthMode) -> Result<()> {
         if self.inner.handshake as *const _ == ::core::ptr::null() {
             return Err(Error::SslBadInputData);
         }
-        
+
         unsafe { ssl_set_hs_authmode(self.into(), am as i32) }
         Ok(())
     }
 
-    pub fn set_ca_list(
-        &mut self,
-        chain: Option<Arc<MbedtlsList<Certificate>>>,
-        crl: Option<Arc<Crl>>,
-    ) -> Result<()> {
+    pub fn set_ca_list(&mut self, chain: Option<Arc<MbedtlsList<Certificate>>>, crl: Option<Arc<Crl>>) -> Result<()> {
         // mbedtls_ssl_set_hs_ca_chain does not check for NULL handshake.
         if self.inner.handshake as *const _ == ::core::ptr::null() {
             return Err(Error::SslBadInputData);
@@ -563,7 +576,10 @@ impl HandshakeContext {
         unsafe {
             ssl_set_hs_ca_chain(
                 self.into(),
-                chain.as_ref().map(|chain| chain.inner_ffi_mut()).unwrap_or(::core::ptr::null_mut()),
+                chain
+                    .as_ref()
+                    .map(|chain| chain.inner_ffi_mut())
+                    .unwrap_or(::core::ptr::null_mut()),
                 crl.as_ref().map(|crl| crl.inner_ffi_mut()).unwrap_or(::core::ptr::null_mut()),
             );
         }
@@ -577,11 +593,7 @@ impl HandshakeContext {
     /// certificates configured in the `Config` associated with this `Context`.
     /// If this is called at least once, all those are ignored and the set
     /// specified using this function is used.
-    pub fn push_cert(
-        &mut self,
-        chain: Arc<MbedtlsList<Certificate>>,
-        key: Arc<Pk>,
-    ) -> Result<()> {
+    pub fn push_cert(&mut self, chain: Arc<MbedtlsList<Certificate>>, key: Arc<Pk>) -> Result<()> {
         // mbedtls_ssl_set_hs_own_cert does not check for NULL handshake.
         if self.inner.handshake as *const _ == ::core::ptr::null() || chain.is_empty() {
             return Err(Error::SslBadInputData);
@@ -601,14 +613,17 @@ impl HandshakeContext {
 #[cfg(test)]
 mod tests {
     #[cfg(feature = "std")]
-    use std::io::{Read,Write, Result as IoResult};
+    use std::io::{Read, Result as IoResult, Write};
 
-    use crate::ssl::context::{HandshakeContext, Context};
+    use crate::ssl::context::{Context, HandshakeContext};
     use crate::tests::TestTrait;
-    
+
     #[test]
     fn handshake_context_sync() {
-        assert!(!TestTrait::<dyn Sync, HandshakeContext>::new().impls_trait(), "HandshakeContext must be !Sync");
+        assert!(
+            !TestTrait::<dyn Sync, HandshakeContext>::new().impls_trait(),
+            "HandshakeContext must be !Sync"
+        );
     }
 
     struct NonSendSyncStream {
@@ -621,7 +636,7 @@ mod tests {
             unimplemented!()
         }
     }
-    
+
     #[cfg(feature = "std")]
     impl Write for NonSendSyncStream {
         fn write(&mut self, _: &[u8]) -> IoResult<usize> {
@@ -643,7 +658,7 @@ mod tests {
             unimplemented!()
         }
     }
-    
+
     #[cfg(feature = "std")]
     impl Write for SendSyncStream {
         fn write(&mut self, _: &[u8]) -> IoResult<usize> {
@@ -657,17 +672,40 @@ mod tests {
 
     #[test]
     fn context_send_sync() {
-        assert!(!TestTrait::<dyn Send, NonSendSyncStream>::new().impls_trait(), "NonSendSyncStream can't be send");
-        assert!(!TestTrait::<dyn Send, Context<NonSendSyncStream>>::new().impls_trait(), "Context<NonSendSyncStream> can't be send");
-        assert!(!TestTrait::<dyn Sync, NonSendSyncStream>::new().impls_trait(), "NonSendSyncStream can't be sync");
-        assert!(!TestTrait::<dyn Sync, Context<NonSendSyncStream>>::new().impls_trait(), "Context<NonSendSyncStream> can't be sync");
+        assert!(
+            !TestTrait::<dyn Send, NonSendSyncStream>::new().impls_trait(),
+            "NonSendSyncStream can't be send"
+        );
+        assert!(
+            !TestTrait::<dyn Send, Context<NonSendSyncStream>>::new().impls_trait(),
+            "Context<NonSendSyncStream> can't be send"
+        );
+        assert!(
+            !TestTrait::<dyn Sync, NonSendSyncStream>::new().impls_trait(),
+            "NonSendSyncStream can't be sync"
+        );
+        assert!(
+            !TestTrait::<dyn Sync, Context<NonSendSyncStream>>::new().impls_trait(),
+            "Context<NonSendSyncStream> can't be sync"
+        );
 
-        assert!(TestTrait::<dyn Send, SendSyncStream>::new().impls_trait(), "SendSyncStream is send");
-        assert!(TestTrait::<dyn Send, Context<SendSyncStream>>::new().impls_trait(), "Context<SendSyncStream> is send");
-        assert!(TestTrait::<dyn Sync, SendSyncStream>::new().impls_trait(), "SendSyncStream is sync");
-        assert!(TestTrait::<dyn Sync, Context<SendSyncStream>>::new().impls_trait(), "Context<SendSyncStream> is sync");
+        assert!(
+            TestTrait::<dyn Send, SendSyncStream>::new().impls_trait(),
+            "SendSyncStream is send"
+        );
+        assert!(
+            TestTrait::<dyn Send, Context<SendSyncStream>>::new().impls_trait(),
+            "Context<SendSyncStream> is send"
+        );
+        assert!(
+            TestTrait::<dyn Sync, SendSyncStream>::new().impls_trait(),
+            "SendSyncStream is sync"
+        );
+        assert!(
+            TestTrait::<dyn Sync, Context<SendSyncStream>>::new().impls_trait(),
+            "Context<SendSyncStream> is sync"
+        );
     }
-
 }
 
 // ssl_get_alpn_protocol

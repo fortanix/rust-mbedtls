@@ -7,15 +7,15 @@
  * according to those terms. */
 
 use crate::bignum::Mpi;
-use crate::rng::Random;
 use crate::hash::{MdInfo, Type as MdType};
 use crate::pk::rfc6979::generate_rfc6979_nonce;
-use crate::{Result, Error};
+use crate::rng::Random;
+use crate::{Error, Result};
 
+use bit_vec::BitVec;
+use num_bigint::BigUint;
 use yasna::models::ObjectIdentifier;
 pub use yasna::{ASN1Error, ASN1ErrorKind};
-use num_bigint::BigUint;
-use bit_vec::BitVec;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct DsaParams {
@@ -48,11 +48,7 @@ fn reduce_mod_q(m: &[u8], q: &Mpi) -> Result<Mpi> {
 
     let m_bits = m.len() * 8;
 
-    let dec_len = if m_bits < q_bits {
-        m.len()
-    } else {
-        (q_bits + 7) / 8
-    };
+    let dec_len = if m_bits < q_bits { m.len() } else { (q_bits + 7) / 8 };
 
     let m_bn = Mpi::from_binary(&m[..dec_len])?;
     m_bn.modulo(q)
@@ -67,7 +63,6 @@ pub struct DsaPublicKey {
 const DSA_OBJECT_IDENTIFIER: &[u64] = &[1, 2, 840, 10040, 4, 1];
 
 impl DsaPublicKey {
-
     pub fn from_components(params: DsaParams, y: Mpi) -> Result<Self> {
         if y < Mpi::new(1)? || y >= params.p {
             return Err(Error::PkBadInputData);
@@ -80,9 +75,9 @@ impl DsaPublicKey {
     }
 
     pub fn from_der(der: &[u8]) -> Result<Self> {
-        let (p,q,g,y) = yasna::parse_der(der, |r| {
+        let (p, q, g, y) = yasna::parse_der(der, |r| {
             r.read_sequence(|r| {
-                let (p,q,g) = r.next().read_sequence(|r| {
+                let (p, q, g) = r.next().read_sequence(|r| {
                     let oid = r.next().read_oid()?;
                     if oid != ObjectIdentifier::from_slice(DSA_OBJECT_IDENTIFIER) {
                         return Err(ASN1Error::new(ASN1ErrorKind::Invalid));
@@ -91,17 +86,16 @@ impl DsaPublicKey {
                         let p = r.next().read_biguint()?;
                         let q = r.next().read_biguint()?;
                         let g = r.next().read_biguint()?;
-                        Ok((p,q,g))
+                        Ok((p, q, g))
                     })
                 })?;
                 let y = r.next().read_bitvec()?;
-                Ok((p,q,g,y))
+                Ok((p, q, g, y))
             })
-        }).map_err(|_| Error::PkInvalidPubkey)?;
+        })
+        .map_err(|_| Error::PkInvalidPubkey)?;
 
-        let y = yasna::parse_der(&y.to_bytes(), |r| {
-            r.read_biguint()
-        }).map_err(|_| Error::PkInvalidPubkey)?;
+        let y = yasna::parse_der(&y.to_bytes(), |r| r.read_biguint()).map_err(|_| Error::PkInvalidPubkey)?;
 
         let p = Mpi::from_binary(&p.to_bytes_be()).expect("Success");
         let q = Mpi::from_binary(&q.to_bytes_be()).expect("Success");
@@ -119,9 +113,7 @@ impl DsaPublicKey {
         let g = BigUint::from_bytes_be(&self.params.g.to_binary()?);
         let y = BigUint::from_bytes_be(&self.y.to_binary()?);
 
-        let y_as_int = yasna::construct_der(|w| {
-            w.write_biguint(&y)
-        });
+        let y_as_int = yasna::construct_der(|w| w.write_biguint(&y));
 
         let der = yasna::construct_der(|w| {
             w.write_sequence(|w| {
@@ -141,13 +133,14 @@ impl DsaPublicKey {
     }
 
     pub fn verify(&self, signature: &[u8], pre_hashed_message: &[u8]) -> Result<()> {
-        let (r,s) = yasna::parse_der(signature, |r| {
+        let (r, s) = yasna::parse_der(signature, |r| {
             r.read_sequence(|rdr| {
                 let r = rdr.next().read_biguint()?;
                 let s = rdr.next().read_biguint()?;
-                Ok((r,s))
+                Ok((r, s))
             })
-        }).map_err(|_| Error::X509InvalidSignature)?;
+        })
+        .map_err(|_| Error::X509InvalidSignature)?;
 
         let r = Mpi::from_binary(&r.to_bytes_be()).expect("Success");
         let s = Mpi::from_binary(&s.to_bytes_be()).expect("Success");
@@ -190,7 +183,7 @@ impl DsaPublicKey {
     }
 
     pub fn key_size(&self) -> Result<(usize, usize)> {
-        return self.params.key_size()
+        return self.params.key_size();
     }
 
     pub fn parameters(&self) -> &DsaParams {
@@ -243,12 +236,12 @@ impl DsaPrivateKey {
     }
 
     pub fn from_der(der: &[u8]) -> Result<Self> {
-        let (p,q,g,x) = yasna::parse_der(der, |r| {
+        let (p, q, g, x) = yasna::parse_der(der, |r| {
             r.read_sequence(|r| {
                 if r.next().read_u8()? != 0 {
                     return Err(ASN1Error::new(ASN1ErrorKind::Invalid));
                 }
-                let (p,q,g) = r.next().read_sequence(|r| {
+                let (p, q, g) = r.next().read_sequence(|r| {
                     let oid = r.next().read_oid()?;
                     if oid != ObjectIdentifier::from_slice(DSA_OBJECT_IDENTIFIER) {
                         return Err(ASN1Error::new(ASN1ErrorKind::Invalid));
@@ -257,16 +250,16 @@ impl DsaPrivateKey {
                         let p = r.next().read_biguint()?;
                         let q = r.next().read_biguint()?;
                         let g = r.next().read_biguint()?;
-                        Ok((p,q,g))
+                        Ok((p, q, g))
                     })
                 })?;
                 let x = r.next().read_bytes()?;
-                Ok((p,q,g,x))
+                Ok((p, q, g, x))
             })
-        }).map_err(|_| Error::PkInvalidPubkey)?;
+        })
+        .map_err(|_| Error::PkInvalidPubkey)?;
 
-        let x = yasna::parse_der(&x, |r| { r.read_biguint() }).
-            map_err(|_| Error::PkInvalidPubkey)?;
+        let x = yasna::parse_der(&x, |r| r.read_biguint()).map_err(|_| Error::PkInvalidPubkey)?;
 
         let p = Mpi::from_binary(&p.to_bytes_be()).expect("Success");
         let q = Mpi::from_binary(&q.to_bytes_be()).expect("Success");
@@ -284,7 +277,7 @@ impl DsaPrivateKey {
         let g = BigUint::from_bytes_be(&self.params.g.to_binary()?);
         let x = BigUint::from_bytes_be(&self.x.to_binary()?);
 
-        let x_as_int = yasna::construct_der(|w| { w.write_biguint(&x) });
+        let x_as_int = yasna::construct_der(|w| w.write_biguint(&x));
 
         let der = yasna::construct_der(|w| {
             w.write_sequence(|w| {
@@ -358,7 +351,7 @@ impl DsaPrivateKey {
     }
 
     pub fn key_size(&self) -> Result<(usize, usize)> {
-        return self.params.key_size()
+        return self.params.key_size();
     }
 
     pub fn parameters(&self) -> &DsaParams {
@@ -373,8 +366,8 @@ mod tests {
     use crate::mbedtls::bignum::Mpi;
     use crate::mbedtls::hash::{Md, Type as MdType};
     use crate::mbedtls::rng::HmacDrbg;
-    use std::time::SystemTime;
     use std::collections::HashMap;
+    use std::time::SystemTime;
 
     fn hardcoded_2048_256() -> Result<DsaParams> {
         use core::str::FromStr;
@@ -385,7 +378,6 @@ mod tests {
             Mpi::from_str("0x3A9D1D6269467C80CDFFBAFABFC1EF0AD5F43463F0F0010D7F5DAF2E7097465472AB0BCD78F6A4710DE817174F6698A1A7C036463932DE3FC53579E2E9D3CF753006BC12FD21ECCCEF9860BDAE93927E10F447D75B4283E0B25BC748750E415CC8CD6FEF6A667753800A3A5A51B8EC04764A1019E9F2CFE7A10B63C813C889EB7327D9B7BA62D61196D2B9687F5616C84F0867AEAE5A484B54150B6446590DB3820D23E03F19BF092B240E9A7FF524DE7EDEB421C4F33CD686308D546BB04FA6B04BE9811A6B5673D1057EDD7798B9EEDACFFC9AED8C4BC26F88042D2E7536F968C3B52FF270F3E8B666339BFFBD7F041672C39EBDC5021EB2AF808DA2E3CFDD")?
         )
     }
-
 
     fn hex_to_bn(input: &str) -> Mpi {
         let bin = hex::decode(input).expect("valid hex");
@@ -399,7 +391,7 @@ mod tests {
             "SHA-256" => MdType::Sha256,
             "SHA-384" => MdType::Sha384,
             "SHA-512" => MdType::Sha512,
-            _ => panic!("unknown hash")
+            _ => panic!("unknown hash"),
         }
     }
 
@@ -442,7 +434,10 @@ mod tests {
 
         let key = DsaPublicKey::from_der(&dsa_der).unwrap();
 
-        assert_eq!(key.params.q, hex_to_bn("94843407f4c5c7d71470464dcf36fe222882589b0e901c6658107229ec3d499f"));
+        assert_eq!(
+            key.params.q,
+            hex_to_bn("94843407f4c5c7d71470464dcf36fe222882589b0e901c6658107229ec3d499f")
+        );
 
         let reencoded = key.to_der().unwrap();
 
@@ -461,8 +456,14 @@ mod tests {
 
         let key = DsaPrivateKey::from_der(&dsa_der).unwrap();
 
-        assert_eq!(key.params.q, hex_to_bn("94843407f4c5c7d71470464dcf36fe222882589b0e901c6658107229ec3d499f"));
-        assert_eq!(key.x, hex_to_bn("4F9E2260F06C2B742001EE5D618C8A5848A56A39BDF92EF903314298C8E33874"));
+        assert_eq!(
+            key.params.q,
+            hex_to_bn("94843407f4c5c7d71470464dcf36fe222882589b0e901c6658107229ec3d499f")
+        );
+        assert_eq!(
+            key.x,
+            hex_to_bn("4F9E2260F06C2B742001EE5D618C8A5848A56A39BDF92EF903314298C8E33874")
+        );
 
         let reencoded = key.to_der().unwrap();
 
@@ -481,7 +482,7 @@ mod tests {
         let pubkey = DsaPublicKey::from_components(params, y).unwrap();
 
         let zero_sig = encode_dsa_signature(&Mpi::new(0).unwrap(), &Mpi::new(0).unwrap()).unwrap();
-        let junk_message = vec![42; q_bits*8];
+        let junk_message = vec![42; q_bits * 8];
 
         assert!(pubkey.verify(&zero_sig, &junk_message).is_err());
 
@@ -521,7 +522,7 @@ mod tests {
         let mdt = MdType::Sha512;
         let mdinfo: MdInfo = match mdt.into() {
             Some(m) => m,
-            None => panic!()
+            None => panic!(),
         };
 
         let bad_seed = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos();
@@ -531,7 +532,8 @@ mod tests {
             let digest = hash_input(kat.0.as_bytes(), kat.1);
             let sig = privkey.sign_deterministic(kat.1, &digest, &mut rng).unwrap();
 
-            // We keep the KAT in the RFC 6979 format for clarity, here we must re-encode to DER for comparison
+            // We keep the KAT in the RFC 6979 format for clarity, here we must re-encode to
+            // DER for comparison
 
             let kat_sig = hex::decode(kat.2).unwrap();
             let half = kat_sig.len() / 2;
@@ -581,7 +583,10 @@ mod tests {
 
             assert!(pubkey.verify(&encoded_sig, &hashed_message).is_ok());
 
-            assert_eq!(privkey.sign_with_explicit_nonce(&hashed_message, k, &mut rng).unwrap(), encoded_sig);
+            assert_eq!(
+                privkey.sign_with_explicit_nonce(&hashed_message, k, &mut rng).unwrap(),
+                encoded_sig
+            );
 
             // Additional tests done per KAT input:
 
@@ -606,7 +611,7 @@ mod tests {
 
         let dsa_kats = include_str!("../../../tests/data/dsa.kat");
 
-        let mut params : HashMap<String, String> = HashMap::new();
+        let mut params: HashMap<String, String> = HashMap::new();
 
         for line in dsa_kats.lines() {
             if line == "" || line.chars().nth(0) == Some('#') {

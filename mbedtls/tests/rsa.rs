@@ -27,8 +27,7 @@ fn sign_verify() {
     let mut signature = [0u8; RSA_BITS as usize / 8];
 
     assert_eq!(
-        k.sign(Sha256, data, &mut signature, &mut test_rng())
-            .unwrap(),
+        k.sign(Sha256, data, &mut signature, &mut test_rng()).unwrap(),
         signature.len()
     );
     k.verify(Sha256, data, &signature).unwrap();
@@ -55,13 +54,7 @@ fn encrypt_decrypt() {
     let mut cipher = [0u8; RSA_BITS as usize / 8];
     let mut decrypted = [0u8; 32];
 
-    assert_eq!(
-        k.encrypt(plain, &mut cipher, &mut test_rng()).unwrap(),
-        cipher.len()
-    );
-    assert_eq!(
-        k.decrypt(&cipher, &mut decrypted, &mut test_rng()).unwrap(),
-        plain.len()
-    );
+    assert_eq!(k.encrypt(plain, &mut cipher, &mut test_rng()).unwrap(), cipher.len());
+    assert_eq!(k.decrypt(&cipher, &mut decrypted, &mut test_rng()).unwrap(), plain.len());
     assert_eq!(plain, &decrypted);
 }

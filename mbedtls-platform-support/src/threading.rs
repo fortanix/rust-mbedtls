@@ -9,16 +9,14 @@
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 
-// use cfg_if to ensure conditional compilation is compatible with v0.7 code
-cfg_if::cfg_if! {
-    if #[cfg(any(all(feature = "spin_threading", not(feature = "rust_threading")), not(feature = "std")))] {
-        use spin::{Mutex, MutexGuard};
-    } else if #[cfg(any(feature = "rust_threading", feature = "std"))] {
-        use std::sync::{Mutex, MutexGuard};
-    } else {
-        {}
-    }
-}
+#[cfg(any(all(feature = "spin_threading", not(feature = "rust_threading")), not(feature = "std")))]
+use spin::{Mutex, MutexGuard};
+
+#[cfg(all(
+    not(any(all(feature = "spin_threading", not(feature = "rust_threading")), not(feature = "std"))),
+    any(feature = "rust_threading", feature = "std")
+))]
+use std::sync::{Mutex, MutexGuard};
 
 use core::ptr;
 
