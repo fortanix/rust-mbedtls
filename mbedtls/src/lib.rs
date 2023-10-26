@@ -33,13 +33,13 @@ pub mod ecp;
 pub mod hash;
 pub mod pk;
 pub mod rng;
-pub use mbedtls_platform_support::self_test as self_test;
+pub use mbedtls_platform_support::self_test;
+#[cfg(any(feature = "x509", feature = "ssl", feature = "pkcs12"))]
+pub mod alloc;
 #[cfg(feature = "ssl")]
 pub mod ssl;
 #[cfg(feature = "x509")]
 pub mod x509;
-#[cfg(any(feature = "x509", feature = "ssl", feature = "pkcs12"))]
-pub mod alloc;
 
 #[cfg(feature = "pkcs12")]
 pub mod pkcs12;
