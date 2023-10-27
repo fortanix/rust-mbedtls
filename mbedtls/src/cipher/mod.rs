@@ -62,7 +62,11 @@ pub enum Authenticated {}
 impl Type for Authenticated {
     fn is_valid_mode(mode: raw::CipherMode) -> bool {
         match mode {
-            raw::CipherMode::GCM | raw::CipherMode::CCM | raw::CipherMode::KW | raw::CipherMode::KWP | raw::CipherMode::CHACHAPOLY => true,
+            raw::CipherMode::GCM
+            | raw::CipherMode::CCM
+            | raw::CipherMode::KW
+            | raw::CipherMode::KWP
+            | raw::CipherMode::CHACHAPOLY => true,
             _ => false,
         }
     }
