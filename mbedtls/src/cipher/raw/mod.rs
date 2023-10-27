@@ -14,6 +14,7 @@ mod serde;
 
 define!(
     #[c_ty(cipher_id_t)]
+    #[derive(Copy, Clone, Eq, PartialEq)]
     enum CipherId {
         None = CIPHER_ID_NONE,
         Null = CIPHER_ID_NULL,
