@@ -53,6 +53,7 @@ case "$TRAVIS_RUST_VERSION" in
         if [ "$TARGET" != "x86_64-fortanix-unknown-sgx" ]; then
             cargo nextest run --test async_session --features=async-rt,ssl --target $TARGET
             cargo nextest run --test async_session --features=async-rt,ssl,legacy_protocols --target $TARGET
+            cargo nextest run chrono --features=chrono,ssl,x509 --target $TARGET
 
             # If zlib is installed, test the zlib feature
             if [ -n "$ZLIB_INSTALLED" ]; then

@@ -494,6 +494,7 @@ dependencies = [
  "cbc",
  "cc",
  "cfg-if 1.0.0",
+ "chrono",
  "futures",
  "hex",
  "hyper",

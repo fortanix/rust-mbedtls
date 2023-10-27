@@ -196,19 +196,19 @@ impl Time {
     pub fn new(year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) -> Option<Time> {
         if year < 10000 && month >= 1 && month <= 12 && day >= 1 && day <= 31 && hour < 24 && minute < 60 && second < 60 {
             Some(Time {
-                year: year,
-                month: month,
-                day: day,
-                hour: hour,
-                minute: minute,
-                second: second,
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                second,
             })
         } else {
             None
         }
     }
 
-    fn to_x509_time(&self) -> [u8; 15] {
+    pub fn to_x509_time(&self) -> [u8; 15] {
         let mut writer = TimeWriter { buf: [0; 15], idx: 0 };
         write!(
             writer,
@@ -218,5 +218,77 @@ impl Time {
         .expect("error formatting time");
         assert!(writer.idx == 14);
         writer.buf
+    }
+
+    pub fn year(&self) -> u16 {
+        self.year
+    }
+    pub fn month(&self) -> u8 {
+        self.month
+    }
+    pub fn day(&self) -> u8 {
+        self.day
+    }
+    pub fn hour(&self) -> u8 {
+        self.hour
+    }
+    pub fn minute(&self) -> u8 {
+        self.minute
+    }
+    pub fn second(&self) -> u8 {
+        self.second
+    }
+}
+
+#[cfg(feature = "chrono")]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct InvalidTimeError;
+
+#[cfg(feature = "chrono")]
+mod chrono_time {
+    use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
+    use core::convert::{TryFrom, TryInto};
+
+    use super::{InvalidTimeError, Time};
+
+    impl TryFrom<Time> for NaiveDateTime {
+        type Error = InvalidTimeError;
+
+        fn try_from(value: Time) -> Result<Self, Self::Error> {
+            let res = NaiveDate::from_ymd_opt(value.year.into(), value.month.into(), value.day.into())
+                .and_then(|date| date.and_hms_opt(value.hour.into(), value.minute.into(), value.second.into()))
+                .ok_or(InvalidTimeError)?;
+            Ok(res)
+        }
+    }
+
+    impl TryFrom<NaiveDateTime> for Time {
+        type Error = InvalidTimeError;
+
+        fn try_from(value: NaiveDateTime) -> Result<Self, Self::Error> {
+            let res = Time::new(
+                value.year().try_into().map_err(|_| InvalidTimeError)?,
+                value.month().try_into().map_err(|_| InvalidTimeError)?,
+                value.day().try_into().map_err(|_| InvalidTimeError)?,
+                value.hour().try_into().map_err(|_| InvalidTimeError)?,
+                value.minute().try_into().map_err(|_| InvalidTimeError)?,
+                value.second().try_into().map_err(|_| InvalidTimeError)?,
+            );
+            res.ok_or(InvalidTimeError)
+        }
+    }
+
+    #[test]
+    fn time_naive_date_time_conversion() {
+        let time = Time::new(2077, 12, 13, 10, 20, 30).unwrap();
+        let naive_date_time: NaiveDateTime = time.try_into().unwrap();
+
+        let expected = NaiveDate::from_ymd_opt(2077, 12, 13)
+            .unwrap()
+            .and_hms_opt(10, 20, 30)
+            .unwrap();
+        assert_eq!(naive_date_time, expected);
+
+        assert_eq!(time, Time::try_from(naive_date_time).unwrap());
     }
 }
