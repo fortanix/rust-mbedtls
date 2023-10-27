@@ -28,6 +28,8 @@ define!(
     impl<'a> Into<ptr> {}
 );
 
+unsafe impl Sync for Mpi {}
+
 fn fmt_mpi(n: &Mpi, radix: i32) -> String {
     n.to_string_radix(radix)
         .unwrap_or("(failed to format multi-precision integer)".to_owned())
