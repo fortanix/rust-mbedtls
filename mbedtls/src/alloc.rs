@@ -6,6 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+use core::ffi::{c_char, CStr};
 use core::fmt;
 use core::mem::ManuallyDrop;
 use core::ops::{Deref, DerefMut};
@@ -70,4 +71,44 @@ unsafe impl<T: Sync> Sync for Box<T> {}
 #[repr(transparent)]
 pub struct List<T> {
     pub(crate) inner: Option<Box<T>>,
+}
+
+/// Modeled after std's [`CString`](https://doc.rust-lang.org/std/ffi/struct.CString.html)
+pub struct CString {
+    /// Pointer to the allocated buffer
+    inner: NonNull<u8>,
+}
+
+impl CString {
+    pub fn new(str: &str) -> Self {
+        unsafe {
+            let buff = crate::alloc::mbedtls_calloc(1, str.len() + 1) as *mut u8;
+            buff.copy_from(str.as_ptr(), str.len());
+            *buff.add(str.len()) = 0;
+            Self {
+                inner: NonNull::new(buff).unwrap(),
+            }
+        }
+    }
+}
+
+impl Drop for CString {
+    fn drop(&mut self) {
+        unsafe { crate::alloc::mbedtls_free(self.inner.as_ptr() as *mut c_void) }
+    }
+}
+
+impl Deref for CString {
+    type Target = CStr;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { CStr::from_ptr(self.inner.as_ptr() as *const c_char) }
+    }
+}
+
+#[test]
+fn test_c_string() {
+    let str = "spooky code here!";
+    let c_str = CString::new(str);
+    assert_eq!(str, c_str.to_str().unwrap())
 }
