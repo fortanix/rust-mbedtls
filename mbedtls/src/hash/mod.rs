@@ -126,6 +126,7 @@ impl Md {
     }
 }
 
+#[derive(Clone)]
 pub struct Hmac {
     ctx: Md,
 }
