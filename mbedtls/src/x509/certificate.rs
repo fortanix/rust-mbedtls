@@ -13,7 +13,7 @@ use core::ptr::NonNull;
 use mbedtls_sys::types::raw_types::{c_char, c_void};
 use mbedtls_sys::*;
 
-use crate::alloc::{mbedtls_calloc, Box as MbedtlsBox, List as MbedtlsList};
+use crate::alloc::{mbedtls_calloc, Box as MbedtlsBox, CString, List as MbedtlsList};
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 use crate::error::{Error, IntoResult, Result};
@@ -224,6 +224,7 @@ impl Certificate {
         ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
         cb: Option<F>,
+        expected_common_name: Option<&str>,
     ) -> Result<()>
     where
         F: VerifyCallback + 'static,
@@ -236,19 +237,24 @@ impl Certificate {
         } else {
             (None, ::core::ptr::null_mut())
         };
+
+        let cn = expected_common_name.map(|cn| CString::new(cn));
         let mut flags = 0;
         let result = unsafe {
             x509_crt_verify(
                 chain.inner_ffi_mut(),
                 trust_ca.inner_ffi_mut(),
                 ca_crl.map_or(::core::ptr::null_mut(), |crl| crl.handle_mut()),
-                ::core::ptr::null(),
+                cn.as_ref().map_or(::core::ptr::null(), |cn| cn.as_ptr()),
                 &mut flags,
                 f_vrfy,
                 p_vrfy,
             )
         }
         .into_result();
+
+        // Asserts cn is still alive here. Prevents bugs (e.g., forgetting to insert `.as_ref()` when using cn)
+        drop(cn);
 
         if result.is_err() {
             if let Some(err_info) = err_info {
@@ -270,7 +276,32 @@ impl Certificate {
         ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
     ) -> Result<()> {
-        Self::verify_ex(chain, trust_ca, ca_crl, err_info, None::<&dyn VerifyCallback>)
+        Self::verify_ex(chain, trust_ca, ca_crl, err_info, None::<&dyn VerifyCallback>, None)
+    }
+
+    /// Like `verify`, optionally accepts an `expected_common_name` arg.
+    ///
+    /// * `expected_common_name`
+    /// (From mbedtls documentation) The expected Common Name. This will be checked to be present in the certificate’s
+    /// subjectAltNames extension or, if this extension is absent, as a CN component in its Subject name. DNS names
+    /// and IP addresses are fully supported, while the URI subtype is partially supported: only exact matching,
+    /// without any normalization procedures described in 7.4 of RFC5280, will result in a positive URI verification.
+    /// This may be `None` if the CN need not be verified.
+    pub fn verify_with_expected_common_name(
+        chain: &MbedtlsList<Certificate>,
+        trust_ca: &MbedtlsList<Certificate>,
+        ca_crl: Option<&mut Crl>,
+        err_info: Option<&mut String>,
+        expected_common_name: Option<&str>,
+    ) -> Result<()> {
+        Self::verify_ex(
+            chain,
+            trust_ca,
+            ca_crl,
+            err_info,
+            None::<&dyn VerifyCallback>,
+            expected_common_name,
+        )
     }
 
     pub fn verify_with_callback<F>(
@@ -283,7 +314,29 @@ impl Certificate {
     where
         F: VerifyCallback + 'static,
     {
-        Self::verify_ex(chain, trust_ca, ca_crl, err_info, Some(cb))
+        Self::verify_ex(chain, trust_ca, ca_crl, err_info, Some(cb), None)
+    }
+
+    /// Like `verify_with_callback`, optionally accepts an `expected_common_name` arg.
+    ///
+    /// * `expected_common_name`
+    /// (From mbedtls documentation) The expected Common Name. This will be checked to be present in the certificate’s
+    /// subjectAltNames extension or, if this extension is absent, as a CN component in its Subject name. DNS names
+    /// and IP addresses are fully supported, while the URI subtype is partially supported: only exact matching,
+    /// without any normalization procedures described in 7.4 of RFC5280, will result in a positive URI verification.
+    /// This may be `None` if the CN need not be verified.
+    pub fn verify_with_callback_expected_common_name<F>(
+        chain: &MbedtlsList<Certificate>,
+        trust_ca: &MbedtlsList<Certificate>,
+        ca_crl: Option<&mut Crl>,
+        err_info: Option<&mut String>,
+        cb: F,
+        expected_common_name: Option<&str>,
+    ) -> Result<()>
+    where
+        F: VerifyCallback + 'static,
+    {
+        Self::verify_ex(chain, trust_ca, ca_crl, err_info, Some(cb), expected_common_name)
     }
 }
 
@@ -1488,5 +1541,37 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
             Error::X509CertVerifyFailed
         );
         assert_eq!(err, "The certificate has been revoked (is on a CRL)\n");
+    }
+
+    #[test]
+    fn expected_common_name_test() {
+        const C_CERT: &'static str = concat!(include_str!("../../tests/data/certificate.crt"), "\0");
+        const C_ROOT: &'static str = concat!(include_str!("../../tests/data/root.crt"), "\0");
+
+        let mut certs = MbedtlsList::new();
+        certs.push(Certificate::from_pem(&C_CERT.as_bytes()).unwrap());
+        let mut roots = MbedtlsList::new();
+        roots.push(Certificate::from_pem(&C_ROOT.as_bytes()).unwrap());
+
+        let mut err = String::new();
+        assert!(
+            Certificate::verify_with_expected_common_name(&certs, &roots, None, Some(&mut err), Some("example.com")).is_ok(),
+        );
+    }
+
+    #[test]
+    fn expected_common_name_wrong_name_test() {
+        const C_CERT: &'static str = concat!(include_str!("../../tests/data/certificate.crt"), "\0");
+        const C_ROOT: &'static str = concat!(include_str!("../../tests/data/root.crt"), "\0");
+
+        let mut certs = MbedtlsList::new();
+        certs.push(Certificate::from_pem(&C_CERT.as_bytes()).unwrap());
+        let mut roots = MbedtlsList::new();
+        roots.push(Certificate::from_pem(&C_ROOT.as_bytes()).unwrap());
+
+        let mut err = String::new();
+        assert!(
+            Certificate::verify_with_expected_common_name(&certs, &roots, None, Some(&mut err), Some("notit.com")).is_err()
+        );
     }
 }
