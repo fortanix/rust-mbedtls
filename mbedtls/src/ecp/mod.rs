@@ -283,6 +283,12 @@ impl EcPoint {
         }
     }
 
+    pub fn from_binary_no_compress(group: &EcGroup, bin: &[u8]) -> Result<EcPoint> {
+        let mut ret = Self::init();
+        unsafe { ecp_point_read_binary(&group.inner, &mut ret.inner, bin.as_ptr(), bin.len()) }.into_result()?;
+        Ok(ret)
+    }
+
     pub fn from_components(x: Mpi, y: Mpi) -> Result<EcPoint> {
         let mut ret = Self::init();
 

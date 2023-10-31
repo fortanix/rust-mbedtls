@@ -14,6 +14,7 @@ mod serde;
 
 define!(
     #[c_ty(cipher_id_t)]
+    #[derive(Copy, Clone, Eq, PartialEq)]
     enum CipherId {
         None = CIPHER_ID_NONE,
         Null = CIPHER_ID_NULL,
@@ -24,6 +25,7 @@ define!(
         Blowfish = CIPHER_ID_BLOWFISH,
         Arc4 = CIPHER_ID_ARC4,
         Aria = CIPHER_ID_ARIA,
+        Chacha20 = CIPHER_ID_CHACHA20,
     }
 );
 
@@ -39,6 +41,7 @@ impl From<cipher_id_t> for CipherId {
             CIPHER_ID_BLOWFISH => CipherId::Blowfish,
             CIPHER_ID_ARC4 => CipherId::Arc4,
             CIPHER_ID_ARIA => CipherId::Aria,
+            CIPHER_ID_CHACHA20 => CipherId::Chacha20,
             // This should be replaced with TryFrom once it is stable.
             _ => panic!("Invalid cipher_id_t"),
         }
@@ -58,6 +61,8 @@ define!(
         GCM = MODE_GCM,
         STREAM = MODE_STREAM,
         CCM = MODE_CCM,
+        XTS = MODE_XTS,
+        CHACHAPOLY = MODE_CHACHAPOLY,
         KW = MODE_KW,
         KWP = MODE_KWP,
     }
@@ -75,6 +80,8 @@ impl From<cipher_mode_t> for CipherMode {
             MODE_GCM => CipherMode::GCM,
             MODE_STREAM => CipherMode::STREAM,
             MODE_CCM => CipherMode::CCM,
+            MODE_XTS => CipherMode::XTS,
+            MODE_CHACHAPOLY => CipherMode::CHACHAPOLY,
             MODE_KW => CipherMode::KW,
             MODE_KWP => CipherMode::KWP,
             // This should be replaced with TryFrom once it is stable.
@@ -135,6 +142,31 @@ define!(
         Camellia128Ccm = CIPHER_CAMELLIA_128_CCM,
         Camellia192Ccm = CIPHER_CAMELLIA_192_CCM,
         Camellia256Ccm = CIPHER_CAMELLIA_256_CCM,
+        Aria128Ecb = CIPHER_ARIA_128_ECB,
+        Aria192Ecb = CIPHER_ARIA_192_ECB,
+        Aria256Ecb = CIPHER_ARIA_256_ECB,
+        Aria128Cbc = CIPHER_ARIA_128_CBC,
+        Aria192Cbc = CIPHER_ARIA_192_CBC,
+        Aria256Cbc = CIPHER_ARIA_256_CBC,
+        Aria128Cfb128 = CIPHER_ARIA_128_CFB128,
+        Aria192Cfb128 = CIPHER_ARIA_192_CFB128,
+        Aria256Cfb128 = CIPHER_ARIA_256_CFB128,
+        Aria128Ctr = CIPHER_ARIA_128_CTR,
+        Aria192Ctr = CIPHER_ARIA_192_CTR,
+        Aria256Ctr = CIPHER_ARIA_256_CTR,
+        Aria128Gcm = CIPHER_ARIA_128_GCM,
+        Aria192Gcm = CIPHER_ARIA_192_GCM,
+        Aria256Gcm = CIPHER_ARIA_256_GCM,
+        Aria128Ccm = CIPHER_ARIA_128_CCM,
+        Aria192Ccm = CIPHER_ARIA_192_CCM,
+        Aria256Ccm = CIPHER_ARIA_256_CCM,
+        Aes128Ofb = CIPHER_AES_128_OFB,
+        Aes192Ofb = CIPHER_AES_192_OFB,
+        Aes256Ofb = CIPHER_AES_256_OFB,
+        Aes128Xts = CIPHER_AES_128_XTS,
+        Aes256Xts = CIPHER_AES_256_XTS,
+        Chacha20 = CIPHER_CHACHA20,
+        Chacha20Poly1305 = CIPHER_CHACHA20_POLY1305,
         Aes128Kw = CIPHER_AES_128_KW,
         Aes192Kw = CIPHER_AES_192_KW,
         Aes256Kw = CIPHER_AES_256_KW,
@@ -213,15 +245,15 @@ impl Cipher {
         unsafe { cipher_update_ad(&mut self.inner, ad.as_ptr(), ad.len()).into_result_discard() }
     }
 
-    pub fn update(&mut self, indata: &[u8], outdata: &mut [u8]) -> Result<usize> {
-        // Check that minimum required space is available in outdata buffer
-        let reqd_size = if unsafe { *self.inner.cipher_info }.mode == MODE_ECB {
+    pub fn update(&mut self, in_data: &[u8], out_data: &mut [u8]) -> Result<usize> {
+        // Check that minimum required space is available in out_data buffer
+        let required_size = if unsafe { *self.inner.cipher_info }.mode == MODE_ECB {
             self.block_size()
         } else {
-            indata.len() + self.block_size()
+            in_data.len() + self.block_size()
         };
 
-        if outdata.len() < reqd_size {
+        if out_data.len() < required_size {
             return Err(Error::CipherFullBlockExpected);
         }
 
@@ -229,9 +261,9 @@ impl Cipher {
         unsafe {
             cipher_update(
                 &mut self.inner,
-                indata.as_ptr(),
-                indata.len(),
-                outdata.as_mut_ptr(),
+                in_data.as_ptr(),
+                in_data.len(),
+                out_data.as_mut_ptr(),
                 &mut olen,
             )
             .into_result()?;
@@ -239,15 +271,15 @@ impl Cipher {
         Ok(olen)
     }
 
-    pub fn finish(&mut self, outdata: &mut [u8]) -> Result<usize> {
-        // Check that minimum required space is available in outdata buffer
-        if outdata.len() < self.block_size() {
+    pub fn finish(&mut self, out_data: &mut [u8]) -> Result<usize> {
+        // Check that minimum required space is available in out_data buffer
+        if out_data.len() < self.block_size() {
             return Err(Error::CipherFullBlockExpected);
         }
 
         let mut olen = 0;
         unsafe {
-            cipher_finish(&mut self.inner, outdata.as_mut_ptr(), &mut olen).into_result()?;
+            cipher_finish(&mut self.inner, out_data.as_mut_ptr(), &mut olen).into_result()?;
         }
         Ok(olen)
     }
@@ -274,7 +306,7 @@ impl Cipher {
         unsafe { (*self.inner.cipher_info).mode.into() }
     }
 
-    // Utility function to get mdoe for the selected / setup cipher_info
+    // Utility function to get mode for the selected / setup cipher_info
     pub fn is_authenticated(&self) -> bool {
         unsafe {
             if (*self.inner.cipher_info).mode == MODE_GCM || (*self.inner.cipher_info).mode == MODE_CCM {
@@ -413,31 +445,31 @@ impl Cipher {
         Ok(plain_len)
     }
 
-    fn do_crypto(&mut self, indata: &[u8], outdata: &mut [u8]) -> Result<usize> {
+    fn do_crypto(&mut self, in_data: &[u8], out_data: &mut [u8]) -> Result<usize> {
         self.reset()?;
 
-        // The total number of bytes writte to outdata so far. It's safe to
+        // The total number of bytes written to out_data so far. It's safe to
         // use this as a start index for slicing: &slice[slice.len()..] will
         // return an empty slice, it doesn't panic.
         let mut total_len = 0;
 
         if unsafe { *self.inner.cipher_info }.mode == MODE_ECB {
             // ECB mode requires single-block updates
-            for chunk in indata.chunks(self.block_size()) {
-                let len = self.update(chunk, &mut outdata[total_len..])?;
+            for chunk in in_data.chunks(self.block_size()) {
+                let len = self.update(chunk, &mut out_data[total_len..])?;
                 total_len += len;
             }
         } else {
-            total_len = self.update(indata, outdata)?;
-            total_len += self.finish(&mut outdata[total_len..])?;
+            total_len = self.update(in_data, out_data)?;
+            total_len += self.finish(&mut out_data[total_len..])?;
         }
 
         Ok(total_len)
     }
 
-    pub fn cmac(&mut self, key: &[u8], data: &[u8], outdata: &mut [u8]) -> Result<()> {
-        // Check that outdata buffer has enough space
-        if outdata.len() < self.block_size() {
+    pub fn cmac(&mut self, key: &[u8], data: &[u8], out_data: &mut [u8]) -> Result<()> {
+        // Check that out_data buffer has enough space
+        if out_data.len() < self.block_size() {
             return Err(Error::CipherFullBlockExpected);
         }
         self.reset()?;
@@ -448,7 +480,7 @@ impl Cipher {
                 (key.len() * 8) as _,
                 data.as_ptr(),
                 data.len(),
-                outdata.as_mut_ptr(),
+                out_data.as_mut_ptr(),
             )
             .into_result()?;
         }
