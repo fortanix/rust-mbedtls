@@ -43,6 +43,9 @@ case "$TRAVIS_RUST_VERSION" in
                     cargo nextest run --no-default-features --features "$FEAT"no_std_deps,rdrand,time --target $TARGET
                     cargo nextest run --no-default-features --features "$FEAT"no_std_deps --target $TARGET
                 fi
+                if [ "$TARGET" == "x86_64-apple-darwin" ]; then
+                    cargo nextest run --no-default-features --features no_std_deps --target $TARGET
+                fi
 
             else
                 cargo +$TRAVIS_RUST_VERSION test --no-run --features "$FEAT" --target=$TARGET
