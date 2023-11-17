@@ -26,6 +26,8 @@ use crate::x509::{self, Crl, Time, VerifyCallback};
 #[cfg(feature = "std")]
 use yasna::{models::ObjectIdentifier, ASN1Error, ASN1ErrorKind, ASN1Result, BERDecodable, BERReader};
 
+use super::VerifyError;
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CertificateVersion {
     V1,
@@ -225,12 +227,12 @@ impl Certificate {
         err_info: Option<&mut String>,
         cb: Option<F>,
         expected_common_name: Option<&str>,
-    ) -> Result<()>
+    ) -> core::result::Result<(), (Error, VerifyError)>
     where
         F: VerifyCallback + 'static,
     {
         if chain.is_empty() {
-            return Err(Error::X509BadInputData);
+            return Err((Error::X509BadInputData, VerifyError::CERT_MISSING));
         }
         let (f_vrfy, p_vrfy): (Option<unsafe extern "C" fn(_, _, _, _) -> _>, _) = if let Some(cb) = cb.as_ref() {
             (Some(x509::verify_callback::<F>), cb as *const _ as *mut c_void)
@@ -267,7 +269,8 @@ impl Certificate {
                 }
             }
         }
-        result.map(|_| ())
+        let verify_err = VerifyError::from_bits_truncate(flags);
+        result.map_err(|e| (e, verify_err)).map(|_| ())
     }
 
     pub fn verify(
@@ -276,6 +279,16 @@ impl Certificate {
         ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
     ) -> Result<()> {
+        Self::verify_ex(chain, trust_ca, ca_crl, err_info, None::<&dyn VerifyCallback>, None).map_err(|(e, _ve)| e)
+    }
+
+    /// Like `verify`. In case of errors, returns `VerifyError` as well.
+    pub fn verify_return_verify_err(
+        chain: &MbedtlsList<Certificate>,
+        trust_ca: &MbedtlsList<Certificate>,
+        ca_crl: Option<&mut Crl>,
+        err_info: Option<&mut String>,
+    ) -> core::result::Result<(), (Error, VerifyError)> {
         Self::verify_ex(chain, trust_ca, ca_crl, err_info, None::<&dyn VerifyCallback>, None)
     }
 
@@ -302,6 +315,25 @@ impl Certificate {
             None::<&dyn VerifyCallback>,
             expected_common_name,
         )
+        .map_err(|(e, _ve)| e)
+    }
+
+    /// Like `verify_with_expected_common_name`. In case of errors, returns `VerifyError` as well.
+    pub fn verify_with_expected_common_name_return_verify_err(
+        chain: &MbedtlsList<Certificate>,
+        trust_ca: &MbedtlsList<Certificate>,
+        ca_crl: Option<&mut Crl>,
+        err_info: Option<&mut String>,
+        expected_common_name: Option<&str>,
+    ) -> core::result::Result<(), (Error, VerifyError)> {
+        Self::verify_ex(
+            chain,
+            trust_ca,
+            ca_crl,
+            err_info,
+            None::<&dyn VerifyCallback>,
+            expected_common_name,
+        )
     }
 
     pub fn verify_with_callback<F>(
@@ -311,6 +343,20 @@ impl Certificate {
         err_info: Option<&mut String>,
         cb: F,
     ) -> Result<()>
+    where
+        F: VerifyCallback + 'static,
+    {
+        Self::verify_ex(chain, trust_ca, ca_crl, err_info, Some(cb), None).map_err(|(e, _ve)| e)
+    }
+
+    /// Like `verify_with_callback`. In case of errors, returns `VerifyError` as well.
+    pub fn verify_with_callback_return_verify_err<F>(
+        chain: &MbedtlsList<Certificate>,
+        trust_ca: &MbedtlsList<Certificate>,
+        ca_crl: Option<&mut Crl>,
+        err_info: Option<&mut String>,
+        cb: F,
+    ) -> core::result::Result<(), (Error, VerifyError)>
     where
         F: VerifyCallback + 'static,
     {
@@ -333,6 +379,21 @@ impl Certificate {
         cb: F,
         expected_common_name: Option<&str>,
     ) -> Result<()>
+    where
+        F: VerifyCallback + 'static,
+    {
+        Self::verify_ex(chain, trust_ca, ca_crl, err_info, Some(cb), expected_common_name).map_err(|(e, _ve)| e)
+    }
+
+    /// Like `verify_with_callback_expected_common_name`. In case of errors, returns `VerifyError` as well.
+    pub fn verify_with_callback_expected_common_name_return_verify_err<F>(
+        chain: &MbedtlsList<Certificate>,
+        trust_ca: &MbedtlsList<Certificate>,
+        ca_crl: Option<&mut Crl>,
+        err_info: Option<&mut String>,
+        cb: F,
+        expected_common_name: Option<&str>,
+    ) -> core::result::Result<(), (Error, VerifyError)>
     where
         F: VerifyCallback + 'static,
     {
