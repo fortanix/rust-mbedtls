@@ -1,3 +1,7 @@
 [workspace]
 members = ["mbedtls", "mbedtls-sys", "mbedtls-platform-support"]
 resolver = "2"
+
+[profile.test]
+opt-level = 3
+debug = true

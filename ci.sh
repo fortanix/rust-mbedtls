@@ -24,46 +24,44 @@ case "$TRAVIS_RUST_VERSION" in
         rustup target add --toolchain $TRAVIS_RUST_VERSION $TARGET
         printenv
 
-        for FEAT in "" "x509," "ssl,"; do
-            # The SGX target cannot be run under test like a ELF binary
-            if [ "$TARGET" != "x86_64-fortanix-unknown-sgx" ]; then
-                # make sure that explicitly providing the default target works
-                cargo nextest run --features "$FEAT" --target $TARGET --release
-                cargo nextest run --features "$FEAT"pkcs12 --target $TARGET
-                cargo nextest run --features "$FEAT"pkcs12_rc2 --target $TARGET
-                cargo nextest run --features "$FEAT"dsa --target $TARGET
-
-                # If AES-NI is supported, test the feature
-                if [ -n "$AES_NI_SUPPORT" ]; then
-                    cargo nextest run --features "$FEAT"force_aesni_support --target $TARGET
-                fi
-
-                # no_std tests only are able to run on x86 platform
-                if [ "$TARGET" == "x86_64-unknown-linux-gnu" ] || [[ "$TARGET" =~ ^x86_64-pc-windows- ]]; then
-                    cargo nextest run --no-default-features --features "$FEAT"no_std_deps,rdrand,time --target $TARGET
-                    cargo nextest run --no-default-features --features "$FEAT"no_std_deps --target $TARGET
-                fi
-                if [ "$TARGET" == "x86_64-apple-darwin" ]; then
-                    cargo nextest run --no-default-features --features no_std_deps --target $TARGET
-                fi
-
-            else
-                cargo +$TRAVIS_RUST_VERSION test --no-run --features "$FEAT" --target=$TARGET
-            fi
-        done
-
         # The SGX target cannot be run under test like a ELF binary
         if [ "$TARGET" != "x86_64-fortanix-unknown-sgx" ]; then
-            cargo nextest run --test async_session --features=async-rt,ssl --target $TARGET
+            # make sure that explicitly providing the default target works
+            cargo nextest run --release --target $TARGET
+            cargo nextest run --features rdrand,time,ssl --target $TARGET
+            cargo nextest run --features ssl --target $TARGET
+            cargo nextest run --features x509 --target $TARGET
+            cargo nextest run --features pkcs12 --target $TARGET pkcs12
+            cargo nextest run --features pkcs12_rc2 --target $TARGET pkcs12
+            cargo nextest run --features dsa --target $TARGET dsa
+
+            # If AES-NI is supported, test the feature
+            if [ -n "$AES_NI_SUPPORT" ]; then
+                cargo nextest run --features ssl,force_aesni_support --target $TARGET
+            fi
+
+            # no_std tests only are able to run on x86 platform
+            if [ "$TARGET" == "x86_64-unknown-linux-gnu" ] || [[ "$TARGET" =~ ^x86_64-pc-windows- ]]; then
+                cargo nextest run --no-default-features --features no_std_deps,rdrand,time,ssl --target $TARGET
+                cargo nextest run --no-default-features --features no_std_deps --target $TARGET
+            fi
+            if [ "$TARGET" == "x86_64-apple-darwin" ]; then
+                cargo nextest run --no-default-features --features no_std_deps --target $TARGET
+            fi
+
             cargo nextest run --test async_session --features=async-rt,ssl,legacy_protocols --target $TARGET
+            cargo nextest run --test async_session --features=async-rt,ssl --target $TARGET
             cargo nextest run chrono --features=chrono,ssl,x509 --target $TARGET
 
             # If zlib is installed, test the zlib feature
             if [ -n "$ZLIB_INSTALLED" ]; then
-                cargo nextest run --features zlib --target $TARGET
-                cargo nextest run --test async_session --features=async-rt,ssl,zlib --target $TARGET
                 cargo nextest run --test async_session --features=async-rt,ssl,zlib,legacy_protocols --target $TARGET
+                cargo nextest run --test async_session --features=async-rt,ssl,zlib --target $TARGET
+                cargo nextest run --features zlib --target $TARGET
             fi
+        else
+            cargo +$TRAVIS_RUST_VERSION test --no-run --target $TARGET
+            cargo +$TRAVIS_RUST_VERSION test --no-run --features async-rt,ssl,rdrand --target $TARGET
         fi
         ;;
     *)
