@@ -69,6 +69,8 @@ define!(
     impl<'a> Into<ptr> {}
 );
 
+unsafe impl Sync for Md {}
+
 impl MdInfo {
     pub fn size(&self) -> usize {
         unsafe { md_get_size(self.inner).into() }

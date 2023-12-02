@@ -86,6 +86,11 @@ async = ["std", "tokio","tokio/net","tokio/io-util", "tokio/macros"]
 async-rt = ["async", "tokio/rt", "tokio/sync", "tokio/rt-multi-thread"]
 
 [[example]]
+name = "bench"
+path = "examples/internal/bench.rs"
+required-features = ["std", "ssl"]
+
+[[example]]
 name = "client"
 required-features = ["std", "ssl"]
 

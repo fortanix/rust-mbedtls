@@ -13,6 +13,7 @@ use mbedtls_sys::*;
 define!(
     #[non_exhaustive]
     #[c_ty(c_int)]
+    #[derive(Debug, PartialEq, Eq)]
     enum CipherSuite {
         RsaWithNullMd5 = TLS_RSA_WITH_NULL_MD5,
         RsaWithNullSha = TLS_RSA_WITH_NULL_SHA,
@@ -214,5 +215,12 @@ define!(
         EcdheEcdsaWithAes128Ccm8 = TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8,
         EcdheEcdsaWithAes256Ccm8 = TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8,
         EcjpakeWithAes128Ccm8 = TLS_ECJPAKE_WITH_AES_128_CCM_8,
+        EcdheRsaWithChacha20Poly1305Sha256 = TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+        EcdheEcdsaWithChacha20Poly1305Sha256 = TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+        DheRsaWithChacha20Poly1305Sha256 = TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+        PskWithChacha20Poly1305Sha256 = TLS_PSK_WITH_CHACHA20_POLY1305_SHA256,
+        EcdhePskWithChacha20Poly1305Sha256 = TLS_ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256,
+        DhePskWithChacha20Poly1305Sha256 = TLS_DHE_PSK_WITH_CHACHA20_POLY1305_SHA256,
+        RsaPskWithChacha20Poly1305Sha256 = TLS_RSA_PSK_WITH_CHACHA20_POLY1305_SHA256,
     }
 );
