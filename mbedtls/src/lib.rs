@@ -44,6 +44,10 @@ pub mod x509;
 #[cfg(feature = "pkcs12")]
 pub mod pkcs12;
 
+pub fn zeroize(buf: &mut [u8]) {
+    unsafe { mbedtls_sys::platform_zeroize(buf.as_mut_ptr() as *mut mbedtls_sys::types::raw_types::c_void, buf.len()) }
+}
+
 // ==============
 //    Utility
 // ==============

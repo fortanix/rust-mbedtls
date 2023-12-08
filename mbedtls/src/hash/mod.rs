@@ -78,6 +78,21 @@ impl MdInfo {
     }
 }
 
+impl Clone for Md {
+    fn clone(&self) -> Self {
+        fn copy_md(md: &Md) -> Result<Md> {
+            let mut ctx = Md::init();
+            unsafe {
+                md_setup(&mut ctx.inner, md.inner.md_info, 0).into_result()?;
+                md_starts(&mut ctx.inner).into_result()?;
+                md_clone(&mut ctx.inner, &md.inner).into_result()?;
+            };
+            Ok(ctx)
+        }
+        copy_md(self).expect("Md::copy success")
+    }
+}
+
 impl Md {
     pub fn new(md: Type) -> Result<Md> {
         let md: MdInfo = match md.into() {
@@ -126,6 +141,7 @@ impl Md {
     }
 }
 
+#[derive(Clone)]
 pub struct Hmac {
     ctx: Md,
 }
@@ -178,12 +194,31 @@ impl Hmac {
     }
 }
 
-pub struct Hkdf {
-    _ctx: Md,
-}
+/// The HMAC-based Extract-and-Expand Key Derivation Function (HKDF) is specified by RFC 5869.
+#[derive(Debug)]
+pub struct Hkdf;
 
 impl Hkdf {
-    pub fn hkdf(md: Type, salt: &[u8], ikm: &[u8], info: &[u8], key: &mut [u8]) -> Result<()> {
+    /// This is the HMAC-based Extract-and-Expand Key Derivation Function (HKDF).
+    ///
+    /// # Parameters
+    ///
+    /// * `md`: A hash function; `MdInfo::from(md).size()` denotes the length of the hash
+    ///        function output in bytes.
+    /// * `salt`: An salt value (a non-secret random value);
+    /// * `ikm`: The input keying material.
+    /// * `info`: An optional context and application specific information
+    ///          string. This can be a zero-length string.
+    /// * `okm`: The output keying material. The length of the output keying material in bytes
+    ///          must be less than or equal to 255 * `MdInfo::from(md).size()` bytes.
+    ///
+    /// # Returns
+    ///
+    /// * `()` on success.
+    /// * [`Error::HkdfBadInputData`] when the parameters are invalid.
+    /// * Any `Error::Md*` error for errors returned from the underlying
+    ///   MD layer.
+    pub fn hkdf(md: Type, salt: &[u8], ikm: &[u8], info: &[u8], okm: &mut [u8]) -> Result<()> {
         let md: MdInfo = match md.into() {
             Some(md) => md,
             None => return Err(Error::MdBadInputData),
@@ -198,24 +233,149 @@ impl Hkdf {
                 ikm.len(),
                 info.as_ptr(),
                 info.len(),
-                key.as_mut_ptr(),
-                key.len(),
+                okm.as_mut_ptr(),
+                okm.len(),
             )
             .into_result()?;
             Ok(())
         }
     }
-}
 
-impl Clone for Md {
-    fn clone(&self) -> Self {
-        fn copy_md(md: &Md) -> Result<Md> {
-            let md_type = unsafe { md_get_type(md.inner.md_info) };
-            let mut m = Md::new(md_type.into())?;
-            unsafe { md_clone(&mut m.inner, &md.inner) }.into_result()?;
-            Ok(m)
+    /// This is the HMAC-based Extract-and-Expand Key Derivation Function (HKDF).
+    ///
+    /// # Parameters
+    ///
+    /// * `md`: A hash function; `MdInfo::from(md).size()` denotes the length of the hash
+    ///        function output in bytes.
+    /// * `salt`: An optional salt value (a non-secret random value);
+    ///          if the salt is not provided, a string of all zeros of
+    ///          `MdInfo::from(md).size()` length is used as the salt.
+    /// * `ikm`: The input keying material.
+    /// * `info`: An optional context and application specific information
+    ///          string. This can be a zero-length string.
+    /// * `okm`: The output keying material. The length of the output keying material in bytes
+    ///          must be less than or equal to 255 * `MdInfo::from(md).size()` bytes.
+    ///
+    /// # Returns
+    ///
+    /// * `()` on success.
+    /// * [`Error::HkdfBadInputData`] when the parameters are invalid.
+    /// * Any `Error::Md*` error for errors returned from the underlying
+    ///   MD layer.
+    pub fn hkdf_optional_salt(md: Type, maybe_salt: Option<&[u8]>, ikm: &[u8], info: &[u8], okm: &mut [u8]) -> Result<()> {
+        let md: MdInfo = match md.into() {
+            Some(md) => md,
+            None => return Err(Error::MdBadInputData),
+        };
+
+        unsafe {
+            hkdf(
+                md.inner,
+                maybe_salt.map_or(::core::ptr::null(), |salt| salt.as_ptr()),
+                maybe_salt.map_or(0, |salt| salt.len()),
+                ikm.as_ptr(),
+                ikm.len(),
+                info.as_ptr(),
+                info.len(),
+                okm.as_mut_ptr(),
+                okm.len(),
+            )
+            .into_result()?;
+            Ok(())
         }
-        copy_md(self).expect("Md::copy success")
+    }
+
+    /// Takes the input keying material `ikm` and extracts from it a
+    /// fixed-length pseudorandom key `prk`.
+    ///
+    /// # Warning
+    ///
+    /// This function should only be used if the security of it has been
+    /// studied and established in that particular context (eg. TLS 1.3
+    /// key schedule). For standard HKDF security guarantees use
+    /// `hkdf` instead.
+    ///
+    /// # Parameters
+    ///
+    /// * `md`: A hash function; `MdInfo::from(md).size()` denotes the length of the
+    ///         hash function output in bytes.
+    /// * `salt`: An optional salt value (a non-secret random value);
+    ///           if the salt is not provided, a string of all zeros
+    ///           of `MdInfo::from(md).size()` length is used as the salt.
+    /// * `ikm`: The input keying material.
+    /// * `prk`: The output pseudorandom key of at least `MdInfo::from(md).size()` bytes.
+    ///
+    /// # Returns
+    ///
+    /// * `()` on success.
+    /// * [`Error::HkdfBadInputData`] when the parameters are invalid.
+    /// * Any `Error::Md*` error for errors returned from the underlying
+    ///   MD layer.
+    pub fn hkdf_extract(md: Type, maybe_salt: Option<&[u8]>, ikm: &[u8], prk: &mut [u8]) -> Result<()> {
+        let md: MdInfo = match md.into() {
+            Some(md) => md,
+            None => return Err(Error::MdBadInputData),
+        };
+
+        unsafe {
+            hkdf_extract(
+                md.inner,
+                maybe_salt.map_or(::core::ptr::null(), |salt| salt.as_ptr()),
+                maybe_salt.map_or(0, |salt| salt.len()),
+                ikm.as_ptr(),
+                ikm.len(),
+                prk.as_mut_ptr(),
+            )
+            .into_result()?;
+            Ok(())
+        }
+    }
+
+    /// Expand the supplied `prk` into several additional pseudorandom keys, which is the output of the HKDF.
+    ///
+    /// # Warning
+    ///
+    /// This function should only be used if the security of it has been
+    /// studied and established in that particular context (eg. TLS 1.3
+    /// key schedule). For standard HKDF security guarantees use
+    /// `hkdf` instead.
+    ///
+    /// # Parameters
+    ///
+    /// * `md`: A hash function; `MdInfo::from(md).size()` denotes the length of the
+    ///         hash function output in bytes.
+    /// * `prk`: A pseudorandom key of at least `MdInfo::from(md).size()` bytes. `prk` is
+    ///          usually the output from the HKDF extract step.
+    /// * `info`: An optional context and application specific information
+    ///          string. This can be a zero-length string.
+    /// * `okm`: The output keying material. The length of the output keying material in bytes
+    ///          must be less than or equal to 255 * `MdInfo::from(md).size()` bytes.
+    ///
+    /// # Returns
+    ///
+    /// * `()` on success.
+    /// * [`Error::HkdfBadInputData`] when the parameters are invalid.
+    /// * Any `Error::Md*` error for errors returned from the underlying
+    ///   MD layer.
+    pub fn hkdf_expand(md: Type, prk: &[u8], info: &[u8], okm: &mut [u8]) -> Result<()> {
+        let md: MdInfo = match md.into() {
+            Some(md) => md,
+            None => return Err(Error::MdBadInputData),
+        };
+
+        unsafe {
+            hkdf_expand(
+                md.inner,
+                prk.as_ptr(),
+                prk.len(),
+                info.as_ptr(),
+                info.len(),
+                okm.as_mut_ptr(),
+                okm.len(),
+            )
+            .into_result()?;
+            Ok(())
+        }
     }
 }
 
