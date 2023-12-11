@@ -61,6 +61,12 @@ pin-project-lite = "0.2"
 [build-dependencies]
 cc = "1.0"
 
+# feature 'time` is necessary under windows
+[target.'cfg(target_os = "windows")'.mbedtls-platform-support]
+version = "0.1"
+path = "../mbedtls-platform-support"
+features = ["time"]
+
 [features]
 # Features are documented in the README
 
