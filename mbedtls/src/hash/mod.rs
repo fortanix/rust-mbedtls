@@ -236,9 +236,9 @@ impl Hkdf {
                 okm.as_mut_ptr(),
                 okm.len(),
             )
-            .into_result()?;
-            Ok(())
         }
+        .into_result()?;
+        Ok(())
     }
 
     /// This is the HMAC-based Extract-and-Expand Key Derivation Function (HKDF).
@@ -280,9 +280,9 @@ impl Hkdf {
                 okm.as_mut_ptr(),
                 okm.len(),
             )
-            .into_result()?;
-            Ok(())
         }
+        .into_result()?;
+        Ok(())
     }
 
     /// Takes the input keying material `ikm` and extracts from it a
@@ -326,9 +326,9 @@ impl Hkdf {
                 ikm.len(),
                 prk.as_mut_ptr(),
             )
-            .into_result()?;
-            Ok(())
         }
+        .into_result()?;
+        Ok(())
     }
 
     /// Expand the supplied `prk` into several additional pseudorandom keys, which is the output of the HKDF.
@@ -373,9 +373,9 @@ impl Hkdf {
                 okm.as_mut_ptr(),
                 okm.len(),
             )
-            .into_result()?;
-            Ok(())
         }
+        .into_result()?;
+        Ok(())
     }
 }
 
