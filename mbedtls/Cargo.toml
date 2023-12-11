@@ -2,7 +2,7 @@
 name = "mbedtls"
 # We jumped from v0.9 to v0.12 because v0.10 and v0.11 were based on mbedtls 3.X, which
 # we decided not to support.
-version = "0.12.0-alpha.2"
+version = "0.12.0"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -60,6 +60,12 @@ pin-project-lite = "0.2"
 
 [build-dependencies]
 cc = "1.0"
+
+# feature 'time` is necessary under windows
+[target.'cfg(target_os = "windows")'.mbedtls-platform-support]
+version = "0.1"
+path = "../mbedtls-platform-support"
+features = ["time"]
 
 [features]
 # Features are documented in the README
