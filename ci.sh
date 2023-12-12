@@ -39,12 +39,16 @@ case "$TRAVIS_RUST_VERSION" in
                 fi
 
                 # no_std tests only are able to run on x86 platform
-                if [ "$TARGET" == "x86_64-unknown-linux-gnu" ] || [[ "$TARGET" =~ ^x86_64-pc-windows- ]]; then
+                if [ "$TARGET" == "x86_64-unknown-linux-gnu" ]; then
                     cargo nextest run --no-default-features --features "$FEAT"no_std_deps,rdrand,time --target $TARGET
                     cargo nextest run --no-default-features --features "$FEAT"no_std_deps --target $TARGET
                 fi
                 if [ "$TARGET" == "x86_64-apple-darwin" ]; then
                     cargo nextest run --no-default-features --features no_std_deps --target $TARGET
+                fi
+                if [[ "$TARGET" =~ ^x86_64-pc-windows- ]]; then
+                    cargo nextest run --no-default-features --features "$FEAT"std --target $TARGET
+                    cargo nextest run --no-default-features --features "$FEAT"no_std_deps --target $TARGET
                 fi
 
             else
