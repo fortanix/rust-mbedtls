@@ -43,14 +43,18 @@ case "$TRAVIS_RUST_VERSION" in
                     cargo nextest run --no-default-features --features "$FEAT"no_std_deps,rdrand,time --target $TARGET
                     cargo nextest run --no-default-features --features "$FEAT"no_std_deps --target $TARGET
                 fi
-                if [ "$TARGET" == "x86_64-apple-darwin" ]; then
-                    cargo nextest run --no-default-features --features no_std_deps --target $TARGET
-                fi
-
             else
                 cargo +$TRAVIS_RUST_VERSION test --no-run --features "$FEAT" --target=$TARGET
             fi
         done
+
+        if [ "$TARGET" == "x86_64-apple-darwin" ]; then
+            cargo nextest run --no-default-features --features no_std_deps --target $TARGET
+        fi
+        # special case: mbedtls should compile successfully on windows only with `std` feature
+        if [[ "$TARGET" =~ ^x86_64-pc-windows- ]]; then
+            cargo nextest run --no-default-features --features std --target $TARGET
+        fi
 
         # The SGX target cannot be run under test like a ELF binary
         if [ "$TARGET" != "x86_64-fortanix-unknown-sgx" ]; then
