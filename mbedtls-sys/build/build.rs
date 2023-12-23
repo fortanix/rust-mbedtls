@@ -62,6 +62,12 @@ impl BuildConfig {
                 if FEATURES.have_platform_component("time", "custom") {
                     writeln!(f, "long long mbedtls_time(long long*);")?;
                 }
+
+                if FEATURES.have_feature("freelist") {
+                    writeln!(f, "#include <stddef.h>")?;
+                    writeln!(f, "void *freelist_calloc(size_t nmemb, size_t size);")?;
+                    writeln!(f, "void freelist_free(void *ptr);")?;
+                }
                 f.write_all(config::SUFFIX.as_bytes())
             })
             .expect("config.h I/O error");

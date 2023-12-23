@@ -13,10 +13,11 @@
 #include MBEDTLS_CONFIG_FILE
 #endif
 
+#include <stdlib.h>
+
 #if defined(MBEDTLS_PLATFORM_C)
 #include "mbedtls/platform.h"
 #else
-#include <stdlib.h>
 #define mbedtls_calloc    calloc
 #define mbedtls_free      free
 #endif
@@ -32,4 +33,12 @@ extern void *APPEND_METADATA_HASH(forward_mbedtls_calloc)( size_t n, size_t size
 
 extern void APPEND_METADATA_HASH(forward_mbedtls_free)( void *ptr ) {
     mbedtls_free(ptr);
+}
+
+extern void *forward_calloc(size_t n, size_t size) {
+    return calloc(n, size);
+}
+
+extern void forward_free(void *ptr) {
+    return free(ptr);
 }
