@@ -105,6 +105,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f59bbe95d4e52a6398ec21238d31577f2b28a9d86807f06ca59d191d8440d0bb"
 
 [[package]]
+name = "bit_fiddler"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3a666ed6092e37aa11efdf011e40e6c701d857e231510799cc22f6adbc7f31c"
+
+[[package]]
 name = "bitflags"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -245,6 +251,17 @@ dependencies = [
  "log 0.4.8",
  "regex",
  "termcolor",
+]
+
+[[package]]
+name = "freelist"
+version = "0.1.0"
+source = "git+https://github.com/MihirLuthra/freelist.git#8420311e57924f62af99075d750ac366924adc2c"
+dependencies = [
+ "bit_fiddler",
+ "libc",
+ "once_cell",
+ "seq-macro",
 ]
 
 [[package]]
@@ -506,6 +523,7 @@ dependencies = [
  "cbc",
  "cc",
  "cfg-if 1.0.0",
+ "freelist",
  "futures",
  "hex",
  "hyper",
@@ -810,6 +828,12 @@ name = "safemem"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef703b7cb59335eae2eb93ceb664c0eb7ea6bf567079d843e09420219668e072"
+
+[[package]]
+name = "seq-macro"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3f0bf26fd526d2a95683cd0f87bf103b8539e2ca1ef48ce002d67aad59aa0b4"
 
 [[package]]
 name = "serde"
