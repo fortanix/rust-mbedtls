@@ -41,7 +41,7 @@ rs-libc = "0.1.0"
 version = "0.1"
 
 [dependencies.mbedtls-sys-auto]
-version = "2.28.0"
+version = "2.28.4+mbedtls-2.28.3"
 default-features = false
 features = ["trusted_cert_callback"]
 
