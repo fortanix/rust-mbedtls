@@ -42,6 +42,7 @@ mbedtls-sys-auto = { path = "../mbedtls-sys", version = "2.25.0", default-featur
 ] }
 
 mbedtls-platform-support = { version = "0.1", path = "../mbedtls-platform-support" }
+rustversion = "1.0.14"
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.2.0"

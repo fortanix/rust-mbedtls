@@ -6,7 +6,11 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use core::ffi::{c_char, CStr};
+#[rustversion::since(1.64)]
+use core::ffi::c_char;
+#[rustversion::before(1.64)]
+use mbedtls_sys::types::raw_types::c_char;
+
 use core::fmt;
 use core::mem::ManuallyDrop;
 use core::ops::{Deref, DerefMut};
@@ -98,11 +102,12 @@ impl Drop for CString {
     }
 }
 
+#[rustversion::since(1.64)]
 impl Deref for CString {
-    type Target = CStr;
+    type Target = core::ffi::CStr;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { CStr::from_ptr(self.inner.as_ptr() as *const c_char) }
+        unsafe { core::ffi::CStr::from_ptr(self.inner.as_ptr() as *const c_char) }
     }
 }
 
