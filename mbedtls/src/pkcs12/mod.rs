@@ -430,6 +430,7 @@ enum Pkcs12BagSet {
     EncryptedPkcs8(Vec<u8>),
     Pkcs8(Vec<u8>),
     Cert(CertBag),
+    #[allow(dead_code)]
     UnknownBlob(Vec<u8>),
     // XXX CRL and Secret bags not supported
     //Crl(CrlBag),
