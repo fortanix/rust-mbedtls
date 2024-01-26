@@ -19,6 +19,7 @@ use crate::alloc_prelude::*;
 use crate::error::{IntoResult, Result};
 use crate::rng::{EntropyCallback, EntropyCallbackMut, RngCallback, RngCallbackMut};
 
+#[allow(dead_code)]
 enum EntropyHolder {
     Shared(Arc<dyn EntropyCallback + 'static>),
     Unique(Box<dyn EntropyCallbackMut + 'static>),
