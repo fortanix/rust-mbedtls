@@ -5,19 +5,7 @@
 
 /*
  *  Copyright The Mbed TLS Contributors
- *  SPDX-License-Identifier: Apache-2.0
- *
- *  Licensed under the Apache License, Version 2.0 (the "License"); you may
- *  not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *  http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- *  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
  */
 
 #ifndef SSL_HELPERS_H
@@ -277,13 +265,13 @@ int mbedtls_test_ssl_message_queue_pop_info(
 /*
  * Setup and teardown functions for mock sockets.
  */
-void mbedtls_mock_socket_init(mbedtls_test_mock_socket *socket);
+void mbedtls_test_mock_socket_init(mbedtls_test_mock_socket *socket);
 
 /*
  * Closes the socket \p socket.
  *
  * \p socket must have been previously initialized by calling
- * mbedtls_mock_socket_init().
+ * mbedtls_test_mock_socket_init().
  *
  * This function frees all allocated resources and both sockets are aware of the
  * new connection state.
@@ -298,7 +286,7 @@ void mbedtls_test_mock_socket_close(mbedtls_test_mock_socket *socket);
  * Establishes a connection between \p peer1 and \p peer2.
  *
  * \p peer1 and \p peer2 must have been previously initialized by calling
- * mbedtls_mock_socket_init().
+ * mbedtls_test_mock_socket_init().
  *
  * The capacities of the internal buffers are set to \p bufsize. Setting this to
  * the correct value allows for simulation of MTU, sanity testing the mock
@@ -377,8 +365,7 @@ int mbedtls_test_mock_tcp_send_msg(void *ctx,
  *          mbedtls_test_mock_tcp_recv_b failed.
  *
  * This function will also return any error other than
- * MBEDTLS_TEST_ERROR_MESSAGE_TRUNCATED from
- * mbedtls_test_message_queue_peek_info.
+ * MBEDTLS_TEST_ERROR_MESSAGE_TRUNCATED from test_ssl_message_queue_peek_info.
  */
 int mbedtls_test_mock_tcp_recv_msg(void *ctx,
                                    unsigned char *buf, size_t buf_len);
@@ -456,12 +443,39 @@ int mbedtls_test_move_handshake_to_state(mbedtls_ssl_context *ssl,
         }                                       \
     } while (0)
 
+#if MBEDTLS_SSL_CID_OUT_LEN_MAX > MBEDTLS_SSL_CID_IN_LEN_MAX
+#define SSL_CID_LEN_MIN MBEDTLS_SSL_CID_IN_LEN_MAX
+#else
+#define SSL_CID_LEN_MIN MBEDTLS_SSL_CID_OUT_LEN_MAX
+#endif
+
 int mbedtls_test_ssl_build_transforms(mbedtls_ssl_transform *t_in,
                                       mbedtls_ssl_transform *t_out,
                                       int cipher_type, int hash_id,
                                       int etm, int tag_mode, int ver,
                                       size_t cid0_len,
                                       size_t cid1_len);
+
+#if defined(MBEDTLS_SSL_SOME_MODES_USE_MAC)
+/**
+ * \param[in,out] record        The record to prepare.
+ *                              It must contain the data to MAC at offset
+ *                              `record->data_offset`, of length
+ *                              `record->data_length`.
+ *                              On success, write the MAC immediately
+ *                              after the data and increment
+ *                              `record->data_length` accordingly.
+ * \param[in,out] transform_out The out transform, typically prepared by
+ *                              mbedtls_test_ssl_build_transforms().
+ *                              Its HMAC context may be used. Other than that
+ *                              it is treated as an input parameter.
+ *
+ * \return                      0 on success, an `MBEDTLS_ERR_xxx` error code
+ *                              or -1 on error.
+ */
+int mbedtls_test_ssl_prepare_record_mac(mbedtls_record *record,
+                                        mbedtls_ssl_transform *transform_out);
+#endif /* MBEDTLS_SSL_SOME_MODES_USE_MAC */
 
 /*
  * Populate a session structure for serialization tests.
@@ -493,10 +507,11 @@ int mbedtls_test_ssl_populate_session(mbedtls_ssl_session *session,
  *
  * \retval  0 on success, otherwise error code.
  */
-int mbedtls_exchange_data(mbedtls_ssl_context *ssl_1,
-                          int msg_len_1, const int expected_fragments_1,
-                          mbedtls_ssl_context *ssl_2,
-                          int msg_len_2, const int expected_fragments_2);
+int mbedtls_test_ssl_exchange_data(
+    mbedtls_ssl_context *ssl_1,
+    int msg_len_1, const int expected_fragments_1,
+    mbedtls_ssl_context *ssl_2,
+    int msg_len_2, const int expected_fragments_2);
 
 #if defined(MBEDTLS_KEY_EXCHANGE_WITH_CERT_ENABLED) && \
     defined(MBEDTLS_CERTS_C) && \

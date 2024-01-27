@@ -1,18 +1,6 @@
 /*
  *  Copyright The Mbed TLS Contributors
- *  SPDX-License-Identifier: Apache-2.0
- *
- *  Licensed under the Apache License, Version 2.0 (the "License"); you may
- *  not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *  http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- *  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
  */
 
 #include <test/constant_flow.h>
@@ -22,6 +10,11 @@
 
 #if defined(MBEDTLS_CHECK_PARAMS)
 #include <setjmp.h>
+#endif
+
+#if defined(MBEDTLS_PSA_INJECT_ENTROPY)
+#include <psa/crypto.h>
+#include <test/psa_crypto_helpers.h>
 #endif
 
 /*----------------------------------------------------------------------------*/
@@ -52,9 +45,22 @@ mbedtls_test_info_t mbedtls_test_info;
 int mbedtls_test_platform_setup(void)
 {
     int ret = 0;
+
+#if defined(MBEDTLS_PSA_INJECT_ENTROPY)
+    /* Make sure that injected entropy is present. Otherwise
+     * psa_crypto_init() will fail. This is not necessary for test suites
+     * that don't use PSA, but it's harmless (except for leaving a file
+     * behind). */
+    ret = mbedtls_test_inject_entropy_restore();
+    if (ret != 0) {
+        return ret;
+    }
+#endif
+
 #if defined(MBEDTLS_PLATFORM_C)
     ret = mbedtls_platform_setup(&platform_ctx);
 #endif /* MBEDTLS_PLATFORM_C */
+
     return ret;
 }
 

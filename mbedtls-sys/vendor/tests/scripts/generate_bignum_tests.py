@@ -40,19 +40,7 @@ of BaseTarget in test_data_generation.py.
 """
 
 # Copyright The Mbed TLS Contributors
-# SPDX-License-Identifier: Apache-2.0
-#
-# Licensed under the Apache License, Version 2.0 (the "License"); you may
-# not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
 
 import sys
 
@@ -196,7 +184,7 @@ class BignumOperation(BignumTarget, metaclass=ABCMeta):
 class BignumCmp(BignumOperation):
     """Test cases for bignum value comparison."""
     count = 0
-    test_function = "mbedtls_mpi_cmp_mpi"
+    test_function = "mpi_cmp_mpi"
     test_name = "MPI compare"
     input_cases = [
         ("-2", "-3"),
@@ -217,7 +205,7 @@ class BignumCmp(BignumOperation):
 class BignumCmpAbs(BignumCmp):
     """Test cases for absolute bignum value comparison."""
     count = 0
-    test_function = "mbedtls_mpi_cmp_abs"
+    test_function = "mpi_cmp_abs"
     test_name = "MPI compare (abs)"
 
     def __init__(self, val_a, val_b) -> None:
@@ -228,7 +216,7 @@ class BignumAdd(BignumOperation):
     """Test cases for bignum value addition."""
     count = 0
     symbol = "+"
-    test_function = "mbedtls_mpi_add_mpi"
+    test_function = "mpi_add_mpi"
     test_name = "MPI add"
     input_cases = combination_pairs(
         [
