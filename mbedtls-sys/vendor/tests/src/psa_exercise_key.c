@@ -4,19 +4,7 @@
 
 /*
  *  Copyright The Mbed TLS Contributors
- *  SPDX-License-Identifier: Apache-2.0
- *
- *  Licensed under the Apache License, Version 2.0 (the "License"); you may
- *  not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *  http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- *  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
  */
 
 #include <test/helpers.h>
@@ -72,7 +60,7 @@ static int check_key_attributes_sanity(mbedtls_svc_key_id_t key)
     psa_key_slot_number_t slot_number = 0xec94d4a5058a1a21;
     psa_status_t status = psa_get_key_slot_number(&attributes, &slot_number);
     if (lifetime_is_dynamic_secure_element(lifetime)) {
-        /* Mbed Crypto currently always exposes the slot number to
+        /* Mbed TLS currently always exposes the slot number to
          * applications. This is not mandated by the PSA specification
          * and may change in future versions. */
         TEST_EQUAL(status, 0);
@@ -308,7 +296,7 @@ static int exercise_signature_key(mbedtls_svc_key_id_t key,
             hash_alg = KNOWN_MBEDTLS_SUPPORTED_HASH_ALG;
             alg ^= PSA_ALG_ANY_HASH ^ hash_alg;
     #else
-            TEST_ASSERT(!"No hash algorithm for hash-and-sign testing");
+            TEST_FAIL("No hash algorithm for hash-and-sign testing");
     #endif
         }
 
@@ -437,7 +425,7 @@ int mbedtls_test_psa_setup_key_derivation_wrap(
                                                   PSA_KEY_DERIVATION_INPUT_LABEL,
                                                   input2, input2_length));
     } else {
-        TEST_ASSERT(!"Key derivation algorithm not supported");
+        TEST_FAIL("Key derivation algorithm not supported");
     }
 
     if (capacity != SIZE_MAX) {
@@ -505,7 +493,7 @@ psa_status_t mbedtls_test_psa_key_agreement_with_self(
     key_bits = psa_get_key_bits(&attributes);
     public_key_type = PSA_KEY_TYPE_PUBLIC_KEY_OF_KEY_PAIR(private_key_type);
     public_key_length = PSA_EXPORT_PUBLIC_KEY_OUTPUT_SIZE(public_key_type, key_bits);
-    ASSERT_ALLOC(public_key, public_key_length);
+    TEST_CALLOC(public_key, public_key_length);
     PSA_ASSERT(psa_export_public_key(key, public_key, public_key_length,
                                      &public_key_length));
 
@@ -547,7 +535,7 @@ psa_status_t mbedtls_test_psa_raw_key_agreement_with_self(
     key_bits = psa_get_key_bits(&attributes);
     public_key_type = PSA_KEY_TYPE_PUBLIC_KEY_OF_KEY_PAIR(private_key_type);
     public_key_length = PSA_EXPORT_PUBLIC_KEY_OUTPUT_SIZE(public_key_type, key_bits);
-    ASSERT_ALLOC(public_key, public_key_length);
+    TEST_CALLOC(public_key, public_key_length);
     PSA_ASSERT(psa_export_public_key(key,
                                      public_key, public_key_length,
                                      &public_key_length));
@@ -767,7 +755,7 @@ int mbedtls_test_psa_exported_key_sanity_check(
 
     {
         (void) exported;
-        TEST_ASSERT(!"Sanity check not implemented for this key type");
+        TEST_FAIL("Sanity check not implemented for this key type");
     }
 
 #if defined(MBEDTLS_DES_C)
@@ -807,7 +795,7 @@ static int exercise_export_key(mbedtls_svc_key_id_t key,
     exported_size = PSA_EXPORT_KEY_OUTPUT_SIZE(
         psa_get_key_type(&attributes),
         psa_get_key_bits(&attributes));
-    ASSERT_ALLOC(exported, exported_size);
+    TEST_CALLOC(exported, exported_size);
 
     if ((usage & PSA_KEY_USAGE_EXPORT) == 0 &&
         !PSA_KEY_TYPE_IS_PUBLIC_KEY(psa_get_key_type(&attributes))) {
@@ -850,7 +838,7 @@ static int exercise_export_public_key(mbedtls_svc_key_id_t key)
         exported_size = PSA_EXPORT_KEY_OUTPUT_SIZE(
             psa_get_key_type(&attributes),
             psa_get_key_bits(&attributes));
-        ASSERT_ALLOC(exported, exported_size);
+        TEST_CALLOC(exported, exported_size);
 
         TEST_EQUAL(psa_export_public_key(key, exported,
                                          exported_size, &exported_length),
@@ -863,7 +851,7 @@ static int exercise_export_public_key(mbedtls_svc_key_id_t key)
         psa_get_key_type(&attributes));
     exported_size = PSA_EXPORT_PUBLIC_KEY_OUTPUT_SIZE(public_type,
                                                       psa_get_key_bits(&attributes));
-    ASSERT_ALLOC(exported, exported_size);
+    TEST_CALLOC(exported, exported_size);
 
     PSA_ASSERT(psa_export_public_key(key,
                                      exported, exported_size,
@@ -912,7 +900,7 @@ int mbedtls_test_psa_exercise_key(mbedtls_svc_key_id_t key,
     } else if (PSA_ALG_IS_KEY_AGREEMENT(alg)) {
         ok = exercise_key_agreement_key(key, usage, alg);
     } else {
-        TEST_ASSERT(!"No code to exercise this category of algorithm");
+        TEST_FAIL("No code to exercise this category of algorithm");
     }
 
     ok = ok && exercise_export_key(key, usage);

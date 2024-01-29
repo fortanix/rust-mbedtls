@@ -1,6 +1,6 @@
 [package]
 name = "mbedtls-sys-auto"
-version = "2.28.4+mbedtls-2.28.3"
+version = "2.28.7"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build/build.rs"
 license = "Apache-2.0 OR GPL-2.0-or-later"
@@ -15,8 +15,8 @@ links = "mbedtls"
 
 [package.metadata.mbedtls]
 git = "https://github.com/Mbed-TLS/mbedtls.git"
-version = "2.28.3"
-rev = "981743de6fcdbe672e482b6fd724d31d0a0d2476"
+version = "2.28.7"
+rev = "555f84735aecdbd76a566cf087ec8425dfb0c8ab"
 
 [lib]
 name = "mbedtls_sys"
