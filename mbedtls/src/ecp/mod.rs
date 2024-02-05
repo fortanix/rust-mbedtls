@@ -435,13 +435,12 @@ Please use `mul_with_rng` instead."
 
     /// This function compares two points in const time.
     pub fn eq_const_time(&self, other: &EcPoint) -> bool {
-        let mut res = true;
         unsafe {
-            res = (mpi_cmp_mpi(&self.inner.X, &other.inner.X) == 0) & res;
-            res = (mpi_cmp_mpi(&self.inner.Y, &other.inner.Y) == 0) & res;
-            res = (mpi_cmp_mpi(&self.inner.Z, &other.inner.Z) == 0) & res;
+            let x = mpi_cmp_mpi(&self.inner.X, &other.inner.X) == 0;
+            let y = mpi_cmp_mpi(&self.inner.Y, &other.inner.Y) == 0;
+            let z = mpi_cmp_mpi(&self.inner.Z, &other.inner.Z) == 0;
+            x & y & z
         }
-        res
     }
 
     pub fn to_binary(&self, group: &EcGroup, compressed: bool) -> Result<Vec<u8>> {
