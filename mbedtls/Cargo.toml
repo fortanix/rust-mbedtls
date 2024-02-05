@@ -57,6 +57,7 @@ async-stream = "0.3.0"
 futures = "0.3"
 tracing = "0.1"
 pin-project-lite = "0.2"
+criterion = { version = "0.5.1", features = ["html_reports"] }
 
 [build-dependencies]
 cc = "1.0"
@@ -138,3 +139,7 @@ required-features = ["std", "ssl"]
 name = "async_session"
 path = "tests/async_session.rs"
 required-features = ["async-rt", "ssl"]
+
+[[bench]]
+name = "ecp_eq_test"
+harness = false
