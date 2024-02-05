@@ -309,6 +309,10 @@ impl EcPoint {
         Mpi::copy(&self.inner.Y)
     }
 
+    pub fn z(&self) -> Result<Mpi> {
+        Mpi::copy(&self.inner.Z)
+    }
+
     pub fn is_zero(&self) -> Result<bool> {
         /*
         mbedtls_ecp_is_zero takes arg as non-const for no particular reason
@@ -321,8 +325,15 @@ impl EcPoint {
         }
     }
 
+    /// This function performs a scalar multiplication of a point by an integer: R = m *  P.
+    ///
+    /// This function does not accept a RNG so there is no blinding applied.
+    #[deprecated(
+        since = "0.12.3",
+        note = "This function does not accept a RNG so it's vulnerable to side channel attack.
+Please use `mul_with_rng` instead."
+    )]
     pub fn mul(&self, group: &mut EcGroup, k: &Mpi) -> Result<EcPoint> {
-        // TODO provide random number generator for blinding
         // Note: mbedtls_ecp_mul performs point validation itself so we skip that here
 
         let mut ret = Self::init();
@@ -335,6 +346,49 @@ impl EcPoint {
                 &self.inner,
                 None,
                 ::core::ptr::null_mut(),
+            )
+        }
+        .into_result()?;
+
+        Ok(ret)
+    }
+
+    /// This function performs a scalar multiplication of a point by an integer: `R = k * self`.
+    ///
+    /// It uses the group's base field operations to prevent timing attacks, executing the same sequence regardless of `k`.
+    /// Some intermediate results are randomized using the provided RNG function for blinding.
+    ///
+    ///
+    /// # Arguments
+    ///
+    /// * `group` - The elliptic curve group to use.
+    /// * `k` - The integer scalar by which to multiply.
+    /// * `rng` - The RNG function to use for blinding (randomizing some intermediate results) to defense side channel attack.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<EcPoint>` - The resulting point after multiplication on success.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    ///
+    /// * `k` is not a valid private key, or `self` is not a valid public key.
+    /// * Memory allocation fails.
+    /// * Any other kind of failure occurs during the execution of the underlying `mbedtls_ecp_mul` function.
+    pub fn mul_with_rng<F: crate::rng::Random>(&self, group: &mut EcGroup, k: &Mpi, rng: &mut F) -> Result<EcPoint> {
+        // Note: mbedtls_ecp_mul performs point validation itself so we skip that here
+
+        let mut ret = Self::init();
+
+        unsafe {
+            ecp_mul(
+                &mut group.inner,
+                &mut ret.inner,
+                k.handle(),
+                &self.inner,
+                Some(F::call),
+                rng.data_ptr(),
             )
         }
         .into_result()?;
@@ -377,6 +431,17 @@ impl EcPoint {
             ERR_ECP_BAD_INPUT_DATA => Ok(false),
             x => Err(Error::from_mbedtls_code(x)),
         }
+    }
+
+    /// This function compares two points in const time.
+    pub fn eq_const_time(&self, other: &EcPoint) -> bool {
+        let mut res = true;
+        unsafe {
+            res = (mpi_cmp_mpi(&self.inner.X, &other.inner.X) == 0) & res;
+            res = (mpi_cmp_mpi(&self.inner.Y, &other.inner.Y) == 0) & res;
+            res = (mpi_cmp_mpi(&self.inner.Z, &other.inner.Z) == 0) & res;
+        }
+        res
     }
 
     pub fn to_binary(&self, group: &EcGroup, compressed: bool) -> Result<Vec<u8>> {
@@ -472,7 +537,9 @@ mod tests {
             for i in 0..32 {
                 k += i;
 
-                let pt = generator.mul(&mut group, &k).unwrap();
+                let pt = generator
+                    .mul_with_rng(&mut group, &k, &mut crate::test_support::rand::test_rng())
+                    .unwrap();
 
                 let uncompressed_pt = pt.to_binary(&group, false).unwrap();
                 assert_eq!(uncompressed_pt.len(), 1 + p_len * 2);
@@ -502,7 +569,9 @@ mod tests {
         assert_eq!(g.is_zero().unwrap(), false);
 
         let k = Mpi::new(0xC3FF2).unwrap();
-        let pt = g.mul(&mut secp256k1, &k).unwrap();
+        let pt = g
+            .mul_with_rng(&mut secp256k1, &k, &mut crate::test_support::rand::test_rng())
+            .unwrap();
 
         let pt_uncompressed = pt.to_binary(&secp256k1, false).unwrap();
         assert_eq!(pt_uncompressed.len(), 1 + 2 * (bitlen / 8));
@@ -581,7 +650,9 @@ mod tests {
 
         let d = Mpi::from_str("0x7A929ADE789BB9BE10ED359DD39A72C11B60961F49397EEE1D19CE9891EC3B28").unwrap();
 
-        let pubkey = gost_g.mul(&mut gost, &d).unwrap();
+        let pubkey = gost_g
+            .mul_with_rng(&mut gost, &d, &mut crate::test_support::rand::test_rng())
+            .unwrap();
 
         let pubkey_x = pubkey.x().unwrap();
         let pubkey_y = pubkey.y().unwrap();
@@ -594,7 +665,9 @@ mod tests {
 
         let k = Mpi::from_str("0x77105C9B20BCD3122823C8CF6FCC7B956DE33814E95B7FE64FED924594DCEAB3").unwrap();
 
-        let gk = gost_g.mul(&mut gost, &k).unwrap();
+        let gk = gost_g
+            .mul_with_rng(&mut gost, &k, &mut crate::test_support::rand::test_rng())
+            .unwrap();
 
         let exp_gk_x = Mpi::from_str("0x41AA28D2F1AB148280CD9ED56FEDA41974053554A42767B83AD043FD39DC0493");
         let exp_gk_y = Mpi::from_str("0x489C375A9941A3049E33B34361DD204172AD98C3E5916DE27695D22A61FAE46E");
@@ -651,14 +724,20 @@ mod tests {
         /*
         Basic sanity check - multiplying twice by k is same as multiply by k**2
          */
-        let pt1 = g.mul(&mut secp256r1, &k).unwrap();
+        let pt1 = g
+            .mul_with_rng(&mut secp256r1, &k, &mut crate::test_support::rand::test_rng())
+            .unwrap();
         assert_eq!(pt1.is_zero().unwrap(), false);
 
-        let pt2 = g.mul(&mut secp256r1, &half_k).unwrap();
+        let pt2 = g
+            .mul_with_rng(&mut secp256r1, &half_k, &mut crate::test_support::rand::test_rng())
+            .unwrap();
         assert_eq!(pt2.is_zero().unwrap(), false);
         assert_eq!(pt1.eq(&pt2).unwrap(), false);
 
-        let pt3 = pt2.mul(&mut secp256r1, &half_k).unwrap();
+        let pt3 = pt2
+            .mul_with_rng(&mut secp256r1, &half_k, &mut crate::test_support::rand::test_rng())
+            .unwrap();
         assert_eq!(pt1.eq(&pt3).unwrap(), true);
         assert_eq!(pt3.eq(&pt1).unwrap(), true);
 
