@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{black_box, criterion_main, Criterion};
 use mbedtls::{bignum::Mpi, ecp::EcPoint};
 
 fn ecp_equal(a: &EcPoint, b: &EcPoint) {
@@ -16,25 +16,26 @@ fn criterion_benchmark(c: &mut Criterion) {
     let p_1_0_1 = EcPoint::from_components(one.clone(), zero.clone()).unwrap();
     let p_1_1_0 = EcPoint::new().unwrap();
     let p_1_1_1 = EcPoint::from_components(one.clone(), one.clone()).unwrap();
-    c.bench_function("EcpPoint X not equal", |b| {
-        b.iter(|| ecp_equal(black_box(&p_0_1_1), &p_1_1_1))
-    });
-    c.bench_function("EcpPoint Y not equal", |b| {
-        b.iter(|| ecp_equal(black_box(&p_1_0_1), &p_1_1_1))
-    });
-    c.bench_function("EcpPoint Z not equal", |b| {
-        b.iter(|| ecp_equal(black_box(&p_1_1_0), &p_1_1_1))
-    });
-    c.bench_function("EcpPoint X not equal const time", |b| {
+
+    let mut group = c.benchmark_group("EcpPoint equal");
+
+    group.bench_function("X not equal", |b| b.iter(|| ecp_equal(black_box(&p_0_1_1), &p_1_1_1)));
+    group.bench_function("Y not equal", |b| b.iter(|| ecp_equal(black_box(&p_1_0_1), &p_1_1_1)));
+    group.bench_function("Z not equal", |b| b.iter(|| ecp_equal(black_box(&p_1_1_0), &p_1_1_1)));
+
+    group.bench_function("X not equal const_time", |b| {
         b.iter(|| ecp_equal_const_time(black_box(&p_0_1_1), &p_1_1_1))
     });
-    c.bench_function("EcpPoint Y not equal const time", |b| {
+    group.bench_function("Y not equal const_time", |b| {
         b.iter(|| ecp_equal_const_time(black_box(&p_1_0_1), &p_1_1_1))
     });
-    c.bench_function("EcpPoint Z not equal const time", |b| {
+    group.bench_function("Z not equal const_time", |b| {
         b.iter(|| ecp_equal_const_time(black_box(&p_1_1_0), &p_1_1_1))
     });
 }
 
-criterion_group!(benches, criterion_benchmark);
+pub fn benches() {
+    let mut criterion = Criterion::default().sample_size(10_000).configure_from_args();
+    criterion_benchmark(&mut criterion);
+}
 criterion_main!(benches);
