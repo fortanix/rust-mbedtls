@@ -712,6 +712,19 @@ mod tests {
     }
 
     #[test]
+    fn test_ecp_const_eq() {
+        let secp256r1 = EcGroup::new(EcGroupId::SecP256R1).unwrap();
+        let g = secp256r1.generator().unwrap();
+        let zero = EcPoint::new().unwrap();
+        assert!(g.eq(&g).unwrap());
+        assert!(zero.eq(&zero).unwrap());
+        assert!(!g.eq(&zero).unwrap());
+        assert!(g.eq_const_time(&g));
+        assert!(zero.eq_const_time(&zero));
+        assert!(!g.eq_const_time(&zero));
+    }
+
+    #[test]
     fn test_ecp_mul() {
         let mut secp256r1 = EcGroup::new(EcGroupId::SecP256R1).unwrap();
 
