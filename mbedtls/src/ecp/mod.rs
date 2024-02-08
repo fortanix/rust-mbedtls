@@ -309,10 +309,6 @@ impl EcPoint {
         Mpi::copy(&self.inner.Y)
     }
 
-    pub fn z(&self) -> Result<Mpi> {
-        Mpi::copy(&self.inner.Z)
-    }
-
     pub fn is_zero(&self) -> Result<bool> {
         /*
         mbedtls_ecp_is_zero takes arg as non-const for no particular reason
@@ -373,9 +369,14 @@ Please use `mul_with_rng` instead."
     ///
     /// This function will return an error if:
     ///
-    /// * `k` is not a valid private key, or `self` is not a valid public key.
+    /// * `k` is not a valid private key, determined by mbedtls function [`mbedtls_ecp_check_privkey`]
+    /// * `self` is not a valid public key, determined by mbedtls function [`mbedtls_ecp_check_pubkey`]
     /// * Memory allocation fails.
-    /// * Any other kind of failure occurs during the execution of the underlying `mbedtls_ecp_mul` function.
+    /// * Any other kind of failure occurs during the execution of the underlying [`mbedtls_ecp_mul`] function.
+    ///
+    /// [`mbedtls_ecp_check_pubkey`]: https://github.com/fortanix/rust-mbedtls/blob/main/mbedtls-sys/vendor/include/mbedtls/ecp.h#L1115-L1143
+    /// [`mbedtls_ecp_check_privkey`]: https://github.com/fortanix/rust-mbedtls/blob/main/mbedtls-sys/vendor/include/mbedtls/ecp.h#L1145-L1165
+    /// [`mbedtls_ecp_mul`]: https://github.com/fortanix/rust-mbedtls/blob/main/mbedtls-sys/vendor/include/mbedtls/ecp.h#L933-L971
     pub fn mul_with_rng<F: crate::rng::Random>(&self, group: &mut EcGroup, k: &Mpi, rng: &mut F) -> Result<EcPoint> {
         // Note: mbedtls_ecp_mul performs point validation itself so we skip that here
 
@@ -433,7 +434,12 @@ Please use `mul_with_rng` instead."
         }
     }
 
-    /// This function compares two points in const time.
+    /// This function checks equalness of two points in const time.
+    ///
+    /// The implementation is based on C mbedtls function [`mbedtls_ecp_point_cmp`].
+    /// This new implementation ensures there is no shortcut when any of `x, y ,z` fields of two points is not equal.
+    ///
+    /// [`mbedtls_ecp_point_cmp`]: https://github.com/fortanix/rust-mbedtls/blob/main/mbedtls-sys/vendor/library/ecp.c#L809-L825
     pub fn eq_const_time(&self, other: &EcPoint) -> bool {
         unsafe {
             let x = mpi_cmp_mpi(&self.inner.X, &other.inner.X) == 0;

@@ -336,7 +336,7 @@ impl Pk {
     #[deprecated(
         since = "0.12.3",
         note = "This function does not accept an RNG so it's vulnerable to side channel attacks.
-Please use `private_from_ec_components_with_rng` instead."
+Please use `private_from_ec_scalar_with_rng` instead."
     )]
     pub fn private_from_ec_components(mut curve: EcGroup, private_key: Mpi) -> Result<Pk> {
         let mut ret = Self::init();
@@ -378,8 +378,8 @@ Please use `private_from_ec_components_with_rng` instead."
     ///
     /// * Fails to generate `EcPoint` from given EcGroup in `curve`.
     /// * The underlying C `mbedtls_pk_setup` function fails to set up the `Pk` context.
-    /// * The `EcPoint::mul` function fails to generate the public key point.
-    pub fn private_from_ec_components_with_rng<F: Random>(mut curve: EcGroup, private_key: Mpi, rng: &mut F) -> Result<Pk> {
+    /// * The `EcPoint::mul_with_rng` function fails to generate the public key point.
+    pub fn private_from_ec_scalar_with_rng<F: Random>(mut curve: EcGroup, private_key: Mpi, rng: &mut F) -> Result<Pk> {
         let mut ret = Self::init();
         let curve_generator = curve.generator()?;
         let public_point = curve_generator.mul_with_rng(&mut curve, &private_key, rng)?;
@@ -1266,7 +1266,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
 
         assert_eq!(pem1, pem2);
 
-        let mut key_from_components = Pk::private_from_ec_components_with_rng(
+        let mut key_from_components = Pk::private_from_ec_scalar_with_rng(
             secp256r1.clone(),
             key1.ec_private().unwrap(),
             &mut crate::test_support::rand::test_rng(),
