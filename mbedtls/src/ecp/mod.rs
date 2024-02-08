@@ -7,6 +7,7 @@
  * according to those terms. */
 
 use crate::error::{Error, IntoResult, Result};
+use crate::private::UnsafeFrom;
 use core::convert::TryFrom;
 use mbedtls_sys::*;
 
@@ -440,12 +441,27 @@ Please use `mul_with_rng` instead."
     /// This new implementation ensures there is no shortcut when any of `x, y ,z` fields of two points is not equal.
     ///
     /// [`mbedtls_ecp_point_cmp`]: https://github.com/fortanix/rust-mbedtls/blob/main/mbedtls-sys/vendor/library/ecp.c#L809-L825
-    pub fn eq_const_time(&self, other: &EcPoint) -> bool {
+    pub fn eq_const_time(&self, other: &EcPoint) -> Result<bool> {
         unsafe {
-            let x = mpi_cmp_mpi(&self.inner.X, &other.inner.X) == 0;
-            let y = mpi_cmp_mpi(&self.inner.Y, &other.inner.Y) == 0;
-            let z = mpi_cmp_mpi(&self.inner.Z, &other.inner.Z) == 0;
-            x & y & z
+            let x = Mpi::eq_const_time(
+                UnsafeFrom::from(&self.inner.X as *const _).unwrap(),
+                UnsafeFrom::from(&other.inner.X as *const _).unwrap(),
+            );
+            let y = Mpi::eq_const_time(
+                UnsafeFrom::from(&self.inner.Y as *const _).unwrap(),
+                UnsafeFrom::from(&other.inner.Y as *const _).unwrap(),
+            );
+            let z = Mpi::eq_const_time(
+                UnsafeFrom::from(&self.inner.Z as *const _).unwrap(),
+                UnsafeFrom::from(&other.inner.Z as *const _).unwrap(),
+            );
+            match (x, y, z) {
+                (Ok(true), Ok(true), Ok(true)) => Ok(true),
+                (Ok(_), Ok(_), Ok(_)) => Ok(false),
+                (Ok(_), Ok(_), Err(e)) => Err(e),
+                (Ok(_), Err(e), _) => Err(e),
+                (Err(e), _, _) => Err(e),
+            }
         }
     }
 
@@ -724,9 +740,9 @@ mod tests {
         assert!(g.eq(&g).unwrap());
         assert!(zero.eq(&zero).unwrap());
         assert!(!g.eq(&zero).unwrap());
-        assert!(g.eq_const_time(&g));
-        assert!(zero.eq_const_time(&zero));
-        assert!(!g.eq_const_time(&zero));
+        assert!(g.eq_const_time(&g).unwrap());
+        assert!(zero.eq_const_time(&zero).unwrap());
+        assert!(!g.eq_const_time(&zero).unwrap());
     }
 
     #[test]

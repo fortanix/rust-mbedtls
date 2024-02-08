@@ -26,6 +26,7 @@ define!(
     const init: fn() -> Self = mpi_init;
     const drop: fn(&mut Self) = mpi_free;
     impl<'a> Into<ptr> {}
+    impl<'a> UnsafeFrom<ptr> {}
 );
 
 fn fmt_mpi(n: &Mpi, radix: i32) -> String {
@@ -136,6 +137,42 @@ impl Mpi {
         } else {
             // zero pad
             0
+        }
+    }
+
+    /// Checks if an [`Mpi`] is less than the other in constant time.
+    ///
+    /// Will return [`Error::MpiBadInputData`] if the allocated length of the two input [`Mpi`]s is not the same.
+    pub fn less_than_const_time(&self, other: &Mpi) -> Result<bool> {
+        let mut r = 0;
+        unsafe {
+            mpi_lt_mpi_ct(&self.inner, &other.inner, &mut r).into_result()?;
+        };
+        Ok(r == 1)
+    }
+
+    /// Compares an [`Mpi`] with the other in constant time.
+    ///
+    /// Will return [`Error::MpiBadInputData`] if the allocated length of the two input [`Mpi`]s is not the same.
+    pub fn cmp_const_time(&self, other: &Mpi) -> Result<Ordering> {
+        let less = self.less_than_const_time(other);
+        let more = other.less_than_const_time(self);
+        match (less, more) {
+            (Ok(true), Ok(false)) => Ok(Ordering::Less),
+            (Ok(false), Ok(true)) => Ok(Ordering::Greater),
+            (Ok(false), Ok(false)) => Ok(Ordering::Equal),
+            (Ok(true), Ok(true)) => unreachable!(),
+            (Err(e), _) => Err(e),
+            (Ok(_), Err(e)) => Err(e),
+        }
+    }
+
+    /// Checks equalness with the other in constant time.
+    pub fn eq_const_time(&self, other: &Mpi) -> Result<bool> {
+        match self.cmp_const_time(other) {
+            Ok(order) => Ok(order == Ordering::Equal),
+            Err(Error::MpiBadInputData) => Ok(false),
+            Err(e) => Err(e),
         }
     }
 
