@@ -363,7 +363,7 @@ Please use `mul_with_rng` instead."
     ///
     /// * `group` - The elliptic curve group to use.
     /// * `k` - The integer scalar by which to multiply.
-    /// * `rng` - The RNG function to use for blinding (randomizing some intermediate results) to defense side channel attack.
+    /// * `rng` - The RNG used for blinding (randomizing some intermediate results) to defend side channel attacks.
     ///
     /// # Returns
     ///

@@ -307,7 +307,7 @@ impl Pk {
 
     #[deprecated(
         since = "0.12.3",
-        note = "This function does not accept a RNG so it's vulnerable to side channel attack.
+        note = "This function does not accept an RNG so it's vulnerable to side channel attacks.
 Please use `private_from_ec_components_with_rng` instead."
     )]
     pub fn private_from_ec_components(mut curve: EcGroup, private_key: Mpi) -> Result<Pk> {
@@ -336,7 +336,7 @@ Please use `private_from_ec_components_with_rng` instead."
     ///
     /// # Arguments
     ///
-    /// * `rng` - The RNG function to use for blinding in the `EcPoint::mul` function. This must not be `NULL`.
+    /// * `rng` - The RNG used for blinding in the `EcPoint::mul` function.
     /// * `curve` - The elliptic curve group to use for key generation.
     /// * `private_key` - The private key as an MPI (Multiple Precision Integer).
     ///
