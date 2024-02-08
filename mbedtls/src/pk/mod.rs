@@ -305,10 +305,56 @@ impl Pk {
         Ok(ret)
     }
 
+    #[deprecated(
+        since = "0.12.3",
+        note = "This function does not accept an RNG so it's vulnerable to side channel attacks.
+Please use `private_from_ec_components_with_rng` instead."
+    )]
     pub fn private_from_ec_components(mut curve: EcGroup, private_key: Mpi) -> Result<Pk> {
         let mut ret = Self::init();
         let curve_generator = curve.generator()?;
+        #[allow(deprecated)]
         let public_point = curve_generator.mul(&mut curve, &private_key)?;
+        unsafe {
+            pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result()?;
+            let ctx = ret.inner.pk_ctx as *mut ecp_keypair;
+            (*ctx).grp = curve.into_inner();
+            (*ctx).d = private_key.into_inner();
+            (*ctx).Q = public_point.into_inner();
+        }
+        Ok(ret)
+    }
+
+    /// Constructs a private key from elliptic curve components.
+    ///
+    /// This function requires a random number generator (RNG) because it uses the `EcPoint::mul`
+    /// function which requires an RNG for blinding.
+    ///
+    /// It initializes a `Pk` context, generates the public key point by multiplying the curve generator
+    /// with the private key, and sets up the private key context with the generated curve, private key,
+    /// and public point.
+    ///
+    /// # Arguments
+    ///
+    /// * `rng` - The RNG used for blinding in the `EcPoint::mul` function.
+    /// * `curve` - The elliptic curve group to use for key generation.
+    /// * `private_key` - The private key as an MPI (Multiple Precision Integer).
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Pk>` - A `Pk` context filled with the generated private key on success.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    ///
+    /// * Fails to genearte `EcPoint` from given EcGroup in `curve`.
+    /// * The underlying C `mbedtls_pk_setup` function fails to set up the `Pk` context.
+    /// * The `EcPoint::mul` function fails to generate the public key point.
+    pub fn private_from_ec_components_with_rng<F: Random>(mut curve: EcGroup, private_key: Mpi, rng: &mut F) -> Result<Pk> {
+        let mut ret = Self::init();
+        let curve_generator = curve.generator()?;
+        let public_point = curve_generator.mul_with_rng(&mut curve, &private_key, rng)?;
         unsafe {
             pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result()?;
             let ctx = ret.inner.pk_ctx as *mut ecp_keypair;
@@ -1159,7 +1205,12 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
 
         assert_eq!(pem1, pem2);
 
-        let mut key_from_components = Pk::private_from_ec_components(secp256r1.clone(), key1.ec_private().unwrap()).unwrap();
+        let mut key_from_components = Pk::private_from_ec_components_with_rng(
+            secp256r1.clone(),
+            key1.ec_private().unwrap(),
+            &mut crate::test_support::rand::test_rng(),
+        )
+        .unwrap();
         let pem3 = key_from_components.write_private_pem_string().unwrap();
 
         assert_eq!(pem3, pem2);
