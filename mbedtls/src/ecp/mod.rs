@@ -330,7 +330,7 @@ impl EcPoint {
     /// This function does not accept a RNG so there is no blinding applied.
     #[deprecated(
         since = "0.12.3",
-        note = "This function does not accept a RNG so it's vulnerable to side channel attack.
+        note = "This function does not accept an RNG so it's vulnerable to side channel attacks.
 Please use `mul_with_rng` instead."
     )]
     pub fn mul(&self, group: &mut EcGroup, k: &Mpi) -> Result<EcPoint> {
