@@ -17,8 +17,10 @@ macro_rules! callback {
     //};
     { $n:ident, $m:ident($($arg:ident: $ty:ty),*) -> $ret:ty } => {
         pub trait $n: Send + Sync {
+            #[allow(dead_code)]
             unsafe extern "C" fn call_mut(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized;
 
+            #[allow(dead_code)]
             fn data_ptr_mut(&mut self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
         }
 
@@ -33,8 +35,10 @@ macro_rules! callback {
         }
 
         pub trait $m: Send + Sync {
+            #[allow(dead_code)]
             unsafe extern "C" fn call(user_data: *mut ::mbedtls_sys::types::raw_types::c_void, $($arg:$ty),*) -> $ret where Self: Sized;
 
+            #[allow(dead_code)]
             fn data_ptr(&self) -> *mut ::mbedtls_sys::types::raw_types::c_void;
         }
 
