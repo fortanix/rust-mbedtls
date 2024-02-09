@@ -17,7 +17,7 @@ on:
       - 'LICENSE-GPL'
     branches:
       - mbedtls-3
-      - main
+      - master
       - 'v0.*'
   merge_group:
 
