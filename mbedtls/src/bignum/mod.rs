@@ -760,8 +760,6 @@ impl ShrAssign<usize> for Mpi {
 
 #[cfg(test)]
 mod tests {
-    use core::str::FromStr;
-
     use super::*;
 
     #[test]
@@ -776,7 +774,10 @@ mod tests {
         assert_eq!(mpi2.less_than_const_time(&mpi1), Ok(false));
 
         // Check: function returns `Error::MpiBadInputData` if the allocated length of the two input Mpis is not the same.
-        let mpi3 = Mpi::from_str("0xdddddddddddddddddddddddddddddddd").unwrap();
+        let mpi3 = Mpi::from_binary(&[
+            0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd, 0xdd,
+        ])
+        .unwrap();
         assert_eq!(mpi3.less_than_const_time(&mpi3), Ok(false));
         assert_eq!(mpi2.less_than_const_time(&mpi3), Err(Error::MpiBadInputData));
     }

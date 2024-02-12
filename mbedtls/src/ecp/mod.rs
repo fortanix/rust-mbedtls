@@ -369,8 +369,8 @@ Please use `mul_with_rng` instead."
     ///
     /// This function will return an error if:
     ///
-    /// * `k` is not a valid private key, determined by mbedtls function [`mbedtls_ecp_check_privkey`]
-    /// * `self` is not a valid public key, determined by mbedtls function [`mbedtls_ecp_check_pubkey`]
+    /// * The scalar `k` is not valid as a private key, determined by mbedtls function [`mbedtls_ecp_check_privkey`].
+    /// * The point `self` is not valid as a public key, determined by mbedtls function [`mbedtls_ecp_check_pubkey`].
     /// * Memory allocation fails.
     /// * Any other kind of failure occurs during the execution of the underlying [`mbedtls_ecp_mul`] function.
     ///
