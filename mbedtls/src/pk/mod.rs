@@ -1235,7 +1235,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
 
     #[test]
     fn generate_rsa() {
-        let mut pk = Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
+        let mut pk = Pk::generate_rsa(&mut crate::test_support::rand::test_deterministic_rng(), 2048, 0x10001).unwrap();
         let generated = pk.write_private_pem_string().unwrap();
         assert_eq!(0x10001, pk.rsa_public_exponent().unwrap());
         assert_eq!(generated, TEST_PEM[..TEST_PEM.len() - 1]);
@@ -1257,11 +1257,11 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
 
     #[test]
     fn generate_ec_secp256r1() {
-        let mut key1 = Pk::generate_ec(&mut crate::test_support::rand::test_rng(), EcGroupId::SecP256R1).unwrap();
+        let mut key1 = Pk::generate_ec(&mut crate::test_support::rand::test_deterministic_rng(), EcGroupId::SecP256R1).unwrap();
         let pem1 = key1.write_private_pem_string().unwrap();
 
         let secp256r1 = EcGroup::new(EcGroupId::SecP256R1).unwrap();
-        let mut key2 = Pk::generate_ec(&mut crate::test_support::rand::test_rng(), secp256r1.clone()).unwrap();
+        let mut key2 = Pk::generate_ec(&mut crate::test_support::rand::test_deterministic_rng(), secp256r1.clone()).unwrap();
         let pem2 = key2.write_private_pem_string().unwrap();
 
         assert_eq!(pem1, pem2);
@@ -1269,7 +1269,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         let mut key_from_components = Pk::private_from_ec_components_with_rng(
             secp256r1.clone(),
             key1.ec_private().unwrap(),
-            &mut crate::test_support::rand::test_rng(),
+            &mut crate::test_support::rand::test_deterministic_rng(),
         )
         .unwrap();
         let pem3 = key_from_components.write_private_pem_string().unwrap();
@@ -1628,7 +1628,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
 
     #[test]
     fn private_from_rsa_components_sanity() {
-        let mut pk = Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
+        let mut pk = Pk::generate_rsa(&mut crate::test_support::rand::test_deterministic_rng(), 2048, 0x10001).unwrap();
         let components = RsaPrivateComponents::WithPrimes {
             p: &pk.rsa_private_prime1().unwrap(),
             q: &pk.rsa_private_prime2().unwrap(),

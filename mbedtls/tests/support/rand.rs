@@ -12,11 +12,11 @@ use mbedtls_sys::types::size_t;
 use rand::{Rng, XorShiftRng};
 
 /// Not cryptographically secure!!! Use for testing only!!!
-pub struct TestRandom(XorShiftRng);
+pub struct TestInsecureRandom(XorShiftRng);
 
-impl crate::mbedtls::rng::RngCallbackMut for TestRandom {
+impl crate::mbedtls::rng::RngCallbackMut for TestInsecureRandom {
     unsafe extern "C" fn call_mut(p_rng: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
-        (*(p_rng as *mut TestRandom))
+        (*(p_rng as *mut TestInsecureRandom))
             .0
             .fill_bytes(core::slice::from_raw_parts_mut(data, len));
         0
@@ -27,9 +27,9 @@ impl crate::mbedtls::rng::RngCallbackMut for TestRandom {
     }
 }
 
-impl crate::mbedtls::rng::RngCallback for TestRandom {
+impl crate::mbedtls::rng::RngCallback for TestInsecureRandom {
     unsafe extern "C" fn call(p_rng: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
-        (*(p_rng as *mut TestRandom))
+        (*(p_rng as *mut TestInsecureRandom))
             .0
             .fill_bytes(core::slice::from_raw_parts_mut(data, len));
         0
@@ -40,7 +40,36 @@ impl crate::mbedtls::rng::RngCallback for TestRandom {
     }
 }
 
+cfg_if::cfg_if! {
+    if #[cfg(any(feature = "rdrand", target_env = "sgx", feature = "std"))]
+    {
+        pub type TestRandom = crate::mbedtls::rng::CtrDrbg;
+    } else {
+        pub type TestRandom = TestInsecureRandom;
+    }
+}
+
 /// Not cryptographically secure!!! Use for testing only!!!
 pub fn test_rng() -> TestRandom {
-    TestRandom(XorShiftRng::new_unseeded())
+    cfg_if::cfg_if! {
+        if #[cfg(any(feature = "rdrand", target_env = "sgx", feature = "std"))]
+        {
+            #[cfg(feature = "std")]
+            use std::sync::Arc;
+            #[cfg(not(feature = "std"))]
+            extern crate alloc as rust_alloc;
+            #[cfg(not(feature = "std"))]
+            use rust_alloc::sync::Arc;
+
+            let entropy = Arc::new(super::entropy::entropy_new());
+            CtrDrbg::new(entropy, None).unwrap()
+        } else {
+            test_deterministic_rng()
+        }
+    }
+}
+
+/// Not cryptographically secure!!! Use for testing only!!!
+pub fn test_deterministic_rng() -> TestInsecureRandom {
+    TestInsecureRandom(XorShiftRng::new_unseeded())
 }
