@@ -139,6 +139,25 @@ impl Mpi {
         }
     }
 
+    /// Checks if an [`Mpi`] is less than the other in constant time.
+    ///
+    /// Will return [`Error::MpiBadInputData`] if the allocated length of the two input [`Mpi`]s is not the same.
+    pub fn less_than_const_time(&self, other: &Mpi) -> Result<bool> {
+        mpi_inner_less_than_const_time(&self.inner, &other.inner)
+    }
+
+    /// Compares an [`Mpi`] with the other in constant time.
+    ///
+    /// Will return [`Error::MpiBadInputData`] if the allocated length of the two input [`Mpi`]s is not the same.
+    pub fn cmp_const_time(&self, other: &Mpi) -> Result<Ordering> {
+        mpi_inner_cmp_const_time(&self.inner, &other.inner)
+    }
+
+    /// Checks equalness with the other in constant time.
+    pub fn eq_const_time(&self, other: &Mpi) -> Result<bool> {
+        mpi_inner_eq_const_time(&self.inner, &other.inner)
+    }
+
     pub fn as_u32(&self) -> Result<u32> {
         if self.bit_length()? > 32 {
             // Not exactly correct but close enough
@@ -407,6 +426,35 @@ impl Mpi {
         }
         Ok(())
     }
+}
+
+pub(super) fn mpi_inner_eq_const_time(x: &mpi, y: &mpi) -> core::prelude::v1::Result<bool, Error> {
+    match mpi_inner_cmp_const_time(x, y) {
+        Ok(order) => Ok(order == Ordering::Equal),
+        Err(Error::MpiBadInputData) => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
+fn mpi_inner_cmp_const_time(x: &mpi, y: &mpi) -> Result<Ordering> {
+    let less = mpi_inner_less_than_const_time(x, y);
+    let more = mpi_inner_less_than_const_time(y, x);
+    match (less, more) {
+        (Ok(true), Ok(false)) => Ok(Ordering::Less),
+        (Ok(false), Ok(true)) => Ok(Ordering::Greater),
+        (Ok(false), Ok(false)) => Ok(Ordering::Equal),
+        (Ok(true), Ok(true)) => unreachable!(),
+        (Err(e), _) => Err(e),
+        (Ok(_), Err(e)) => Err(e),
+    }
+}
+
+fn mpi_inner_less_than_const_time(x: &mpi, y: &mpi) -> Result<bool> {
+    let mut r = 0;
+    unsafe {
+        mpi_lt_mpi_ct(x, y, &mut r).into_result()?;
+    };
+    Ok(r == 1)
 }
 
 impl Ord for Mpi {
@@ -709,3 +757,52 @@ impl ShrAssign<usize> for Mpi {
 // mbedtls_mpi_sub_abs
 // mbedtls_mpi_mod_int
 // mbedtls_mpi_gcd
+
+#[cfg(test)]
+mod tests {
+    use core::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn test_less_than_const_time() {
+        let mpi1 = Mpi::new(10).unwrap();
+        let mpi2 = Mpi::new(20).unwrap();
+
+        assert_eq!(mpi1.less_than_const_time(&mpi2), Ok(true));
+
+        assert_eq!(mpi1.less_than_const_time(&mpi1), Ok(false));
+
+        assert_eq!(mpi2.less_than_const_time(&mpi1), Ok(false));
+
+        // Check: function returns `Error::MpiBadInputData` if the allocated length of the two input Mpis is not the same.
+        let mpi3 = Mpi::from_str("0xdddddddddddddddddddddddddddddddd").unwrap();
+        assert_eq!(mpi3.less_than_const_time(&mpi3), Ok(false));
+        assert_eq!(mpi2.less_than_const_time(&mpi3), Err(Error::MpiBadInputData));
+    }
+
+    #[test]
+    fn test_cmp_const_time() {
+        let mpi1 = Mpi::new(10).unwrap();
+        let mpi2 = Mpi::new(20).unwrap();
+
+        assert_eq!(mpi1.cmp_const_time(&mpi2), Ok(Ordering::Less));
+
+        let mpi3 = Mpi::new(10).unwrap();
+        assert_eq!(mpi1.cmp_const_time(&mpi3), Ok(Ordering::Equal));
+
+        let mpi4 = Mpi::new(5).unwrap();
+        assert_eq!(mpi1.cmp_const_time(&mpi4), Ok(Ordering::Greater));
+    }
+
+    #[test]
+    fn test_eq_const_time() {
+        let mpi1 = Mpi::new(10).unwrap();
+        let mpi2 = Mpi::new(10).unwrap();
+
+        assert_eq!(mpi1.eq_const_time(&mpi2), Ok(true));
+
+        let mpi3 = Mpi::new(20).unwrap();
+        assert_eq!(mpi1.eq_const_time(&mpi3), Ok(false));
+    }
+}

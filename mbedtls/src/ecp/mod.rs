@@ -440,12 +440,16 @@ Please use `mul_with_rng` instead."
     /// This new implementation ensures there is no shortcut when any of `x, y ,z` fields of two points is not equal.
     ///
     /// [`mbedtls_ecp_point_cmp`]: https://github.com/fortanix/rust-mbedtls/blob/main/mbedtls-sys/vendor/library/ecp.c#L809-L825
-    pub fn eq_const_time(&self, other: &EcPoint) -> bool {
-        unsafe {
-            let x = mpi_cmp_mpi(&self.inner.X, &other.inner.X) == 0;
-            let y = mpi_cmp_mpi(&self.inner.Y, &other.inner.Y) == 0;
-            let z = mpi_cmp_mpi(&self.inner.Z, &other.inner.Z) == 0;
-            x & y & z
+    pub fn eq_const_time(&self, other: &EcPoint) -> Result<bool> {
+        let x = crate::bignum::mpi_inner_eq_const_time(&self.inner.X, &other.inner.X);
+        let y = crate::bignum::mpi_inner_eq_const_time(&self.inner.Y, &other.inner.Y);
+        let z = crate::bignum::mpi_inner_eq_const_time(&self.inner.Z, &other.inner.Z);
+        match (x, y, z) {
+            (Ok(true), Ok(true), Ok(true)) => Ok(true),
+            (Ok(_), Ok(_), Ok(_)) => Ok(false),
+            (Ok(_), Ok(_), Err(e)) => Err(e),
+            (Ok(_), Err(e), _) => Err(e),
+            (Err(e), _, _) => Err(e),
         }
     }
 
@@ -724,9 +728,9 @@ mod tests {
         assert!(g.eq(&g).unwrap());
         assert!(zero.eq(&zero).unwrap());
         assert!(!g.eq(&zero).unwrap());
-        assert!(g.eq_const_time(&g));
-        assert!(zero.eq_const_time(&zero));
-        assert!(!g.eq_const_time(&zero));
+        assert!(g.eq_const_time(&g).unwrap());
+        assert!(zero.eq_const_time(&zero).unwrap());
+        assert!(!g.eq_const_time(&zero).unwrap());
     }
 
     #[test]
