@@ -62,7 +62,7 @@ pub fn test_rng() -> TestRandom {
             use rust_alloc::sync::Arc;
 
             let entropy = Arc::new(super::entropy::entropy_new());
-            CtrDrbg::new(entropy, None).unwrap()
+            TestRandom::new(entropy, None).unwrap()
         } else {
             test_deterministic_rng()
         }
