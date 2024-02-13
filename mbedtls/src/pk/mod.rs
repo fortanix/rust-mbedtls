@@ -1626,24 +1626,35 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         }
     }
 
+    fn assert_rsa_private_key_eq(pk1: &Pk, pk2: &Pk) {
+        assert_eq!(pk1.rsa_public_modulus().unwrap(), pk2.rsa_public_modulus().unwrap()); // n
+        assert_eq!(pk1.rsa_public_exponent().unwrap(), pk2.rsa_public_exponent().unwrap()); // e
+        assert_eq!(pk1.rsa_private_exponent().unwrap(), pk2.rsa_private_exponent().unwrap()); // d
+        let p1 = pk1.rsa_private_prime1().unwrap();
+        let p2 = pk2.rsa_private_prime1().unwrap();
+        let q1 = pk1.rsa_private_prime2().unwrap();
+        let q2 = pk2.rsa_private_prime2().unwrap();
+        assert!(((p1 == p2) && (q1 == q2)) || ((p1 == q2) && (q1 == p2)));
+    }
+
     #[test]
     fn private_from_rsa_components_sanity() {
-        let mut pk = Pk::generate_rsa(&mut crate::test_support::rand::test_deterministic_rng(), 2048, 0x10001).unwrap();
+        let pk = Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
         let components = RsaPrivateComponents::WithPrimes {
             p: &pk.rsa_private_prime1().unwrap(),
             q: &pk.rsa_private_prime2().unwrap(),
             e: &Mpi::new(pk.rsa_public_exponent().unwrap() as _).unwrap(),
         };
-        let mut pk2 = Pk::private_from_rsa_components(components).unwrap();
-        assert_eq!(pk.write_private_der_vec().unwrap(), pk2.write_private_der_vec().unwrap());
+        let pk2 = Pk::private_from_rsa_components(components).unwrap();
+        assert_rsa_private_key_eq(&pk, &pk2);
 
         let components = RsaPrivateComponents::WithPrivateExponent {
             n: &pk.rsa_public_modulus().unwrap(),
             d: &pk.rsa_private_exponent().unwrap(),
             e: &Mpi::new(pk.rsa_public_exponent().unwrap() as _).unwrap(),
         };
-        let mut pk3 = Pk::private_from_rsa_components(components).unwrap();
-        assert_eq!(pk.write_private_der_vec().unwrap(), pk3.write_private_der_vec().unwrap());
+        let pk3 = Pk::private_from_rsa_components(components).unwrap();
+        assert_rsa_private_key_eq(&pk, &pk3);
     }
 
     #[test]
