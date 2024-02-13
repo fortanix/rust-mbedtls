@@ -6,7 +6,7 @@ fn ecp_equal(a: &EcPoint, b: &EcPoint) {
 }
 
 fn ecp_equal_const_time(a: &EcPoint, b: &EcPoint) {
-    assert!(!a.eq_const_time(&b));
+    assert!(!a.eq_const_time(&b).unwrap());
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
