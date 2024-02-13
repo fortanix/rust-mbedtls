@@ -420,6 +420,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
             let ctx = ret.inner.pk_ctx as *mut rsa_context;
             rsa_import(ctx, to_ptr(n), to_ptr(p), to_ptr(q), to_ptr(d), to_ptr(e)).into_result()?;
             rsa_complete(ctx).into_result()?;
+            rsa_check_privkey(ctx).into_result()?;
         }
         Ok(ret)
     }
@@ -1655,6 +1656,21 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         };
         let pk3 = Pk::private_from_rsa_components(components).unwrap();
         assert_rsa_private_key_eq(&pk, &pk3);
+    }
+
+    #[test]
+    fn private_from_rsa_components_wrong_params() {
+        let pk = Pk::generate_rsa(&mut crate::test_support::rand::test_rng(), 2048, 0x10001).unwrap();
+        let components = RsaPrivateComponents::WithPrimes {
+            p: &pk.rsa_private_prime1().unwrap(),
+            q: &pk.rsa_private_prime2().unwrap(),
+            e: &pk.rsa_public_modulus().unwrap(), // incorrect
+        };
+        let err = match Pk::private_from_rsa_components(components) {
+            Ok(_) => panic!("expected an error, got a Pk"),
+            Err(e) => e,
+        };
+        assert_eq!(err, Error::RsaKeyCheckFailed);
     }
 
     #[test]
