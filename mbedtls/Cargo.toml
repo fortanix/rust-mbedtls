@@ -19,6 +19,9 @@ repository = "https://github.com/fortanix/rust-mbedtls"
 documentation = "https://docs.rs/mbedtls/"
 keywords = ["MbedTLS", "mbed", "TLS", "SSL", "cryptography"]
 
+[package.metadata.docs.rs]
+features = ["x509", "ssl"]
+
 [dependencies]
 bitflags = "1"
 serde = { version = "1.0.7", default-features = false, features = ["alloc"] }
@@ -61,6 +64,7 @@ criterion = { version = "0.5.1", features = ["html_reports"] }
 
 [build-dependencies]
 cc = "1.0"
+rustc_version = "0.4.0"
 
 # feature 'time` is necessary under windows
 [target.'cfg(target_env = "msvc")'.dependencies]

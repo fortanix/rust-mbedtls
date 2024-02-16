@@ -9,6 +9,8 @@
 use std::collections::{HashMap, HashSet};
 use std::env;
 
+use rustc_version::Channel;
+
 /// Return the crate hash that Cargo will be passing to `rustc -C metadata=`.
 // If there's a panic in this code block, that means Cargo's way of running the
 // build script has changed, and this code should be updated to handle the new
@@ -23,6 +25,11 @@ fn get_compilation_metadata_hash() -> String {
 }
 
 fn main() {
+    // used for configuring rustdoc attrs for now
+    if rustc_version::version_meta().is_ok_and(|v| v.channel == Channel::Nightly) {
+        println!("cargo:rustc-cfg=nightly");
+    }
+
     let metadata_hash = get_compilation_metadata_hash();
     println!("cargo:rustc-env=RUST_MBEDTLS_METADATA_HASH={}", metadata_hash);
 
