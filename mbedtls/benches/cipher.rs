@@ -17,9 +17,9 @@ pub fn criterion_benchmark(criterion: &mut Criterion) {
     let out_len = 32;
     let cipher_mode = raw::CipherMode::CBC;
     let cipher_out = aes_encrypt(&key, &iv, &plain_text[..16], cipher_mode, out_len);
-    // criterion.bench_function(&format!("AES {cipher_mode:?} encrypt"), |b| {
-    //     b.iter(|| aes_encrypt(&key, &iv, &plain_text[..16], cipher_mode, out_len))
-    // });
+    criterion.bench_function(&format!("AES {cipher_mode:?} encrypt"), |b| {
+        b.iter(|| aes_encrypt(&key, &iv, &plain_text[..16], cipher_mode, out_len))
+    });
     criterion.bench_function(&format!("AES {cipher_mode:?} decrypt"), |b| {
         b.iter(|| aes_decrypt(&key, &iv, &cipher_out, &plain_text, cipher_mode))
     });
@@ -147,9 +147,9 @@ fn aes_encrypt(key: &[u8], iv: &[u8], plain_text: &[u8], cipher_mode: raw::Ciphe
 
 pub fn benches() {
     let mut criterion = Criterion::default()
-        .warm_up_time(Duration::from_secs(10))
-        .measurement_time(Duration::from_secs(30))
-        .sample_size(10_000)
+        .warm_up_time(Duration::from_secs(5))
+        .measurement_time(Duration::from_secs(10))
+        .sample_size(1000)
         .configure_from_args();
     criterion_benchmark(&mut criterion);
 }
