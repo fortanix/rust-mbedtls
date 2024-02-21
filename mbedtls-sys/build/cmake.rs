@@ -6,8 +6,6 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use cmake;
-
 impl super::BuildConfig {
     pub fn cmake(&self) {
         let mut cmk = cmake::Config::new(&self.mbedtls_src);
