@@ -39,12 +39,12 @@ cfg-if = "1.0.0"
 tokio = { version = "1.16.1", optional = true }
 chrono = { version = "0.4", optional = true }
 
-mbedtls-sys-auto = { path = "../mbedtls-sys", version = "2.25.0", default-features = false, features = [
+mbedtls-sys-auto = { version = "2.28.7", default-features = false, features = [
     "trusted_cert_callback",
     "threading",
 ] }
 
-mbedtls-platform-support = { version = "0.1", path = "../mbedtls-platform-support" }
+mbedtls-platform-support = { version = "0.1.1" }
 
 [target.x86_64-fortanix-unknown-sgx.dependencies]
 rs-libc = "0.2.0"
@@ -68,10 +68,10 @@ rustc_version = "0.4.0"
 
 # feature 'time` is necessary under windows
 [target.'cfg(target_env = "msvc")'.dependencies]
-mbedtls-platform-support = { version = "0.1", path = "../mbedtls-platform-support", features = [
+mbedtls-platform-support = { version = "0.1.1", features = [
     "time",
 ] }
-mbedtls-sys-auto = { path = "../mbedtls-sys", version = "2.25.0", default-features = false, features = [
+mbedtls-sys-auto = { version = "2.28.7", default-features = false, features = [
     "trusted_cert_callback",
     "threading",
     "time",
