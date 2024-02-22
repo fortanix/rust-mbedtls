@@ -230,9 +230,7 @@ fn aes_encrypt(key: &[u8], iv: &[u8], plain_text: &[u8], cipher_mode: raw::Ciphe
 }
 
 pub fn benches() {
-    let mut criterion = Criterion::default()
-        .sample_size(1000)
-        .configure_from_args();
+    let mut criterion = Criterion::default().sample_size(1000).configure_from_args();
     cipher(&mut criterion);
 }
 criterion_main!(benches);
