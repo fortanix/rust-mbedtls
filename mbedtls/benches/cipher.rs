@@ -1,9 +1,8 @@
-use std::time::Duration;
-
 use criterion::{black_box, criterion_main, Criterion};
 use mbedtls::cipher::{raw, Authenticated, Cipher, Traditional};
 
-pub fn criterion_benchmark(criterion: &mut Criterion) {
+pub fn cipher(criterion: &mut Criterion) {
+    let mut cipher_bench_group = criterion.benchmark_group("Cipher");
     // AES CBC
     let key = [
         0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f,
@@ -16,12 +15,15 @@ pub fn criterion_benchmark(criterion: &mut Criterion) {
     let iv = [0u8; 16];
     let out_len = 32;
     let cipher_mode = raw::CipherMode::CBC;
-    let cipher_out = aes_encrypt(&key, &iv, &plain_text[..16], cipher_mode, out_len);
-    criterion.bench_function(&format!("AES {cipher_mode:?} encrypt"), |b| {
-        b.iter(|| aes_encrypt(&key, &iv, &plain_text[..16], cipher_mode, out_len))
+    let mut cipher_out = vec![0u8; out_len];
+    aes_encrypt(&key, &iv, &plain_text[..16], cipher_mode, &mut cipher_out);
+    let mut cipher_out_tmp = vec![0u8; out_len];
+    let mut plain_out_tmp = vec![0u8; plain_text.len()];
+    cipher_bench_group.bench_function(&format!("AES {cipher_mode:?} encrypt"), |b| {
+        b.iter(|| aes_encrypt(&key, &iv, black_box(&plain_text[..16]), cipher_mode, &mut cipher_out_tmp))
     });
-    criterion.bench_function(&format!("AES {cipher_mode:?} decrypt"), |b| {
-        b.iter(|| aes_decrypt(&key, &iv, &cipher_out, &plain_text, cipher_mode))
+    cipher_bench_group.bench_function(&format!("AES {cipher_mode:?} decrypt"), |b| {
+        b.iter(|| aes_decrypt(&key, &iv, black_box(&cipher_out), cipher_mode, &mut plain_out_tmp))
     });
 
     // variables for AES CCM & GCM
@@ -36,22 +38,68 @@ pub fn criterion_benchmark(criterion: &mut Criterion) {
 
     // AES CCM
     let cipher_mode = raw::CipherMode::CCM;
-    let cipher_and_tag = aes_encrypt_auth(&key, &iv, &ad, &plain_text, cipher_mode, tag_len, out_len);
-    criterion.bench_function(&format!("AES {cipher_mode:?} encrypt"), |b| {
-        b.iter(|| aes_encrypt_auth(&key, &iv, &ad, black_box(&plain_text), cipher_mode, tag_len, out_len))
+    let mut cipher_and_tag_out = vec![0u8; out_len];
+    let mut cipher_and_tag_out_tmp = vec![0u8; out_len];
+    let mut plain_out = vec![0u8; plain_text.len()];
+    aes_encrypt_auth(&key, &iv, &ad, &plain_text, cipher_mode, tag_len, &mut cipher_and_tag_out);
+    cipher_bench_group.bench_function(&format!("AES {cipher_mode:?} encrypt"), |b| {
+        b.iter(|| {
+            aes_encrypt_auth(
+                &key,
+                &iv,
+                &ad,
+                black_box(&plain_text),
+                cipher_mode,
+                tag_len,
+                &mut cipher_and_tag_out_tmp,
+            )
+        })
     });
-    criterion.bench_function(&format!("AES {cipher_mode:?} decrypt"), |b| {
-        b.iter(|| aes_decrypt_auth(&key, &iv, &ad, black_box(&cipher_and_tag), &plain_text, cipher_mode, tag_len))
+    cipher_bench_group.bench_function(&format!("AES {cipher_mode:?} decrypt"), |b| {
+        b.iter(|| {
+            aes_decrypt_auth(
+                &key,
+                &iv,
+                &ad,
+                black_box(&cipher_and_tag_out),
+                cipher_mode,
+                tag_len,
+                &mut plain_out,
+            )
+        })
     });
 
     // AES GCM
     let cipher_mode = raw::CipherMode::GCM;
-    let cipher_and_tag = aes_encrypt_auth(&key, &iv, &ad, &plain_text, cipher_mode, tag_len, out_len);
-    criterion.bench_function(&format!("AES {cipher_mode:?} encrypt"), |b| {
-        b.iter(|| aes_encrypt_auth(&key, &iv, &ad, black_box(&plain_text), cipher_mode, tag_len, out_len))
+    let mut cipher_and_tag_out = vec![0u8; out_len];
+    let mut cipher_and_tag_out_tmp = vec![0u8; out_len];
+    let mut plain_out = vec![0u8; plain_text.len()];
+    aes_encrypt_auth(&key, &iv, &ad, &plain_text, cipher_mode, tag_len, &mut cipher_and_tag_out);
+    cipher_bench_group.bench_function(&format!("AES {cipher_mode:?} encrypt"), |b| {
+        b.iter(|| {
+            aes_encrypt_auth(
+                &key,
+                &iv,
+                &ad,
+                black_box(&plain_text),
+                cipher_mode,
+                tag_len,
+                &mut cipher_and_tag_out_tmp,
+            )
+        })
     });
-    criterion.bench_function(&format!("AES {cipher_mode:?} decrypt"), |b| {
-        b.iter(|| aes_decrypt_auth(&key, &iv, &ad, black_box(&cipher_and_tag), &plain_text, cipher_mode, tag_len))
+    cipher_bench_group.bench_function(&format!("AES {cipher_mode:?} decrypt"), |b| {
+        b.iter(|| {
+            aes_decrypt_auth(
+                &key,
+                &iv,
+                &ad,
+                black_box(&cipher_and_tag_out),
+                cipher_mode,
+                tag_len,
+                &mut plain_out,
+            )
+        })
     });
 
     // AES KW
@@ -66,12 +114,35 @@ pub fn criterion_benchmark(criterion: &mut Criterion) {
     let tag_len = 0;
     let out_len = 24;
     let cipher_mode = raw::CipherMode::KW;
-    let cipher_and_tag = aes_encrypt_auth(&key, &iv, &ad, &plain_text, cipher_mode, tag_len, out_len);
-    criterion.bench_function(&format!("AES {cipher_mode:?} encrypt"), |b| {
-        b.iter(|| aes_encrypt_auth(&key, &iv, &ad, black_box(&plain_text), cipher_mode, tag_len, out_len))
+    let mut cipher_and_tag_out = vec![0u8; out_len];
+    let mut cipher_and_tag_out_tmp = vec![0u8; out_len];
+    let mut plain_out = vec![0u8; plain_text.len()];
+    aes_encrypt_auth(&key, &iv, &ad, &plain_text, cipher_mode, tag_len, &mut cipher_and_tag_out);
+    cipher_bench_group.bench_function(&format!("AES {cipher_mode:?} encrypt"), |b| {
+        b.iter(|| {
+            aes_encrypt_auth(
+                &key,
+                &iv,
+                &ad,
+                black_box(&plain_text),
+                cipher_mode,
+                tag_len,
+                &mut cipher_and_tag_out_tmp,
+            )
+        })
     });
-    criterion.bench_function(&format!("AES {cipher_mode:?} decrypt"), |b| {
-        b.iter(|| aes_decrypt_auth(&key, &iv, &ad, black_box(&cipher_and_tag), &plain_text, cipher_mode, tag_len))
+    cipher_bench_group.bench_function(&format!("AES {cipher_mode:?} decrypt"), |b| {
+        b.iter(|| {
+            aes_decrypt_auth(
+                &key,
+                &iv,
+                &ad,
+                black_box(&cipher_and_tag_out),
+                cipher_mode,
+                tag_len,
+                &mut plain_out,
+            )
+        })
     });
 
     // AES KWP
@@ -86,12 +157,35 @@ pub fn criterion_benchmark(criterion: &mut Criterion) {
     let tag_len = 0;
     let out_len = 24;
     let cipher_mode = raw::CipherMode::KWP;
-    let cipher_and_tag = aes_encrypt_auth(&key, &iv, &ad, &plain_text, cipher_mode, tag_len, out_len);
-    criterion.bench_function(&format!("AES {cipher_mode:?} encrypt"), |b| {
-        b.iter(|| aes_encrypt_auth(&key, &iv, &ad, black_box(&plain_text), cipher_mode, tag_len, out_len))
+    let mut cipher_and_tag_out = vec![0u8; out_len];
+    let mut cipher_and_tag_out_tmp = vec![0u8; out_len];
+    let mut plain_out = vec![0u8; plain_text.len()];
+    aes_encrypt_auth(&key, &iv, &ad, &plain_text, cipher_mode, tag_len, &mut cipher_and_tag_out);
+    cipher_bench_group.bench_function(&format!("AES {cipher_mode:?} encrypt"), |b| {
+        b.iter(|| {
+            aes_encrypt_auth(
+                &key,
+                &iv,
+                &ad,
+                black_box(&plain_text),
+                cipher_mode,
+                tag_len,
+                &mut cipher_and_tag_out_tmp,
+            )
+        })
     });
-    criterion.bench_function(&format!("AES {cipher_mode:?} decrypt"), |b| {
-        b.iter(|| aes_decrypt_auth(&key, &iv, &ad, black_box(&cipher_and_tag), &plain_text, cipher_mode, tag_len))
+    cipher_bench_group.bench_function(&format!("AES {cipher_mode:?} decrypt"), |b| {
+        b.iter(|| {
+            aes_decrypt_auth(
+                &key,
+                &iv,
+                &ad,
+                black_box(&cipher_and_tag_out),
+                cipher_mode,
+                tag_len,
+                &mut plain_out,
+            )
+        })
     });
 }
 
@@ -100,16 +194,13 @@ fn aes_decrypt_auth(
     iv: &[u8],
     ad: &[u8],
     cipher_and_tag: &[u8],
-    expected_plain: &[u8],
     cipher_mode: raw::CipherMode,
     tag_len: usize,
-) -> Vec<u8> {
-    let mut plain_out = vec![0u8; expected_plain.len()];
+    plain_out: &mut [u8],
+) {
     let cipher = Cipher::<_, Authenticated, _>::new(raw::CipherId::Aes, cipher_mode, (key.len() * 8) as _).unwrap();
     let cipher = cipher.set_key_iv(key, iv).unwrap();
-    cipher.decrypt_auth(ad, cipher_and_tag, &mut plain_out, tag_len).unwrap();
-    assert_eq!(*expected_plain, plain_out);
-    plain_out
+    cipher.decrypt_auth(ad, cipher_and_tag, plain_out, tag_len).unwrap();
 }
 
 fn aes_encrypt_auth(
@@ -119,38 +210,29 @@ fn aes_encrypt_auth(
     plain_text: &[u8],
     cipher_mode: raw::CipherMode,
     tag_len: usize,
-    out_len: usize,
-) -> Vec<u8> {
-    let mut cipher_and_tag_out = vec![0u8; out_len];
+    cipher_and_tag_out: &mut [u8],
+) {
     let cipher = Cipher::<_, Authenticated, _>::new(raw::CipherId::Aes, cipher_mode, (key.len() * 8) as _).unwrap();
     let cipher = cipher.set_key_iv(key, iv).unwrap();
-    cipher.encrypt_auth(ad, plain_text, &mut cipher_and_tag_out, tag_len).unwrap();
-    cipher_and_tag_out
+    cipher.encrypt_auth(ad, plain_text, cipher_and_tag_out, tag_len).unwrap();
 }
 
-fn aes_decrypt(key: &[u8], iv: &[u8], cipher_text: &[u8], expected_plain: &[u8], cipher_mode: raw::CipherMode) -> Vec<u8> {
-    let mut plain_out = vec![0u8; expected_plain.len()];
+fn aes_decrypt(key: &[u8], iv: &[u8], cipher_text: &[u8], cipher_mode: raw::CipherMode, plain_out: &mut [u8]) {
     let cipher = Cipher::<_, Traditional, _>::new(raw::CipherId::Aes, cipher_mode, (key.len() * 8) as _).unwrap();
     let cipher = cipher.set_key_iv(key, iv).unwrap();
-    let res = cipher.decrypt(cipher_text, &mut plain_out).unwrap();
-    assert_eq!(expected_plain[..res.0], plain_out[..res.0]);
-    plain_out
+    cipher.decrypt(cipher_text, plain_out).unwrap();
 }
 
-fn aes_encrypt(key: &[u8], iv: &[u8], plain_text: &[u8], cipher_mode: raw::CipherMode, out_len: usize) -> Vec<u8> {
-    let mut cipher_out = vec![0u8; out_len];
+fn aes_encrypt(key: &[u8], iv: &[u8], plain_text: &[u8], cipher_mode: raw::CipherMode, cipher_out: &mut [u8]) {
     let cipher = Cipher::<_, Traditional, _>::new(raw::CipherId::Aes, cipher_mode, (key.len() * 8) as _).unwrap();
     let cipher = cipher.set_key_iv(key, iv).unwrap();
-    cipher.encrypt(plain_text, &mut cipher_out).unwrap();
-    cipher_out
+    cipher.encrypt(plain_text, cipher_out).unwrap();
 }
 
 pub fn benches() {
     let mut criterion = Criterion::default()
-        .warm_up_time(Duration::from_secs(5))
-        .measurement_time(Duration::from_secs(10))
         .sample_size(1000)
         .configure_from_args();
-    criterion_benchmark(&mut criterion);
+    cipher(&mut criterion);
 }
 criterion_main!(benches);
