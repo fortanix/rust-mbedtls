@@ -6,8 +6,6 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use bindgen;
-
 use std::fmt::Write as _;
 use std::fs::{self, File};
 use std::io::Write;

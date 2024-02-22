@@ -59,7 +59,6 @@ mod test {
     use super::*;
     use crate::support::keys;
     use crate::support::net::create_tcp_pair;
-    use mbedtls::x509::Certificate;
     use mbedtls::Error;
     use std::thread;
 

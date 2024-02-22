@@ -838,7 +838,6 @@ impl Extend<MbedtlsBox<Certificate>> for MbedtlsList<Certificate> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::x509::VerifyError;
 
     struct Test {
         key1: Pk,

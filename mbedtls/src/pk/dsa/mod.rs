@@ -363,7 +363,6 @@ impl DsaPrivateKey {
 mod tests {
 
     use super::*;
-    use crate::mbedtls::bignum::Mpi;
     use crate::mbedtls::hash::{Md, Type as MdType};
     use crate::mbedtls::rng::HmacDrbg;
     use std::collections::HashMap;

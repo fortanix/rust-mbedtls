@@ -50,7 +50,7 @@ impl From<cipher_id_t> for CipherId {
 
 define!(
     #[c_ty(cipher_mode_t)]
-    #[derive(Copy, Clone, Eq, PartialEq)]
+    #[derive(Copy, Clone, Eq, PartialEq, Debug)]
     enum CipherMode {
         None = MODE_NONE,
         ECB = MODE_ECB,

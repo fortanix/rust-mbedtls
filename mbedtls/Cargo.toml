@@ -147,3 +147,7 @@ required-features = ["async-rt", "ssl"]
 [[bench]]
 name = "ecp_eq_test"
 harness = false
+
+[[bench]]
+name = "cipher"
+harness = false
