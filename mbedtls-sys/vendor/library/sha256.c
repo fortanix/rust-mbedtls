@@ -22,6 +22,8 @@
 
 #include "mbedtls/platform.h"
 
+extern uint64_t MBEDTLS_FAIL_MODE;
+
 #define SHA256_VALIDATE_RET(cond)                           \
     MBEDTLS_INTERNAL_VALIDATE_RET(cond, MBEDTLS_ERR_SHA256_BAD_INPUT_DATA)
 #define SHA256_VALIDATE(cond)  MBEDTLS_INTERNAL_VALIDATE(cond)
@@ -535,6 +537,10 @@ int mbedtls_sha256_self_test(int verbose)
             goto fail;
         }
 
+        if (MBEDTLS_FAIL_MODE == 20) {
+            // Flip first byte to throw off comparison
+            sha256sum[0] ^= 0xFF;
+        }
 
         if (memcmp(sha256sum, sha256_test_sum[i], 32 - k * 4) != 0) {
             ret = 1;

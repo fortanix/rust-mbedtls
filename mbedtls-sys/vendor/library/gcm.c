@@ -39,6 +39,8 @@
 #define GCM_VALIDATE(cond) \
     MBEDTLS_INTERNAL_VALIDATE(cond)
 
+extern uint64_t MBEDTLS_FAIL_MODE;
+
 /*
  * Initialize a context
  */
@@ -807,6 +809,11 @@ int mbedtls_gcm_self_test(int verbose)
                 goto exit;
             }
 
+            if (MBEDTLS_FAIL_MODE == 3) {
+                // Flip byte in the calculated ciphertext to throw off comparison
+                buf[0] ^= 0xFF;
+            }
+
             if (memcmp(buf, ct_test_data[j * 6 + i],
                        pt_len_test_data[i]) != 0 ||
                 memcmp(tag_buf, tag_test_data[j * 6 + i], 16) != 0) {
@@ -844,6 +851,11 @@ int mbedtls_gcm_self_test(int verbose)
 
             if (ret != 0) {
                 goto exit;
+            }
+
+            if (MBEDTLS_FAIL_MODE == 4) {
+                // Flip byte in the calculated plaintext to throw off comparison
+                buf[0] ^= 0xFF;
             }
 
             if (memcmp(buf, pt_test_data[pt_index_test_data[i]],

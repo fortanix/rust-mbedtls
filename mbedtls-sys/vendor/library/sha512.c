@@ -28,6 +28,8 @@
 
 #include "mbedtls/platform.h"
 
+extern uint64_t MBEDTLS_FAIL_MODE;
+
 #define SHA512_VALIDATE_RET(cond)                           \
     MBEDTLS_INTERNAL_VALIDATE_RET(cond, MBEDTLS_ERR_SHA512_BAD_INPUT_DATA)
 #define SHA512_VALIDATE(cond)  MBEDTLS_INTERNAL_VALIDATE(cond)
@@ -602,6 +604,11 @@ int mbedtls_sha512_self_test(int verbose)
 
         if ((ret = mbedtls_sha512_finish_ret(&ctx, sha512sum)) != 0) {
             goto fail;
+        }
+
+        if (MBEDTLS_FAIL_MODE == 21) {
+            // Flip first byte to throw off comparison
+            sha512sum[0] ^= 0xFF;
         }
 
         if (memcmp(sha512sum, sha512_test_sum[i], 64 - k * 16) != 0) {

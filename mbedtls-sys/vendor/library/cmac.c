@@ -37,6 +37,8 @@
 
 #include <string.h>
 
+extern uint64_t MBEDTLS_FAIL_MODE;
+
 #if !defined(MBEDTLS_CMAC_ALT) || defined(MBEDTLS_SELF_TEST)
 
 /*
@@ -873,6 +875,11 @@ static int cmac_test_wth_cipher(int verbose,
                 mbedtls_printf("failed\n");
             }
             goto exit;
+        }
+
+        if (MBEDTLS_FAIL_MODE == 221) {
+            // Flip first byte in MAC to throw off comparison
+            output[0] ^= 0xFF;
         }
 
         if ((ret = memcmp(output, &expected_result[i * block_size], block_size)) != 0) {

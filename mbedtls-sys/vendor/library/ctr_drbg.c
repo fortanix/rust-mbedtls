@@ -27,6 +27,8 @@
 
 #include "mbedtls/platform.h"
 
+extern uint64_t MBEDTLS_FAIL_MODE;
+
 /*
  * CTR_DRBG context initialization
  */
@@ -50,6 +52,17 @@ void mbedtls_ctr_drbg_free(mbedtls_ctr_drbg_context *ctx)
         return;
     }
 
+    if (MBEDTLS_FAIL_MODE == 113)
+    {
+      unsigned char *address = (unsigned char *)ctx;
+      int num_bytes = sizeof(mbedtls_ctr_drbg_context);
+      mbedtls_printf("\nDRBG Context before zeroization\n");
+      for (int i = 0; i < num_bytes; i++)
+      {
+        mbedtls_printf("%02X", address[i]);
+      }
+    }
+
 #if defined(MBEDTLS_THREADING_C)
     /* The mutex is initialized iff f_entropy is set. */
     if (ctx->f_entropy != NULL) {
@@ -58,6 +71,18 @@ void mbedtls_ctr_drbg_free(mbedtls_ctr_drbg_context *ctx)
 #endif
     mbedtls_aes_free(&ctx->aes_ctx);
     mbedtls_platform_zeroize(ctx, sizeof(mbedtls_ctr_drbg_context));
+
+    if (MBEDTLS_FAIL_MODE == 113)
+    {
+      int num_bytes = sizeof(mbedtls_ctr_drbg_context);
+      unsigned char *address = (unsigned char *)ctx;
+      mbedtls_printf("\nDRBG Context after zeroization\n");
+      for (int i = 0; i < num_bytes; i++)
+      {
+        mbedtls_printf("%02X", address[i]);
+      }
+    }
+
     ctx->reseed_interval = MBEDTLS_CTR_DRBG_RESEED_INTERVAL;
     ctx->reseed_counter = -1;
 }
@@ -366,7 +391,7 @@ static int mbedtls_ctr_drbg_reseed_internal(mbedtls_ctr_drbg_context *ctx,
     memset(seed, 0, MBEDTLS_CTR_DRBG_MAX_SEED_INPUT);
 
     /* Gather entropy_len bytes of entropy to seed state. */
-    if (0 != ctx->f_entropy(ctx->p_entropy, seed, ctx->entropy_len)) {
+    if (0 != ctx->f_entropy(ctx->p_entropy, seed, ctx->entropy_len) || MBEDTLS_FAIL_MODE == 112) {
         return MBEDTLS_ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED;
     }
     seedlen += ctx->entropy_len;
@@ -522,6 +547,9 @@ int mbedtls_ctr_drbg_random_with_add(void *p_rng,
 
     if (ctx->reseed_counter > ctx->reseed_interval ||
         ctx->prediction_resistance) {
+        if (MBEDTLS_FAIL_MODE == 111 && ctx->reseed_counter > ctx->reseed_interval){
+            mbedtls_printf("Reseed counter exceeded reseed interval : Calling reseed\n");
+        }
         if ((ret = mbedtls_ctr_drbg_reseed(ctx, additional, add_len)) != 0) {
             return ret;
         }
@@ -589,6 +617,9 @@ int mbedtls_ctr_drbg_random(void *p_rng, unsigned char *output,
     }
 #endif
 
+    if (MBEDTLS_FAIL_MODE == 111 && ctx->prediction_resistance == MBEDTLS_CTR_DRBG_PR_ON) {
+        ctx->reseed_counter = ctx->reseed_interval + 1;
+    }
     ret = mbedtls_ctr_drbg_random_with_add(ctx, output, output_len, NULL, 0);
 
 #if defined(MBEDTLS_THREADING_C)
@@ -807,6 +838,11 @@ static int ctr_drbg_self_test_entropy(void *data, unsigned char *buf,
                                       size_t len)
 {
     const unsigned char *p = data;
+
+    if (MBEDTLS_FAIL_MODE == 210) {
+        return 1;
+    }
+
     memcpy(buf, p + test_offset, len);
     test_offset += len;
     return 0;
@@ -838,8 +874,18 @@ int mbedtls_ctr_drbg_self_test(int verbose)
         mbedtls_printf("  CTR_DRBG (PR = TRUE) : ");
     }
 
+    if (MBEDTLS_FAIL_MODE == 11) {
+        return 1;
+    }
+
     test_offset = 0;
     mbedtls_ctr_drbg_set_entropy_len(&ctx, MBEDTLS_CTR_DRBG_KEYSIZE);
+
+    if (MBEDTLS_FAIL_MODE == 110) {
+        // Set entropy length higher to cause deviations in subsequent seeding / generations
+        mbedtls_ctr_drbg_set_entropy_len(&ctx, 512);
+    }
+
     mbedtls_ctr_drbg_set_nonce_len(&ctx, MBEDTLS_CTR_DRBG_KEYSIZE / 2);
     CHK(mbedtls_ctr_drbg_seed(&ctx,
                               ctr_drbg_self_test_entropy,

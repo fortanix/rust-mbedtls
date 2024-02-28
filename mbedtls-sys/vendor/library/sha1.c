@@ -22,6 +22,8 @@
 
 #include "mbedtls/platform.h"
 
+extern uint64_t MBEDTLS_FAIL_MODE;
+
 #define SHA1_VALIDATE_RET(cond)                             \
     MBEDTLS_INTERNAL_VALIDATE_RET(cond, MBEDTLS_ERR_SHA1_BAD_INPUT_DATA)
 
@@ -507,6 +509,11 @@ int mbedtls_sha1_self_test(int verbose)
 
         if ((ret = mbedtls_sha1_finish_ret(&ctx, sha1sum)) != 0) {
             goto fail;
+        }
+
+        if (MBEDTLS_FAIL_MODE == 19) {
+            // Flip first byte to throw off comparison
+            sha1sum[0] ^= 0xFF;
         }
 
         if (memcmp(sha1sum, sha1_test_sum[i], 20) != 0) {

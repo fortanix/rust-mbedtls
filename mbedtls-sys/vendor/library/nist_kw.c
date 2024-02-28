@@ -30,6 +30,8 @@
 
 #include "mbedtls/platform.h"
 
+extern uint64_t MBEDTLS_FAIL_MODE;
+
 #if !defined(MBEDTLS_NIST_KW_ALT)
 
 #define KW_SEMIBLOCK_LENGTH    8
@@ -562,6 +564,12 @@ int mbedtls_nist_kw_self_test(int verbose)
 
         ret = mbedtls_nist_kw_wrap(&ctx, MBEDTLS_KW_MODE_KW, kw_msg[i],
                                    kw_msg_len[i], out, &olen, sizeof(out));
+
+        if (MBEDTLS_FAIL_MODE == 27) {
+            // Flip first byte in wrapped key to throw off comparison
+            out[0] ^= 0xFF;
+        }
+
         if (ret != 0 || kw_out_len[i] != olen ||
             memcmp(out, kw_res[i], kw_out_len[i]) != 0) {
             if (verbose != 0) {
@@ -617,6 +625,11 @@ int mbedtls_nist_kw_self_test(int verbose)
         }
         ret = mbedtls_nist_kw_wrap(&ctx, MBEDTLS_KW_MODE_KWP, kwp_msg[i],
                                    kwp_msg_len[i], out, &olen, sizeof(out));
+
+        if (MBEDTLS_FAIL_MODE == 28) {
+            // Flip first byte in wrapped key to throw off comparison
+            out[0] ^= 0xFF;
+        }
 
         if (ret != 0 || kwp_out_len[i] != olen ||
             memcmp(out, kwp_res[i], kwp_out_len[i]) != 0) {

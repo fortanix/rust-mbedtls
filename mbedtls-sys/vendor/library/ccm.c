@@ -27,6 +27,8 @@
 
 #include "mbedtls/platform.h"
 
+extern uint64_t MBEDTLS_FAIL_MODE;
+
 #if !defined(MBEDTLS_CCM_ALT)
 
 #define CCM_VALIDATE_RET(cond) \
@@ -488,6 +490,11 @@ int mbedtls_ccm_self_test(int verbose)
                                           ciphertext + msg_len_test_data[i],
                                           tag_len_test_data[i]);
 
+        if (MBEDTLS_FAIL_MODE == 5) {
+            // Flip first byte of ciphertext to throw off comparison
+            ciphertext[0] ^= 0xFF;
+        }
+
         if (ret != 0 ||
             memcmp(ciphertext, res_test_data[i],
                    msg_len_test_data[i] + tag_len_test_data[i]) != 0) {
@@ -505,6 +512,11 @@ int mbedtls_ccm_self_test(int verbose)
                                        ciphertext, plaintext,
                                        ciphertext + msg_len_test_data[i],
                                        tag_len_test_data[i]);
+
+        if (MBEDTLS_FAIL_MODE == 6){
+            // Flip first byte of plaintext to throw off comparison
+            plaintext[0] ^= 0xFF;
+        }
 
         if (ret != 0 ||
             memcmp(plaintext, msg_test_data, msg_len_test_data[i]) != 0) {
