@@ -32,7 +32,12 @@ impl Features {
         let have_custom_threading = self.have_feature("custom_threading");
         let have_custom_gmtime_r = self.have_feature("custom_gmtime_r");
 
-        if !self.have_feature("std") || env_have_target_cfg("env", "sgx") || env_have_target_cfg("os", "none") {
+        println!("cargo:rerun-if-env-changed=RUST_MBED_C_COMPILER_FREESTANDING");
+        let freestanding = std::env::var("RUST_MBED_C_COMPILER_FREESTANDING")
+            .map(|x| x == "1")
+            .unwrap_or_default();
+
+        if !self.have_feature("std") || env_have_target_cfg("env", "sgx") || env_have_target_cfg("os", "none") || freestanding {
             self.with_feature("c_compiler").unwrap().insert("freestanding");
         }
         if let Some(components) = self.with_feature("threading") {

@@ -32,7 +32,9 @@ impl super::BuildConfig {
         // thumbv6m-none-eabi, thumbv7em-none-eabi, thumbv7em-none-eabihf,
         // thumbv7m-none-eabi probably use arm-none-eabi-gcc which can cause the
         // cmake compiler test to fail.
-        if target.starts_with("thumbv") && target.contains("none-eabi") {
+        if target.starts_with("thumbv") && target.contains("none-eabi")
+            || crate::features::FEATURES.have_platform_component("c_compiler", "freestanding")
+        {
             // When building on Linux, -rdynamic flag is added automatically. Changing the
             // CMAKE_SYSTEM_NAME to Generic avoids this.
             cmk.define("CMAKE_SYSTEM_NAME", "Generic");
