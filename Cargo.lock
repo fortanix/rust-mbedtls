@@ -8,7 +8,7 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "307c92332867e586720c0222ee9d890bbe8431711efed8a1b06bc5b40fc66bd7"
 dependencies = [
- "winapi 0.0.1",
+ "winapi 0.3.8",
  "winapi-build",
 ]
 
@@ -384,6 +384,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "cstr_core"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd98742e4fdca832d40cab219dc2e3048de17d873248f83f17df47c1bea70956"
+dependencies = [
+ "cty",
+ "memchr",
+]
+
+[[package]]
+name = "cty"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b365fabc795046672053e29c954733ec3b05e4be654ab130fe8f1f94d7051f35"
+
+[[package]]
 name = "dtoa"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -755,6 +771,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "chrono",
  "criterion",
+ "cstr_core",
  "futures",
  "hex",
  "hyper",
@@ -1609,12 +1626,6 @@ dependencies = [
 
 [[package]]
 name = "winapi"
-version = "0.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14dc7d011a9ae4d6242901219f3c206bfa00cedbe60fc0e296744b22d945f98d"
-
-[[package]]
-name = "winapi"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5350e40d908c7e8b9e5c9edb541ca47cc617c6229d3575a46da6f550f36c96fd"
@@ -1667,9 +1678,9 @@ dependencies = [
 
 [[package]]
 name = "yasna"
-version = "0.2.0"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "abc502b7b900abb7a8045f305a603bfa01bb10d4e2e8655a634e025d22135e70"
+checksum = "79af3189e6b0484c9fd54208f8eeb8818cadee00ec81438b67a64c8e6f2f3694"
 dependencies = [
  "bit-vec",
  "num-bigint",
