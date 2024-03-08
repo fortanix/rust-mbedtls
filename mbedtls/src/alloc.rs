@@ -13,7 +13,7 @@ use core::ptr::drop_in_place;
 use core::ptr::NonNull;
 use cstr_core::CStr;
 
-use mbedtls_sys::types::raw_types::{c_void, c_char};
+use mbedtls_sys::types::raw_types::{c_char, c_void};
 
 extern "C" {
     #[link_name = concat!("forward_mbedtls_free_", env!("RUST_MBEDTLS_METADATA_HASH"))]
