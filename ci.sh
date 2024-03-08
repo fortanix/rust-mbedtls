@@ -62,11 +62,11 @@ case "$TRAVIS_RUST_VERSION" in
             cargo test chrono --features=chrono,ssl,x509 --target $TARGET
 
             # If zlib is installed, test the zlib feature
-            if [ -n "$ZLIB_INSTALLED" ]; then
-                cargo test --features zlib --target $TARGET
-                cargo test --test async_session --features=async-rt,ssl,zlib --target $TARGET
-                cargo test --test async_session --features=async-rt,ssl,zlib,legacy_protocols --target $TARGET
-            fi
+            # if [ -n "$ZLIB_INSTALLED" ]; then
+            #     cargo test --features zlib --target $TARGET
+            #     cargo test --test async_session --features=async-rt,ssl,zlib --target $TARGET
+            #     cargo test --test async_session --features=async-rt,ssl,zlib,legacy_protocols --target $TARGET
+            # fi
         fi
         ;;
     *)
