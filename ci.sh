@@ -18,7 +18,7 @@ export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER=qemu-aarch64
 
 cd "${repo_root}/mbedtls"
 case "$TRAVIS_RUST_VERSION" in
-    stable|beta|nightly)
+    stable|beta|nightly|nightly-2021-09-08)
         # Install the rust toolchain
         rustup default $TRAVIS_RUST_VERSION
         rustup target add --toolchain $TRAVIS_RUST_VERSION $TARGET
