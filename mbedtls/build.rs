@@ -26,8 +26,10 @@ fn get_compilation_metadata_hash() -> String {
 
 fn main() {
     // used for configuring rustdoc attrs for now
-    if rustc_version::version_meta().is_ok_and(|v| v.channel == Channel::Nightly) {
-        println!("cargo:rustc-cfg=nightly");
+    if let Ok(version) = rustc_version::version_meta() {
+        if version.channel == Channel::Nightly {
+            println!("cargo:rustc-cfg=nightly");
+        }
     }
 
     let metadata_hash = get_compilation_metadata_hash();

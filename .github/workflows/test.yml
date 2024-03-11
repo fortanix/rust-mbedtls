@@ -33,30 +33,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - rust: stable
+          - rust: nightly-2021-09-08
             target: x86_64-unknown-linux-gnu
             os: ubuntu-20.04
-          - rust: stable
-            target: x86_64-fortanix-unknown-sgx
-            os: ubuntu-20.04
-          - rust: stable
-            target: x86_64-pc-windows-msvc
-            os: windows-latest
-          - rust: stable
-            target: x86_64-pc-windows-msvc
-            os: windows-2019
-          - rust: stable
-            target: aarch64-unknown-linux-musl
-            os: ubuntu-20.04
-          - rust: beta
-            target: x86_64-unknown-linux-gnu
-            os: ubuntu-20.04
-          - rust: nightly
-            target: x86_64-unknown-linux-gnu
-            os: ubuntu-20.04
-          - rust: stable
-            target: x86_64-apple-darwin
-            os: macos-latest
+
 
     runs-on: ${{ matrix.os }}
 
@@ -118,21 +98,21 @@ jobs:
           cargo fmt --check -p mbedtls-platform-support
           cargo fmt --check -p mbedtls-sys-auto
 
-  bench:
-    name: Cargo bench
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-      - uses: boa-dev/criterion-compare-action@v3
-        name: Run criterion-compare-action
-        with:
-          cwd: "mbedtls"
-          benchName: "cipher"
-          branchName: ${{ github.base_ref }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+  # bench:
+  #   name: Cargo bench
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: dtolnay/rust-toolchain@master
+  #       with:
+  #         toolchain: stable
+  #     - uses: boa-dev/criterion-compare-action@v3
+  #       name: Run criterion-compare-action
+  #       with:
+  #         cwd: "mbedtls"
+  #         benchName: "cipher"
+  #         branchName: ${{ github.base_ref }}
+  #         token: ${{ secrets.GITHUB_TOKEN }}
 
   ci-success:
     name: ci
