@@ -20,6 +20,8 @@ on:
       - master
       - 'v0.*'
   merge_group:
+  schedule:
+    - cron: '0 14 * * *'
 
 env:
   RUST_BACKTRACE: 1
