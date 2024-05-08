@@ -1970,14 +1970,14 @@ int mbedtls_aes_self_test(int verbose)
         memset(buf, 0, 16);
 
         if (mode == MBEDTLS_AES_DECRYPT) {
-            if (MBEDTLS_FAIL_MODE == 2) {
+            if (MBEDTLS_FAIL_MODE == 201) {
                 // Flip first byte of key to throw of CBC decryption result
                 key[0] ^= 0xFF;
             }
             ret = mbedtls_aes_setkey_dec(&ctx, key, keybits);
             aes_tests = aes_test_cbc_dec[u];
         } else {
-            if (MBEDTLS_FAIL_MODE == 1){
+            if (MBEDTLS_FAIL_MODE == 101){
                 // Flip first byte of key to throw off CBC encryption result
                 key[0] ^= 0xFF;
             }
@@ -2061,14 +2061,14 @@ int mbedtls_aes_self_test(int verbose)
 
         if (mode == MBEDTLS_AES_DECRYPT) {
             memcpy(buf, aes_test_cfb128_ct[u], 64);
-            if (MBEDTLS_FAIL_MODE == 2) {
+            if (MBEDTLS_FAIL_MODE == 202) {
                 // Flip first byte of ciphertext to throw of CFB decryption result
                 buf[0] ^= 0xFF;
             }
             aes_tests = aes_test_cfb128_pt;
         } else {
             memcpy(buf, aes_test_cfb128_pt, 64);
-            if (MBEDTLS_FAIL_MODE == 1){
+            if (MBEDTLS_FAIL_MODE == 102){
                 // Flip first byte of plaintext to throw off CFB encryption result
                 buf[0] ^= 0xFF;
             }
@@ -2179,14 +2179,14 @@ int mbedtls_aes_self_test(int verbose)
 
         if (mode == MBEDTLS_AES_DECRYPT) {
             memcpy(buf, aes_test_ctr_ct[u], len);
-            if (MBEDTLS_FAIL_MODE == 2) {
+            if (MBEDTLS_FAIL_MODE == 203) {
                 // Flip first byte of ciphertext to throw of CTR decryption result
                 buf[0] ^= 0xFF;
             }
             aes_tests = aes_test_ctr_pt[u];
         } else {
             memcpy(buf, aes_test_ctr_pt[u], len);
-            if (MBEDTLS_FAIL_MODE == 1) {
+            if (MBEDTLS_FAIL_MODE == 103) {
                 // Flip first byte of ciphertext to throw of CTR decryption result
                 buf[0] ^= 0xFF;
             }
