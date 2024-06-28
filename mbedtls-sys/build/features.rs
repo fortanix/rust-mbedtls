@@ -36,21 +36,21 @@ impl Features {
             self.with_feature("c_compiler").unwrap().insert("freestanding");
         }
         if let Some(components) = self.with_feature("threading") {
-            if !have_custom_threading && env_have_target_cfg("family", "unix") {
+            if !have_custom_threading && env_have_target_family("unix") {
                 components.insert("pthread");
             } else {
                 components.insert("custom");
             }
         }
         if let Some(components) = self.with_feature("std") {
-            if env_have_target_cfg("family", "unix") || env_have_target_cfg("family", "windows") {
+            if env_have_target_family("unix") || env_have_target_family("windows") {
                 components.insert("net");
                 components.insert("fs");
                 components.insert("entropy");
             }
         }
         if let Some(components) = self.with_feature("time") {
-            if !have_custom_gmtime_r && (env_have_target_cfg("family", "unix") || env_have_target_cfg("family", "windows")) {
+            if !have_custom_gmtime_r && (env_have_target_family("unix") || env_have_target_family("windows")) {
                 components.insert("libc");
             } else {
                 components.insert("custom");
@@ -98,6 +98,10 @@ impl Features {
 fn env_have_target_cfg(var: &'static str, value: &'static str) -> bool {
     let env = format!("CARGO_CFG_TARGET_{}", var).to_uppercase().replace("-", "_");
     env::var_os(env).map_or(false, |s| s == value)
+}
+
+fn env_have_target_family(value: &'static str) -> bool {
+    env::var("CARGO_CFG_TARGET_FAMILY").map_or(false, |var| var.split(",").any(|s| s == value))
 }
 
 fn env_have_feature(feature: &'static str) -> bool {
