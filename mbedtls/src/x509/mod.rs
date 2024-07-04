@@ -45,6 +45,7 @@ bitflags! {
 }
 
 bitflags! {
+    #[derive(Copy, Clone, Debug)]
     pub struct VerifyError: u32 {
         const CERT_BAD_KEY       = X509_BADCERT_BAD_KEY as u32;
         const CERT_BAD_MD        = X509_BADCERT_BAD_MD as u32;
