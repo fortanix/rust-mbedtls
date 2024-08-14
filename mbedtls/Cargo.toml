@@ -4,7 +4,7 @@ name = "mbedtls"
 # we decided not to support.
 version = "0.12.3"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
-build = "build.rs"
+build = "build/build.rs"
 edition = "2018"
 license = "Apache-2.0 OR GPL-2.0-or-later"
 description = """

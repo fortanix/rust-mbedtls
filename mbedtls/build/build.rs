@@ -6,6 +6,8 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+mod crate_id;
+
 use std::collections::{HashMap, HashSet};
 use std::env;
 
@@ -15,13 +17,27 @@ use rustc_version::Channel;
 // If there's a panic in this code block, that means Cargo's way of running the
 // build script has changed, and this code should be updated to handle the new
 // case.
+// Since Bazel does not use Cargo to generate Crate Metadata hash we need to implement a separate one for it.
 fn get_compilation_metadata_hash() -> String {
     let out_dir: std::path::PathBuf = std::env::var_os("OUT_DIR").unwrap().into();
     let mut out_dir_it = out_dir.iter().rev();
-    assert_eq!(out_dir_it.next().unwrap(), "out");
-    let crate_ = out_dir_it.next().unwrap().to_string_lossy();
-    assert!(crate_.starts_with("mbedtls-"));
-    crate_[8..].to_owned()
+    let next = out_dir_it.next().unwrap();
+
+    if next == "out" {
+        let crate_ = out_dir_it.next().unwrap().to_string_lossy();
+        assert!(crate_.starts_with("mbedtls-"));
+        return crate_[8..].to_owned();
+    } else if next == "_bs.out_dir" {
+        let compiler_version = rustc_version::version().expect("Failed to get rustc version").to_string();
+        let version = env!("CARGO_PKG_VERSION");
+        let versioned_string = format!("mbedtls_{}", version);
+        let metadata = vec!["".to_string()];
+        let stable_crate_id = crate_id::StableCrateId::new(&versioned_string, false, metadata, compiler_version);
+
+        return stable_crate_id.to_string();
+    } else {
+        panic!("Unexpected directory structure: {:?}", next);
+    }
 }
 
 fn main() {
