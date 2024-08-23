@@ -1,5 +1,9 @@
 use std::fmt;
 
+use ahash::RandomState;
+
+use std::hash::{Hash, Hasher, BuildHasher};
+
 pub struct StableCrateId(u64);
 
 impl StableCrateId {
@@ -9,10 +13,10 @@ impl StableCrateId {
         mut metadata: Vec<String>,
         cfg_version: String,
     ) -> StableCrateId {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
+        // Use RandomState to create a hasher
+        let state = RandomState::with_seeds(123, 456, 789, 101112);
+        let mut hasher = state.build_hasher();
 
-        let mut hasher = DefaultHasher::new();
         crate_name.hash(&mut hasher);
 
         metadata.sort();
@@ -31,6 +35,7 @@ impl StableCrateId {
         StableCrateId(hasher.finish() as u64)
     }
 
+    #[allow(dead_code)]
     pub fn as_u64(self) -> u64 {
         self.0
     }

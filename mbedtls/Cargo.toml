@@ -65,6 +65,7 @@ criterion = { version = "0.5.1", features = ["html_reports"] }
 [build-dependencies]
 cc = "1.0"
 rustc_version = "0.4.0"
+ahash = "0.8"
 
 # feature 'time` is necessary under windows
 [target.'cfg(target_env = "msvc")'.dependencies]
