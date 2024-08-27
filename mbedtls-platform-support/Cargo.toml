@@ -27,7 +27,7 @@ chrono = { version = "0.4", optional = true }
 chrono = "0.4"
 
 [dependencies.mbedtls-sys-auto]
-version = "2.25.0"
+version = "2"
 default-features = false
 features = ["threading", "custom_printf"]
 path = "../mbedtls-sys"
