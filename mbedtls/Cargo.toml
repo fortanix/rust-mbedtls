@@ -4,7 +4,7 @@ name = "mbedtls"
 # we decided not to support.
 version = "0.12.3"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
-build = "build/build.rs"
+build = "build.rs"
 edition = "2018"
 license = "Apache-2.0 OR GPL-2.0-or-later"
 description = """
@@ -65,7 +65,6 @@ criterion = { version = "0.5.1", features = ["html_reports"] }
 [build-dependencies]
 cc = "1.0"
 rustc_version = "0.4.0"
-ahash = "0.8"
 
 # feature 'time` is necessary under windows
 [target.'cfg(target_env = "msvc")'.dependencies]
