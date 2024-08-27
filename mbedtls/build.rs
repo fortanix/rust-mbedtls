@@ -31,8 +31,8 @@ fn get_compilation_symbol_suffix() -> String {
         return crate_[8..].to_owned();
     } else if next == "_bs.out_dir" {
         // If Bazel is the build system.
-        let package_name = std::env::var("CARGO_PKG_NAME").expect("package name missed");
-        let version = std::env::var("CARGO_PKG_VERSION").expect("Package version missed");
+        let package_name = std::env::var("CARGO_PKG_NAME").expect("Package name missing");
+        let version = std::env::var("CARGO_PKG_VERSION").expect("Package version missing");
         let mut hasher = DefaultHasher::new();
         hasher.write(package_name.as_bytes());
         hasher.write(version.as_bytes());
