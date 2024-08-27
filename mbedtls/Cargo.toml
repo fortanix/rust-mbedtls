@@ -50,7 +50,7 @@ mbedtls-platform-support = { version = "0.1", path = "../mbedtls-platform-suppor
 rs-libc = "0.2.0"
 
 [dev-dependencies]
-libc = "0.2.0"
+libc = "0.2.155"
 rand = "0.4.0"
 serde_cbor = "0.6"
 hex = "0.3"
