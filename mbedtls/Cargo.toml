@@ -55,7 +55,7 @@ rand = "0.4.0"
 serde_cbor = "0.6"
 hex = "0.3"
 matches = "0.1.8"
-hyper = { version = "0.14", default-features = false }
+hyper = { version = "0.10.16", default-features = false }
 async-stream = "0.3.0"
 futures = "0.3"
 tracing = "0.1"
@@ -106,15 +106,6 @@ pkcs12_rc2 = ["pkcs12", "rc2", "cbc"]
 legacy_protocols = ["mbedtls-sys-auto/legacy_protocols", "ssl"]
 async = ["std", "tokio", "tokio/net", "tokio/io-util", "tokio/macros"]
 async-rt = ["async", "tokio/rt", "tokio/sync", "tokio/rt-multi-thread"]
-
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(nightly)',
-    'cfg(sys_threading_component, values("custom"))',
-    'cfg(sys_time_component, values("custom"))',
-    'cfg(sys_std_component, values("entropy"))',
-    'cfg(time_component, values("custom", "libc"))',
-] }
 
 [[example]]
 name = "client"
