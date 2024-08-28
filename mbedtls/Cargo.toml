@@ -39,7 +39,7 @@ cfg-if = "1.0.0"
 tokio = { version = "1.16.1", optional = true }
 chrono = { version = "0.4.38", optional = true }
 
-mbedtls-sys-auto = { path = "../mbedtls-sys", version = "2", default-features = false, features = [
+mbedtls-sys-auto = { path = "../mbedtls-sys", version = "2.25.0", default-features = false, features = [
     "trusted_cert_callback",
     "threading",
 ] }
