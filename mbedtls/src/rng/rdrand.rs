@@ -18,6 +18,8 @@ use core::arch::x86_64::{_rdrand64_step as _rdrand_step, _rdseed64_step as _rdse
 
 // Intel documentation claims that if hardware is working RDRAND will produce
 // output after at most 10 attempts
+// https://www.intel.com/content/www/us/en/developer/articles/guide/intel-digital-random-number-generator-drng-software-implementation-guide.html
+// section 5.2.1
 const RDRAND_READ_ATTEMPTS: usize = 10;
 
 // Intel does not document the number of times RDSEED might consecutively fail,
