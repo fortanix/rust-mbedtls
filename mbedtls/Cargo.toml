@@ -160,3 +160,12 @@ harness = false
 [[bench]]
 name = "cipher"
 harness = false
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(nightly)',
+    'cfg(sys_threading_component, values("custom"))',
+    'cfg(sys_time_component, values("custom"))',
+    'cfg(sys_std_component, values("entropy", "net"))',
+    'cfg(time_component, values("custom", "libc"))',
+] }
