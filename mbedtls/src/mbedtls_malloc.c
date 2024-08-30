@@ -21,7 +21,9 @@
 #define mbedtls_free      free
 #endif
 
-// Use several macros to get the preprocessor to actually replace RUST_MBEDTLS_SYMBOL_SUFFIX
+// This code handles cases where `mbedtls_calloc` and `mbedtls_free` may be macros instead of functions,
+// which Bindgen has trouble with. The `APPEND_METADATA_HASH` macro appends a suffix from `RUST_MBEDTLS_SYMBOL_SUFFIX`
+// to ensure proper symbol linkage, regardless of whether the original mbedtls functions are macros or symbols.
 #define append_macro_inner(a, b) a##_##b
 #define append_macro(a, b) append_macro_inner(a, b)
 #define APPEND_METADATA_HASH(f) append_macro(f, RUST_MBEDTLS_SYMBOL_SUFFIX)
