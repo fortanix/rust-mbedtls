@@ -37,7 +37,7 @@ fn get_compilation_symbol_suffix() -> String {
         hasher.write(package_name.as_bytes());
         hasher.write(version.as_bytes());
         let hash = hasher.finish();
-        return hash.to_string();
+        return format!("{:x}", hash);
     } else {
         panic!("Unexpected directory structure: {:?}", next);
     }
