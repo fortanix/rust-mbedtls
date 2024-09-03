@@ -6,18 +6,16 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
- use std::collections::{HashMap, HashSet};
- use std::env;
- 
- use rustc_version::Channel;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::{HashMap, HashSet};
+use std::hash::Hasher;
 
- use std::collections::hash_map::DefaultHasher;
- use std::hash::{Hasher};
- 
+use rustc_version::Channel;
+use std::env;
 
 /// Retrieves or generates a metadata value used for symbol name mangling to ensure unique C symbols.
-/// When building with Cargo, the metadata value is extracted from the OUT_DIR environment variable. 
-/// For Bazel builds, this method approximates Cargo's -Cmetadata by hashing the crate name and version, 
+/// When building with Cargo, the metadata value is extracted from the OUT_DIR environment variable.
+/// For Bazel builds, this method approximates Cargo's -Cmetadata by hashing the crate name and version,
 /// which are sufficient for ensuring symbol uniqueness.
 fn get_compilation_symbol_suffix() -> String {
     let out_dir: std::path::PathBuf = std::env::var_os("OUT_DIR").unwrap().into();
@@ -43,13 +41,11 @@ fn get_compilation_symbol_suffix() -> String {
     }
 }
 
-
 fn main() {
     // used for configuring rustdoc attrs for now
     if rustc_version::version_meta().is_ok_and(|v| v.channel == Channel::Nightly) {
         println!("cargo:rustc-cfg=nightly");
     }
-    
     let symbol_suffix = get_compilation_symbol_suffix();
     println!("cargo:rustc-env=RUST_MBEDTLS_SYMBOL_SUFFIX={}", symbol_suffix);
     println!("cargo:rerun-if-env-changed=CARGO_PKG_VERSION");
