@@ -8,10 +8,11 @@
 
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
-use std::hash::Hasher;
+use std::hash::{Hash, Hasher};
 
 use rustc_version::Channel;
 use std::env;
+use std::path::Path;
 
 /// Retrieves or generates a metadata value used for symbol name mangling to ensure unique C symbols.
 /// When building with Cargo, the metadata value is extracted from the OUT_DIR environment variable.
@@ -19,25 +20,33 @@ use std::env;
 /// which are sufficient for ensuring symbol uniqueness.
 fn get_compilation_symbol_suffix() -> String {
     let out_dir: std::path::PathBuf = std::env::var_os("OUT_DIR").unwrap().into();
-    let mut out_dir_it = out_dir.iter().rev();
-    let next = out_dir_it.next().unwrap();
+    let out_dir_str = out_dir.to_string_lossy();
 
-    if next == "out" {
+    let mut out_dir_it = out_dir.iter().rev();
+    let last_part = out_dir_it.next().unwrap();
+
+    if last_part == "out" {
         // If Cargo is used as build system.
         let crate_ = out_dir_it.next().unwrap().to_string_lossy();
-        assert!(crate_.starts_with("mbedtls-"));
-        return crate_[8..].to_owned();
-    } else if next == "_bs.out_dir" {
-        // If Bazel is the build system.
-        let package_name = std::env::var("CARGO_PKG_NAME").expect("Package name missing");
-        let version = std::env::var("CARGO_PKG_VERSION").expect("Package version missing");
+        assert!(crate_.starts_with("mbedtls-"), "Expected directory to start with 'mbedtls-'");
+        return crate_[8..].to_owned(); // Return the part after "mbedtls-"
+    } else if out_dir_str.contains("bazel-out") {
+        // If Bazel is used as build system.
+        let path_to_hash = Path::new(out_dir_str.as_ref());
+        let parts_to_hash = path_to_hash
+            .to_str()
+            .expect("Failed to convert path to str")
+            .split("bazel-out")
+            .nth(1)
+            .expect("Invalid Bazel out dir structure");
+
+        let string_to_hash = format!("bazel-out{}", parts_to_hash);
         let mut hasher = DefaultHasher::new();
-        hasher.write(package_name.as_bytes());
-        hasher.write(version.as_bytes());
+        string_to_hash.hash(&mut hasher);
         let hash = hasher.finish();
         return format!("{:x}", hash);
     } else {
-        panic!("Unexpected directory structure: {:?}", next);
+        panic!("Unexpected directory structure: {:?}", out_dir_str);
     }
 }
 
