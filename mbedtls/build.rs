@@ -16,7 +16,7 @@ use std::path::Path;
 
 /// Retrieves or generates a metadata value used for symbol name mangling to ensure unique C symbols.
 /// When building with Cargo, the metadata value is extracted from the OUT_DIR environment variable.
-/// For Bazel builds, this method approximates Cargo's -Cmetadata by hashing the crate name and version,
+/// For Bazel builds, this method generate the suffix by hashing part of the crate OUT_DIR,
 /// which are sufficient for ensuring symbol uniqueness.
 fn get_compilation_symbol_suffix() -> String {
     let out_dir: std::path::PathBuf = std::env::var_os("OUT_DIR").unwrap().into();
@@ -32,10 +32,7 @@ fn get_compilation_symbol_suffix() -> String {
         return crate_[8..].to_owned(); // Return the part after "mbedtls-"
     } else if out_dir_str.contains("bazel-out") {
         // If Bazel is used as build system.
-        let path_to_hash = Path::new(out_dir_str.as_ref());
-        let parts_to_hash = path_to_hash
-            .to_str()
-            .expect("Failed to convert path to str")
+        let parts_to_hash = out_dir_str
             .split("bazel-out")
             .nth(1)
             .expect("Invalid Bazel out dir structure");
