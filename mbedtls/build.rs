@@ -20,30 +20,24 @@ use std::path::Path;
 /// which are sufficient for ensuring symbol uniqueness.
 fn get_compilation_symbol_suffix() -> String {
     let out_dir: std::path::PathBuf = std::env::var_os("OUT_DIR").unwrap().into();
-    let out_dir_str = out_dir.to_string_lossy();
 
-    let mut out_dir_it = out_dir.iter().rev();
-    let last_part = out_dir_it.next().unwrap();
-
-    if last_part == "out" {
+    let mut out_dir_it_rev = out_dir.iter().rev();
+    let mut out_dir_it = out_dir.iter();
+    if out_dir_it_rev.next().map_or(false, |p| p == "out") {
         // If Cargo is used as build system.
-        let crate_ = out_dir_it.next().unwrap().to_string_lossy();
+        let crate_ = out_dir_it_rev.next().unwrap().to_string_lossy();
         assert!(crate_.starts_with("mbedtls-"), "Expected directory to start with 'mbedtls-'");
         return crate_[8..].to_owned(); // Return the part after "mbedtls-"
-    } else if out_dir_str.contains("bazel-out") {
+    } else if out_dir_it.position(|p| p == "bazel-out").is_some() {
         // If Bazel is used as build system.
-        let parts_to_hash = out_dir_str
-            .split("bazel-out")
-            .nth(1)
-            .expect("Invalid Bazel out dir structure");
-
-        let string_to_hash = format!("bazel-out{}", parts_to_hash);
         let mut hasher = DefaultHasher::new();
-        string_to_hash.hash(&mut hasher);
+        for p in out_dir_it {
+            p.hash(&mut hasher);
+        }
         let hash = hasher.finish();
         return format!("{:x}", hash);
     } else {
-        panic!("Unexpected directory structure: {:?}", out_dir_str);
+        panic!("unexpected OUT_DIR format: {}", out_dir.to_string_lossy());
     }
 }
 
