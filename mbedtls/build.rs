@@ -12,7 +12,6 @@ use std::hash::{Hash, Hasher};
 
 use rustc_version::Channel;
 use std::env;
-use std::path::Path;
 
 /// Retrieves or generates a metadata value used for symbol name mangling to ensure unique C symbols.
 /// When building with Cargo, the metadata value is extracted from the OUT_DIR environment variable.
