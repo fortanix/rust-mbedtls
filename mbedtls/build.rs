@@ -30,6 +30,8 @@ fn get_compilation_symbol_suffix() -> String {
     } else if out_dir_it.position(|p| p == "bazel-out").is_some() {
         // If Bazel is used as build system.
         let mut hasher = DefaultHasher::new();
+        // The iterator has already been partially consumed by the previous position() call,
+        // so we continue from where it left off to hash the remaining components.
         for p in out_dir_it {
             p.hash(&mut hasher);
         }
