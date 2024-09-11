@@ -19,25 +19,23 @@ use std::env;
 /// which are sufficient for ensuring symbol uniqueness.
 fn get_compilation_symbol_suffix() -> String {
     let out_dir: std::path::PathBuf = std::env::var_os("OUT_DIR").unwrap().into();
-
     let mut out_dir_it_rev = out_dir.iter().rev();
-    let mut out_dir_it = out_dir.iter();
     if out_dir_it_rev.next().map_or(false, |p| p == "out") {
         // If Cargo is used as build system.
         let crate_ = out_dir_it_rev.next().unwrap().to_string_lossy();
         assert!(crate_.starts_with("mbedtls-"), "Expected directory to start with 'mbedtls-'");
         return crate_[8..].to_owned(); // Return the part after "mbedtls-"
-    } else if out_dir_it.position(|p| p == "bazel-out").is_some() {
-        // If Bazel is used as build system.
+    } else if out_dir.iter().rfind(|p| p.to_string_lossy() == "bazel-out").is_some() {
         let mut hasher = DefaultHasher::new();
-        // The iterator has already been partially consumed by the previous position() call,
-        // so we continue from where it left off to hash the remaining components.
-        for p in out_dir_it {
+        // Reverse the iterator and hash until you find "bazel-out"
+        for p in out_dir.iter().rev().take_while(|p| p.to_string_lossy() != "bazel-out") {
             p.hash(&mut hasher);
         }
+        
         let hash = hasher.finish();
-        return format!("{:x}", hash);
-    } else {
+        return format!("{:016x}", hash);
+    }
+     else {
         panic!("unexpected OUT_DIR format: {}", out_dir.to_string_lossy());
     }
 }
