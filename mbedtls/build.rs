@@ -6,22 +6,43 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
-use std::env;
+use std::hash::{Hash, Hasher};
 
 use rustc_version::Channel;
+use std::env;
 
-/// Return the crate hash that Cargo will be passing to `rustc -C metadata=`.
-// If there's a panic in this code block, that means Cargo's way of running the
-// build script has changed, and this code should be updated to handle the new
-// case.
-fn get_compilation_metadata_hash() -> String {
+/// Retrieves or generates a metadata value used for symbol name mangling to ensure unique C symbols.
+/// When building with Cargo, the metadata value is extracted from the OUT_DIR environment variable.
+/// For Bazel builds, this method generate the suffix by hashing part of the crate OUT_DIR,
+/// which are sufficient for ensuring symbol uniqueness.
+fn get_compilation_symbol_suffix() -> String {
     let out_dir: std::path::PathBuf = std::env::var_os("OUT_DIR").unwrap().into();
-    let mut out_dir_it = out_dir.iter().rev();
-    assert_eq!(out_dir_it.next().unwrap(), "out");
-    let crate_ = out_dir_it.next().unwrap().to_string_lossy();
-    assert!(crate_.starts_with("mbedtls-"));
-    crate_[8..].to_owned()
+    let mut out_dir_it_rev = out_dir.iter().rev();
+    if out_dir_it_rev.next().map_or(false, |p| p == "out") {
+        // If Cargo is used as build system.
+        let crate_ = out_dir_it_rev
+            .next()
+            .expect("Expected OUT_DIR to have at least 2 components")
+            .to_str()
+            .expect("Expected second to last component of OUT_DIR to be a valid UTF-8 string");
+        assert!(
+            crate_.starts_with("mbedtls-"),
+            "Expected second to last component of OUT_DIR to start with 'mbedtls-'"
+        );
+        return crate_[8..].to_owned(); // Return the part after "mbedtls-"
+    } else if out_dir.iter().rfind(|p| *p == "bazel-out").is_some() {
+        // If Bazel is used as build system.
+        let mut hasher = DefaultHasher::new();
+        // Reverse the iterator and hash until we find "bazel-out"
+        for p in out_dir.iter().rev().take_while(|p| *p != "bazel-out") {
+            p.hash(&mut hasher);
+        }
+        return format!("{:016x}", hasher.finish());
+    } else {
+        panic!("unexpected OUT_DIR format: {}", out_dir.display());
+    }
 }
 
 fn main() {
@@ -29,9 +50,9 @@ fn main() {
     if rustc_version::version_meta().is_ok_and(|v| v.channel == Channel::Nightly) {
         println!("cargo:rustc-cfg=nightly");
     }
-
-    let metadata_hash = get_compilation_metadata_hash();
-    println!("cargo:rustc-env=RUST_MBEDTLS_METADATA_HASH={}", metadata_hash);
+    let symbol_suffix = get_compilation_symbol_suffix();
+    println!("cargo:rustc-env=RUST_MBEDTLS_SYMBOL_SUFFIX={}", symbol_suffix);
+    println!("cargo:rerun-if-env-changed=CARGO_PKG_VERSION");
 
     let env_components = env::var("DEP_MBEDTLS_PLATFORM_COMPONENTS").unwrap();
     let mut sys_platform_components = HashMap::<_, HashSet<_>>::new();
@@ -46,7 +67,7 @@ fn main() {
     b.include(env::var_os("DEP_MBEDTLS_INCLUDE").unwrap());
     let config_file = format!(r#""{}""#, env::var("DEP_MBEDTLS_CONFIG_H").unwrap());
     b.define("MBEDTLS_CONFIG_FILE", Some(config_file.as_str()));
-    b.define("RUST_MBEDTLS_METADATA_HASH", Some(metadata_hash.as_str()));
+    b.define("RUST_MBEDTLS_SYMBOL_SUFFIX", Some(symbol_suffix.as_str()));
 
     b.file("src/mbedtls_malloc.c");
     if sys_platform_components
