@@ -7,7 +7,16 @@
  * according to those terms. */
 
 #![deny(warnings)]
-#![allow(unused_doc_comments)]
+#![allow(unused_doc_comments, unexpected_cfgs)]
+#![allow(
+    clippy::missing_safety_doc,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::many_single_char_names,
+    clippy::wildcard_imports,
+    clippy::ptr_as_ptr,
+    clippy::non_send_fields_in_send_ty
+)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(nightly, feature(doc_auto_cfg))]
 
