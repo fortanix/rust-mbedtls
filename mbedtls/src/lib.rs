@@ -17,6 +17,25 @@
     clippy::ptr_as_ptr,
     clippy::non_send_fields_in_send_ty
 )]
+// FIXME: these allows should probably be removed
+#![allow(
+    clippy::cast_sign_loss,
+    clippy::must_use_candidate,
+    clippy::semicolon_if_nothing_returned,
+    clippy::manual_let_else,
+    clippy::ref_as_ptr,
+    clippy::ptr_cast_constness,
+    clippy::cast_possible_wrap,
+    clippy::manual_c_str_literals,
+    clippy::cast_lossless,
+    clippy::cast_possible_truncation,
+    clippy::match_same_arms,
+    clippy::module_name_repetitions,
+    clippy::needless_pass_by_value,
+    clippy::match_bool,
+    clippy::redundant_closure_for_method_calls,
+    clippy::items_after_statements
+)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(nightly, feature(doc_auto_cfg))]
 
