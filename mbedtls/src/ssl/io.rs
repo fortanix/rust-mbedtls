@@ -81,8 +81,7 @@ impl<IO: IoCallback<T>, T> IoCallbackUnsafe<T> for IO {
     }
 
     fn data_ptr(&mut self) -> *mut c_void {
-        std::ptr::from_mut::<IO>(self) as *mut _
-        //self as *mut IO as *mut _
+        self as *mut IO as *mut _
     }
 }
 

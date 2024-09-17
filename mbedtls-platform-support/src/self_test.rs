@@ -80,7 +80,7 @@ pub unsafe fn enable(rand: fn() -> c_int, log: Option<unsafe fn(*const c_char)>)
 ///
 /// The caller needs to ensure this function is not called while any other
 /// function in this module is called.
-pub const unsafe fn disable() {
+pub unsafe fn disable() {
     #[cfg(any(not(feature = "std"), target_env = "sgx"))]
     {
         rand_f = None;

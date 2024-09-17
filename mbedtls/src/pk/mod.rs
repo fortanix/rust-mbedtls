@@ -324,7 +324,9 @@ impl Pk {
     pub fn generate_ec<F: Random, C: TryInto<EcGroup, Error = impl Into<Error>>>(rng: &mut F, curve: C) -> Result<Self> {
         let mut ret = Self::init();
         unsafe {
-            let curve: EcGroup = curve.try_into().map_err(std::convert::Into::into)?;
+            // allow redundant closure because of no_std
+            #[allow(clippy::redundant_closure)]
+            let curve: EcGroup = curve.try_into().map_err(|e| e.into())?;
             pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result()?;
             let ctx = ret.inner.pk_ctx as *mut ecp_keypair;
             //FIXME: why is this .clone() here?

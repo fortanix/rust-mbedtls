@@ -189,13 +189,7 @@ impl<T> Context<T> {
 /// # Safety
 /// `io` must live as long as `ctx` or the next time bio is set/cleared.
 unsafe fn set_bio_raw<IoType, T: IoCallbackUnsafe<IoType>>(ctx: *mut ssl_context, io: &mut T) {
-    ssl_set_bio(
-        ctx,
-        std::ptr::from_mut::<T>(io) as *mut c_void,
-        Some(T::call_send),
-        Some(T::call_recv),
-        None,
-    );
+    ssl_set_bio(ctx, io as *mut T as *mut c_void, Some(T::call_send), Some(T::call_recv), None);
 }
 
 /// This function provides a way to apply async context to bio before running

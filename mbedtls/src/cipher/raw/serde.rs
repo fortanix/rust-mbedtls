@@ -266,9 +266,11 @@ unsafe trait BytesSerde: Sized {
     }
 
     fn as_slice(&self) -> &[u8] {
-        // leaving the old one in, not sure if this does the same or not
-        //unsafe { from_raw_parts(self as *const Self as *const u8, size_of::<Self>()) }
-        unsafe { from_raw_parts(std::ptr::from_ref::<Self>(self) as *const u8, size_of::<Self>()) }
+        unsafe {
+            // allow ref_as_prt because of no_std
+            #[allow(clippy::ref_as_ptr)]
+            from_raw_parts(self as *const Self as *const u8, size_of::<Self>())
+        }
     }
 }
 

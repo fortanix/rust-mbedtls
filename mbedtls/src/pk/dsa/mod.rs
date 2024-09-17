@@ -312,7 +312,7 @@ impl DsaPrivateKey {
             Some(md) => md,
             None => panic!("no such digest"),
         };
-        let rfc6979_nonce = generate_rfc6979_nonce(&md, &self.x, &self.params.q, pre_hashed_message)?;
+        let rfc6979_nonce = generate_rfc6979_nonce(md, &self.x, &self.params.q, pre_hashed_message)?;
         let k = Mpi::from_binary(&rfc6979_nonce)?;
         self.sign_with_explicit_nonce(pre_hashed_message, k, rng)
     }
