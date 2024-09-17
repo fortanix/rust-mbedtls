@@ -12,11 +12,11 @@ use std::env;
 fn main() {
     let env_components = env::var("DEP_MBEDTLS_PLATFORM_COMPONENTS").unwrap();
     let mut sys_platform_components = HashMap::<_, HashSet<_>>::new();
-    for mut kv in env_components.split(",").map(|component| component.splitn(2, "=")) {
+    for mut kv in env_components.split(',').map(|component| component.splitn(2, '=')) {
         let k = kv.next().unwrap();
         let v = kv.next().unwrap();
         sys_platform_components.entry(k).or_insert_with(Default::default).insert(v);
-        println!(r#"cargo:rustc-cfg=sys_{}="{}""#, k, v);
+        println!(r#"cargo:rustc-cfg=sys_{k}="{v}""#);
     }
 
     let mut b = cc::Build::new();
