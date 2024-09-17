@@ -44,9 +44,17 @@ pub struct Timer {
 }
 
 #[cfg(feature = "std")]
+impl Default for Timer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(feature = "std")]
 impl Timer {
+    #[must_use]
     pub fn new() -> Self {
-        Timer {
+        Self {
             timer_start: std::time::Instant::now(),
             timer_int_ms: 0,
             timer_fin_ms: 0,
@@ -60,7 +68,7 @@ impl TimerCallback for Timer {
     where
         Self: Sized,
     {
-        let slf = (p_timer as *mut Timer).as_mut().unwrap();
+        let slf = (p_timer as *mut Self).as_mut().unwrap();
         slf.timer_start = std::time::Instant::now();
         slf.timer_int_ms = int_ms;
         slf.timer_fin_ms = fin_ms;
@@ -70,22 +78,20 @@ impl TimerCallback for Timer {
     where
         Self: Sized,
     {
-        let slf = (p_timer as *mut Timer).as_mut().unwrap();
+        let slf = (p_timer as *mut Self).as_mut().unwrap();
         if slf.timer_int_ms == 0 || slf.timer_fin_ms == 0 {
             return 0;
         }
-        let passed = std::time::Instant::now() - slf.timer_start;
+        let passed = slf.timer_start.elapsed();
         if passed.as_millis() >= slf.timer_fin_ms.into() {
             2
-        } else if passed.as_millis() >= slf.timer_int_ms.into() {
-            1
         } else {
-            0
+            i32::from(passed.as_millis() >= slf.timer_int_ms.into())
         }
     }
 
     fn data_ptr(&mut self) -> *mut mbedtls_sys::types::raw_types::c_void {
-        self as *mut _ as *mut _
+        std::ptr::from_mut(self) as *mut _
     }
 }
 
@@ -133,19 +139,20 @@ pub struct Context<T> {
 // should be reviewed whether they don't result in any side-effect.
 unsafe impl<T: Sync> Sync for Context<T> {}
 
-impl<'a, T> Into<*const ssl_context> for &'a Context<T> {
-    fn into(self) -> *const ssl_context {
-        self.handle()
+impl<'a, T> From<&'a Context<T>> for *const ssl_context {
+    fn from(val: &'a Context<T>) -> Self {
+        val.handle()
     }
 }
 
-impl<'a, T> Into<*mut ssl_context> for &'a mut Context<T> {
-    fn into(self) -> *mut ssl_context {
-        self.handle_mut()
+impl<'a, T> From<&'a mut Context<T>> for *mut ssl_context {
+    fn from(val: &'a mut Context<T>) -> Self {
+        val.handle_mut()
     }
 }
 
 impl<T> Context<T> {
+    #[must_use]
     pub fn new(config: Arc<Config>) -> Self {
         let mut inner = ssl_context::default();
 
@@ -154,7 +161,7 @@ impl<T> Context<T> {
             ssl_setup(&mut inner, (&*config).into());
         };
 
-        Context {
+        Self {
             inner: HandshakeContext {
                 inner,
                 handshake_ca_cert: None,
@@ -163,14 +170,14 @@ impl<T> Context<T> {
                 handshake_cert: vec![],
                 handshake_pk: vec![],
             },
-            config: config.clone(),
+            config,
             io: None,
             timer_callback: None,
             client_transport_id: None,
         }
     }
 
-    pub(crate) fn handle(&self) -> &::mbedtls_sys::ssl_context {
+    pub(crate) const fn handle(&self) -> &::mbedtls_sys::ssl_context {
         self.inner.handle()
     }
 
@@ -182,7 +189,13 @@ impl<T> Context<T> {
 /// # Safety
 /// `io` must live as long as `ctx` or the next time bio is set/cleared.
 unsafe fn set_bio_raw<IoType, T: IoCallbackUnsafe<IoType>>(ctx: *mut ssl_context, io: &mut T) {
-    ssl_set_bio(ctx, io as *mut T as *mut c_void, Some(T::call_send), Some(T::call_recv), None);
+    ssl_set_bio(
+        ctx,
+        std::ptr::from_mut::<T>(io) as *mut c_void,
+        Some(T::call_send),
+        Some(T::call_recv),
+        None,
+    );
 }
 
 /// This function provides a way to apply async context to bio before running
@@ -297,11 +310,11 @@ impl<T> Context<T> {
     /// completed successfully in `establish`, i.e.:
     /// - If using non-blocking operation and `establish` failed with
     ///   [`Error::SslWantRead`] or
-    /// [`Error::SslWantWrite`]
+    ///   [`Error::SslWantWrite`]
     /// - If running a DTLS server and it answers the first `ClientHello`
     ///   (without cookie) with a
-    /// `HelloVerifyRequest`, i.e. `establish` failed with
-    /// [`Error::SslHelloVerifyRequired`]
+    ///   `HelloVerifyRequest`, i.e. `establish` failed with
+    ///   [`Error::SslHelloVerifyRequired`]
     pub fn handshake(&mut self) -> Result<()> {
         match self.inner_handshake() {
             Ok(()) => Ok(()),
@@ -313,13 +326,12 @@ impl<T> Context<T> {
                     // again in this case and the client ID is required for a DTLS connection setup
                     // on the server side. So we extract it before and set it after
                     // `ssl_session_reset`.
-                    let mut client_transport_id = None;
-                    if !self.inner.handle().cli_id.is_null() {
-                        client_transport_id = Some(Vec::from(core::slice::from_raw_parts(
+                    let mut client_transport_id = (!self.inner.handle().cli_id.is_null()).then(|| {
+                        Vec::from(core::slice::from_raw_parts(
                             self.inner.handle().cli_id,
                             self.inner.handle().cli_id_len,
-                        )));
-                    }
+                        ))
+                    });
                     ssl_session_reset(self.into()).into_result()?;
                     if let Some(client_id) = client_transport_id.take() {
                         self.set_client_transport_id(&client_id)?;
@@ -371,6 +383,7 @@ impl<T> Context<T> {
         }
     }
 
+    #[must_use]
     pub fn config(&self) -> &Arc<Config> {
         &self.config
     }
@@ -398,30 +411,35 @@ impl<T> Context<T> {
         self.io = None;
     }
 
+    #[must_use]
     pub fn io(&self) -> Option<&T> {
-        self.io.as_ref().map(|v| &**v)
+        self.io.as_deref()
     }
 
     pub fn io_mut(&mut self) -> Option<&mut T> {
-        self.io.as_mut().map(|v| &mut **v)
+        self.io.as_deref_mut()
     }
 
     /// Return the minor number of the negotiated TLS version
+    #[must_use]
     pub fn minor_version(&self) -> i32 {
         self.handle().minor_ver
     }
 
     /// Return the major number of the negotiated TLS version
-    pub fn major_version(&self) -> i32 {
+    #[must_use]
+    pub const fn major_version(&self) -> i32 {
         self.handle().major_ver
     }
 
     /// Return the number of bytes currently available to read that
     /// are stored in the Session's internal read buffer
+    #[must_use]
     pub fn bytes_available(&self) -> usize {
         unsafe { ssl_get_bytes_avail(self.into()) }
     }
 
+    #[must_use]
     pub fn version(&self) -> Version {
         let major = self.major_version();
         assert_eq!(major, 3);
@@ -558,7 +576,8 @@ impl HandshakeContext {
     }
 
     pub fn set_authmode(&mut self, am: AuthMode) -> Result<()> {
-        if self.inner.handshake as *const _ == ::core::ptr::null() {
+        if self.inner.handshake.is_null() {
+            //if self.inner.handshake as *const _ == ::core::ptr::null() {
             return Err(Error::SslBadInputData);
         }
 
@@ -568,7 +587,8 @@ impl HandshakeContext {
 
     pub fn set_ca_list(&mut self, chain: Option<Arc<MbedtlsList<Certificate>>>, crl: Option<Arc<Crl>>) -> Result<()> {
         // mbedtls_ssl_set_hs_ca_chain does not check for NULL handshake.
-        if self.inner.handshake as *const _ == ::core::ptr::null() {
+        if self.inner.handshake.is_null() {
+            //if self.inner.handshake as *const _ == ::core::ptr::null() {
             return Err(Error::SslBadInputData);
         }
 
@@ -576,11 +596,8 @@ impl HandshakeContext {
         unsafe {
             ssl_set_hs_ca_chain(
                 self.into(),
-                chain
-                    .as_ref()
-                    .map(|chain| chain.inner_ffi_mut())
-                    .unwrap_or(::core::ptr::null_mut()),
-                crl.as_ref().map(|crl| crl.inner_ffi_mut()).unwrap_or(::core::ptr::null_mut()),
+                chain.as_ref().map_or(::core::ptr::null_mut(), |chain| chain.inner_ffi_mut()),
+                crl.as_ref().map_or(::core::ptr::null_mut(), |crl| crl.inner_ffi_mut()),
             );
         }
 
@@ -595,7 +612,8 @@ impl HandshakeContext {
     /// specified using this function is used.
     pub fn push_cert(&mut self, chain: Arc<MbedtlsList<Certificate>>, key: Arc<Pk>) -> Result<()> {
         // mbedtls_ssl_set_hs_own_cert does not check for NULL handshake.
-        if self.inner.handshake as *const _ == ::core::ptr::null() || chain.is_empty() {
+        if self.inner.handshake.is_null() || chain.is_empty() {
+            //if self.inner.handshake as *const _ == ::core::ptr::null() || chain.is_empty() {
             return Err(Error::SslBadInputData);
         }
 

@@ -32,13 +32,12 @@ use crate::x509::{self, Certificate, Crl, Profile, VerifyCallback};
 
 #[allow(non_camel_case_types)]
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Copy, Clone)]
+#[non_exhaustive]
 pub enum Version {
     Ssl3,
     Tls1_0,
     Tls1_1,
     Tls1_2,
-    #[doc(hidden)]
-    __NonExhaustive,
 }
 
 define!(
@@ -97,7 +96,7 @@ define!(
 );
 
 #[cfg(feature = "std")]
-callback!(DbgCallback: Fn(i32, Cow<'_, str>, i32, Cow<'_, str>) -> ());
+callback!(DbgCallback: Fn(i32, Cow<'_, str>, i32, Cow<'_, str>));
 callback!(SniCallback: Fn(&mut HandshakeContext, &[u8]) -> Result<()>);
 callback!(CaCallback: Fn(&MbedtlsList<Certificate>) -> Result<MbedtlsList<Certificate>>);
 
@@ -112,7 +111,7 @@ unsafe impl Sync for NullTerminatedStrList {}
 impl NullTerminatedStrList {
     #[cfg(feature = "std")]
     pub fn new(list: &[&str]) -> Result<Self> {
-        let mut ret = NullTerminatedStrList {
+        let mut ret = Self {
             c: Vec::with_capacity(list.len() + 1),
         };
 
@@ -128,6 +127,7 @@ impl NullTerminatedStrList {
         Ok(ret)
     }
 
+    #[must_use]
     pub fn as_ptr(&self) -> *const *const c_char {
         self.c.as_ptr() as *const _
     }
@@ -136,7 +136,7 @@ impl NullTerminatedStrList {
 #[cfg(feature = "std")]
 impl Drop for NullTerminatedStrList {
     fn drop(&mut self) {
-        for i in self.c.iter() {
+        for i in &self.c {
             unsafe {
                 if !(*i).is_null() {
                     let _ = ::std::ffi::CString::from_raw(*i);
@@ -179,6 +179,7 @@ define!(
 unsafe impl Sync for Config {}
 
 impl Config {
+    #[must_use]
     pub fn new(e: Endpoint, t: Transport, p: Preset) -> Self {
         let mut inner = ssl_config::default();
 
@@ -191,7 +192,7 @@ impl Config {
             ssl_config_defaults(&mut inner, e as c_int, t as c_int, p as c_int);
         };
 
-        Config {
+        Self {
             inner,
             own_cert: vec![],
             own_pk: vec![],
@@ -266,9 +267,6 @@ impl Config {
             Version::Tls1_0 => 1,
             Version::Tls1_1 => 2,
             Version::Tls1_2 => 3,
-            _ => {
-                return Err(Error::SslBadHsProtocolVersion);
-            }
         };
 
         unsafe { ssl_conf_min_version(self.into(), 3, minor) };
@@ -281,9 +279,6 @@ impl Config {
             Version::Tls1_0 => 1,
             Version::Tls1_1 => 2,
             Version::Tls1_2 => 3,
-            _ => {
-                return Err(Error::SslBadHsProtocolVersion);
-            }
         };
         unsafe { ssl_conf_max_version(self.into(), 3, minor) };
         Ok(())
@@ -313,7 +308,7 @@ impl Config {
             ssl_conf_ca_chain(
                 self.into(),
                 ca_cert.inner_ffi_mut(),
-                crl.as_ref().map(|crl| crl.inner_ffi_mut()).unwrap_or(::core::ptr::null_mut()),
+                crl.as_ref().map_or(::core::ptr::null_mut(), |crl| crl.inner_ffi_mut()),
             );
         }
 
@@ -400,7 +395,7 @@ impl Config {
                 self.into(),
                 Some(sni_callback::<F>),
                 &**self.sni_callback.as_mut().unwrap() as *const _ as *mut c_void,
-            )
+            );
         }
     }
 
@@ -418,7 +413,7 @@ impl Config {
                 self.into(),
                 Some(x509::verify_callback::<F>),
                 &**self.verify_callback.as_ref().unwrap() as *const _ as *mut c_void,
-            )
+            );
         }
     }
 
@@ -440,7 +435,7 @@ impl Config {
 
             let cb = &mut *(closure as *mut F);
             let crt: &MbedtlsList<Certificate> = UnsafeFrom::from(&child as *const *const x509_crt).expect("valid certificate");
-            match cb(&crt) {
+            match cb(crt) {
                 Ok(list) => {
                     // This does not leak due to mbedtls taking ownership from us and freeing the
                     // certificates itself. (logic is in:
@@ -458,7 +453,7 @@ impl Config {
                 self.into(),
                 Some(ca_callback::<F>),
                 &**self.ca_callback.as_mut().unwrap() as *const _ as *mut c_void,
-            )
+            );
         }
     }
 
@@ -474,8 +469,7 @@ impl Config {
             file: *const c_char,
             line: c_int,
             message: *const c_char,
-        ) -> ()
-        where
+        ) where
             F: DbgCallback + 'static,
         {
             let cb = &mut *(closure as *mut F);
@@ -499,7 +493,7 @@ impl Config {
                 self.into(),
                 Some(dbg_callback::<F>),
                 &**self.dbg_callback.as_mut().unwrap() as *const _ as *mut c_void,
-            )
+            );
         }
     }
 
@@ -531,7 +525,7 @@ impl Config {
                 Some(T::cookie_write),
                 Some(T::cookie_check),
                 dtls_cookies.data_ptr(),
-            )
+            );
         };
         self.dtls_cookies = Some(dtls_cookies);
     }
