@@ -26,19 +26,19 @@ cfg-if = "1.0.0"
 libz-sys = { version = "1.0.0", optional = true }
 # deprecated dependency, this don't do anything anymore, but still needed to
 # provide the `libc` feature, can be removed on major version bump
-libc = { version = "0.2.0", optional = true }
+libc = { version = "0.2.155", optional = true }
 
 [target.'cfg(unix)'.dependencies]
-libc = { version = "0.2.0" }
+libc = { version = "0.2.155" }
 
 [target.'cfg(windows)'.dependencies]
-libc = { version = "0.2.0" }
+libc = { version = "0.2.155" }
 
 [build-dependencies]
-bindgen = { version = "0.65.1" }
-cmake = "0.1.17"
+bindgen = { version = "0.68.1" }
+cmake = "0.1.50"
 cc = "1.0.45"
-lazy_static = "1.4"
+lazy_static = "1.5"
 syn = { version = "1.0.64", features = ["full", "visit"] }
 quote = "1.0.9"
 
