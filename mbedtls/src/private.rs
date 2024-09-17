@@ -36,18 +36,18 @@ where
     let mut vec = Vec::with_capacity(2048 /* big because of bug in x509write */);
     loop {
         match f(vec.as_mut_ptr(), vec.capacity()).into_result() {
-            Err(Error::Asn1BufTooSmall)
-            | Err(Error::Base64BufferTooSmall)
-            | Err(Error::EcpBufferTooSmall)
-            | Err(Error::MpiBufferTooSmall)
-            | Err(Error::NetBufferTooSmall)
-            | Err(Error::OidBufTooSmall)
-            | Err(Error::SslBufferTooSmall)
-            | Err(Error::X509BufferTooSmall)
-                if vec.capacity() < MAX_VECTOR_ALLOCATION =>
-            {
+            Err(
+                Error::Asn1BufTooSmall
+                | Error::Base64BufferTooSmall
+                | Error::EcpBufferTooSmall
+                | Error::MpiBufferTooSmall
+                | Error::NetBufferTooSmall
+                | Error::OidBufTooSmall
+                | Error::SslBufferTooSmall
+                | Error::X509BufferTooSmall,
+            ) if vec.capacity() < MAX_VECTOR_ALLOCATION => {
                 let cap = vec.capacity();
-                vec.reserve(cap * 2)
+                vec.reserve(cap * 2);
             }
             Err(e) => return Err(e),
             Ok(n) => {
@@ -93,6 +93,6 @@ use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 
 #[cfg(feature = "std")]
 #[allow(dead_code)]
-pub fn error_to_io_error(e: Error) -> IoError {
+pub fn error_to_io_error(e: &Error) -> IoError {
     IoError::new(IoErrorKind::Other, e.to_string())
 }
