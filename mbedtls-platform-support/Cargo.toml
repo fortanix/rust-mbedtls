@@ -44,3 +44,9 @@ custom_gmtime_r = ["mbedtls-sys-auto/custom_gmtime_r", "chrono"]
 custom_time = ["mbedtls-sys-auto/custom_time", "chrono"]
 force_aesni_support = ["mbedtls-sys-auto/custom_has_support","mbedtls-sys-auto/aes_alt", "aesni"]
 aesni = ["mbedtls-sys-auto/aesni"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(sys_threading_component, values("custom"))',
+    'cfg(sys_time_component, values("custom"))',
+] }

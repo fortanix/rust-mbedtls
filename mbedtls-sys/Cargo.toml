@@ -72,3 +72,10 @@ custom_time = ["time"]
 custom_gmtime_r = ["time"]
 # deprecated features, these don't do anything anymore, can be removed on major version bump
 pthread = ["threading"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(std_component, values("fs"))',
+    'cfg(threading_component, values("pthread"))',
+    'cfg(time_component, values("custom", "libc"))',
+] }
