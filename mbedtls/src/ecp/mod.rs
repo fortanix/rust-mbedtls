@@ -31,11 +31,7 @@ impl Clone for EcGroup {
             ecp_group_copy only works for named groups, for custom groups we
             must perform the copy manually.
             */
-            if group.group_id()? != EcGroupId::None {
-                let mut ret = EcGroup::init();
-                unsafe { ecp_group_copy(ret.handle_mut(), group.handle()) }.into_result()?;
-                Ok(ret)
-            } else {
+            if group.group_id()? == EcGroupId::None {
                 let generator = group.generator()?;
                 EcGroup::from_parameters(
                     group.p()?,
@@ -45,6 +41,10 @@ impl Clone for EcGroup {
                     generator.y()?,
                     group.order()?,
                 )
+            } else {
+                let mut ret = EcGroup::init();
+                unsafe { ecp_group_copy(ret.handle_mut(), group.handle()) }.into_result()?;
+                Ok(ret)
             }
         }
 
@@ -53,7 +53,7 @@ impl Clone for EcGroup {
 }
 
 impl PartialEq for EcGroup {
-    fn eq(&self, other: &EcGroup) -> bool {
+    fn eq(&self, other: &Self) -> bool {
         self.p() == other.p()
             && self.a() == other.a()
             && self.b() == other.b()
@@ -67,26 +67,26 @@ impl Eq for EcGroup {}
 impl TryFrom<EcGroupId> for EcGroup {
     type Error = Error;
 
-    fn try_from(id: EcGroupId) -> Result<EcGroup> {
-        EcGroup::new(id)
+    fn try_from(id: EcGroupId) -> Result<Self> {
+        Self::new(id)
     }
 }
 
 impl EcGroup {
-    pub fn new(group: EcGroupId) -> Result<EcGroup> {
+    pub fn new(group: EcGroupId) -> Result<Self> {
         let mut ret = Self::init();
         unsafe { ecp_group_load(&mut ret.inner, group.into()) }.into_result()?;
         Ok(ret)
     }
 
-    /// Initialize an EcGroup with custom group parameters.
+    /// Initialize an `EcGroup` with custom group parameters.
     ///
     /// HAZMAT: This function DOES NOT perform a full check on parameters
     /// against all known attacks. The caller MUST make sure that parameters are
     /// trusted. Failing to comply with this requirement may result in the use
-    /// of INSECURE curves. Prefer [EcGroup::new] with known curves listed in
-    /// [EcGroupId].
-    pub fn from_parameters(p: Mpi, a: Mpi, b: Mpi, g_x: Mpi, g_y: Mpi, order: Mpi) -> Result<EcGroup> {
+    /// of INSECURE curves. Prefer [`EcGroup::new`] with known curves listed in
+    /// [`EcGroupId`].
+    pub fn from_parameters(p: Mpi, a: Mpi, b: Mpi, g_x: Mpi, g_y: Mpi, order: Mpi) -> Result<Self> {
         let mut ret = Self::init();
 
         ret.inner.pbits = p.bit_length()?;
@@ -96,16 +96,16 @@ impl EcGroup {
         let zero = Mpi::new(0)?;
 
         // basic bounds checking
-        if &a < &zero
-            || &a >= &p
-            || &b < &zero
-            || &b >= &p
-            || &g_x < &zero
-            || &g_x >= &p
-            || &g_y < &zero
-            || &g_y >= &p
-            || &order <= &zero
-            || (&a == &zero && &b == &zero)
+        if a < zero
+            || a >= p
+            || b < zero
+            || b >= p
+            || g_x < zero
+            || g_x >= p
+            || g_y < zero
+            || g_y >= p
+            || order <= zero
+            || (a == zero && b == zero)
         {
             return Err(Error::EcpBadInputData);
         }
@@ -171,7 +171,8 @@ impl EcGroup {
 
     pub fn a(&self) -> Result<Mpi> {
         // Mbedtls uses A == NULL to indicate -3 mod p
-        if self.inner.A.p == ::core::ptr::null_mut() {
+        if self.inner.A.p.is_null() {
+            //if self.inner.A.p == ::core::ptr::null_mut() {
             let mut neg3 = self.p()?;
             neg3 -= 3;
             Ok(neg3)
@@ -230,30 +231,30 @@ impl Clone for EcPoint {
 }
 
 impl PartialEq for EcPoint {
-    fn eq(&self, other: &EcPoint) -> bool {
+    fn eq(&self, other: &Self) -> bool {
         self.eq(other).unwrap()
     }
 }
 
 impl EcPoint {
-    pub fn new() -> Result<EcPoint> {
+    pub fn new() -> Result<Self> {
         let mut ret = Self::init();
         unsafe { ecp_set_zero(&mut ret.inner) }.into_result()?;
         Ok(ret)
     }
 
-    pub(crate) fn copy(other: &ecp_point) -> Result<EcPoint> {
+    pub(crate) fn copy(other: &ecp_point) -> Result<Self> {
         let mut ret = Self::init();
         unsafe { ecp_copy(&mut ret.inner, other) }.into_result()?;
         Ok(ret)
     }
 
-    pub fn from_binary(group: &EcGroup, bin: &[u8]) -> Result<EcPoint> {
-        let prefix = *bin.get(0).ok_or(Error::EcpBadInputData)?;
+    pub fn from_binary(group: &EcGroup, bin: &[u8]) -> Result<Self> {
+        let prefix = *bin.first().ok_or(Error::EcpBadInputData)?;
 
         if prefix == 0x02 || prefix == 0x03 {
             // Compressed point, which mbedtls does not understand
-            let y_mod_2 = if prefix == 0x03 { true } else { false };
+            let y_mod_2 = prefix == 0x03;
 
             let p = group.p()?;
             let a = group.a()?;
@@ -275,7 +276,7 @@ impl EcPoint {
             if y.get_bit(0) != y_mod_2 {
                 y = (&p - &y)?;
             }
-            EcPoint::from_components(x, y)
+            Self::from_components(x, y)
         } else {
             let mut ret = Self::init();
             unsafe { ecp_point_read_binary(&group.inner, &mut ret.inner, bin.as_ptr(), bin.len()) }.into_result()?;
@@ -283,13 +284,13 @@ impl EcPoint {
         }
     }
 
-    pub fn from_binary_no_compress(group: &EcGroup, bin: &[u8]) -> Result<EcPoint> {
+    pub fn from_binary_no_compress(group: &EcGroup, bin: &[u8]) -> Result<Self> {
         let mut ret = Self::init();
         unsafe { ecp_point_read_binary(&group.inner, &mut ret.inner, bin.as_ptr(), bin.len()) }.into_result()?;
         Ok(ret)
     }
 
-    pub fn from_components(x: Mpi, y: Mpi) -> Result<EcPoint> {
+    pub fn from_components(x: Mpi, y: Mpi) -> Result<Self> {
         let mut ret = Self::init();
 
         unsafe {
@@ -329,7 +330,7 @@ impl EcPoint {
         note = "This function does not accept an RNG so it's vulnerable to side channel attacks.
 Please use `mul_with_rng` instead."
     )]
-    pub fn mul(&self, group: &mut EcGroup, k: &Mpi) -> Result<EcPoint> {
+    pub fn mul(&self, group: &mut EcGroup, k: &Mpi) -> Result<Self> {
         // Note: mbedtls_ecp_mul performs point validation itself so we skip that here
 
         let mut ret = Self::init();
@@ -377,7 +378,7 @@ Please use `mul_with_rng` instead."
     /// [`mbedtls_ecp_check_pubkey`]: https://github.com/fortanix/rust-mbedtls/blob/main/mbedtls-sys/vendor/include/mbedtls/ecp.h#L1115-L1143
     /// [`mbedtls_ecp_check_privkey`]: https://github.com/fortanix/rust-mbedtls/blob/main/mbedtls-sys/vendor/include/mbedtls/ecp.h#L1145-L1165
     /// [`mbedtls_ecp_mul`]: https://github.com/fortanix/rust-mbedtls/blob/main/mbedtls-sys/vendor/include/mbedtls/ecp.h#L933-L971
-    pub fn mul_with_rng<F: crate::rng::Random>(&self, group: &mut EcGroup, k: &Mpi, rng: &mut F) -> Result<EcPoint> {
+    pub fn mul_with_rng<F: crate::rng::Random>(&self, group: &mut EcGroup, k: &Mpi, rng: &mut F) -> Result<Self> {
         // Note: mbedtls_ecp_mul performs point validation itself so we skip that here
 
         let mut ret = Self::init();
@@ -398,14 +399,14 @@ Please use `mul_with_rng` instead."
     }
 
     /// Compute pt1*k1 + pt2*k2 -- not const time
-    pub fn muladd(group: &mut EcGroup, pt1: &EcPoint, k1: &Mpi, pt2: &EcPoint, k2: &Mpi) -> Result<EcPoint> {
+    pub fn muladd(group: &mut EcGroup, pt1: &Self, k1: &Mpi, pt2: &Self, k2: &Mpi) -> Result<Self> {
         let mut ret = Self::init();
 
-        if group.contains_point(&pt1)? == false {
+        if !group.contains_point(pt1)? {
             return Err(Error::EcpInvalidKey);
         }
 
-        if group.contains_point(&pt2)? == false {
+        if !group.contains_point(pt2)? {
             return Err(Error::EcpInvalidKey);
         }
 
@@ -424,7 +425,7 @@ Please use `mul_with_rng` instead."
         Ok(ret)
     }
 
-    pub fn eq(&self, other: &EcPoint) -> Result<bool> {
+    pub fn eq(&self, other: &Self) -> Result<bool> {
         let r = unsafe { ecp_point_cmp(&self.inner, &other.inner) };
 
         match r {
@@ -440,10 +441,12 @@ Please use `mul_with_rng` instead."
     /// This new implementation ensures there is no shortcut when any of `x, y ,z` fields of two points is not equal.
     ///
     /// [`mbedtls_ecp_point_cmp`]: https://github.com/fortanix/rust-mbedtls/blob/main/mbedtls-sys/vendor/library/ecp.c#L809-L825
-    pub fn eq_const_time(&self, other: &EcPoint) -> Result<bool> {
+    pub fn eq_const_time(&self, other: &Self) -> Result<bool> {
         let x = crate::bignum::mpi_inner_eq_const_time(&self.inner.X, &other.inner.X);
         let y = crate::bignum::mpi_inner_eq_const_time(&self.inner.Y, &other.inner.Y);
         let z = crate::bignum::mpi_inner_eq_const_time(&self.inner.Z, &other.inner.Z);
+        // allow for constant time
+        #[allow(clippy::match_same_arms)]
         match (x, y, z) {
             (Ok(true), Ok(true), Ok(true)) => Ok(true),
             (Ok(_), Ok(_), Ok(_)) => Ok(false),
