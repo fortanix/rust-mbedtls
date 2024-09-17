@@ -6,14 +6,14 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use core::ffi::{c_char, CStr};
 use core::fmt;
 use core::mem::ManuallyDrop;
 use core::ops::{Deref, DerefMut};
 use core::ptr::drop_in_place;
 use core::ptr::NonNull;
+use cstr_core::CStr;
 
-use mbedtls_sys::types::raw_types::c_void;
+use mbedtls_sys::types::raw_types::{c_char, c_void};
 
 extern "C" {
     #[link_name = concat!("forward_mbedtls_free_", env!("RUST_MBEDTLS_SYMBOL_SUFFIX"))]

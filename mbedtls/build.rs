@@ -47,8 +47,10 @@ fn get_compilation_symbol_suffix() -> String {
 
 fn main() {
     // used for configuring rustdoc attrs for now
-    if rustc_version::version_meta().is_ok_and(|v| v.channel == Channel::Nightly) {
-        println!("cargo:rustc-cfg=nightly");
+    if let Ok(version) = rustc_version::version_meta() {
+        if version.channel == Channel::Nightly {
+            println!("cargo:rustc-cfg=nightly");
+        }
     }
     let symbol_suffix = get_compilation_symbol_suffix();
     println!("cargo:rustc-env=RUST_MBEDTLS_SYMBOL_SUFFIX={}", symbol_suffix);
