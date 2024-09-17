@@ -15,28 +15,28 @@ pub enum Macro {
     #[allow(dead_code)]
     DefinedAs(&'static str),
 }
-use self::Macro::*;
+use self::Macro::{Defined, DefinedAs, Undefined};
 
 impl Macro {
     pub fn define(self, name: &'static str) -> String {
         match self {
             Undefined => String::new(),
-            Defined => format!("#define {}\n", name),
-            DefinedAs(v) => format!("#define {} {}\n", name, v),
+            Defined => format!("#define {name}\n"),
+            DefinedAs(v) => format!("#define {name} {v}\n"),
         }
     }
 }
 
 pub type CDefine = (&'static str, Macro);
 
-pub const PREFIX: &'static str = r#"
+pub const PREFIX: &str = r"
 #ifndef MBEDTLS_CONFIG_H
 #define MBEDTLS_CONFIG_H
 
 #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_DEPRECATE)
 #define _CRT_SECURE_NO_DEPRECATE 1
 #endif
-"#;
+";
 
 /*
 
@@ -64,8 +64,8 @@ for line in open('vendor/include/mbedtls/config.h').readlines():
             print format(match.group(1), "Undefined") + (" // default: %s" % (match.group(2)))
 */
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
-const DEFAULT_DEFINES: &'static [CDefine] = &[
+#[rustfmt::skip]
+const DEFAULT_DEFINES: &[CDefine] = &[
     ("MBEDTLS_HAVE_ASM",                                  Defined),
     ("MBEDTLS_NO_UDBL_DIVISION",                          Undefined),
     ("MBEDTLS_NO_64BIT_MULTIPLICATION",                   Undefined),
@@ -408,17 +408,20 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
 pub fn default_defines() -> HashMap<&'static str, Macro> {
     let mut defines = HashMap::new();
 
-    for (key, value) in DEFAULT_DEFINES.iter() {
-        if defines.insert(*key, *value).is_some() {
-            panic!("Duplicate default define in {}: {}", file!(), key);
-        }
+    for (key, value) in DEFAULT_DEFINES {
+        assert!(
+            defines.insert(*key, *value).is_none(),
+            "Duplicate default define in {}: {}",
+            file!(),
+            key
+        );
     }
 
     defines
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
-pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
+#[rustfmt::skip]
+pub const FEATURE_DEFINES: &[(&str, CDefine)] = &[
     ("time",                  ("MBEDTLS_HAVE_TIME",                         Defined)),
     ("time",                  ("MBEDTLS_HAVE_TIME_DATE",                    Defined)),
     ("havege",                ("MBEDTLS_HAVEGE_C",                          Defined)),
@@ -442,8 +445,8 @@ pub const FEATURE_DEFINES: &'static [(&'static str, CDefine)] = &[
     ("trusted_cert_callback", ("MBEDTLS_X509_TRUSTED_CERTIFICATE_CALLBACK", Defined)),
 ];
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
-pub const PLATFORM_DEFINES: &'static [(&'static str, &'static str, CDefine)] = &[
+#[rustfmt::skip]
+pub const PLATFORM_DEFINES: &[(&str, &str, CDefine)] = &[
     ("time",      "libc",     ("MBEDTLS_TIMING_C",                          Defined)),
     ("time",      "custom",   ("MBEDTLS_PLATFORM_TIME_MACRO",               DefinedAs("mbedtls_time"))),
     ("time",      "custom",   ("MBEDTLS_PLATFORM_TIME_TYPE_MACRO",          DefinedAs("long long"))),
@@ -456,7 +459,7 @@ pub const PLATFORM_DEFINES: &'static [(&'static str, &'static str, CDefine)] = &
     ("std",       "entropy",  ("MBEDTLS_ENTROPY_C",                         Defined)),
 ];
 
-pub const SUFFIX: &'static str = r#"
+pub const SUFFIX: &str = r#"
 #if defined(TARGET_LIKE_MBED)
 #include "mbedtls/target_config.h"
 #endif

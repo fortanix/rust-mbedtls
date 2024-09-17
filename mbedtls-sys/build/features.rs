@@ -59,7 +59,7 @@ impl Features {
 
         for (feature, components) in &self.platform_components {
             for component in components {
-                println!(r#"cargo:rustc-cfg={}_component="{}""#, feature, component);
+                println!(r#"cargo:rustc-cfg={feature}_component="{component}""#);
             }
         }
         println!(
@@ -69,7 +69,7 @@ impl Features {
                 .flat_map(|(feature, components)| {
                     components
                         .iter()
-                        .map(move |component| format!(r#"{}_component={}"#, feature, component))
+                        .map(move |component| format!(r#"{feature}_component={component}"#))
                 })
                 .collect::<Vec<_>>()
                 .join(",")
@@ -78,7 +78,9 @@ impl Features {
 
     fn with_feature(&mut self, feature: &'static str) -> Option<&mut HashSet<&'static str>> {
         if self.have_feature(feature) {
-            Some(self.platform_components.entry(feature).or_insert_with(HashSet::new))
+            Some(self.platform_components.entry(feature).or_default())
+            //This should be the same
+            //Some(self.platform_components.entry(feature).or_insert_with(HashSet::new))
         } else {
             None
         }
@@ -96,11 +98,11 @@ impl Features {
 }
 
 fn env_have_target_cfg(var: &'static str, value: &'static str) -> bool {
-    let env = format!("CARGO_CFG_TARGET_{}", var).to_uppercase().replace("-", "_");
+    let env = format!("CARGO_CFG_TARGET_{var}").to_uppercase().replace('-', "_");
     env::var_os(env).map_or(false, |s| s == value)
 }
 
 fn env_have_feature(feature: &'static str) -> bool {
-    let env = format!("CARGO_FEATURE_{}", feature).to_uppercase().replace("-", "_");
+    let env = format!("CARGO_FEATURE_{feature}").to_uppercase().replace('-', "_");
     env::var_os(env).is_some()
 }
