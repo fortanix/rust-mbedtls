@@ -32,16 +32,16 @@ define!(
 impl From<cipher_id_t> for CipherId {
     fn from(inner: cipher_id_t) -> Self {
         match inner {
-            CIPHER_ID_NONE => CipherId::None,
-            CIPHER_ID_NULL => CipherId::Null,
-            CIPHER_ID_AES => CipherId::Aes,
-            CIPHER_ID_DES => CipherId::Des,
-            CIPHER_ID_3DES => CipherId::Des3,
-            CIPHER_ID_CAMELLIA => CipherId::Camellia,
-            CIPHER_ID_BLOWFISH => CipherId::Blowfish,
-            CIPHER_ID_ARC4 => CipherId::Arc4,
-            CIPHER_ID_ARIA => CipherId::Aria,
-            CIPHER_ID_CHACHA20 => CipherId::Chacha20,
+            CIPHER_ID_NONE => Self::None,
+            CIPHER_ID_NULL => Self::Null,
+            CIPHER_ID_AES => Self::Aes,
+            CIPHER_ID_DES => Self::Des,
+            CIPHER_ID_3DES => Self::Des3,
+            CIPHER_ID_CAMELLIA => Self::Camellia,
+            CIPHER_ID_BLOWFISH => Self::Blowfish,
+            CIPHER_ID_ARC4 => Self::Arc4,
+            CIPHER_ID_ARIA => Self::Aria,
+            CIPHER_ID_CHACHA20 => Self::Chacha20,
             // This should be replaced with TryFrom once it is stable.
             _ => panic!("Invalid cipher_id_t"),
         }
@@ -71,19 +71,19 @@ define!(
 impl From<cipher_mode_t> for CipherMode {
     fn from(inner: cipher_mode_t) -> Self {
         match inner {
-            MODE_NONE => CipherMode::None,
-            MODE_ECB => CipherMode::ECB,
-            MODE_CBC => CipherMode::CBC,
-            MODE_CFB => CipherMode::CFB,
-            MODE_OFB => CipherMode::OFB,
-            MODE_CTR => CipherMode::CTR,
-            MODE_GCM => CipherMode::GCM,
-            MODE_STREAM => CipherMode::STREAM,
-            MODE_CCM => CipherMode::CCM,
-            MODE_XTS => CipherMode::XTS,
-            MODE_CHACHAPOLY => CipherMode::CHACHAPOLY,
-            MODE_KW => CipherMode::KW,
-            MODE_KWP => CipherMode::KWP,
+            MODE_NONE => Self::None,
+            MODE_ECB => Self::ECB,
+            MODE_CBC => Self::CBC,
+            MODE_CFB => Self::CFB,
+            MODE_OFB => Self::OFB,
+            MODE_CTR => Self::CTR,
+            MODE_GCM => Self::GCM,
+            MODE_STREAM => Self::STREAM,
+            MODE_CCM => Self::CCM,
+            MODE_XTS => Self::XTS,
+            MODE_CHACHAPOLY => Self::CHACHAPOLY,
+            MODE_KW => Self::KW,
+            MODE_KWP => Self::KWP,
             // This should be replaced with TryFrom once it is stable.
             _ => panic!("Invalid cipher_mode_t"),
         }
@@ -210,7 +210,7 @@ impl Cipher {
     // Setup routine - this should be the first function called
     // it combines several steps into one call here, they are
     // Cipher init, Cipher setup
-    pub fn setup(cipher_id: CipherId, cipher_mode: CipherMode, key_bit_len: u32) -> Result<Cipher> {
+    pub fn setup(cipher_id: CipherId, cipher_mode: CipherMode, key_bit_len: u32) -> Result<Self> {
         let mut ret = Self::init();
         unsafe {
             // Do setup with proper cipher_info based on algorithm, key length and mode
@@ -293,28 +293,26 @@ impl Cipher {
     }
 
     // Utility function to get block size for the selected / setup cipher_info
+    #[must_use]
     pub fn block_size(&self) -> usize {
         unsafe { (*self.inner.cipher_info).block_size as usize }
     }
 
     // Utility function to get IV size for the selected / setup cipher_info
+    #[must_use]
     pub fn iv_size(&self) -> usize {
         unsafe { (*self.inner.cipher_info).iv_size as usize }
     }
 
+    #[must_use]
     pub fn cipher_mode(&self) -> CipherMode {
         unsafe { (*self.inner.cipher_info).mode.into() }
     }
 
     // Utility function to get mode for the selected / setup cipher_info
+    #[must_use]
     pub fn is_authenticated(&self) -> bool {
-        unsafe {
-            if (*self.inner.cipher_info).mode == MODE_GCM || (*self.inner.cipher_info).mode == MODE_CCM {
-                return true;
-            } else {
-                return false;
-            }
-        }
+        unsafe { (*self.inner.cipher_info).mode == MODE_GCM || (*self.inner.cipher_info).mode == MODE_CCM }
     }
 
     // Utility function to set odd parity - used for DES keys

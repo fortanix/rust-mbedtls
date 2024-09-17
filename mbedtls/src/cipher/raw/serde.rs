@@ -64,9 +64,10 @@ impl<Op: Operation, T: Type> Serialize for Cipher<Op, T, CipherData> {
             serialize_raw_cipher(cipher_context).map_err(ser::Error::custom)?
         };
 
-        match Op::is_encrypt() {
-            true => SavedCipher::Encryption(saved_raw_cipher, self.padding).serialize(s),
-            false => SavedCipher::Decryption(saved_raw_cipher, self.padding).serialize(s),
+        if Op::is_encrypt() {
+            SavedCipher::Encryption(saved_raw_cipher, self.padding).serialize(s)
+        } else {
+            SavedCipher::Decryption(saved_raw_cipher, self.padding).serialize(s)
         }
     }
 }
@@ -82,23 +83,19 @@ unsafe fn serialize_raw_cipher(mut cipher_context: cipher_context_t) -> Result<S
     // We only allow certain modes that we know have serialization-safe context
     // structures. If adding GCM/CCM support, be aware that they don't use the same
     // context types as the conventional modes.
-    let algorithm_ctx = match (cipher_id, cipher_mode) {
-        (CIPHER_ID_AES, MODE_CBC)
-        | (CIPHER_ID_AES, MODE_CTR)
-        | (CIPHER_ID_AES, MODE_OFB)
-        | (CIPHER_ID_AES, MODE_CFB)
-        | (CIPHER_ID_AES, MODE_ECB) => {
+    let algorithm_context = match (cipher_id, cipher_mode) {
+        (CIPHER_ID_AES, MODE_CBC | MODE_CTR | MODE_OFB | MODE_CFB | MODE_ECB) => {
             let mut aes_context = *(cipher_context.cipher_ctx as *const aes_context);
             aes_context.rk = ::core::ptr::null_mut();
             AlgorithmContext::Aes(Bytes(aes_context))
         }
-        (CIPHER_ID_ARIA, MODE_CBC) | (CIPHER_ID_ARIA, MODE_CTR) | (CIPHER_ID_ARIA, MODE_CFB) | (CIPHER_ID_ARIA, MODE_ECB) => {
+        (CIPHER_ID_ARIA, MODE_CBC | MODE_CTR | MODE_CFB | MODE_ECB) => {
             AlgorithmContext::Aria(Bytes(*(cipher_context.cipher_ctx as *const aria_context)))
         }
-        (CIPHER_ID_DES, MODE_CBC) | (CIPHER_ID_DES, MODE_CTR) | (CIPHER_ID_DES, MODE_OFB) | (CIPHER_ID_DES, MODE_CFB) => {
+        (CIPHER_ID_DES, MODE_CBC | MODE_CTR | MODE_OFB | MODE_CFB) => {
             AlgorithmContext::Des(Bytes(*(cipher_context.cipher_ctx as *const des_context)))
         }
-        (CIPHER_ID_3DES, MODE_CBC) | (CIPHER_ID_3DES, MODE_CTR) | (CIPHER_ID_3DES, MODE_OFB) | (CIPHER_ID_3DES, MODE_CFB) => {
+        (CIPHER_ID_3DES, MODE_CBC | MODE_CTR | MODE_OFB | MODE_CFB) => {
             AlgorithmContext::Des3(Bytes(*(cipher_context.cipher_ctx as *const des3_context)))
         }
         (CIPHER_ID_AES, MODE_GCM) => {
@@ -117,6 +114,7 @@ unsafe fn serialize_raw_cipher(mut cipher_context: cipher_context_t) -> Result<S
             return Err("unsupported algorithm for serialization");
         }
     };
+    let algorithm_ctx = algorithm_context;
 
     // Null the algorithm context
     cipher_context.cipher_ctx = ::core::ptr::null_mut();
@@ -126,16 +124,16 @@ unsafe fn serialize_raw_cipher(mut cipher_context: cipher_context_t) -> Result<S
     cipher_context.get_padding = None;
 
     Ok(SavedRawCipher {
-        cipher_id: cipher_id,
-        cipher_mode: cipher_mode,
-        key_bit_len: key_bit_len,
+        cipher_id,
+        cipher_mode,
+        key_bit_len,
         context: Bytes(cipher_context),
-        algorithm_ctx: algorithm_ctx,
+        algorithm_ctx,
     })
 }
 
 impl<'de, Op: Operation, T: Type> Deserialize<'de> for Cipher<Op, T, CipherData> {
-    fn deserialize<D>(d: D) -> Result<Cipher<Op, T, CipherData>, D::Error>
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -160,9 +158,9 @@ impl<'de, Op: Operation, T: Type> Deserialize<'de> for Cipher<Op, T, CipherData>
         unsafe {
             let raw_cipher = deserialize_raw_cipher(raw, padding)
                 .map_err(|(e1, e2)| de::Error::invalid_value(Unexpected::Other(e1), &e2))?;
-            Ok(Cipher {
-                raw_cipher: raw_cipher,
-                padding: padding,
+            Ok(Self {
+                raw_cipher,
+                padding,
                 _op: PhantomData,
                 _type: PhantomData,
                 _state: PhantomData,
@@ -171,6 +169,7 @@ impl<'de, Op: Operation, T: Type> Deserialize<'de> for Cipher<Op, T, CipherData>
     }
 }
 
+#[allow(clippy::manual_let_else)]
 unsafe fn deserialize_raw_cipher(
     raw: SavedRawCipher,
     padding: raw::CipherPadding,
@@ -200,11 +199,11 @@ unsafe fn deserialize_raw_cipher(
             (*ret_aes_ctx).rk = &mut (*ret_aes_ctx).buf[0];
         }
         (CIPHER_ID_ARIA, AlgorithmContext::Aria(Bytes(aria_ctx))) => {
-            *(cipher_context.cipher_ctx as *mut aria_context) = aria_ctx
+            *(cipher_context.cipher_ctx as *mut aria_context) = aria_ctx;
         }
         (CIPHER_ID_DES, AlgorithmContext::Des(Bytes(des_ctx))) => *(cipher_context.cipher_ctx as *mut des_context) = des_ctx,
         (CIPHER_ID_3DES, AlgorithmContext::Des3(Bytes(des3_ctx))) => {
-            *(cipher_context.cipher_ctx as *mut des3_context) = des3_ctx
+            *(cipher_context.cipher_ctx as *mut des3_context) = des3_ctx;
         }
         (
             CIPHER_ID_AES,
@@ -267,7 +266,9 @@ unsafe trait BytesSerde: Sized {
     }
 
     fn as_slice(&self) -> &[u8] {
-        unsafe { from_raw_parts(self as *const Self as *const u8, size_of::<Self>()) }
+        // leaving the old one in, not sure if this does the same or not
+        //unsafe { from_raw_parts(self as *const Self as *const u8, size_of::<Self>()) }
+        unsafe { from_raw_parts(std::ptr::from_ref::<Self>(self) as *const u8, size_of::<Self>()) }
     }
 }
 
@@ -281,7 +282,7 @@ impl<T: BytesSerde> Serialize for Bytes<T> {
 }
 
 impl<'de, T: BytesSerde> Deserialize<'de> for Bytes<T> {
-    fn deserialize<D>(d: D) -> Result<Bytes<T>, D::Error>
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -340,6 +341,8 @@ unsafe fn _check_cipher_context_t_size(ctx: cipher_context_t) -> [u8; _SIZE_OF_C
     ::core::mem::transmute(ctx)
 }
 
+// I don't know if this should be ignored or not
+#[allow(clippy::large_types_passed_by_value)]
 unsafe fn _check_aes_context_size(ctx: aes_context) -> [u8; _SIZE_OF_AES_CONTEXT] {
     ::core::mem::transmute(ctx)
 }
@@ -348,10 +351,14 @@ unsafe fn _check_des_context_size(ctx: des_context) -> [u8; _SIZE_OF_DES_CONTEXT
     ::core::mem::transmute(ctx)
 }
 
+// I don't know if this should be ignored or not
+#[allow(clippy::large_types_passed_by_value)]
 unsafe fn _check_des3_context_size(ctx: des3_context) -> [u8; _SIZE_OF_DES3_CONTEXT] {
     ::core::mem::transmute(ctx)
 }
 
+// I don't know if this should be ignored or not
+#[allow(clippy::large_types_passed_by_value)]
 unsafe fn _check_gcm_context_size(ctx: gcm_context) -> [u8; _SIZE_OF_GCM_CONTEXT] {
     ::core::mem::transmute(ctx)
 }
