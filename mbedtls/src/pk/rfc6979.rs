@@ -18,11 +18,11 @@ use crate::bignum::Mpi;
 use crate::error::Result;
 use crate::hash::{MdInfo, Type};
 
-pub(crate) fn generate_rfc6979_nonce(md: &MdInfo, x: &Mpi, q: &Mpi, digest_bytes: &[u8]) -> Result<Vec<u8>> {
+pub(crate) fn generate_rfc6979_nonce(md: MdInfo, x: &Mpi, q: &Mpi, digest_bytes: &[u8]) -> Result<Vec<u8>> {
     let q_bits = q.bit_length()?;
     let q_bytes = q.byte_length()?;
 
-    let mut digest = Mpi::from_binary(&digest_bytes)?;
+    let mut digest = Mpi::from_binary(digest_bytes)?;
 
     if 8 * md.size() > q_bits {
         let shift_needed = 8 * md.size() - q_bits;
@@ -37,7 +37,7 @@ pub(crate) fn generate_rfc6979_nonce(md: &MdInfo, x: &Mpi, q: &Mpi, digest_bytes
     let mut d = digest.to_binary_padded(q_bytes)?;
     x.append(&mut d);
 
-    let mut drbg = HmacDrbg::from_buf(*md, &x).unwrap();
+    let mut drbg = HmacDrbg::from_buf(md, &x).unwrap();
 
     let mut output = vec![0; q_bytes];
 
@@ -72,16 +72,16 @@ pub(crate) struct Rfc6979Rng {
 
 /// An RNG which first outputs the k for RFC 6797 followed by random data
 impl Rfc6979Rng {
-    pub fn new(md_type: Type, q: &Mpi, x: &Mpi, digest_bytes: &[u8], random_seed: &[u8]) -> Result<Rfc6979Rng> {
+    pub fn new(md_type: Type, q: &Mpi, x: &Mpi, digest_bytes: &[u8], random_seed: &[u8]) -> Result<Self> {
         let md: MdInfo = match md_type.into() {
             Some(md) => md,
             None => panic!("no such digest"),
         };
 
-        let k = generate_rfc6979_nonce(&md, x, q, digest_bytes)?;
+        let k = generate_rfc6979_nonce(md, x, q, digest_bytes)?;
 
-        Ok(Rfc6979Rng {
-            k: k,
+        Ok(Self {
+            k,
             k_read: 0,
             rng: HmacDrbg::from_buf(md, random_seed)?,
         })
@@ -106,7 +106,7 @@ impl Rfc6979Rng {
 
 impl RngCallbackMut for Rfc6979Rng {
     unsafe extern "C" fn call_mut(user_data: *mut c_void, data_ptr: *mut c_uchar, len: size_t) -> c_int {
-        let rng: &mut Rfc6979Rng = (user_data as *mut Rfc6979Rng).as_mut().unwrap();
+        let rng: &mut Self = (user_data as *mut Self).as_mut().unwrap();
         let slice = ::core::slice::from_raw_parts_mut(data_ptr, len);
         let result = rng.random_callback(slice);
         if let Err(r) = result {
