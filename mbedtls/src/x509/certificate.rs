@@ -50,7 +50,7 @@ impl BERDecodable for Extension {
             let oid = reader.next().read_oid()?;
             let critical = reader.read_optional(|r| r.read_bool())?.unwrap_or(false);
             let value = reader.next().read_bytes()?;
-            Ok(Extension { oid, critical, value })
+            Ok(Self { oid, critical, value })
         })
     }
 }
@@ -93,15 +93,15 @@ fn x509_time_to_time(tm: &x509_time) -> Result<Time> {
 }
 
 impl Certificate {
-    pub fn from_der(der: &[u8]) -> Result<MbedtlsBox<Certificate>> {
-        let mut cert = MbedtlsBox::<Certificate>::init()?;
+    pub fn from_der(der: &[u8]) -> Result<MbedtlsBox<Self>> {
+        let mut cert = MbedtlsBox::<Self>::init()?;
         unsafe { x509_crt_parse_der((&mut (*cert)).into(), der.as_ptr(), der.len()) }.into_result()?;
         Ok(cert)
     }
 
     /// Input must be NULL-terminated
-    pub fn from_pem(pem: &[u8]) -> Result<MbedtlsBox<Certificate>> {
-        let mut cert = MbedtlsBox::<Certificate>::init()?;
+    pub fn from_pem(pem: &[u8]) -> Result<MbedtlsBox<Self>> {
+        let mut cert = MbedtlsBox::<Self>::init()?;
         unsafe { x509_crt_parse((&mut (*cert)).into(), pem.as_ptr(), pem.len()) }.into_result()?;
 
         if !(*cert).inner.next.is_null() {
@@ -113,21 +113,23 @@ impl Certificate {
     }
 
     /// Input must be NULL-terminated
-    pub fn from_pem_multiple(pem: &[u8]) -> Result<MbedtlsList<Certificate>> {
-        let mut cert = MbedtlsBox::<Certificate>::init()?;
+    pub fn from_pem_multiple(pem: &[u8]) -> Result<MbedtlsList<Self>> {
+        let mut cert = MbedtlsBox::<Self>::init()?;
         unsafe { x509_crt_parse((&mut (*cert)).into(), pem.as_ptr(), pem.len()) }.into_result()?;
 
-        let mut list = MbedtlsList::<Certificate>::new();
+        let mut list = MbedtlsList::<Self>::new();
         list.push(cert);
         Ok(list)
     }
 
+    #[must_use]
     pub fn check_key_usage(&self, usage: super::KeyUsage) -> bool {
         unsafe { x509_crt_check_key_usage(&self.inner, usage.bits()) }
             .into_result()
             .is_ok()
     }
 
+    #[must_use]
     pub fn check_extended_key_usage(&self, usage_oid: &[c_char]) -> bool {
         unsafe { x509_crt_check_extended_key_usage(&self.inner, usage_oid.as_ptr(), usage_oid.len()) }
             .into_result()
@@ -158,7 +160,8 @@ impl Certificate {
         Ok(x509_buf_to_vec(&self.inner.serial))
     }
 
-    pub fn public_key(&self) -> &Pk {
+    #[must_use]
+    pub const fn public_key(&self) -> &Pk {
         unsafe { &*(&self.inner.pk as *const _ as *const _) }
     }
 
@@ -166,11 +169,12 @@ impl Certificate {
         unsafe { &mut *(&mut self.inner.pk as *mut _ as *mut _) }
     }
 
-    pub fn as_der(&self) -> &[u8] {
+    #[must_use]
+    pub const fn as_der(&self) -> &[u8] {
         unsafe { ::core::slice::from_raw_parts(self.inner.raw.p, self.inner.raw.len) }
     }
 
-    pub fn version(&self) -> Result<CertificateVersion> {
+    pub const fn version(&self) -> Result<CertificateVersion> {
         match self.inner.version {
             1 => Ok(CertificateVersion::V1),
             2 => Ok(CertificateVersion::V2),
@@ -200,12 +204,12 @@ impl Certificate {
                 if let Ok(data) = r.read_der() {
                     let e: Extension = yasna::decode_der(&data)?;
                     ext.push(e);
-                    return Ok(());
+                    Ok(())
                 } else {
-                    return Err(ASN1Error::new(ASN1ErrorKind::Eof));
+                    Err(ASN1Error::new(ASN1ErrorKind::Eof))
                 }
             })?;
-            return Ok(());
+            Ok(())
         })
         .map_err(|_| Error::X509InvalidExtensions)?;
 
@@ -216,16 +220,17 @@ impl Certificate {
         Ok(x509_buf_to_vec(&self.inner.sig))
     }
 
+    #[must_use]
     pub fn digest_type(&self) -> MdType {
         MdType::from(self.inner.sig_md)
     }
 
     fn verify_ex<F>(
-        chain: &MbedtlsList<Certificate>,
-        trust_ca: &MbedtlsList<Certificate>,
+        chain: &MbedtlsList<Self>,
+        trust_ca: &MbedtlsList<Self>,
         ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
-        cb: Option<F>,
+        cb: &Option<F>,
         expected_common_name: Option<&str>,
     ) -> core::result::Result<(), (Error, VerifyError)>
     where
@@ -240,7 +245,7 @@ impl Certificate {
             (None, ::core::ptr::null_mut())
         };
 
-        let cn = expected_common_name.map(|cn| CString::new(cn));
+        let cn = expected_common_name.map(CString::new);
         let mut flags = 0;
         let result = unsafe {
             x509_crt_verify(
@@ -274,35 +279,35 @@ impl Certificate {
     }
 
     pub fn verify(
-        chain: &MbedtlsList<Certificate>,
-        trust_ca: &MbedtlsList<Certificate>,
+        chain: &MbedtlsList<Self>,
+        trust_ca: &MbedtlsList<Self>,
         ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
     ) -> Result<()> {
-        Self::verify_ex(chain, trust_ca, ca_crl, err_info, None::<&dyn VerifyCallback>, None).map_err(|(e, _ve)| e)
+        Self::verify_ex(chain, trust_ca, ca_crl, err_info, &None::<&dyn VerifyCallback>, None).map_err(|(e, _ve)| e)
     }
 
     /// Like `verify`. In case of errors, returns `VerifyError` as well.
     pub fn verify_return_verify_err(
-        chain: &MbedtlsList<Certificate>,
-        trust_ca: &MbedtlsList<Certificate>,
+        chain: &MbedtlsList<Self>,
+        trust_ca: &MbedtlsList<Self>,
         ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
     ) -> core::result::Result<(), (Error, VerifyError)> {
-        Self::verify_ex(chain, trust_ca, ca_crl, err_info, None::<&dyn VerifyCallback>, None)
+        Self::verify_ex(chain, trust_ca, ca_crl, err_info, &None::<&dyn VerifyCallback>, None)
     }
 
     /// Like `verify`, optionally accepts an `expected_common_name` arg.
     ///
     /// * `expected_common_name`
-    /// (From mbedtls documentation) The expected Common Name. This will be checked to be present in the certificate’s
-    /// subjectAltNames extension or, if this extension is absent, as a CN component in its Subject name. DNS names
-    /// and IP addresses are fully supported, while the URI subtype is partially supported: only exact matching,
-    /// without any normalization procedures described in 7.4 of RFC5280, will result in a positive URI verification.
-    /// This may be `None` if the CN need not be verified.
+    ///   (From mbedtls documentation) The expected Common Name. This will be checked to be present in the certificate’s
+    ///   subjectAltNames extension or, if this extension is absent, as a CN component in its Subject name. DNS names
+    ///   and IP addresses are fully supported, while the URI subtype is partially supported: only exact matching,
+    ///   without any normalization procedures described in 7.4 of RFC5280, will result in a positive URI verification.
+    ///   This may be `None` if the CN need not be verified.
     pub fn verify_with_expected_common_name(
-        chain: &MbedtlsList<Certificate>,
-        trust_ca: &MbedtlsList<Certificate>,
+        chain: &MbedtlsList<Self>,
+        trust_ca: &MbedtlsList<Self>,
         ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
         expected_common_name: Option<&str>,
@@ -312,7 +317,7 @@ impl Certificate {
             trust_ca,
             ca_crl,
             err_info,
-            None::<&dyn VerifyCallback>,
+            &None::<&dyn VerifyCallback>,
             expected_common_name,
         )
         .map_err(|(e, _ve)| e)
@@ -320,8 +325,8 @@ impl Certificate {
 
     /// Like `verify_with_expected_common_name`. In case of errors, returns `VerifyError` as well.
     pub fn verify_with_expected_common_name_return_verify_err(
-        chain: &MbedtlsList<Certificate>,
-        trust_ca: &MbedtlsList<Certificate>,
+        chain: &MbedtlsList<Self>,
+        trust_ca: &MbedtlsList<Self>,
         ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
         expected_common_name: Option<&str>,
@@ -331,14 +336,14 @@ impl Certificate {
             trust_ca,
             ca_crl,
             err_info,
-            None::<&dyn VerifyCallback>,
+            &None::<&dyn VerifyCallback>,
             expected_common_name,
         )
     }
 
     pub fn verify_with_callback<F>(
-        chain: &MbedtlsList<Certificate>,
-        trust_ca: &MbedtlsList<Certificate>,
+        chain: &MbedtlsList<Self>,
+        trust_ca: &MbedtlsList<Self>,
         ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
         cb: F,
@@ -346,13 +351,13 @@ impl Certificate {
     where
         F: VerifyCallback + 'static,
     {
-        Self::verify_ex(chain, trust_ca, ca_crl, err_info, Some(cb), None).map_err(|(e, _ve)| e)
+        Self::verify_ex(chain, trust_ca, ca_crl, err_info, &Some(cb), None).map_err(|(e, _ve)| e)
     }
 
     /// Like `verify_with_callback`. In case of errors, returns `VerifyError` as well.
     pub fn verify_with_callback_return_verify_err<F>(
-        chain: &MbedtlsList<Certificate>,
-        trust_ca: &MbedtlsList<Certificate>,
+        chain: &MbedtlsList<Self>,
+        trust_ca: &MbedtlsList<Self>,
         ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
         cb: F,
@@ -360,20 +365,20 @@ impl Certificate {
     where
         F: VerifyCallback + 'static,
     {
-        Self::verify_ex(chain, trust_ca, ca_crl, err_info, Some(cb), None)
+        Self::verify_ex(chain, trust_ca, ca_crl, err_info, &Some(cb), None)
     }
 
     /// Like `verify_with_callback`, optionally accepts an `expected_common_name` arg.
     ///
     /// * `expected_common_name`
-    /// (From mbedtls documentation) The expected Common Name. This will be checked to be present in the certificate’s
-    /// subjectAltNames extension or, if this extension is absent, as a CN component in its Subject name. DNS names
-    /// and IP addresses are fully supported, while the URI subtype is partially supported: only exact matching,
-    /// without any normalization procedures described in 7.4 of RFC5280, will result in a positive URI verification.
-    /// This may be `None` if the CN need not be verified.
+    ///   (From mbedtls documentation) The expected Common Name. This will be checked to be present in the certificate’s
+    ///   subjectAltNames extension or, if this extension is absent, as a CN component in its Subject name. DNS names
+    ///   and IP addresses are fully supported, while the URI subtype is partially supported: only exact matching,
+    ///   without any normalization procedures described in 7.4 of RFC5280, will result in a positive URI verification.
+    ///   This may be `None` if the CN need not be verified.
     pub fn verify_with_callback_expected_common_name<F>(
-        chain: &MbedtlsList<Certificate>,
-        trust_ca: &MbedtlsList<Certificate>,
+        chain: &MbedtlsList<Self>,
+        trust_ca: &MbedtlsList<Self>,
         ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
         cb: F,
@@ -382,13 +387,13 @@ impl Certificate {
     where
         F: VerifyCallback + 'static,
     {
-        Self::verify_ex(chain, trust_ca, ca_crl, err_info, Some(cb), expected_common_name).map_err(|(e, _ve)| e)
+        Self::verify_ex(chain, trust_ca, ca_crl, err_info, &Some(cb), expected_common_name).map_err(|(e, _ve)| e)
     }
 
     /// Like `verify_with_callback_expected_common_name`. In case of errors, returns `VerifyError` as well.
     pub fn verify_with_callback_expected_common_name_return_verify_err<F>(
-        chain: &MbedtlsList<Certificate>,
-        trust_ca: &MbedtlsList<Certificate>,
+        chain: &MbedtlsList<Self>,
+        trust_ca: &MbedtlsList<Self>,
         ca_crl: Option<&mut Crl>,
         err_info: Option<&mut String>,
         cb: F,
@@ -397,7 +402,7 @@ impl Certificate {
     where
         F: VerifyCallback + 'static,
     {
-        Self::verify_ex(chain, trust_ca, ca_crl, err_info, Some(cb), expected_common_name)
+        Self::verify_ex(chain, trust_ca, ca_crl, err_info, &Some(cb), expected_common_name)
     }
 }
 
@@ -585,25 +590,21 @@ impl MbedtlsBox<Certificate> {
             let inner = NonNull::new(inner).ok_or(Error::X509AllocFailed)?;
             x509_crt_init(inner.as_ptr());
 
-            Ok(MbedtlsBox { inner: inner.cast() })
+            Ok(Self { inner: inner.cast() })
         }
     }
 
-    fn list_next(&self) -> Option<&MbedtlsBox<Certificate>> {
-        unsafe {
-            <&Option<MbedtlsBox<_>> as UnsafeFrom<_>>::from(&(**self).inner.next)
-                .unwrap()
-                .as_ref()
-        }
+    fn list_next(&self) -> Option<&Self> {
+        unsafe { <&Option<Self> as UnsafeFrom<_>>::from(&(**self).inner.next).unwrap().as_ref() }
     }
 
-    fn list_next_mut(&mut self) -> &mut Option<MbedtlsBox<Certificate>> {
-        unsafe { <&mut Option<MbedtlsBox<_>> as UnsafeFrom<_>>::from(&mut (**self).inner.next).unwrap() }
+    fn list_next_mut(&mut self) -> &mut Option<Self> {
+        unsafe { <&mut Option<Self> as UnsafeFrom<_>>::from(&mut (**self).inner.next).unwrap() }
     }
 }
 
 impl Clone for MbedtlsBox<Certificate> {
-    fn clone(&self) -> MbedtlsBox<Certificate> {
+    fn clone(&self) -> Self {
         unsafe {
             let len = (**self).inner.raw.len;
             if len == 0 {
@@ -635,8 +636,15 @@ impl<'a> UnsafeFrom<*mut *mut x509_crt> for &'a mut Option<MbedtlsBox<Certificat
     }
 }
 
+impl Default for MbedtlsList<Certificate> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MbedtlsList<Certificate> {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self { inner: None }
     }
 
@@ -644,15 +652,18 @@ impl MbedtlsList<Certificate> {
     pub(crate) fn into_raw(mut self) -> *mut x509_crt {
         // This leaks a *mut Certificate that we can cast to x509_crt as it's
         // transparent and has no extra fields.
-        self.inner.take().map(|x| x.into_raw()).unwrap_or(core::ptr::null_mut()) as *mut x509_crt
+        self.inner
+            .take()
+            .map_or(core::ptr::null_mut(), super::super::alloc::Box::into_raw) as *mut x509_crt
     }
 
-    pub fn is_empty(&self) -> bool {
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
         self.inner.is_none()
     }
 
-    pub fn push(&mut self, certificate: MbedtlsBox<Certificate>) -> () {
-        self.append(MbedtlsList::<Certificate> {
+    pub fn push(&mut self, certificate: MbedtlsBox<Certificate>) {
+        self.append(Self {
             inner: Some(certificate),
         });
     }
@@ -678,15 +689,16 @@ impl MbedtlsList<Certificate> {
         Some(ret)
     }
 
-    pub fn append(&mut self, list: MbedtlsList<Certificate>) {
+    pub fn append(&mut self, list: Self) {
         let tail = match self.iter_mut().last() {
             None => &mut self.inner,
-            Some(last) => last.list_next_mut(),
+            Some(last_item) => last_item.list_next_mut(),
         };
         *tail = list.inner;
     }
 
-    pub fn iter(&self) -> Iter<'_> {
+    #[must_use]
+    pub const fn iter(&self) -> Iter<'_> {
         Iter {
             next: self.inner.as_ref(),
         }
@@ -706,22 +718,22 @@ impl MbedtlsList<Certificate> {
 }
 
 impl Clone for MbedtlsList<Certificate> {
-    fn clone(&self) -> MbedtlsList<Certificate> {
+    fn clone(&self) -> Self {
         self.iter().cloned().collect()
     }
 }
 
-impl Into<*const x509_crt> for &MbedtlsList<Certificate> {
-    fn into(self) -> *const x509_crt {
-        self.inner
+impl From<&MbedtlsList<Certificate>> for *const x509_crt {
+    fn from(val: &MbedtlsList<Certificate>) -> Self {
+        val.inner
             .as_ref()
             .map_or(::core::ptr::null_mut(), |c| c.inner.as_ptr() as *const x509_crt)
     }
 }
 
-impl Into<*mut x509_crt> for &mut MbedtlsList<Certificate> {
-    fn into(self) -> *mut x509_crt {
-        self.inner
+impl From<&mut MbedtlsList<Certificate>> for *mut x509_crt {
+    fn from(val: &mut MbedtlsList<Certificate>) -> Self {
+        val.inner
             .as_ref()
             .map_or(::core::ptr::null_mut(), |c| c.inner.as_ptr() as *mut x509_crt)
     }
