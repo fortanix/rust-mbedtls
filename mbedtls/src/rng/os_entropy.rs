@@ -88,6 +88,7 @@ impl OsEntropy {
 }
 
 impl EntropyCallback for OsEntropy {
+    #[allow(clippy::inline_always)]
     #[inline(always)]
     unsafe extern "C" fn call(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
         // mutex used in entropy_func:
@@ -103,6 +104,7 @@ impl EntropyCallback for OsEntropy {
 }
 
 impl EntropyCallbackMut for OsEntropy {
+    #[allow(clippy::inline_always)]
     #[inline(always)]
     unsafe extern "C" fn call_mut(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
         // mutex used in entropy_func:

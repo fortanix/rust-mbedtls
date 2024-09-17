@@ -36,8 +36,8 @@ impl HmacDrbg {
         md_info: MdInfo,
         entropy: Arc<T>,
         additional_entropy: Option<&[u8]>,
-    ) -> Result<HmacDrbg> {
-        let mut ret = HmacDrbg {
+    ) -> Result<Self> {
+        let mut ret = Self {
             inner: hmac_drbg_context::default(),
             entropy: Some(entropy),
         };
@@ -49,16 +49,16 @@ impl HmacDrbg {
                 md_info.into(),
                 Some(T::call),
                 ret.entropy.as_ref().unwrap().data_ptr(),
-                additional_entropy.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
-                additional_entropy.map(<[_]>::len).unwrap_or(0),
+                additional_entropy.map_or(::core::ptr::null(), <[_]>::as_ptr),
+                additional_entropy.map_or(0, <[_]>::len),
             )
             .into_result()?
         };
         Ok(ret)
     }
 
-    pub fn from_buf(md_info: MdInfo, entropy: &[u8]) -> Result<HmacDrbg> {
-        let mut ret = HmacDrbg {
+    pub fn from_buf(md_info: MdInfo, entropy: &[u8]) -> Result<Self> {
+        let mut ret = Self {
             inner: hmac_drbg_context::default(),
             entropy: None,
         };
@@ -70,12 +70,9 @@ impl HmacDrbg {
         Ok(ret)
     }
 
-    pub fn prediction_resistance(&self) -> bool {
-        if self.inner.prediction_resistance == HMAC_DRBG_PR_OFF {
-            false
-        } else {
-            true
-        }
+    #[must_use]
+    pub const fn prediction_resistance(&self) -> bool {
+        self.inner.prediction_resistance != HMAC_DRBG_PR_OFF
     }
 
     pub fn set_prediction_resistance(&mut self, pr: bool) {
@@ -91,8 +88,8 @@ impl HmacDrbg {
         unsafe {
             hmac_drbg_reseed(
                 &mut self.inner,
-                additional_entropy.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
-                additional_entropy.map(<[_]>::len).unwrap_or(0),
+                additional_entropy.map_or(::core::ptr::null(), <[_]>::as_ptr),
+                additional_entropy.map_or(0, <[_]>::len),
             )
             .into_result()?
         };
@@ -112,6 +109,7 @@ impl HmacDrbg {
 }
 
 impl RngCallbackMut for HmacDrbg {
+    #[allow(clippy::inline_always)]
     #[inline(always)]
     unsafe extern "C" fn call_mut(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
         hmac_drbg_random(user_data, data, len)
@@ -123,6 +121,7 @@ impl RngCallbackMut for HmacDrbg {
 }
 
 impl RngCallback for HmacDrbg {
+    #[allow(clippy::inline_always)]
     #[inline(always)]
     unsafe extern "C" fn call(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
         // Mutex used in hmac_drbg_random:
