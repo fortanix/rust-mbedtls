@@ -183,7 +183,7 @@ impl DsaPublicKey {
     }
 
     pub fn key_size(&self) -> Result<(usize, usize)> {
-        return self.params.key_size();
+        self.params.key_size()
     }
 
     pub fn parameters(&self) -> &DsaParams {
@@ -351,7 +351,7 @@ impl DsaPrivateKey {
     }
 
     pub fn key_size(&self) -> Result<(usize, usize)> {
-        return self.params.key_size();
+        self.params.key_size()
     }
 
     pub fn parameters(&self) -> &DsaParams {
