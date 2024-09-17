@@ -86,7 +86,7 @@ fn read_string_type(der: &[u8]) -> ASN1Result<String> {
                 // IA5 is (roughly speaking) equivalent to ASCII
                 reader.read_tagged_implicit(TAG_IA5STRING, |reader| {
                     let bytes = reader.read_bytes()?;
-                    Ok(String::from_utf8(bytes).map_err(|_| ASN1Error::new(ASN1ErrorKind::Invalid))?)
+                    String::from_utf8(bytes).map_err(|_| ASN1Error::new(ASN1ErrorKind::Invalid))
                 })
             }
 
@@ -115,12 +115,12 @@ fn read_seq_of<T: BERDecodable + ::core::fmt::Debug>(der: &[u8]) -> ASN1Result<V
             if let Ok(data) = reader.read_der() {
                 let v: T = yasna::decode_der(&data)?;
                 result.push(v);
-                return Ok(());
+                Ok(())
             } else {
-                return Err(ASN1Error::new(ASN1ErrorKind::Eof));
+                Err(ASN1Error::new(ASN1ErrorKind::Eof))
             }
         })?;
-        return Ok(());
+        Ok(())
     })?;
 
     Ok(result)
@@ -134,12 +134,12 @@ fn read_set_of<T: BERDecodable + ::core::fmt::Debug>(der: &[u8]) -> ASN1Result<V
             if let Ok(data) = reader.read_der() {
                 let v: T = yasna::decode_der(&data)?;
                 result.push(v);
-                return Ok(());
+                Ok(())
             } else {
-                return Err(ASN1Error::new(ASN1ErrorKind::Eof));
+                Err(ASN1Error::new(ASN1ErrorKind::Eof))
             }
         })?;
-        return Ok(());
+        Ok(())
     })?;
 
     Ok(result)
@@ -154,10 +154,10 @@ pub enum Pkcs12Error {
 
 impl fmt::Display for Pkcs12Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &Pkcs12Error::ASN1(ref e) => f.write_fmt(format_args!("Error parsing ASN.1: {}", e)),
-            &Pkcs12Error::Crypto(ref e) => f.write_fmt(format_args!("Cryptographic error {}", e)),
-            &Pkcs12Error::Custom(ref s) => f.write_fmt(format_args!("{}", s)),
+        match *self {
+            Pkcs12Error::ASN1(ref e) => f.write_fmt(format_args!("Error parsing ASN.1: {}", e)),
+            Pkcs12Error::Crypto(ref e) => f.write_fmt(format_args!("Cryptographic error {}", e)),
+            Pkcs12Error::Custom(ref s) => f.write_fmt(format_args!("{}", s)),
         }
     }
 }
@@ -165,10 +165,10 @@ impl fmt::Display for Pkcs12Error {
 #[cfg(feature = "std")]
 impl StdError for Pkcs12Error {
     fn description(&self) -> &str {
-        match self {
-            &Pkcs12Error::ASN1(_) => "Error parsing ASN.1",
-            &Pkcs12Error::Crypto(_) => "Cryptographic error",
-            &Pkcs12Error::Custom(_) => "Format problem",
+        match *self {
+            Pkcs12Error::ASN1(_) => "Error parsing ASN.1",
+            Pkcs12Error::Crypto(_) => "Cryptographic error",
+            Pkcs12Error::Custom(_) => "Format problem",
         }
     }
 }
@@ -208,7 +208,7 @@ impl BERDecodable for AlgorithmIdentifier {
     fn decode_ber(reader: BERReader) -> ASN1Result<Self> {
         reader.read_sequence(|reader| {
             let algo = reader.next().read_oid()?;
-            let params = reader.next().read_der().ok().unwrap_or(Vec::new());
+            let params = reader.next().read_der().ok().unwrap_or_default();
 
             Ok(AlgorithmIdentifier { algo, params })
         })
@@ -393,9 +393,9 @@ impl BERDecodable for CertBag {
         let pkcs12cert = read_struct_from_bytes::<CertTypes>(&blob)?;
 
         if pkcs12cert.cert_type == ObjectIdentifier::from_slice(PKCS9_X509_CERT) {
-            return Ok(CertBag(Some(pkcs12cert.cert_blob.to_vec())));
+            Ok(CertBag(Some(pkcs12cert.cert_blob.to_vec())))
         } else {
-            return Ok(CertBag(None));
+            Ok(CertBag(None))
         }
     }
 }
@@ -543,7 +543,7 @@ fn decrypt_contents(data: &EncryptedData, passphrase: &[u8]) -> Pkcs12Result<Saf
     let pt = decrypt_data(&data.content_info.encrypted_content, &pbe_params, encryption_algo, passphrase)?;
 
     let sc = read_struct_from_bytes::<SafeContents>(&pt)?;
-    return Ok(sc);
+    Ok(sc)
 }
 
 fn decrypt_pkcs8(pkcs8: &[u8], passphrase: &[u8]) -> Pkcs12Result<Vec<u8>> {
@@ -562,11 +562,11 @@ fn decrypt_pkcs8(pkcs8: &[u8], passphrase: &[u8]) -> Pkcs12Result<Vec<u8>> {
 
 fn decrypt_3des(ciphertext: &[u8], key: &[u8], iv: &[u8]) -> Pkcs12Result<Vec<u8>> {
     let cipher = Cipher::<Decryption, Traditional, Fresh>::new(CipherId::Des3, CipherMode::CBC, (key.len() * 8) as u32)?;
-    let cipher = cipher.set_key_iv(&key, &iv)?;
+    let cipher = cipher.set_key_iv(key, iv)?;
     let mut plaintext = vec![0; ciphertext.len() + 8];
-    let len = cipher.decrypt(&ciphertext, &mut plaintext)?;
+    let len = cipher.decrypt(ciphertext, &mut plaintext)?;
     plaintext.truncate(len.0);
-    return Ok(plaintext);
+    Ok(plaintext)
 }
 
 #[cfg(feature = "pkcs12_rc2")]
@@ -644,7 +644,7 @@ fn decrypt_data(
         &mut cipher_iv,
     )?;
 
-    return match cipher_algo {
+    match cipher_algo {
         Pkcs12EncryptionAlgo::TDES_168_SHA | Pkcs12EncryptionAlgo::TDES_112_SHA => {
             decrypt_3des(ciphertext, &cipher_key, &cipher_iv)
         }
@@ -652,7 +652,7 @@ fn decrypt_data(
         Pkcs12EncryptionAlgo::RC2_128_SHA | Pkcs12EncryptionAlgo::RC2_40_SHA => {
             decrypt_rc2(ciphertext, &cipher_key, &cipher_iv)
         }
-    };
+    }
 }
 
 impl Pfx {
@@ -682,7 +682,7 @@ impl Pfx {
             let md = map_oid_to_mbedtls_digest(&mac.digest.algo.algo)?;
             let stored_mac = &mac.digest.digest;
             let salt = &mac.salt;
-            let iterations = mac.iterations.clone().unwrap_or(1);
+            let iterations = mac.iterations.unwrap_or(1);
 
             let md_info: MdInfo = match md.into() {
                 Some(md) => md,
@@ -710,7 +710,7 @@ impl Pfx {
             }
         }
 
-        return Ok(());
+        Ok(())
     }
 
     /// Decrypt an encrypted Pfx If mac_passphrase is None, it is assumed to be
@@ -719,7 +719,7 @@ impl Pfx {
     /// using openssl with the -twopass option.
     pub fn decrypt(&self, passphrase: &str, mac_passphrase: Option<&str>) -> Pkcs12Result<Pfx> {
         // Test if this object is already decrypted
-        if self.raw_data.len() == 0 {
+        if self.raw_data.is_empty() {
             return Ok(self.clone());
         }
 
@@ -733,31 +733,31 @@ impl Pfx {
         }
 
         fn decrypt_pkcs8_sb(sb: &SafeBag, passphrase: &[u8]) -> Pkcs12Result<SafeBag> {
-            if let &Pkcs12BagSet::EncryptedPkcs8(ref p8) = &sb.bag_value {
-                let decrypted_p8 = decrypt_pkcs8(&p8, passphrase)?;
-                return Ok(SafeBag {
+            if let Pkcs12BagSet::EncryptedPkcs8(p8) = &sb.bag_value {
+                let decrypted_p8 = decrypt_pkcs8(p8, passphrase)?;
+                Ok(SafeBag {
                     bag_id: ObjectIdentifier::from_slice(PKCS12_BAG_KEY),
                     bag_value: Pkcs12BagSet::Pkcs8(decrypted_p8),
                     bag_attributes: sb.bag_attributes.clone(),
-                });
+                })
             } else {
-                return Ok(sb.clone());
+                Ok(sb.clone())
             }
         }
 
         fn decrypt_data(data: &AuthenticatedSafe, passphrase: &[u8]) -> Pkcs12Result<AuthenticatedSafe> {
             match data {
-                &AuthenticatedSafe::Data(ref sc) => {
+                AuthenticatedSafe::Data(sc) => {
                     let mut contents = Vec::new();
 
                     for item in &sc.0 {
-                        contents.push(decrypt_pkcs8_sb(&item, passphrase)?);
+                        contents.push(decrypt_pkcs8_sb(item, passphrase)?);
                     }
 
                     Ok(AuthenticatedSafe::Data(SafeContents(contents)))
                 }
-                &AuthenticatedSafe::EncryptedData(ref ed) => {
-                    let decrypted = decrypt_contents(&ed, &passphrase)?;
+                AuthenticatedSafe::EncryptedData(ed) => {
+                    let decrypted = decrypt_contents(ed, passphrase)?;
                     Ok(AuthenticatedSafe::Data(decrypted))
                 }
             }
@@ -766,7 +766,7 @@ impl Pfx {
         let mut new_authsafe = Vec::new();
 
         for c in &self.authsafe.contents {
-            let d = decrypt_data(&c, &passphrase)?;
+            let d = decrypt_data(c, &passphrase)?;
             new_authsafe.push(d);
         }
 
@@ -796,9 +796,7 @@ impl Pfx {
     /// list of "friendly names" which are associated with said certificate.
     /// Some or all of the certificates stored in a Pfx may be encrypted in
     /// which case decrypt must be called to access them.
-    pub fn certificates<'a>(
-        &'a self,
-    ) -> impl Iterator<Item = (Result<MbedtlsBox<Certificate>, crate::Error>, Vec<String>)> + 'a {
+    pub fn certificates(&self) -> impl Iterator<Item = (Result<MbedtlsBox<Certificate>, crate::Error>, Vec<String>)> + '_ {
         self.authsafe_decrypted_contents().filter_map(|sb| {
             if let Pkcs12BagSet::Cert(CertBag(Some(cert))) = &sb.bag_value {
                 Some((Certificate::from_der(cert), sb.friendly_name()))
@@ -810,7 +808,7 @@ impl Pfx {
 
     /// Return the private keys stored in this Pfx along with a possibly empty
     /// list of "friendly names" which are associated with said private key.
-    pub fn private_keys<'a>(&'a self) -> impl Iterator<Item = (Result<Pk, crate::Error>, Vec<String>)> + 'a {
+    pub fn private_keys(&self) -> impl Iterator<Item = (Result<Pk, crate::Error>, Vec<String>)> + '_ {
         self.authsafe_decrypted_contents().filter_map(|sb| match &sb.bag_value {
             Pkcs12BagSet::Pkcs8(pkcs8) | Pkcs12BagSet::Key(KeyBag { pkcs8 }) => {
                 Some((Pk::from_private_key(pkcs8, None), sb.friendly_name()))
@@ -849,8 +847,8 @@ impl BERDecodable for Pfx {
             })?;
 
             Ok(Pfx {
-                raw_data: raw_data,
-                version: version,
+                raw_data,
+                version,
                 authsafe: safe,
                 macdata: mac.ok(),
             })
