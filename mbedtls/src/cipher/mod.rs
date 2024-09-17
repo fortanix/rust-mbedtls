@@ -6,6 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+#![allow(non_local_definitions)]
 use core::marker::PhantomData;
 use core::ops::Range;
 pub mod raw;
@@ -41,34 +42,31 @@ pub trait Type {
 pub enum TraditionalNoIv {}
 impl Type for TraditionalNoIv {
     fn is_valid_mode(mode: raw::CipherMode) -> bool {
-        match mode {
-            raw::CipherMode::ECB => true,
-            _ => false,
-        }
+        matches!(mode, raw::CipherMode::ECB)
     }
 }
 
 pub enum Traditional {}
 impl Type for Traditional {
     fn is_valid_mode(mode: raw::CipherMode) -> bool {
-        match mode {
-            raw::CipherMode::CBC | raw::CipherMode::CFB | raw::CipherMode::OFB | raw::CipherMode::CTR => true,
-            _ => false,
-        }
+        matches!(
+            mode,
+            raw::CipherMode::CBC | raw::CipherMode::CFB | raw::CipherMode::OFB | raw::CipherMode::CTR
+        )
     }
 }
 
 pub enum Authenticated {}
 impl Type for Authenticated {
     fn is_valid_mode(mode: raw::CipherMode) -> bool {
-        match mode {
+        matches!(
+            mode,
             raw::CipherMode::GCM
-            | raw::CipherMode::CCM
-            | raw::CipherMode::KW
-            | raw::CipherMode::KWP
-            | raw::CipherMode::CHACHAPOLY => true,
-            _ => false,
-        }
+                | raw::CipherMode::CCM
+                | raw::CipherMode::KW
+                | raw::CipherMode::KWP
+                | raw::CipherMode::CHACHAPOLY
+        )
     }
 }
 
@@ -112,14 +110,17 @@ impl<O: Operation, T: Type, S: State> Cipher<O, T, S> {
         }
     }
 
+    #[must_use]
     pub fn block_size(&self) -> usize {
         self.raw_cipher.block_size()
     }
 
+    #[must_use]
     pub fn iv_size(&self) -> usize {
         self.raw_cipher.iv_size()
     }
 
+    #[must_use]
     pub fn tag_size(&self) -> Option<Range<usize>> {
         if self.raw_cipher.is_authenticated() {
             Some(32..129)
@@ -128,21 +129,22 @@ impl<O: Operation, T: Type, S: State> Cipher<O, T, S> {
         }
     }
 
+    #[must_use]
     pub fn cipher_mode(&self) -> raw::CipherMode {
         self.raw_cipher.cipher_mode()
     }
 }
 
 impl<O: Operation, T: Type> Cipher<O, T, Fresh> {
-    pub fn new(cipher_id: raw::CipherId, cipher_mode: raw::CipherMode, key_bit_len: u32) -> Result<Cipher<O, T, Fresh>> {
+    pub fn new(cipher_id: raw::CipherId, cipher_mode: raw::CipherMode, key_bit_len: u32) -> Result<Self> {
         assert!(T::is_valid_mode(cipher_mode));
 
         // Create raw cipher object
         let raw_cipher = raw::Cipher::setup(cipher_id, cipher_mode, key_bit_len)?;
 
         // Put together the structure to return
-        Ok(Cipher {
-            raw_cipher: raw_cipher,
+        Ok(Self {
+            raw_cipher,
             padding: raw::CipherPadding::Pkcs7,
             _op: PhantomData,
             _type: PhantomData,
@@ -308,7 +310,7 @@ impl Cipher<Decryption, Authenticated, AdditionalData> {
 }
 
 impl<O: Operation, T: Type> Cipher<O, T, CipherData> {
-    pub fn update(mut self, in_data: &[u8], out_data: &mut [u8]) -> Result<(usize, Cipher<O, T, CipherData>)> {
+    pub fn update(mut self, in_data: &[u8], out_data: &mut [u8]) -> Result<(usize, Self)> {
         // Call the wrapper function to do update operation (multi part)
         let len = self.raw_cipher.update(in_data, out_data)?;
 
@@ -326,14 +328,14 @@ impl<O: Operation, T: Type> Cipher<O, T, CipherData> {
 }
 
 impl<O: Operation> Cipher<O, Authenticated, Finished> {
-    pub fn write_tag(mut self, out_tag: &mut [u8]) -> Result<Cipher<O, Authenticated, Finished>> {
+    pub fn write_tag(mut self, out_tag: &mut [u8]) -> Result<Self> {
         self.raw_cipher.write_tag(out_tag)?;
 
         // Put together the structure to return
         Ok(self.change_state())
     }
 
-    pub fn check_tag(mut self, tag: &[u8]) -> Result<Cipher<O, Authenticated, Finished>> {
+    pub fn check_tag(mut self, tag: &[u8]) -> Result<Self> {
         self.raw_cipher.check_tag(tag)?;
 
         // Put together the structure to return

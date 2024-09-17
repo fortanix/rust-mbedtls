@@ -5,7 +5,7 @@
  * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
-//! Various I/O abstractions for use with MbedTLS's TLS sessions.
+//! Various I/O abstractions for use with `MbedTLS`'s TLS sessions.
 //!
 //! If you are using `std::net::TcpStream` or any `std::io::Read` and
 //! `std::io::Write` streams, you probably don't need to look at any of this.
@@ -14,6 +14,7 @@
 //! you are implementing your own communication types or traits, consider
 //! implementing `Io` for them. If all else fails, implement `IoCallback`.
 
+#![allow(clippy::module_name_repetitions)]
 #[cfg(feature = "std")]
 use std::{
     io::{Error as IoError, ErrorKind as IoErrorKind, Read, Result as IoResult, Write},
@@ -56,24 +57,24 @@ pub trait IoCallback<T> {
 
 impl<IO: IoCallback<T>, T> IoCallbackUnsafe<T> for IO {
     unsafe extern "C" fn call_recv(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
-        let len = if len > (c_int::max_value() as size_t) {
-            c_int::max_value() as size_t
+        let len = if len > (c_int::MAX as size_t) {
+            c_int::MAX as size_t
         } else {
             len
         };
-        match (&mut *(user_data as *mut IO)).recv(::core::slice::from_raw_parts_mut(data, len)) {
+        match (*(user_data as *mut IO)).recv(::core::slice::from_raw_parts_mut(data, len)) {
             Ok(i) => i as c_int,
             Err(e) => e.to_int(),
         }
     }
 
     unsafe extern "C" fn call_send(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int {
-        let len = if len > (c_int::max_value() as size_t) {
-            c_int::max_value() as size_t
+        let len = if len > (c_int::MAX as size_t) {
+            c_int::MAX as size_t
         } else {
             len
         };
-        match (&mut *(user_data as *mut IO)).send(::core::slice::from_raw_parts(data, len)) {
+        match (*(user_data as *mut IO)).send(::core::slice::from_raw_parts(data, len)) {
             Ok(i) => i as c_int,
             Err(e) => e.to_int(),
         }
@@ -147,11 +148,12 @@ pub struct ConnectedUdpSocket {
 impl ConnectedUdpSocket {
     pub fn connect<A: std::net::ToSocketAddrs>(socket: UdpSocket, addr: A) -> StdResult<Self, (IoError, UdpSocket)> {
         match socket.connect(addr) {
-            Ok(_) => Ok(ConnectedUdpSocket { socket }),
+            Ok(()) => Ok(Self { socket }),
             Err(e) => Err((e, socket)),
         }
     }
 
+    #[must_use]
     pub fn into_socket(self) -> UdpSocket {
         self.socket
     }
@@ -174,11 +176,11 @@ impl Io for ConnectedUdpSocket {
 
 impl<T: IoCallbackUnsafe<AnyIo>> Io for Context<T> {
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
-        Context::recv(self, buf)
+        Self::recv(self, buf)
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<usize> {
-        Context::send(self, buf)
+        Self::send(self, buf)
     }
 }
 
@@ -192,8 +194,8 @@ impl<T: IoCallbackUnsafe<Stream>> Read for Context<T> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match self.recv(buf) {
             Err(Error::SslPeerCloseNotify) => Ok(0),
-            Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Err(IoErrorKind::WouldBlock.into()),
-            Err(e) => Err(crate::private::error_to_io_error(e)),
+            Err(Error::SslWantRead | Error::SslWantWrite) => Err(IoErrorKind::WouldBlock.into()),
+            Err(e) => Err(crate::private::error_to_io_error(&e)),
             Ok(i) => Ok(i),
         }
     }
@@ -209,8 +211,8 @@ impl<T: IoCallbackUnsafe<Stream>> Write for Context<T> {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
         match self.send(buf) {
             Err(Error::SslPeerCloseNotify) => Ok(0),
-            Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Err(IoErrorKind::WouldBlock.into()),
-            Err(e) => Err(crate::private::error_to_io_error(e)),
+            Err(Error::SslWantRead | Error::SslWantWrite) => Err(IoErrorKind::WouldBlock.into()),
+            Err(e) => Err(crate::private::error_to_io_error(&e)),
             Ok(i) => Ok(i),
         }
     }

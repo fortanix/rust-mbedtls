@@ -64,13 +64,13 @@ impl CtrDrbg {
                 &mut *inner,
                 Some(T::call),
                 entropy.data_ptr(),
-                additional_entropy.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
-                additional_entropy.map(<[_]>::len).unwrap_or(0),
+                additional_entropy.map_or(::core::ptr::null(), <[_]>::as_ptr),
+                additional_entropy.map_or(0, <[_]>::len),
             )
             .into_result()?;
         }
 
-        Ok(CtrDrbg {
+        Ok(Self {
             inner,
             entropy: EntropyHolder::Shared(entropy),
         })
@@ -87,24 +87,21 @@ impl CtrDrbg {
                 &mut *inner,
                 Some(T::call_mut),
                 entropy.data_ptr_mut(),
-                additional_entropy.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
-                additional_entropy.map(<[_]>::len).unwrap_or(0),
+                additional_entropy.map_or(::core::ptr::null(), <[_]>::as_ptr),
+                additional_entropy.map_or(0, <[_]>::len),
             )
             .into_result()?;
         }
 
-        Ok(CtrDrbg {
+        Ok(Self {
             inner,
             entropy: EntropyHolder::Unique(entropy),
         })
     }
 
+    #[must_use]
     pub fn prediction_resistance(&self) -> bool {
-        if self.inner.prediction_resistance == CTR_DRBG_PR_OFF {
-            false
-        } else {
-            true
-        }
+        self.inner.prediction_resistance != CTR_DRBG_PR_OFF
     }
 
     pub fn set_prediction_resistance(&mut self, pr: bool) {
@@ -120,8 +117,8 @@ impl CtrDrbg {
         unsafe {
             ctr_drbg_reseed(
                 &mut *self.inner,
-                additional_entropy.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
-                additional_entropy.map(<[_]>::len).unwrap_or(0),
+                additional_entropy.map_or(::core::ptr::null(), <[_]>::as_ptr),
+                additional_entropy.map_or(0, <[_]>::len),
             )
             .into_result()?
         };
@@ -141,6 +138,7 @@ impl CtrDrbg {
 }
 
 impl RngCallbackMut for CtrDrbg {
+    #[allow(clippy::inline_always)]
     #[inline(always)]
     unsafe extern "C" fn call_mut(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int
     where
@@ -157,6 +155,7 @@ impl RngCallbackMut for CtrDrbg {
 }
 
 impl RngCallback for CtrDrbg {
+    #[allow(clippy::inline_always)]
     #[inline(always)]
     unsafe extern "C" fn call(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int
     where

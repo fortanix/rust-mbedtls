@@ -6,7 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-#![allow(non_camel_case_types)]
+#![allow(non_camel_case_types, clippy::module_name_repetitions)]
 
 pub type int8_t = i8;
 pub type int16_t = i16;

@@ -35,7 +35,7 @@ impl bindgen::callbacks::ParseCallbacks for MbedtlsParseCallbacks {
     }
 
     fn int_macro(&self, _name: &str, value: i64) -> Option<bindgen::callbacks::IntKind> {
-        if value < (i32::MIN as i64) || value > (i32::MAX as i64) {
+        if value < i64::from(i32::MIN) || value > i64::from(i32::MAX) {
             Some(bindgen::callbacks::IntKind::LongLong)
         } else {
             Some(bindgen::callbacks::IntKind::Int)
@@ -87,7 +87,7 @@ fn generate_deprecated_union_accessors(bindings: &str) -> String {
     }
 
     let mut impl_builder = UnionImplBuilder::default();
-    syn::visit::visit_file(&mut impl_builder, &syn::parse_file(&bindings).unwrap());
+    syn::visit::visit_file(&mut impl_builder, &syn::parse_file(bindings).unwrap());
 
     impl_builder.impls
 }
@@ -96,7 +96,7 @@ impl super::BuildConfig {
     pub fn bindgen(&self) {
         let mut input = String::new();
         for h in headers::enabled_ordered() {
-            let _ = writeln!(input, "#include <mbedtls/{}>", h);
+            let _ = writeln!(input, "#include <mbedtls/{h}>");
         }
 
         let mut cc = cc::Build::new();
@@ -115,14 +115,12 @@ impl super::BuildConfig {
         // uses the correct headers
         let compiler = cc.get_compiler();
         if compiler.is_like_gnu() {
-            let output = compiler.to_command().args(&["--print-sysroot"]).output();
-            match output {
-                Ok(sysroot) => {
-                    let path = std::str::from_utf8(&sysroot.stdout).expect("Malformed sysroot");
-                    let trimmed_path = path.strip_suffix("\r\n").or(path.strip_suffix("\n")).unwrap_or(&path);
-                    cc.flag(&format!("--sysroot={}", trimmed_path));
-                }
-                _ => {} // skip toolchains without a configured sysroot
+            let output = compiler.to_command().args(["--print-sysroot"]).output();
+            // skip toolchains without a configured sysroot
+            if let Ok(sysroot) = output {
+                let path = std::str::from_utf8(&sysroot.stdout).expect("Malformed sysroot");
+                let trimmed_path = path.strip_suffix("\r\n").or_else(|| path.strip_suffix("\n")).unwrap_or(path);
+                cc.flag(&format!("--sysroot={trimmed_path}"));
             };
         }
 
@@ -146,7 +144,28 @@ impl super::BuildConfig {
             .derive_default(true)
             .prepend_enum_name(false)
             .translate_enum_integer_types(true)
-            .raw_line("#![allow(dead_code, deref_nullptr, non_snake_case, non_camel_case_types, non_upper_case_globals, invalid_value)]")
+            .raw_line("#![allow(")
+            .raw_line("    dead_code,")
+            .raw_line("    deref_nullptr,")
+            .raw_line("    invalid_value,")
+            .raw_line("    non_snake_case,")
+            .raw_line("    non_camel_case_types,")
+            .raw_line("    non_upper_case_globals")
+            .raw_line(")]")
+            .raw_line("#![allow(")
+            .raw_line("    clippy::cast_lossless,")
+            .raw_line("    clippy::cast_possible_truncation,")
+            .raw_line("    clippy::default_trait_access,")
+            .raw_line("    clippy::missing_safety_doc,")
+            .raw_line("    clippy::must_use_candidate,")
+            .raw_line("    clippy::pub_underscore_fields,")
+            .raw_line("    clippy::unreadable_literal,")
+            .raw_line("    clippy::used_underscore_binding,")
+            .raw_line("    clippy::useless_transmute,")
+            .raw_line("    clippy::semicolon_if_nothing_returned,")
+            .raw_line("    clippy::type_complexity,")
+            .raw_line("    clippy::wildcard_imports")
+            .raw_line(")]")
             .generate()
             .expect("bindgen error")
             .to_string();

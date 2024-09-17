@@ -5,6 +5,7 @@
  * 2.0 <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0>, at your
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
+#![allow(clippy::unwrap_used)]
 
 extern crate bindgen;
 extern crate cmake;
@@ -82,7 +83,7 @@ impl BuildConfig {
     fn new() -> Self {
         let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR environment not set?"));
         let config_h = out_dir.join("config.h");
-        let mbedtls_src = PathBuf::from(env::var("RUST_MBEDTLS_SYS_SOURCE").unwrap_or("vendor".to_owned()));
+        let mbedtls_src = PathBuf::from(env::var("RUST_MBEDTLS_SYS_SOURCE").unwrap_or_else(|_| "vendor".to_owned()));
         let mbedtls_include = mbedtls_src.join("include");
 
         let mut cflags = vec![];
@@ -93,11 +94,11 @@ impl BuildConfig {
             cflags.push("-fno-stack-protector".into());
         }
 
-        BuildConfig {
-            config_h,
+        Self {
             out_dir,
             mbedtls_src,
             mbedtls_include,
+            config_h,
             cflags,
         }
     }

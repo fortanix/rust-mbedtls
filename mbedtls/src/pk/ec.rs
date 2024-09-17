@@ -33,22 +33,22 @@ define!(
 );
 
 impl From<ecp_group_id> for EcGroupId {
-    fn from(inner: ecp_group_id) -> EcGroupId {
+    fn from(inner: ecp_group_id) -> Self {
         match inner {
-            ECP_DP_NONE => EcGroupId::None,
-            ECP_DP_SECP192R1 => EcGroupId::SecP192R1,
-            ECP_DP_SECP224R1 => EcGroupId::SecP224R1,
-            ECP_DP_SECP256R1 => EcGroupId::SecP256R1,
-            ECP_DP_SECP384R1 => EcGroupId::SecP384R1,
-            ECP_DP_SECP521R1 => EcGroupId::SecP521R1,
-            ECP_DP_BP256R1 => EcGroupId::Bp256R1,
-            ECP_DP_BP384R1 => EcGroupId::Bp384R1,
-            ECP_DP_BP512R1 => EcGroupId::Bp512R1,
-            ECP_DP_CURVE25519 => EcGroupId::Curve25519,
-            ECP_DP_SECP192K1 => EcGroupId::SecP192K1,
-            ECP_DP_SECP224K1 => EcGroupId::SecP224K1,
-            ECP_DP_SECP256K1 => EcGroupId::SecP256K1,
-            ECP_DP_CURVE448 => EcGroupId::Curve448,
+            ECP_DP_NONE => Self::None,
+            ECP_DP_SECP192R1 => Self::SecP192R1,
+            ECP_DP_SECP224R1 => Self::SecP224R1,
+            ECP_DP_SECP256R1 => Self::SecP256R1,
+            ECP_DP_SECP384R1 => Self::SecP384R1,
+            ECP_DP_SECP521R1 => Self::SecP521R1,
+            ECP_DP_BP256R1 => Self::Bp256R1,
+            ECP_DP_BP384R1 => Self::Bp384R1,
+            ECP_DP_BP512R1 => Self::Bp512R1,
+            ECP_DP_CURVE25519 => Self::Curve25519,
+            ECP_DP_SECP192K1 => Self::SecP192K1,
+            ECP_DP_SECP224K1 => Self::SecP224K1,
+            ECP_DP_SECP256K1 => Self::SecP256K1,
+            ECP_DP_CURVE448 => Self::Curve448,
             _ => panic!("Invalid EC group ID"),
         }
     }
@@ -78,7 +78,7 @@ define!(
 );
 
 impl Ecdh {
-    pub fn from_keys(private: &EcpKeypair, public: &EcpKeypair) -> Result<Ecdh> {
+    pub fn from_keys(private: &EcpKeypair, public: &EcpKeypair) -> Result<Self> {
         if public.inner.grp.id == ECP_DP_NONE || public.inner.grp.id != private.inner.grp.id {
             return Err(Error::EcpBadInputData);
         }

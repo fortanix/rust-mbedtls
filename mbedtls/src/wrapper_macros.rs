@@ -73,7 +73,7 @@ macro_rules! define {
     {                   #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(#[$doc:meta] $rust:ident = $c:ident,)* } } => { define_enum!(                  $(#[$m])* enum $n ty $raw : $(doc ($doc) rust $rust c $c),*); };
     {                   #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(             $rust:ident = $c:ident,)* } } => { define_enum!(                  $(#[$m])* enum $n ty $raw : $(doc (    ) rust $rust c $c),*); };
     { #[non_exhaustive] #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(#[$doc:meta] $rust:ident = $c:ident,)* } } => { define_enum!(#[non_exhaustive] $(#[$m])* enum $n ty $raw : $(doc ($doc) rust $rust c $c),*); };
-    { #[non_exhaustive] #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(             $rust:ident = $c:ident,)* } } => { define_enum!(#[non_exhaustive] $(#[$m])* enum $n ty $raw : $(doc (    ) rust $rust c $c),*); };
+    { #[non_exhaustive] #[c_ty($raw:ty)] $(#[$m:meta])* enum $n:ident { $(             $rust:ident = $c:ident,)* } } => { define_enum!(#[non_exhaustive] $(#[$m])* enum $n ty $raw : $(doc (    ) rust $rust c $c),*); }
 }
 
 macro_rules! define_enum {
@@ -81,17 +81,12 @@ macro_rules! define_enum {
         $(#[$m])*
         pub enum $n {
             $($(#[$doc])* $rust,)*
-            // Stable-Rust equivalent of `#[non_exhaustive]` attribute. This
-            // value should never be used by users of this crate!
-            #[doc(hidden)]
-            __Nonexhaustive,
         }
 
-        impl Into<$raw> for $n {
-            fn into(self) -> $raw {
-                match self {
+        impl From<$n> for $raw {
+            fn from(item: $n) -> Self {
+                match item {
                     $($n::$rust => $c,)*
-                    $n::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
                 }
             }
         }
@@ -102,9 +97,9 @@ macro_rules! define_enum {
             $($(#[$doc])* $rust,)*
         }
 
-        impl Into<$raw> for $n {
-            fn into(self) -> $raw {
-                match self {
+        impl From<$n> for $raw {
+            fn from(item: $n) -> Self {
+                match item {
                     $($n::$rust => $c,)*
                 }
             }
@@ -127,13 +122,15 @@ macro_rules! define_struct {
         as_item!(
         #[allow(dead_code)]
         impl<$($l)*> $name<$($l)*> {
-            pub(crate) fn into_inner(self) -> ::mbedtls_sys::$inner {
+            pub(crate) const fn into_inner(self) -> ::mbedtls_sys::$inner {
                 let inner = self.inner;
+                // We don't know if self has drop, so we have to forget
+                #[allow(clippy::forget_non_drop)]
                 ::core::mem::forget(self);
                 inner
             }
 
-            pub(crate) fn handle(&self) -> &::mbedtls_sys::$inner {
+            pub(crate) const fn handle(&self) -> &::mbedtls_sys::$inner {
                 &self.inner
             }
 
@@ -162,7 +159,7 @@ macro_rules! define_struct {
         as_item!(
         #[allow(dead_code)]
         impl<$($l)*> $name<$($l)*> {
-            pub(crate) fn handle(&self) -> &::mbedtls_sys::$inner {
+            pub(crate) const fn handle(&self) -> &::mbedtls_sys::$inner {
                 &*self.inner
             }
 
@@ -182,7 +179,12 @@ macro_rules! define_struct {
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
     };
     { << $name:ident $(lifetime $l:tt)* inner $inner:ident >> pub const new: fn() -> Self = $ctor:ident $({ $($member:ident: $member_init:expr,)* })?; $($defs:tt)* } => {
-        define_struct!(init $name (pub) new $ctor $(lifetime $l)* members $($($member: $member_init,)*)* );
+        define_struct!(init $name (#[must_use] pub) new $ctor $(lifetime $l)* members $($($member: $member_init,)*)* );
+        impl<$($l)*> Default for $name<$($l)*> {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
         define_struct!(<< $name $(lifetime $l)* inner $inner >> $($defs)*);
     };
     { init $name:ident ($($vis:tt)*) $new:ident $ctor:ident $(lifetime $l:tt)* members $($member:ident: $member_init:expr,)*  } => {
@@ -196,7 +198,7 @@ macro_rules! define_struct {
                     inner.assume_init()
                 };
                 $name{
-                    inner:inner,
+                    inner,
                     $(r: ::core::marker::PhantomData::<&$l _>,)*
                     $($member: $member_init,)*
                 }
@@ -225,17 +227,17 @@ macro_rules! define_struct {
     };
     { into $name:ident inner $inner:ident $(lifetime $l:tt)* lifetime2 $l2:tt } => {
         as_item!(
-        impl<$l2,$($l),*> Into<*const $inner> for &$l2 $name<$($l)*> {
-            fn into(self) -> *const $inner {
-                self.handle()
+        impl<$l2,$($l),*> From<&$l2 $name<$($l)*>> for *const $inner {
+            fn from(item: &$l2 $name<$($l)*>) -> Self {
+                item.handle()
             }
         }
         );
 
         as_item!(
-        impl<$l2,$($l),*> Into<*mut $inner> for &$l2 mut $name<$($l)*> {
-            fn into(self) -> *mut $inner {
-                self.handle_mut()
+        impl<$l2,$($l),*> From<&$l2 mut $name<$($l)*>> for *mut $inner {
+            fn from(item: &$l2 mut $name<$($l)*>) -> Self {
+                item.handle_mut()
             }
         }
         );
@@ -244,7 +246,7 @@ macro_rules! define_struct {
             /// Needed for compatibility with mbedtls - where we could pass
             /// `*const` but function signature requires `*mut`
             #[allow(dead_code)]
-            pub(crate) unsafe fn inner_ffi_mut(&self) -> *mut $inner {
+            pub(crate) const unsafe fn inner_ffi_mut(&self) -> *mut $inner {
                 self.handle() as *const _ as *mut $inner
             }
         }
@@ -289,12 +291,14 @@ macro_rules! setter {
 macro_rules! getter {
     { $(#[$m:meta])* $rfn:ident() -> $rty:ty = .$cfield:ident } => {
         $(#[$m])*
+        #[must_use]
         pub fn $rfn(&self) -> $rty {
             self.inner.$cfield.into()
         }
     };
     { $(#[$m:meta])* $rfn:ident() -> $rty:ty = fn $cfn:ident } => {
         $(#[$m])*
+        #[must_use]
         pub fn $rfn(&self) -> $rty {
             unsafe{::mbedtls_sys::$cfn(self.into()).into()}
         }

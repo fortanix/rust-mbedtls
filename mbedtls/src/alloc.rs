@@ -60,7 +60,7 @@ impl<T> Drop for Box<T> {
     fn drop(&mut self) {
         unsafe {
             drop_in_place(self.inner.as_ptr());
-            mbedtls_free(self.inner.as_ptr() as *mut c_void)
+            mbedtls_free(self.inner.as_ptr() as *mut c_void);
         }
     }
 }
@@ -80,6 +80,7 @@ pub struct CString {
 }
 
 impl CString {
+    #[must_use]
     pub fn new(str: &str) -> Self {
         unsafe {
             let buff = crate::alloc::mbedtls_calloc(1, str.len() + 1) as *mut u8;

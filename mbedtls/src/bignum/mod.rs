@@ -30,7 +30,7 @@ define!(
 
 fn fmt_mpi(n: &Mpi, radix: i32) -> String {
     n.to_string_radix(radix)
-        .unwrap_or("(failed to format multi-precision integer)".to_owned())
+        .unwrap_or_else(|_| "(failed to format multi-precision integer)".to_owned())
 }
 
 impl Display for Mpi {
@@ -67,7 +67,7 @@ impl Binary for Mpi {
 impl ::core::str::FromStr for Mpi {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Mpi> {
+    fn from_str(s: &str) -> Result<Self> {
         let is_hex = s.starts_with("0x");
         let radix = if is_hex { 16 } else { 10 };
         let skip = if is_hex { 2 } else { 0 };
@@ -90,49 +90,46 @@ pub enum Sign {
 
 impl Clone for Mpi {
     fn clone(&self) -> Self {
-        Mpi::copy(&self.handle()).expect("copy succeeded")
+        Self::copy(self.handle()).expect("copy succeeded")
     }
 }
 
 impl Mpi {
-    pub(crate) fn copy(value: &mpi) -> Result<Mpi> {
+    pub(crate) fn copy(value: &mpi) -> Result<Self> {
         let mut ret = Self::init();
         unsafe { mpi_copy(&mut ret.inner, value) }.into_result()?;
         Ok(ret)
     }
 
-    pub fn new(value: mpi_sint) -> Result<Mpi> {
+    pub fn new(value: mpi_sint) -> Result<Self> {
         let mut ret = Self::init();
         unsafe { mpi_lset(&mut ret.inner, value) }.into_result()?;
         Ok(ret)
     }
 
     /// Initialize an MPI number from big endian binary data
-    pub fn from_binary(num: &[u8]) -> Result<Mpi> {
+    pub fn from_binary(num: &[u8]) -> Result<Self> {
         let mut ret = Self::init();
         unsafe { mpi_read_binary(&mut ret.inner, num.as_ptr(), num.len()) }.into_result()?;
         Ok(ret)
     }
 
+    #[must_use]
     pub fn get_bit(&self, bit: usize) -> bool {
         // does not fail
-        if unsafe { mpi_get_bit(&self.inner, bit) } == 1 {
-            true
-        } else {
-            false
-        }
+        (unsafe { mpi_get_bit(&self.inner, bit) } == 1)
     }
 
     pub fn set_bit(&mut self, bit: usize, val: bool) -> Result<()> {
         unsafe {
-            mpi_set_bit(&mut self.inner, bit, val as u8).into_result()?;
+            mpi_set_bit(&mut self.inner, bit, u8::from(val)).into_result()?;
         }
         Ok(())
     }
 
     fn get_limb(&self, n: usize) -> mpi_uint {
         if n < self.inner.n {
-            unsafe { *self.inner.p.offset(n as isize) }
+            unsafe { *self.inner.p.add(n) }
         } else {
             // zero pad
             0
@@ -142,19 +139,19 @@ impl Mpi {
     /// Checks if an [`Mpi`] is less than the other in constant time.
     ///
     /// Will return [`Error::MpiBadInputData`] if the allocated length of the two input [`Mpi`]s is not the same.
-    pub fn less_than_const_time(&self, other: &Mpi) -> Result<bool> {
+    pub fn less_than_const_time(&self, other: &Self) -> Result<bool> {
         mpi_inner_less_than_const_time(&self.inner, &other.inner)
     }
 
     /// Compares an [`Mpi`] with the other in constant time.
     ///
     /// Will return [`Error::MpiBadInputData`] if the allocated length of the two input [`Mpi`]s is not the same.
-    pub fn cmp_const_time(&self, other: &Mpi) -> Result<Ordering> {
+    pub fn cmp_const_time(&self, other: &Self) -> Result<Ordering> {
         mpi_inner_cmp_const_time(&self.inner, &other.inner)
     }
 
     /// Checks equalness with the other in constant time.
-    pub fn eq_const_time(&self, other: &Mpi) -> Result<bool> {
+    pub fn eq_const_time(&self, other: &Self) -> Result<bool> {
         mpi_inner_eq_const_time(&self.inner, &other.inner)
     }
 
@@ -167,14 +164,13 @@ impl Mpi {
         Ok(self.get_limb(0) as u32)
     }
 
+    #[must_use]
     pub fn sign(&self) -> Sign {
         let cmp = unsafe { mpi_cmp_int(&self.inner, 0) };
-        if cmp < 0 {
-            Sign::Negative
-        } else if cmp == 0 {
-            Sign::Zero
-        } else {
-            Sign::Positive
+        match cmp.cmp(&0) {
+            Ordering::Greater => Sign::Positive,
+            Ordering::Less => Sign::Negative,
+            Ordering::Equal => Sign::Zero,
         }
     }
 
@@ -192,7 +188,7 @@ impl Mpi {
 
         // There is a null terminator plus (possibly) some garbage data. Remove it
         if let Some(idx) = buf.iter().position(|&b| b == 0) {
-            buf.truncate(idx)
+            buf.truncate(idx);
         }
 
         Ok(String::from_utf8(buf).expect("radix-N data is valid UTF8"))
@@ -206,14 +202,14 @@ impl Mpi {
         Ok(ret)
     }
 
-    /// Serialize the MPI as big endian binary data, padding to at least min_len
+    /// Serialize the MPI as big endian binary data, padding to at least `min_len`
     /// bytes
     pub fn to_binary_padded(&self, min_len: usize) -> Result<Vec<u8>> {
         let len = self.byte_length()?;
         let larger_len = if len < min_len { min_len } else { len };
         let mut ret = vec![0u8; larger_len];
         let pad_len = ret.len() - len;
-        unsafe { mpi_write_binary(&self.inner, ret.as_mut_ptr().offset(pad_len as isize), len).into_result() }?;
+        unsafe { mpi_write_binary(&self.inner, ret.as_mut_ptr().add(pad_len), len).into_result() }?;
         Ok(ret)
     }
 
@@ -229,7 +225,7 @@ impl Mpi {
         Ok(l)
     }
 
-    pub fn divrem(&self, other: &Mpi) -> Result<(Mpi, Mpi)> {
+    pub fn divrem(&self, other: &Self) -> Result<(Self, Self)> {
         let mut q = Self::init();
         let mut r = Self::init();
         unsafe { mpi_div_mpi(&mut q.inner, &mut r.inner, &self.inner, &other.inner) }.into_result()?;
@@ -237,20 +233,20 @@ impl Mpi {
     }
 
     /// Reduce self modulo other
-    pub fn modulo(&self, other: &Mpi) -> Result<Mpi> {
+    pub fn modulo(&self, other: &Self) -> Result<Self> {
         let mut ret = Self::init();
         unsafe { mpi_mod_mpi(&mut ret.inner, &self.inner, &other.inner) }.into_result()?;
         Ok(ret)
     }
 
-    pub fn divrem_int(&self, other: mpi_sint) -> Result<(Mpi, Mpi)> {
+    pub fn divrem_int(&self, other: mpi_sint) -> Result<(Self, Self)> {
         let mut q = Self::init();
         let mut r = Self::init();
         unsafe { mpi_div_int(&mut q.inner, &mut r.inner, &self.inner, other) }.into_result()?;
         Ok((q, r))
     }
 
-    pub fn modinv(&self, modulus: &Mpi) -> Result<Mpi> {
+    pub fn modinv(&self, modulus: &Self) -> Result<Self> {
         let mut r = Self::init();
         unsafe { mpi_inv_mod(&mut r.inner, &self.inner, &modulus.inner) }.into_result()?;
         Ok(r)
@@ -260,8 +256,8 @@ impl Mpi {
     ///
     /// The modulus must be prime; computing a square root modulo
     /// a composite number is equivalent to factoring the composite.
-    pub fn mod_sqrt(&self, p: &Mpi) -> Result<Mpi> {
-        let zero = Mpi::new(0)?;
+    pub fn mod_sqrt(&self, p: &Self) -> Result<Self> {
+        let zero = Self::new(0)?;
 
         if self < &zero || self >= p {
             return Err(Error::MpiBadInputData);
@@ -272,7 +268,7 @@ impl Mpi {
 
         // This ignores p=2 (for which this algorithm is valid), as not
         // cryptographically interesting.
-        if p.get_bit(0) == false || p <= &zero {
+        if !p.get_bit(0) || p <= &zero {
             return Err(Error::MpiBadInputData);
         }
 
@@ -299,7 +295,7 @@ impl Mpi {
         /*
         Find a random quadratic nonresidue mod p.
         */
-        let mut n = Mpi::new(2)?;
+        let mut n = Self::new(2)?;
         while n.jacobi(p)? != -1 {
             n += 1;
         }
@@ -309,8 +305,8 @@ impl Mpi {
         let mut g = n.mod_exp(&s, p)?;
         let mut r = e;
 
-        let one = Mpi::new(1)?;
-        let two = Mpi::new(2)?;
+        let one = Self::new(1)?;
+        let two = Self::new(2)?;
 
         loop {
             if b == one {
@@ -342,10 +338,11 @@ impl Mpi {
         }
     }
 
+    #[must_use]
     pub fn trailing_zeros(&self) -> usize {
         let mut low_zero = 0;
 
-        while self.get_bit(low_zero) == false {
+        while !self.get_bit(low_zero) {
             low_zero += 1;
         }
 
@@ -353,11 +350,11 @@ impl Mpi {
     }
 
     /// Calculates Jacobi symbol (self|N)
-    pub fn jacobi(&self, n: &Mpi) -> Result<i32> {
-        let zero = Mpi::new(0)?;
-        let one = Mpi::new(1)?;
+    pub fn jacobi(&self, n: &Self) -> Result<i32> {
+        let zero = Self::new(0)?;
+        let one = Self::new(1)?;
 
-        if self < &zero || n < &zero || n.get_bit(0) == false {
+        if self < &zero || n < &zero || !n.get_bit(0) {
             return Err(Error::MpiBadInputData);
         }
 
@@ -366,7 +363,7 @@ impl Mpi {
 
         let mut j: i32 = 1;
 
-        while &y > &one {
+        while y > one {
             x = x.modulo(&y)?;
             if x > (&y / 2)? {
                 x = (&y - &x)?;
@@ -385,7 +382,7 @@ impl Mpi {
             if trailing_zeros % 2 == 1 {
                 let y_mod_8 = (&y % 8)?.as_u32()?;
                 if y_mod_8 == 3 || y_mod_8 == 5 {
-                    j = -j
+                    j = -j;
                 }
             }
 
@@ -400,7 +397,7 @@ impl Mpi {
     }
 
     /// Return (self^exponent) % n
-    pub fn mod_exp(&self, exponent: &Mpi, modulus: &Mpi) -> Result<Mpi> {
+    pub fn mod_exp(&self, exponent: &Self, modulus: &Self) -> Result<Self> {
         let mut r = Self::init();
         unsafe {
             mpi_exp_mod(
@@ -419,7 +416,7 @@ impl Mpi {
     /// The Miller-Rabin primality test with k rounds. Returns
     /// `MpiNotAcceptable` if self is definitely not prime. If no error is
     /// returned, self is prime with a probability of 1 - 1/2^{2k}. See
-    /// mbedtls_mpi_is_prime.
+    /// `mbedtls_mpi_is_prime`.
     pub fn is_probably_prime<F: Random>(&self, k: u32, rng: &mut F) -> Result<()> {
         unsafe {
             mpi_is_prime_ext(&self.inner, k as i32, Some(F::call), rng.data_ptr()).into_result()?;
@@ -458,7 +455,7 @@ fn mpi_inner_less_than_const_time(x: &mpi, y: &mpi) -> Result<bool> {
 }
 
 impl Ord for Mpi {
-    fn cmp(&self, other: &Mpi) -> Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         let r = unsafe { mpi_cmp_mpi(&self.inner, &other.inner) };
         match r {
             -1 => Ordering::Less,
@@ -470,13 +467,13 @@ impl Ord for Mpi {
 }
 
 impl PartialOrd for Mpi {
-    fn partial_cmp(&self, other: &Mpi) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl PartialEq for Mpi {
-    fn eq(&self, other: &Mpi) -> bool {
+    fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == Ordering::Equal
     }
 }
@@ -566,11 +563,11 @@ impl<'a> Div<mpi_sint> for &'a Mpi {
 }
 
 /// Note this will panic if other == 0
-impl<'a> DivAssign<&'a Mpi> for Mpi {
-    fn div_assign(&mut self, other: &Mpi) {
+impl<'a> DivAssign<&'a Self> for Mpi {
+    fn div_assign(&mut self, other: &Self) {
         // mpi_div_mpi produces incorrect output when arguments alias, so avoid doing
         // that
-        let mut q = Mpi::init();
+        let mut q = Self::init();
         unsafe { mpi_div_mpi(&mut q.inner, ::core::ptr::null_mut(), &self.inner, other.handle()) }
             .into_result()
             .expect("mpi_div_mpi success");
@@ -579,11 +576,11 @@ impl<'a> DivAssign<&'a Mpi> for Mpi {
 }
 
 /// Note this will panic if other == 0
-impl DivAssign<Mpi> for Mpi {
-    fn div_assign(&mut self, other: Mpi) {
+impl DivAssign<Self> for Mpi {
+    fn div_assign(&mut self, other: Self) {
         // mpi_div_mpi produces incorrect output when arguments alias, so avoid doing
         // that
-        let mut q = Mpi::init();
+        let mut q = Self::init();
         unsafe { mpi_div_mpi(&mut q.inner, ::core::ptr::null_mut(), &self.inner, other.handle()) }
             .into_result()
             .expect("mpi_div_mpi success");
@@ -628,10 +625,10 @@ impl<'a> Rem<Mpi> for &'a Mpi {
 }
 
 impl Rem<mpi_sint> for Mpi {
-    type Output = Result<Mpi>;
+    type Output = Result<Self>;
 
-    fn rem(self, other: mpi_sint) -> Result<Mpi> {
-        let mut r = Mpi::init();
+    fn rem(self, other: mpi_sint) -> Result<Self> {
+        let mut r = Self::init();
         unsafe { mpi_div_int(::core::ptr::null_mut(), &mut r.inner, &self.inner, other) }.into_result()?;
         Ok(r)
     }
@@ -648,11 +645,11 @@ impl<'a> Rem<mpi_sint> for &'a Mpi {
 }
 
 /// Note this will panic if other == 0
-impl<'a> RemAssign<&'a Mpi> for Mpi {
-    fn rem_assign(&mut self, other: &Mpi) {
+impl<'a> RemAssign<&'a Self> for Mpi {
+    fn rem_assign(&mut self, other: &Self) {
         // mpi_div_mpi produces incorrect output when arguments alias, so avoid doing
         // that
-        let mut r = Mpi::init();
+        let mut r = Self::init();
         unsafe { mpi_div_mpi(::core::ptr::null_mut(), &mut r.inner, &self.inner, other.handle()) }
             .into_result()
             .expect("mpi_div_mpi success");
@@ -661,11 +658,11 @@ impl<'a> RemAssign<&'a Mpi> for Mpi {
 }
 
 /// Note this will panic if other == 0
-impl RemAssign<Mpi> for Mpi {
-    fn rem_assign(&mut self, other: Mpi) {
+impl RemAssign<Self> for Mpi {
+    fn rem_assign(&mut self, other: Self) {
         // mpi_div_mpi produces incorrect output when arguments alias, so avoid doing
         // that
-        let mut r = Mpi::init();
+        let mut r = Self::init();
         unsafe { mpi_div_mpi(::core::ptr::null_mut(), &mut r.inner, &self.inner, other.handle()) }
             .into_result()
             .expect("mpi_div_mpi success");
@@ -700,10 +697,10 @@ impl<'a> Shl<usize> for &'a Mpi {
 }
 
 impl Shl<usize> for Mpi {
-    type Output = Result<Mpi>;
+    type Output = Result<Self>;
 
-    fn shl(self, shift: usize) -> Result<Mpi> {
-        let mut r = Mpi::copy(self.handle())?;
+    fn shl(self, shift: usize) -> Result<Self> {
+        let mut r = Self::copy(self.handle())?;
         unsafe { mpi_shift_l(&mut r.inner, shift) }.into_result()?;
         Ok(r)
     }
@@ -728,10 +725,10 @@ impl<'a> Shr<usize> for &'a Mpi {
 }
 
 impl Shr<usize> for Mpi {
-    type Output = Result<Mpi>;
+    type Output = Result<Self>;
 
-    fn shr(self, shift: usize) -> Result<Mpi> {
-        let mut r = Mpi::copy(self.handle())?;
+    fn shr(self, shift: usize) -> Result<Self> {
+        let mut r = Self::copy(self.handle())?;
         unsafe { mpi_shift_r(&mut r.inner, shift) }.into_result()?;
         Ok(r)
     }

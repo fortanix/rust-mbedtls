@@ -6,15 +6,15 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-//! MbedTLS self tests.
+//! `MbedTLS` self tests.
 //!
-//! Calling MbedTLS self test functions before they're enabled using the
+//! Calling `MbedTLS` self test functions before they're enabled using the
 //! `enable()` function here will result in a panic.
 //!
 //! Using this module in multithreaded or async environment will fail. The self
 //! test functions rely on global variables to track operations and anything
 //! non-self-test related operations will clobber these variables, resulting in
-//! self test failures. Make sure no other code uses MbedTLS while running the
+//! self test failures. Make sure no other code uses `MbedTLS` while running the
 //! self tests. Multiple self test operations done simultaneously may also
 //! return failures.
 
@@ -53,7 +53,7 @@ pub unsafe extern "C" fn rand() -> c_int {
     rand_f.expect("Called self-test rand without enabling self-test")()
 }
 
-/// Set callback functions to enable the MbedTLS self tests.
+/// Set callback functions to enable the `MbedTLS` self tests.
 ///
 /// `rand` only needs to be set on platforms that don't have a `rand()`
 /// function in libc. `log` only needs to be set when using `no_std`, i.e.
@@ -94,7 +94,7 @@ pub unsafe fn disable() {
 /// # Safety
 ///
 /// The caller needs to ensure this function is not called while *any other*
-/// MbedTLS function is called. See the module documentation for more
+/// `MbedTLS` function is called. See the module documentation for more
 /// information.
 pub use mbedtls_sys::{
     aes_self_test as aes, arc4_self_test as arc4, aria_self_test as aria, base64_self_test as base64,

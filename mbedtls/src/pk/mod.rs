@@ -42,13 +42,13 @@ pub use crate::ecp::EcGroup;
 pub use dhparam::Dhm;
 
 // SHA-256("Fortanix")[:4]
-const CUSTOM_PK_TYPE: pk_type_t = 0x8b205408u32 as pk_type_t;
+const CUSTOM_PK_TYPE: pk_type_t = 0x8b20_5408_u32 as pk_type_t;
 
-const RAW_RSA_DECRYPT: i32 = 1040451858;
+const RAW_RSA_DECRYPT: i32 = 1_040_451_858;
 
 define!(
     #[c_ty(pk_type_t)]
-    #[derive(Copy, Clone, PartialEq, Debug)]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     enum Type {
         None = PK_NONE,
         Rsa = PK_RSA,
@@ -63,16 +63,16 @@ define!(
 );
 
 impl From<pk_type_t> for Type {
-    fn from(inner: pk_type_t) -> Type {
+    fn from(inner: pk_type_t) -> Self {
         match inner {
-            PK_NONE => Type::None,
-            PK_RSA => Type::Rsa,
-            PK_ECKEY => Type::Eckey,
-            PK_ECKEY_DH => Type::EckeyDh,
-            PK_ECDSA => Type::Ecdsa,
-            PK_RSA_ALT => Type::RsaAlt,
-            PK_RSASSA_PSS => Type::RsassaPss,
-            CUSTOM_PK_TYPE => Type::Custom,
+            PK_NONE => Self::None,
+            PK_RSA => Self::Rsa,
+            PK_ECKEY => Self::Eckey,
+            PK_ECKEY_DH => Self::EckeyDh,
+            PK_ECDSA => Self::Ecdsa,
+            PK_RSA_ALT => Self::RsaAlt,
+            PK_RSASSA_PSS => Self::RsassaPss,
+            CUSTOM_PK_TYPE => Self::Custom,
             _ => panic!("Invalid PK type"),
         }
     }
@@ -99,8 +99,8 @@ struct CustomPkContext {
 }
 
 impl CustomPkContext {
-    fn new() -> CustomPkContext {
-        CustomPkContext {
+    fn new() -> Self {
+        Self {
             algo_id: Vec::new(),
             pk: Vec::new(),
             sk: Vec::new(),
@@ -117,7 +117,7 @@ unsafe extern "C" fn free_custom_pk_ctx(p: *mut c_void) {
     let _ = Box::from_raw(p as *mut CustomPkContext);
 }
 
-unsafe extern "C" fn custom_pk_can_do(_t: pk_type_t) -> types::raw_types::c_int {
+const unsafe extern "C" fn custom_pk_can_do(_t: pk_type_t) -> types::raw_types::c_int {
     0
 }
 
@@ -288,31 +288,31 @@ impl Pk {
     /// Takes both DER and PEM forms of PKCS#1 or PKCS#8 encoded keys.
     ///
     /// When calling on PEM-encoded data, `key` must be NULL-terminated
-    pub fn from_private_key(key: &[u8], password: Option<&[u8]>) -> Result<Pk> {
+    pub fn from_private_key(key: &[u8], password: Option<&[u8]>) -> Result<Self> {
         let mut ret = Self::init();
         unsafe {
             pk_parse_key(
                 &mut ret.inner,
                 key.as_ptr(),
                 key.len(),
-                password.map(<[_]>::as_ptr).unwrap_or(::core::ptr::null()),
-                password.map(<[_]>::len).unwrap_or(0),
+                password.map_or(::core::ptr::null(), <[_]>::as_ptr),
+                password.map_or(0, <[_]>::len),
             )
             .into_result()?;
         };
         Ok(ret)
     }
 
-    /// Takes both DER and PEM encoded SubjectPublicKeyInfo keys.
+    /// Takes both DER and PEM encoded `SubjectPublicKeyInfo` keys.
     ///
     /// When calling on PEM-encoded data, `key` must be NULL-terminated
-    pub fn from_public_key(key: &[u8]) -> Result<Pk> {
+    pub fn from_public_key(key: &[u8]) -> Result<Self> {
         let mut ret = Self::init();
         unsafe { pk_parse_public_key(&mut ret.inner, key.as_ptr(), key.len()).into_result()? };
         Ok(ret)
     }
 
-    pub fn generate_rsa<F: Random>(rng: &mut F, bits: u32, exponent: u32) -> Result<Pk> {
+    pub fn generate_rsa<F: Random>(rng: &mut F, bits: u32, exponent: u32) -> Result<Self> {
         let mut ret = Self::init();
         unsafe {
             pk_setup(&mut ret.inner, pk_info_from_type(Type::Rsa.into())).into_result()?;
@@ -321,12 +321,15 @@ impl Pk {
         Ok(ret)
     }
 
-    pub fn generate_ec<F: Random, C: TryInto<EcGroup, Error = impl Into<Error>>>(rng: &mut F, curve: C) -> Result<Pk> {
+    pub fn generate_ec<F: Random, C: TryInto<EcGroup, Error = impl Into<Error>>>(rng: &mut F, curve: C) -> Result<Self> {
         let mut ret = Self::init();
         unsafe {
+            // allow redundant closure because of no_std
+            #[allow(clippy::redundant_closure)]
             let curve: EcGroup = curve.try_into().map_err(|e| e.into())?;
             pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result()?;
             let ctx = ret.inner.pk_ctx as *mut ecp_keypair;
+            //FIXME: why is this .clone() here?
             (*ctx).grp = curve.clone().into_inner();
             ecp_gen_keypair(&mut (*ctx).grp, &mut (*ctx).d, &mut (*ctx).Q, Some(F::call), rng.data_ptr()).into_result()?;
         }
@@ -338,7 +341,7 @@ impl Pk {
         note = "This function does not accept an RNG so it's vulnerable to side channel attacks.
 Please use `private_from_ec_scalar_with_rng` instead."
     )]
-    pub fn private_from_ec_components(mut curve: EcGroup, private_key: Mpi) -> Result<Pk> {
+    pub fn private_from_ec_components(mut curve: EcGroup, private_key: Mpi) -> Result<Self> {
         let mut ret = Self::init();
         let curve_generator = curve.generator()?;
         #[allow(deprecated)]
@@ -376,10 +379,10 @@ Please use `private_from_ec_scalar_with_rng` instead."
     ///
     /// This function will return an error if:
     ///
-    /// * Fails to generate `EcPoint` from given EcGroup in `curve`.
+    /// * Fails to generate `EcPoint` from given `EcGroup` in `curve`.
     /// * The underlying C `mbedtls_pk_setup` function fails to set up the `Pk` context.
     /// * The `EcPoint::mul_with_rng` function fails to generate the public key point.
-    pub fn private_from_ec_scalar_with_rng<F: Random>(mut curve: EcGroup, private_key: Mpi, rng: &mut F) -> Result<Pk> {
+    pub fn private_from_ec_scalar_with_rng<F: Random>(mut curve: EcGroup, private_key: Mpi, rng: &mut F) -> Result<Self> {
         let mut ret = Self::init();
         let curve_generator = curve.generator()?;
         let public_point = curve_generator.mul_with_rng(&mut curve, &private_key, rng)?;
@@ -393,7 +396,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
         Ok(ret)
     }
 
-    pub fn public_from_ec_components(curve: EcGroup, public_point: EcPoint) -> Result<Pk> {
+    pub fn public_from_ec_components(curve: EcGroup, public_point: EcPoint) -> Result<Self> {
         let mut ret = Self::init();
         unsafe {
             pk_setup(&mut ret.inner, pk_info_from_type(Type::Eckey.into())).into_result()?;
@@ -405,7 +408,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     }
 
     /// Construct a private key from RSA components.
-    pub fn private_from_rsa_components(components: RsaPrivateComponents<'_>) -> Result<Pk> {
+    pub fn private_from_rsa_components(components: RsaPrivateComponents<'_>) -> Result<Self> {
         let mut ret = Self::init();
         let (n, p, q, d, e) = match components {
             RsaPrivateComponents::WithPrimes { p, q, e } => (None, Some(p), Some(q), None, Some(e)),
@@ -426,7 +429,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     }
 
     /// Construct a public key from RSA components.
-    pub fn public_from_rsa_components(components: RsaPublicComponents<'_>) -> Result<Pk> {
+    pub fn public_from_rsa_components(components: RsaPublicComponents<'_>) -> Result<Self> {
         let mut ret = Self::init();
         let RsaPublicComponents { n, e } = components;
         unsafe {
@@ -438,25 +441,25 @@ Please use `private_from_ec_scalar_with_rng` instead."
         Ok(ret)
     }
 
-    pub fn public_custom_algo(algo_id: &[u64], pk: &[u8]) -> Result<Pk> {
+    pub fn public_custom_algo(algo_id: &[u64], pk: &[u8]) -> Result<Self> {
         let mut ret = Self::init();
         unsafe {
             pk_setup(&mut ret.inner, &CUSTOM_PK_INFO).into_result()?;
             let ctx = ret.inner.pk_ctx as *mut CustomPkContext;
-            (*ctx).algo_id = algo_id.to_owned();
-            (*ctx).pk = pk.to_owned();
+            algo_id.clone_into(&mut (*ctx).algo_id);
+            pk.clone_into(&mut (*ctx).pk);
         }
         Ok(ret)
     }
 
-    pub fn private_custom_algo(algo_id: &[u64], pk: &[u8], sk: &[u8]) -> Result<Pk> {
+    pub fn private_custom_algo(algo_id: &[u64], pk: &[u8], sk: &[u8]) -> Result<Self> {
         let mut ret = Self::init();
         unsafe {
             pk_setup(&mut ret.inner, &CUSTOM_PK_INFO).into_result()?;
             let ctx = ret.inner.pk_ctx as *mut CustomPkContext;
-            (*ctx).algo_id = algo_id.to_owned();
-            (*ctx).pk = pk.to_owned();
-            (*ctx).sk = sk.to_owned();
+            algo_id.clone_into(&mut (*ctx).algo_id);
+            pk.clone_into(&mut (*ctx).pk);
+            sk.clone_into(&mut (*ctx).sk);
         }
         Ok(ret)
     }
@@ -488,7 +491,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
 
         let ctx = self.inner.pk_ctx as *const CustomPkContext;
         unsafe {
-            if (*ctx).sk.len() == 0 {
+            if (*ctx).sk.is_empty() {
                 return Err(Error::PkTypeMismatch);
             }
             Ok(&(*ctx).sk)
@@ -499,7 +502,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn set_options(&mut self, options: Options) {
         unsafe {
             match (Type::from(pk_get_type(&self.inner)), options) {
-                (Type::Rsa, Options::Rsa { padding }) | (Type::RsassaPss, Options::Rsa { padding }) => {
+                (Type::Rsa | Type::RsassaPss, Options::Rsa { padding }) => {
                     let (padding, hash_id) = match padding {
                         RsaPadding::Pkcs1V15 => (RSA_PKCS_V15, 0),
                         RsaPadding::Pkcs1V21 { mgf } => (RSA_PKCS_V21, mgf.into()),
@@ -516,20 +519,19 @@ Please use `private_from_ec_scalar_with_rng` instead."
         }
     }
 
+    #[must_use]
     pub fn can_do(&self, t: Type) -> bool {
-        if unsafe { pk_can_do(&self.inner, t.into()) } == 0 {
-            false
-        } else {
-            true
-        }
+        (unsafe { pk_can_do(&self.inner, t.into()) } != 0)
     }
 
+    #[must_use]
     pub fn check_pair(public: &Self, private: &Self) -> bool {
         unsafe { pk_check_pair(&public.inner, &private.inner) }.into_result().is_ok()
     }
 
     getter!(
         /// Key length in bits
+        #[allow(clippy::len_without_is_empty)]
         len() -> usize = fn pk_get_bitlen
     );
     getter!(pk_type() -> Type = fn pk_get_type);
@@ -834,14 +836,8 @@ Please use `private_from_ec_scalar_with_rng` instead."
     /// Decrypt using a custom label.
     ///
     /// This function may only be called on an RSA key with its padding set to
-    /// RSA_PKCS_V21.
-    pub fn decrypt_with_label<F: Random>(
-        &mut self,
-        cipher: &[u8],
-        plain: &mut [u8],
-        rng: &mut F,
-        label: &[u8],
-    ) -> Result<usize> {
+    /// `RSA_PKCS_V21`.
+    pub fn decrypt_with_label<F: Random>(&self, cipher: &[u8], plain: &mut [u8], rng: &mut F, label: &[u8]) -> Result<usize> {
         if self.pk_type() != Type::Rsa {
             return Err(Error::PkTypeMismatch);
         }
@@ -890,14 +886,8 @@ Please use `private_from_ec_scalar_with_rng` instead."
     /// Encrypt using a custom label.
     ///
     /// This function may only be called on an RSA key with its padding set to
-    /// RSA_PKCS_V21.
-    pub fn encrypt_with_label<F: Random>(
-        &mut self,
-        plain: &[u8],
-        cipher: &mut [u8],
-        rng: &mut F,
-        label: &[u8],
-    ) -> Result<usize> {
+    /// `RSA_PKCS_V21`.
+    pub fn encrypt_with_label<F: Random>(&self, plain: &[u8], cipher: &mut [u8], rng: &mut F, label: &[u8]) -> Result<usize> {
         if self.pk_type() != Type::Rsa {
             return Err(Error::PkTypeMismatch);
         }
@@ -942,7 +932,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn sign<F: Random>(&mut self, md: MdType, hash: &[u8], sig: &mut [u8], rng: &mut F) -> Result<usize> {
         // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to
         // auto-detect size and cause an invalid write.
-        if hash.len() == 0 || sig.len() == 0 {
+        if hash.is_empty() || sig.is_empty() {
             return Err(Error::PkBadInputData);
         }
 
@@ -979,7 +969,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn sign_deterministic<F: Random>(&mut self, md: MdType, hash: &[u8], sig: &mut [u8], rng: &mut F) -> Result<usize> {
         // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to
         // auto-detect size and cause an invalid write.
-        if hash.len() == 0 || sig.len() == 0 {
+        if hash.is_empty() || sig.is_empty() {
             return Err(Error::PkBadInputData);
         }
 
@@ -1032,7 +1022,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn verify(&mut self, md: MdType, hash: &[u8], sig: &[u8]) -> Result<()> {
         // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to
         // auto-detect size and cause an invalid write.
-        if hash.len() == 0 || sig.len() == 0 {
+        if hash.is_empty() || sig.is_empty() {
             return Err(Error::PkBadInputData);
         }
 
@@ -1044,19 +1034,16 @@ Please use `private_from_ec_scalar_with_rng` instead."
     }
 
     /// Agree on a shared secret with another public key.
-    pub fn agree<F: Random>(&mut self, other: &Pk, shared: &mut [u8], rng: &mut F) -> Result<usize> {
+    pub fn agree<F: Random>(&mut self, other: &Self, shared: &mut [u8], rng: &mut F) -> Result<usize> {
         match (self.pk_type(), other.pk_type()) {
-            (Type::Eckey, Type::Eckey)
-            | (Type::EckeyDh, Type::Eckey)
-            | (Type::Eckey, Type::EckeyDh)
-            | (Type::EckeyDh, Type::EckeyDh) => unsafe {
+            (Type::Eckey | Type::EckeyDh, Type::Eckey | Type::EckeyDh) => unsafe {
                 let mut ecdh = ec::Ecdh::from_keys(
                     UnsafeFrom::from(self.inner.pk_ctx as *const _).unwrap(),
                     UnsafeFrom::from(other.inner.pk_ctx as *const _).unwrap(),
                 )?;
                 ecdh.calc_secret(shared, rng)
             },
-            _ => return Err(Error::PkTypeMismatch),
+            _ => Err(Error::PkTypeMismatch),
         }
     }
 
@@ -1112,7 +1099,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn write_public_pem_string(&mut self) -> Result<String> {
         crate::private::alloc_string_repeat(|buf, size| unsafe {
             match pk_write_pubkey_pem(&mut self.inner, buf as _, size) {
-                0 => crate::private::cstr_to_slice(buf as _).len() as _,
+                0 => crate::private::cstr_to_slice(buf.cast_const()).len() as _,
                 r => r,
             }
         })

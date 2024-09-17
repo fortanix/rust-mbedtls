@@ -40,4 +40,4 @@ pub trait Random: RngCallback {
     }
 }
 
-impl<'r, F: RngCallback> Random for F {}
+impl<F: RngCallback> Random for F {}

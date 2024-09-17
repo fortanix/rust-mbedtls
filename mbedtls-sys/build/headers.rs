@@ -25,8 +25,8 @@ use crate::features::FEATURES;
  * )
  */
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
-pub const ORDERED: &'static [(Option<&'static str>, &'static str)] = &[
+#[rustfmt::skip]
+pub const ORDERED: &[(Option<&'static str>, &str)] = &[
     (None,                 "config_psa.h"),
     (None,                 "platform_time.h"),
     (None,                 "platform_util.h"),

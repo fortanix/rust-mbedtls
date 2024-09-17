@@ -194,7 +194,7 @@ impl fmt::Write for TimeWriter {
 
 impl Time {
     pub fn new(year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) -> Option<Time> {
-        if year < 10000 && month >= 1 && month <= 12 && day >= 1 && day <= 31 && hour < 24 && minute < 60 && second < 60 {
+        if year < 10000 && (1..=12).contains(&month) && (1..=31).contains(&day) && hour < 24 && minute < 60 && second < 60 {
             Some(Time {
                 year,
                 month,

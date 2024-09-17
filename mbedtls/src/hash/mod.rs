@@ -11,7 +11,7 @@ use mbedtls_sys::*;
 
 define!(
     #[c_ty(md_type_t)]
-    #[derive(Copy, Clone, PartialEq, Debug)]
+    #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     enum Type {
         None = MD_NONE,
         Md2 = MD_MD2,
@@ -26,19 +26,20 @@ define!(
     }
 );
 
+#[allow(clippy::fallible_impl_from)]
 impl From<md_type_t> for Type {
-    fn from(inner: md_type_t) -> Type {
+    fn from(inner: md_type_t) -> Self {
         match inner {
-            MD_NONE => Type::None,
-            MD_MD2 => Type::Md2,
-            MD_MD4 => Type::Md4,
-            MD_MD5 => Type::Md5,
-            MD_SHA1 => Type::Sha1,
-            MD_SHA224 => Type::Sha224,
-            MD_SHA256 => Type::Sha256,
-            MD_SHA384 => Type::Sha384,
-            MD_SHA512 => Type::Sha512,
-            MD_RIPEMD160 => Type::Ripemd,
+            MD_NONE => Self::None,
+            MD_MD2 => Self::Md2,
+            MD_MD4 => Self::Md4,
+            MD_MD5 => Self::Md5,
+            MD_SHA1 => Self::Sha1,
+            MD_SHA224 => Self::Sha224,
+            MD_SHA256 => Self::Sha256,
+            MD_SHA384 => Self::Sha384,
+            MD_SHA512 => Self::Sha512,
+            MD_RIPEMD160 => Self::Ripemd,
             _ => panic!("Invalid Md type"),
         }
     }
@@ -49,15 +50,15 @@ pub struct MdInfo {
     inner: &'static md_info_t,
 }
 
-impl Into<Option<MdInfo>> for Type {
-    fn into(self) -> Option<MdInfo> {
-        unsafe { md_info_from_type(self.into()).as_ref() }.map(|r| MdInfo { inner: r })
+impl From<Type> for Option<MdInfo> {
+    fn from(val: Type) -> Self {
+        unsafe { md_info_from_type(val.into()).as_ref() }.map(|r| MdInfo { inner: r })
     }
 }
 
-impl Into<*const md_info_t> for MdInfo {
-    fn into(self) -> *const md_info_t {
-        self.inner
+impl From<MdInfo> for *const md_info_t {
+    fn from(val: MdInfo) -> Self {
+        val.inner
     }
 }
 
@@ -70,9 +71,11 @@ define!(
 );
 
 impl MdInfo {
+    #[must_use]
     pub fn size(&self) -> usize {
         unsafe { md_get_size(self.inner).into() }
     }
+    #[must_use]
     pub fn get_type(&self) -> Type {
         unsafe { md_get_type(self.inner).into() }
     }
@@ -94,13 +97,13 @@ impl Clone for Md {
 }
 
 impl Md {
-    pub fn new(md: Type) -> Result<Md> {
+    pub fn new(md: Type) -> Result<Self> {
         let md: MdInfo = match md.into() {
             Some(md) => md,
             None => return Err(Error::MdBadInputData),
         };
 
-        let mut ctx = Md::init();
+        let mut ctx = Self::init();
         unsafe {
             md_setup(&mut ctx.inner, md.into(), 0).into_result()?;
             md_starts(&mut ctx.inner).into_result()?;
@@ -147,7 +150,7 @@ pub struct Hmac {
 }
 
 impl Hmac {
-    pub fn new(md: Type, key: &[u8]) -> Result<Hmac> {
+    pub fn new(md: Type, key: &[u8]) -> Result<Self> {
         let md: MdInfo = match md.into() {
             Some(md) => md,
             None => return Err(Error::MdBadInputData),
@@ -158,7 +161,7 @@ impl Hmac {
             md_setup(&mut ctx.inner, md.into(), 1).into_result()?;
             md_hmac_starts(&mut ctx.inner, key.as_ptr(), key.len()).into_result()?;
         }
-        Ok(Hmac { ctx })
+        Ok(Self { ctx })
     }
 
     pub fn update(&mut self, data: &[u8]) -> Result<()> {
@@ -271,8 +274,8 @@ impl Hkdf {
         unsafe {
             hkdf(
                 md.inner,
-                maybe_salt.map_or(::core::ptr::null(), |salt| salt.as_ptr()),
-                maybe_salt.map_or(0, |salt| salt.len()),
+                maybe_salt.map_or(::core::ptr::null(), <[u8]>::as_ptr),
+                maybe_salt.map_or(0, <[u8]>::len),
                 ikm.as_ptr(),
                 ikm.len(),
                 info.as_ptr(),
@@ -320,8 +323,8 @@ impl Hkdf {
         unsafe {
             hkdf_extract(
                 md.inner,
-                maybe_salt.map_or(::core::ptr::null(), |salt| salt.as_ptr()),
-                maybe_salt.map_or(0, |salt| salt.len()),
+                maybe_salt.map_or(::core::ptr::null(), <[u8]>::as_ptr),
+                maybe_salt.map_or(0, <[u8]>::len),
                 ikm.as_ptr(),
                 ikm.len(),
                 prk.as_mut_ptr(),
@@ -413,8 +416,8 @@ pub fn pbkdf_pkcs12(md: Type, password: &[u8], salt: &[u8], id: u8, iterations: 
             salt.as_ptr(),
             salt.len(),
             md.into(),
-            id as i32,
-            iterations as i32,
+            core::ffi::c_int::from(id),
+            iterations as core::ffi::c_int,
         )
         .into_result()?;
         Ok(())

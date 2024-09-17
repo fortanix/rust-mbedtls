@@ -36,10 +36,6 @@ macro_rules! error_enum {
             $($rust,)*
             Other(c_int),
             Utf8Error(Option<Utf8Error>),
-            // Stable-Rust equivalent of `#[non_exhaustive]` attribute. This
-            // value should never be used by users of this crate!
-            #[doc(hidden)]
-            __Nonexhaustive,
         }
 
         impl IntoResult for c_int {
@@ -55,28 +51,29 @@ macro_rules! error_enum {
         }
 
         impl $n {
-            pub fn from_mbedtls_code(code: c_int) -> Self {
+            #[must_use]
+            pub const fn from_mbedtls_code(code: c_int) -> Self {
                 match code {
                     $(::mbedtls_sys::$c => $n::$rust),*,
                     _ => $n::Other(code)
                 }
             }
 
-            pub fn as_str(&self) -> &'static str {
+            #[must_use]
+            pub const fn as_str(&self) -> &'static str {
                 match self {
                     $(&$n::$rust => concat!("mbedTLS error ",stringify!($n::$rust)),)*
                     &$n::Other(_) => "mbedTLS unknown error",
                     &$n::Utf8Error(_) => "error converting to UTF-8",
-                    &$n::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
                 }
             }
 
-            pub fn to_int(&self) -> c_int {
+            #[must_use]
+            pub const fn to_int(&self) -> c_int {
                 match *self {
                     $($n::$rust => ::mbedtls_sys::$c,)*
                     $n::Other(code) => code,
                     $n::Utf8Error(_) => ERR_UTF8_INVALID,
-                    $n::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
                 }
             }
         }
@@ -84,13 +81,13 @@ macro_rules! error_enum {
 }
 
 impl From<Utf8Error> for Error {
-    fn from(e: Utf8Error) -> Error {
-        Error::Utf8Error(Some(e))
+    fn from(e: Utf8Error) -> Self {
+        Self::Utf8Error(Some(e))
     }
 }
 
 impl From<Infallible> for Error {
-    fn from(x: Infallible) -> Error {
+    fn from(x: Infallible) -> Self {
         match x {}
     }
 }
@@ -98,11 +95,10 @@ impl From<Infallible> for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Error::Utf8Error(Some(ref e)) => f.write_fmt(format_args!("Error converting to UTF-8: {}", e)),
-            &Error::Utf8Error(None) => f.write_fmt(format_args!("Error converting to UTF-8")),
-            &Error::Other(i) => f.write_fmt(format_args!("mbedTLS unknown error ({})", i)),
-            &Error::__Nonexhaustive => unreachable!("__Nonexhaustive value should not be instantiated"),
-            e @ _ => f.write_fmt(format_args!("mbedTLS error {:?}", e)),
+            &Self::Utf8Error(Some(ref e)) => f.write_fmt(format_args!("Error converting to UTF-8: {e}")),
+            &Self::Utf8Error(None) => f.write_fmt(format_args!("Error converting to UTF-8")),
+            &Self::Other(i) => f.write_fmt(format_args!("mbedTLS unknown error ({i})")),
+            e => f.write_fmt(format_args!("mbedTLS error {e:?}")),
         }
     }
 }
