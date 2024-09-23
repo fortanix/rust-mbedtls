@@ -34,8 +34,4 @@ fn main() {
             .flag("-ffreestanding");
     }
     b.compile("librust-mbedtls-platform-support.a");
-    // Force correct link order for mbedtls_printf
-    println!("cargo:rustc-link-lib=static=mbedtls");
-    println!("cargo:rustc-link-lib=static=mbedx509");
-    println!("cargo:rustc-link-lib=static=mbedcrypto");
 }
