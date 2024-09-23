@@ -53,9 +53,9 @@ impl super::BuildConfig {
             dst.to_str().expect("link-search UTF-8 error")
         );
 
-        println!("cargo:rustc-link-lib=mbedtls");
-        println!("cargo:rustc-link-lib=mbedx509");
-        println!("cargo:rustc-link-lib=mbedcrypto");
+        println!("cargo:rustc-link-lib=static=mbedtls");
+        println!("cargo:rustc-link-lib=static=mbedx509");
+        println!("cargo:rustc-link-lib=static=mbedcrypto");
 
         println!("cargo:include={}/include", dst.to_str().expect("include/ UTF-8 error"));
         println!("cargo:config_h={}", self.config_h.to_str().expect("config.h UTF-8 error"));
