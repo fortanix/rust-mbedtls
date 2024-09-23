@@ -103,7 +103,7 @@ impl super::BuildConfig {
         if cc.get_compiler().is_like_msvc() {
             cc.flag("--driver-mode=cl");
         }
-        cc.include(&self.mbedtls_include).define(
+        cc.include(&self.out_dir.join("include")).define(
             "MBEDTLS_CONFIG_FILE",
             Some(format!(r#""{}""#, self.config_h.to_str().expect("config.h UTF-8 error")).as_str()),
         );
