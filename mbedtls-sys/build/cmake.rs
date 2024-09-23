@@ -46,11 +46,10 @@ impl super::BuildConfig {
             cmk.define("CMAKE_TRY_COMPILE_TARGET_TYPE", "STATIC_LIBRARY");
         }
 
-        let mut dst = cmk.build();
+        let dst = cmk.build();
 
-        dst.push("lib");
         println!(
-            "cargo:rustc-link-search=native={}",
+            "cargo:rustc-link-search=native={}/lib",
             dst.to_str().expect("link-search UTF-8 error")
         );
 
@@ -58,14 +57,7 @@ impl super::BuildConfig {
         println!("cargo:rustc-link-lib=mbedx509");
         println!("cargo:rustc-link-lib=mbedcrypto");
 
-        println!(
-            "cargo:include={}",
-            ::std::env::current_dir()
-                .unwrap()
-                .join(&self.mbedtls_include)
-                .to_str()
-                .expect("include/ UTF-8 error")
-        );
+        println!("cargo:include={}/include", dst.to_str().expect("include/ UTF-8 error"));
         println!("cargo:config_h={}", self.config_h.to_str().expect("config.h UTF-8 error"));
     }
 }
