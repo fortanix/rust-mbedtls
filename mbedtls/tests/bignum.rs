@@ -336,7 +336,7 @@ fn base58_decode(b58: &str) -> mbedtls::Result<Vec<u8>> {
                 return Ok(i);
             }
         }
-        Err(mbedtls::Error::Base64InvalidCharacter)
+        Err(mbedtls::error::codes::Base64InvalidCharacter.into())
     }
 
     for c in b58.bytes() {
@@ -373,7 +373,7 @@ fn test_base58_encode() {
 fn is_probably_prime() {
     fn test_is_prime(input: Mpi, prime_expected: bool) {
         use mbedtls::rng::{CtrDrbg, Rdseed};
-        use mbedtls::Error::MpiNotAcceptable;
+        use mbedtls::error::codes::MpiNotAcceptable;
         let mut rng = CtrDrbg::new(Rdseed.into(), None).unwrap();
         let rounds = 15; // accuracy 1/2**30
 
@@ -381,7 +381,7 @@ fn is_probably_prime() {
         if prime_expected {
             assert!(result.is_ok());
         } else {
-            assert!(result == Err(MpiNotAcceptable), "expected not prime");
+            assert!(result == Err(MpiNotAcceptable.into()), "expected not prime");
         }
     }
     test_is_prime(Mpi::new(-4).unwrap(), false);

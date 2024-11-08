@@ -13,7 +13,7 @@ use mbedtls::hash::Md;
 use mbedtls::hash::Type;
 use mbedtls::hash::Type::Sha256;
 use mbedtls::pk::{Pk, ECDSA_MAX_LEN};
-use mbedtls::Error;
+use mbedtls::error::codes;
 
 mod support;
 use support::rand::test_rng;
@@ -150,6 +150,6 @@ fn buffer_too_small() {
 
     assert_eq!(
         k.sign(Sha256, data, &mut signature, &mut test_rng()).err(),
-        Some(Error::PkSigLenMismatch)
+        Some(codes::PkSigLenMismatch.into())
     );
 }

@@ -8,7 +8,7 @@
 
 use mbedtls_sys::*;
 
-use crate::error::{Error, IntoResult, Result};
+use crate::error::{IntoResult, Result, codes};
 
 mod serde;
 
@@ -254,7 +254,7 @@ impl Cipher {
         };
 
         if out_data.len() < required_size {
-            return Err(Error::CipherFullBlockExpected);
+            return Err(codes::CipherFullBlockExpected.into());
         }
 
         let mut olen = 0;
@@ -274,7 +274,7 @@ impl Cipher {
     pub fn finish(&mut self, out_data: &mut [u8]) -> Result<usize> {
         // Check that minimum required space is available in out_data buffer
         if out_data.len() < self.block_size() {
-            return Err(Error::CipherFullBlockExpected);
+            return Err(codes::CipherFullBlockExpected.into());
         }
 
         let mut olen = 0;
@@ -337,7 +337,7 @@ impl Cipher {
             .checked_sub(tag_len)
             .map_or(true, |cipher_len| cipher_len < plain.len())
         {
-            return Err(Error::CipherBadInputData);
+            return Err(codes::CipherBadInputData.into());
         }
 
         let iv = self.inner.iv;
@@ -371,7 +371,7 @@ impl Cipher {
                 .checked_sub(tag_len)
                 .map_or(true, |cipher_len| plain.len() < cipher_len)
         {
-            return Err(Error::CipherBadInputData);
+            return Err(codes::CipherBadInputData.into());
         }
 
         let iv = self.inner.iv;
@@ -470,7 +470,7 @@ impl Cipher {
     pub fn cmac(&mut self, key: &[u8], data: &[u8], out_data: &mut [u8]) -> Result<()> {
         // Check that out_data buffer has enough space
         if out_data.len() < self.block_size() {
-            return Err(Error::CipherFullBlockExpected);
+            return Err(codes::CipherFullBlockExpected.into());
         }
         self.reset()?;
         unsafe {

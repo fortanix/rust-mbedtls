@@ -9,8 +9,9 @@
 use crate::bignum::Mpi;
 use crate::hash::{MdInfo, Type as MdType};
 use crate::pk::rfc6979::generate_rfc6979_nonce;
-use crate::rng::Random;
-use crate::{Error, Result};
+#[cfg(not(feature = "std"))]
+use crate::Error;
+use crate::{Result, error::codes};
 
 use bit_vec::BitVec;
 use num_bigint::BigUint;
@@ -27,11 +28,11 @@ pub struct DsaParams {
 impl DsaParams {
     pub fn from_components(p: Mpi, q: Mpi, g: Mpi) -> Result<Self> {
         if g > p || q > p {
-            return Err(Error::PkBadInputData);
+            return Err(codes::PkBadInputData.into());
         }
 
         if p.modulo(&q)? != Mpi::new(1)? {
-            return Err(Error::PkBadInputData);
+            return Err(codes::PkBadInputData.into());
         }
 
         Ok(Self { p, q, g })
@@ -65,11 +66,11 @@ const DSA_OBJECT_IDENTIFIER: &[u64] = &[1, 2, 840, 10040, 4, 1];
 impl DsaPublicKey {
     pub fn from_components(params: DsaParams, y: Mpi) -> Result<Self> {
         if y < Mpi::new(1)? || y >= params.p {
-            return Err(Error::PkBadInputData);
+            return Err(codes::PkBadInputData.into());
         }
         // Verify that y is of order q modulo p
         if y.mod_exp(&params.q, &params.p)? != Mpi::new(1)? {
-            return Err(Error::PkBadInputData);
+            return Err(codes::PkBadInputData.into());
         }
         Ok(Self { params, y })
     }
@@ -93,9 +94,9 @@ impl DsaPublicKey {
                 Ok((p, q, g, y))
             })
         })
-        .map_err(|_| Error::PkInvalidPubkey)?;
+        .map_err(|_| codes::PkInvalidPubkey)?;
 
-        let y = yasna::parse_der(&y.to_bytes(), |r| r.read_biguint()).map_err(|_| Error::PkInvalidPubkey)?;
+        let y = yasna::parse_der(&y.to_bytes(), |r| r.read_biguint()).map_err(|_| codes::PkInvalidPubkey)?;
 
         let p = Mpi::from_binary(&p.to_bytes_be()).expect("Success");
         let q = Mpi::from_binary(&q.to_bytes_be()).expect("Success");
@@ -140,7 +141,7 @@ impl DsaPublicKey {
                 Ok((r, s))
             })
         })
-        .map_err(|_| Error::X509InvalidSignature)?;
+        .map_err(|_| codes::X509InvalidSignature)?;
 
         let r = Mpi::from_binary(&r.to_bytes_be()).expect("Success");
         let s = Mpi::from_binary(&s.to_bytes_be()).expect("Success");
@@ -152,14 +153,14 @@ impl DsaPublicKey {
         let zero = Mpi::new(0)?;
 
         if r <= &zero || s <= &zero {
-            return Err(Error::X509InvalidSignature);
+            return Err(codes::X509InvalidSignature.into());
         }
 
         let p = &self.params.p;
         let q = &self.params.q;
 
         if r >= q || s >= q {
-            return Err(Error::X509InvalidSignature);
+            return Err(codes::X509InvalidSignature.into());
         }
 
         let m = reduce_mod_q(pre_hashed_message, q)?;
@@ -176,7 +177,7 @@ impl DsaPublicKey {
         let gsm_ysr = (&gsm * &ysr)?.modulo(p)?;
 
         if &gsm_ysr.modulo(q)? != r {
-            return Err(Error::X509InvalidSignature);
+            return Err(codes::X509InvalidSignature.into());
         }
 
         Ok(())
@@ -225,7 +226,7 @@ fn encode_dsa_signature(r: &Mpi, s: &Mpi) -> Result<Vec<u8>> {
 impl DsaPrivateKey {
     pub fn from_components(params: DsaParams, x: Mpi) -> Result<Self> {
         if x <= Mpi::new(1)? || x >= params.q {
-            return Err(Error::PkBadInputData);
+            return Err(codes::PkBadInputData.into());
         }
         Ok(Self { params, x })
     }
@@ -257,9 +258,9 @@ impl DsaPrivateKey {
                 Ok((p, q, g, x))
             })
         })
-        .map_err(|_| Error::PkInvalidPubkey)?;
+        .map_err(|_| codes::PkInvalidPubkey)?;
 
-        let x = yasna::parse_der(&x, |r| r.read_biguint()).map_err(|_| Error::PkInvalidPubkey)?;
+        let x = yasna::parse_der(&x, |r| r.read_biguint()).map_err(|_| codes::PkInvalidPubkey)?;
 
         let p = Mpi::from_binary(&p.to_bytes_be()).expect("Success");
         let q = Mpi::from_binary(&q.to_bytes_be()).expect("Success");
@@ -345,7 +346,7 @@ impl DsaPrivateKey {
 
         let zero = Mpi::new(0)?;
         if r == zero || s == zero {
-            return Err(Error::MpiBadInputData);
+            return Err(codes::MpiBadInputData.into());
         }
         encode_dsa_signature(&r, &s)
     }

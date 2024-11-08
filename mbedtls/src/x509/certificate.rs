@@ -16,7 +16,7 @@ use mbedtls_sys::*;
 use crate::alloc::{mbedtls_calloc, Box as MbedtlsBox, CString, List as MbedtlsList};
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
-use crate::error::{Error, IntoResult, Result};
+use crate::error::{Error, IntoResult, Result, codes};
 use crate::hash::Type as MdType;
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
@@ -78,7 +78,7 @@ fn x509_buf_to_vec(buf: &x509_buf) -> Vec<u8> {
 fn x509_time_to_time(tm: &x509_time) -> Result<Time> {
     // ensure casts don't underflow
     if tm.year < 0 || tm.mon < 0 || tm.day < 0 || tm.hour < 0 || tm.min < 0 || tm.sec < 0 {
-        return Err(Error::X509InvalidDate);
+        return Err(codes::X509InvalidDate.into());
     }
 
     Time::new(
@@ -89,7 +89,7 @@ fn x509_time_to_time(tm: &x509_time) -> Result<Time> {
         tm.min as u8,
         tm.sec as u8,
     )
-    .ok_or(Error::X509InvalidDate)
+    .ok_or(codes::X509InvalidDate.into())
 }
 
 impl Certificate {
@@ -106,7 +106,7 @@ impl Certificate {
 
         if !(*cert).inner.next.is_null() {
             // Use from_pem_multiple for parsing multiple certificates in a pem.
-            return Err(Error::X509BadInputData);
+            return Err(codes::X509BadInputData.into());
         }
 
         Ok(cert)
@@ -175,7 +175,7 @@ impl Certificate {
             1 => Ok(CertificateVersion::V1),
             2 => Ok(CertificateVersion::V2),
             3 => Ok(CertificateVersion::V3),
-            _ => Err(Error::X509InvalidVersion),
+            _ => Err(codes::X509InvalidVersion.into())
         }
     }
 
@@ -207,7 +207,7 @@ impl Certificate {
             })?;
             return Ok(());
         })
-        .map_err(|_| Error::X509InvalidExtensions)?;
+        .map_err(|_| Error::from(codes::X509InvalidExtensions))?;
 
         Ok(ext)
     }
@@ -232,7 +232,7 @@ impl Certificate {
         F: VerifyCallback + 'static,
     {
         if chain.is_empty() {
-            return Err((Error::X509BadInputData, VerifyError::CERT_MISSING));
+            return Err((codes::X509BadInputData.into(), VerifyError::CERT_MISSING));
         }
         let (f_vrfy, p_vrfy): (Option<unsafe extern "C" fn(_, _, _, _) -> _>, _) = if let Some(cb) = cb.as_ref() {
             (Some(x509::verify_callback::<F>), cb as *const _ as *mut c_void)
@@ -437,7 +437,7 @@ impl<'a> Builder<'a> {
     #[cfg(feature = "std")]
     pub fn subject(&mut self, subject: &str) -> Result<&mut Self> {
         match ::std::ffi::CString::new(subject) {
-            Err(_) => Err(Error::X509InvalidName),
+            Err(_) => Err(codes::X509InvalidName.into()),
             Ok(s) => unsafe { self.subject_with_nul_unchecked(s.as_bytes_with_nul()) },
         }
     }
@@ -446,7 +446,7 @@ impl<'a> Builder<'a> {
         if subject.as_bytes().iter().any(|&c| c == 0) {
             unsafe { self.subject_with_nul_unchecked(subject.as_bytes()) }
         } else {
-            Err(Error::X509InvalidName)
+            Err(codes::X509InvalidName.into())
         }
     }
 
@@ -458,7 +458,7 @@ impl<'a> Builder<'a> {
     #[cfg(feature = "std")]
     pub fn issuer(&mut self, issuer: &str) -> Result<&mut Self> {
         match ::std::ffi::CString::new(issuer) {
-            Err(_) => Err(Error::X509InvalidName),
+            Err(_) => Err(codes::X509InvalidName.into()),
             Ok(s) => unsafe { self.issuer_with_nul_unchecked(s.as_bytes_with_nul()) },
         }
     }
@@ -467,7 +467,7 @@ impl<'a> Builder<'a> {
         if issuer.as_bytes().iter().any(|&c| c == 0) {
             unsafe { self.issuer_with_nul_unchecked(issuer.as_bytes()) }
         } else {
-            Err(Error::X509InvalidName)
+            Err(codes::X509InvalidName.into())
         }
     }
 
@@ -533,7 +533,7 @@ impl<'a> Builder<'a> {
         match unsafe {
             x509write_crt_der(&mut self.inner, buf.as_mut_ptr(), buf.len(), Some(F::call), rng.data_ptr()).into_result()
         } {
-            Err(Error::Asn1BufTooSmall) => Ok(None),
+            Err(e) if  e.low_level() == Some(codes::Asn1BufTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
@@ -550,7 +550,7 @@ impl<'a> Builder<'a> {
         match unsafe {
             x509write_crt_der(&mut self.inner, buf.as_mut_ptr(), buf.len(), Some(F::call), rng.data_ptr()).into_result()
         } {
-            Err(Error::Base64BufferTooSmall) => Ok(None),
+            Err(e) if e.low_level() == Some(codes::Base64BufferTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
@@ -582,7 +582,7 @@ impl MbedtlsBox<Certificate> {
             // and that is not functioning correctly.
             assert_eq!(inner.align_offset(core::mem::align_of::<x509_crt>()), 0);
 
-            let inner = NonNull::new(inner).ok_or(Error::X509AllocFailed)?;
+            let inner = NonNull::new(inner).ok_or(Error::from(codes::X509AllocFailed))?;
             x509_crt_init(inner.as_ptr());
 
             Ok(MbedtlsBox { inner: inner.cast() })
@@ -1125,7 +1125,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         let res = Certificate::verify_with_callback(&chain, &mut c_root, None, None, verify_callback);
         match res {
             Ok(_) => panic!("Certificate chain verification should have failed, but it succeeded"),
-            Err(err) => assert_eq!(err, Error::X509CertVerifyFailed),
+            Err(err) => assert_eq!(err, codes::X509CertVerifyFailed.into()),
         }
 
         // try again after fixing the chain
@@ -1551,15 +1551,15 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
 
         assert_eq!(
             Certificate::verify(&certs, &empty_certs, None, None).unwrap_err(),
-            Error::X509CertVerifyFailed
+            codes::X509CertVerifyFailed.into()
         );
         assert_eq!(
             Certificate::verify(&empty_certs, &empty_certs, None, None).unwrap_err(),
-            Error::X509BadInputData
+            codes::X509BadInputData.into()
         );
         assert_eq!(
             Certificate::verify(&empty_certs, &roots, None, None).unwrap_err(),
-            Error::X509BadInputData
+            codes::X509BadInputData.into()
         );
     }
 
@@ -1598,7 +1598,7 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         let mut err = String::new();
         assert_eq!(
             Certificate::verify(&certs, &roots, Some(&mut crl), Some(&mut err)).unwrap_err(),
-            Error::X509CertVerifyFailed
+            codes::X509CertVerifyFailed.into()
         );
         assert_eq!(err, "The certificate has been revoked (is on a CRL)\n");
     }
@@ -1633,5 +1633,11 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
         assert!(
             Certificate::verify_with_expected_common_name(&certs, &roots, None, Some(&mut err), Some("notit.com")).is_err()
         );
+    }
+
+    #[test]
+    fn test_combined_error_from_mbedtls() {
+        let err = super::x509::Certificate::from_der(&b"\x30\x02\x05\x00"[..]).unwrap_err();
+        assert_eq!(err, crate::Error::HighAndLowLevel(codes::X509InvalidFormat, codes::Asn1UnexpectedTag));
     }
 }

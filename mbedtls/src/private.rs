@@ -13,7 +13,7 @@ use mbedtls_sys::types::raw_types::c_char;
 use mbedtls_sys::types::raw_types::{c_int, c_uchar};
 use mbedtls_sys::types::size_t;
 
-use crate::error::{Error, IntoResult, Result};
+use crate::error::{Error, IntoResult, Result, LoError, HiError};
 
 pub trait UnsafeFrom<T>
 where
@@ -34,18 +34,22 @@ where
     const MAX_VECTOR_ALLOCATION: usize = 4 * 1024 * 1024;
 
     let mut vec = Vec::with_capacity(2048 /* big because of bug in x509write */);
+
+    let is_buf_too_small = |e: &Error| match (e.high_level(), e.low_level()) {
+        (Some(HiError::EcpBufferTooSmall
+            | HiError::SslBufferTooSmall
+            | HiError::X509BufferTooSmall), _)
+        | (_, Some(LoError::Asn1BufTooSmall
+            | LoError::Base64BufferTooSmall
+            | LoError::MpiBufferTooSmall
+            | LoError::NetBufferTooSmall
+            | LoError::OidBufTooSmall)) => true,
+        _ => false,
+    };
+
     loop {
         match f(vec.as_mut_ptr(), vec.capacity()).into_result() {
-            Err(Error::Asn1BufTooSmall)
-            | Err(Error::Base64BufferTooSmall)
-            | Err(Error::EcpBufferTooSmall)
-            | Err(Error::MpiBufferTooSmall)
-            | Err(Error::NetBufferTooSmall)
-            | Err(Error::OidBufTooSmall)
-            | Err(Error::SslBufferTooSmall)
-            | Err(Error::X509BufferTooSmall)
-                if vec.capacity() < MAX_VECTOR_ALLOCATION =>
-            {
+            Err(e) if is_buf_too_small(&e) && vec.capacity() < MAX_VECTOR_ALLOCATION => {
                 let cap = vec.capacity();
                 vec.reserve(cap * 2)
             }
