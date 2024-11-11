@@ -368,8 +368,6 @@ error_enum!(
         X509UnknownOid = ERR_X509_UNKNOWN_OID,
         X509UnknownSigAlg = ERR_X509_UNKNOWN_SIG_ALG,
         X509UnknownVersion = ERR_X509_UNKNOWN_VERSION,
-        XteaHwAccelFailed = ERR_XTEA_HW_ACCEL_FAILED,
-        XteaInvalidInputLength = ERR_XTEA_INVALID_INPUT_LENGTH,
     }
 );
 
@@ -411,16 +409,10 @@ error_enum!(
         ErrorGenericError = ERR_ERROR_GENERIC_ERROR,
         GcmAuthFailed = ERR_GCM_AUTH_FAILED,
         GcmBadInput = ERR_GCM_BAD_INPUT,
-        GcmBufferTooSmall = ERR_GCM_BUFFER_TOO_SMALL,
         HmacDrbgEntropySourceFailed = ERR_HMAC_DRBG_ENTROPY_SOURCE_FAILED,
         HmacDrbgFileIoError = ERR_HMAC_DRBG_FILE_IO_ERROR,
         HmacDrbgInputTooBig = ERR_HMAC_DRBG_INPUT_TOO_BIG,
         HmacDrbgRequestTooBig = ERR_HMAC_DRBG_REQUEST_TOO_BIG,
-        LmsAllocFailed = ERR_LMS_ALLOC_FAILED,
-        LmsBadInputData = ERR_LMS_BAD_INPUT_DATA,
-        LmsBufferTooSmall = ERR_LMS_BUFFER_TOO_SMALL,
-        LmsOutOfPrivateKeys = ERR_LMS_OUT_OF_PRIVATE_KEYS,
-        LmsVerifyFailed = ERR_LMS_VERIFY_FAILED,
         MpiAllocFailed = ERR_MPI_ALLOC_FAILED,
         MpiBadInputData = ERR_MPI_BAD_INPUT_DATA,
         MpiBufferTooSmall = ERR_MPI_BUFFER_TOO_SMALL,
