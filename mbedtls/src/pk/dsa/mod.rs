@@ -13,6 +13,7 @@ use crate::pk::rfc6979::generate_rfc6979_nonce;
 use crate::Error;
 use crate::{error::codes, Result};
 
+use crate::rng::Random;
 use bit_vec::BitVec;
 use num_bigint::BigUint;
 use yasna::models::ObjectIdentifier;
