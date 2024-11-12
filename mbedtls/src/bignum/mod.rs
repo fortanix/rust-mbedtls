@@ -6,7 +6,6 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-#[cfg(feature = "std")]
 use crate::error::Error;
 use crate::error::{codes, IntoResult, Result};
 use mbedtls_sys::*;
@@ -430,7 +429,7 @@ impl Mpi {
     }
 }
 
-pub fn mpi_inner_eq_const_time(x: &mpi, y: &mpi) -> core::prelude::v1::Result<bool, Error> {
+pub(super) fn mpi_inner_eq_const_time(x: &mpi, y: &mpi) -> core::prelude::v1::Result<bool, Error> {
     match mpi_inner_cmp_const_time(x, y) {
         Ok(order) => Ok(order == Ordering::Equal),
         Err(e) if e == codes::MpiBadInputData.into() => Ok(false),
