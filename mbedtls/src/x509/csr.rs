@@ -13,7 +13,7 @@ use crate::alloc_prelude::*;
 
 use mbedtls_sys::*;
 
-use crate::error::{IntoResult, Result, codes};
+use crate::error::{codes, IntoResult, Result};
 use crate::hash::Type as MdType;
 use crate::pk::Pk;
 use crate::private::{alloc_string_repeat, alloc_vec_repeat};

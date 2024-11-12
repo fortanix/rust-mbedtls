@@ -16,7 +16,7 @@ use mbedtls_sys::*;
 use crate::alloc::{mbedtls_calloc, Box as MbedtlsBox, CString, List as MbedtlsList};
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
-use crate::error::{Error, IntoResult, Result, codes};
+use crate::error::{codes, Error, IntoResult, Result};
 use crate::hash::Type as MdType;
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
@@ -175,7 +175,7 @@ impl Certificate {
             1 => Ok(CertificateVersion::V1),
             2 => Ok(CertificateVersion::V2),
             3 => Ok(CertificateVersion::V3),
-            _ => Err(codes::X509InvalidVersion.into())
+            _ => Err(codes::X509InvalidVersion.into()),
         }
     }
 
@@ -533,7 +533,7 @@ impl<'a> Builder<'a> {
         match unsafe {
             x509write_crt_der(&mut self.inner, buf.as_mut_ptr(), buf.len(), Some(F::call), rng.data_ptr()).into_result()
         } {
-            Err(e) if  e.low_level() == Some(codes::Asn1BufTooSmall) => Ok(None),
+            Err(e) if e.low_level() == Some(codes::Asn1BufTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
@@ -1638,6 +1638,9 @@ cYp0bH/RcPTC0Z+ZaqSWMtfxRrk63MJQF9EXpDCdvQRcTMD9D85DJrMKn8aumq0M
     #[test]
     fn test_combined_error_from_mbedtls() {
         let err = super::x509::Certificate::from_der(&b"\x30\x02\x05\x00"[..]).unwrap_err();
-        assert_eq!(err, crate::Error::HighAndLowLevel(codes::X509InvalidFormat, codes::Asn1UnexpectedTag));
+        assert_eq!(
+            err,
+            crate::Error::HighAndLowLevel(codes::X509InvalidFormat, codes::Asn1UnexpectedTag)
+        );
     }
 }

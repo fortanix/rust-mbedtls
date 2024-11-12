@@ -13,12 +13,12 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use mbedtls::error::codes;
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::{Config, Context, Version};
 use mbedtls::x509::{Certificate, VerifyError};
-use mbedtls::error::codes;
 use mbedtls::Result as TlsResult;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -104,7 +104,7 @@ async fn server(conn: TcpStream, min_version: Version, max_version: Version, exp
         }
         Err(e) => {
             match (e.low_level(), e.high_level()) {
-        // client just closes connection instead of sending alert
+                // client just closes connection instead of sending alert
                 (Some(codes::NetSendFailed), _) => {
                     assert!(exp_version.is_none())
                 }

@@ -6,7 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use crate::error::{Error, IntoResult, Result, codes};
+use crate::error::{codes, Error, IntoResult, Result};
 use core::convert::TryFrom;
 use mbedtls_sys::*;
 

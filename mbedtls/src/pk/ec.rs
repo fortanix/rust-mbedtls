@@ -9,7 +9,7 @@
 use mbedtls_sys::ECDSA_MAX_LEN as MBEDTLS_ECDSA_MAX_LEN;
 use mbedtls_sys::*;
 
-use crate::error::{IntoResult, Result, codes};
+use crate::error::{codes, IntoResult, Result};
 
 define!(
     #[c_ty(ecp_group_id)]

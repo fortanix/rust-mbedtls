@@ -9,7 +9,7 @@
 #![cfg(all(feature = "std", feature = "async"))]
 
 use crate::{
-    error::{Error, Result, codes},
+    error::{codes, Error, Result},
     ssl::{
         context::Context,
         io::{IoCallback, IoCallbackUnsafe},
@@ -108,7 +108,7 @@ where
                 Poll::Ready(Ok(()))
             }
         })
-            .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::from(codes::NetRecvFailed)))))
+        .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::from(codes::NetRecvFailed)))))
     }
 }
 
@@ -126,7 +126,8 @@ where
             Err(e) if e.high_level() == Some(codes::SslWantWrite) => Poll::Pending,
             Err(e) => Poll::Ready(Err(crate::private::error_to_io_error(e))),
             Ok(i) => Poll::Ready(Ok(i)),
-        }).unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::from(codes::NetSendFailed)))))
+        })
+        .unwrap_or_else(|| Poll::Ready(Err(crate::private::error_to_io_error(Error::from(codes::NetSendFailed)))))
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {

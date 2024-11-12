@@ -8,7 +8,7 @@
 
 use mbedtls_sys::*;
 
-use crate::error::{IntoResult, Result, codes};
+use crate::error::{codes, IntoResult, Result};
 
 mod serde;
 

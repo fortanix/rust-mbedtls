@@ -11,7 +11,7 @@ use crate::hash::{MdInfo, Type as MdType};
 use crate::pk::rfc6979::generate_rfc6979_nonce;
 #[cfg(not(feature = "std"))]
 use crate::Error;
-use crate::{Result, error::codes};
+use crate::{error::codes, Result};
 
 use bit_vec::BitVec;
 use num_bigint::BigUint;

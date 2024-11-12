@@ -17,7 +17,7 @@ use mbedtls_sys::*;
 use crate::alloc::List as MbedtlsList;
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
-use crate::error::{Error, Result, IntoResult, codes};
+use crate::error::{codes, Error, IntoResult, Result};
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
 use crate::ssl::config::{AuthMode, Config, Version};
@@ -243,7 +243,10 @@ impl<T> Context<T> {
             // c-mbedtls's buffer, so we need to return size of bytes that has been buffered.
             // Since we know before this call `out_left` was 0, all buffer (with in the MBEDTLS_SSL_OUT_CONTENT_LEN part) is
             // buffered
-            Err(e) if e.high_level() == Some(codes::SslWantWrite) => Ok(std::cmp::min(unsafe { ssl_get_max_out_record_payload((&*self).into()).into_result()? as usize }, buf.len())),
+            Err(e) if e.high_level() == Some(codes::SslWantWrite) => Ok(std::cmp::min(
+                unsafe { ssl_get_max_out_record_payload((&*self).into()).into_result()? as usize },
+                buf.len(),
+            )),
             res => res,
         }
     }

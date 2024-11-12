@@ -32,10 +32,10 @@ use yasna::{ASN1Result, BERDecodable, BERReader, BERReaderSeq, Tag};
 use crate::alloc::Box as MbedtlsBox;
 use crate::cipher::raw::{CipherId, CipherMode};
 use crate::cipher::{Cipher, Decryption, Fresh, Traditional};
+use crate::error::{codes, Error as MbedtlsError};
 use crate::hash::{pbkdf_pkcs12, Hmac, MdInfo, Type as MdType};
 use crate::pk::Pk;
 use crate::x509::Certificate;
-use crate::error::{Error as MbedtlsError, codes};
 
 // Constants for various object identifiers used in PKCS12:
 
@@ -861,8 +861,8 @@ impl BERDecodable for Pfx {
 #[cfg(test)]
 mod tests {
 
-    use crate::mbedtls::pkcs12::{ASN1Error, ASN1ErrorKind, Pfx, Pkcs12Error};
     use crate::error::{codes, Error};
+    use crate::mbedtls::pkcs12::{ASN1Error, ASN1ErrorKind, Pfx, Pkcs12Error};
 
     #[test]
     fn parse_shibboleth() {
@@ -1025,7 +1025,10 @@ mod tests {
 
         let pfx = parsed_pfx.decrypt(&wrong_password, None);
         assert!(pfx.is_err());
-        assert_eq!(pfx.unwrap_err(), Pkcs12Error::Crypto(Error::from(codes::CipherInvalidPadding)));
+        assert_eq!(
+            pfx.unwrap_err(),
+            Pkcs12Error::Crypto(Error::from(codes::CipherInvalidPadding))
+        );
 
         let pfx = parsed_pfx.decrypt(&wrong_password_correct_padding, None);
         assert!(pfx.is_err());

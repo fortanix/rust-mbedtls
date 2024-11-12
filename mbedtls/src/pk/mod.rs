@@ -12,7 +12,7 @@ use mbedtls_sys::*;
 
 use mbedtls_sys::types::raw_types::c_void;
 
-use crate::error::{Error, IntoResult, Result, codes};
+use crate::error::{codes, Error, IntoResult, Result};
 use crate::hash::Type as MdType;
 use crate::private::UnsafeFrom;
 use crate::rng::Random;
@@ -1340,7 +1340,10 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             pk.verify(digest, data, &signature[0..len]).unwrap();
 
             assert_eq!(pk.verify(digest, data, &[]).unwrap_err(), codes::PkBadInputData.into());
-            assert_eq!(pk.verify(digest, &[], &signature[0..len]).unwrap_err(), codes::PkBadInputData.into());
+            assert_eq!(
+                pk.verify(digest, &[], &signature[0..len]).unwrap_err(),
+                codes::PkBadInputData.into()
+            );
 
             let mut dummy_sig = [];
             assert_eq!(
@@ -1604,7 +1607,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         const LEN: usize = 256;
 
         // Decrypting anything out of {2, n-2} should fail
-        let expected_err = Error::MpiBadInputData;
+        let expected_err = codes::MpiBadInputData;
 
         let mut pt = [0x00; LEN];
 
@@ -1669,7 +1672,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             Ok(_) => panic!("expected an error, got a Pk"),
             Err(e) => e,
         };
-        assert_eq!(err, Error::RsaKeyCheckFailed);
+        assert_eq!(err, codes::RsaKeyCheckFailed.into());
     }
 
     #[test]

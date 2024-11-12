@@ -13,7 +13,7 @@ use mbedtls_sys::types::raw_types::c_char;
 use mbedtls_sys::types::raw_types::{c_int, c_uchar};
 use mbedtls_sys::types::size_t;
 
-use crate::error::{Error, IntoResult, Result, LoError, HiError};
+use crate::error::{Error, HiError, IntoResult, LoError, Result};
 
 pub trait UnsafeFrom<T>
 where
@@ -36,14 +36,17 @@ where
     let mut vec = Vec::with_capacity(2048 /* big because of bug in x509write */);
 
     let is_buf_too_small = |e: &Error| match (e.high_level(), e.low_level()) {
-        (Some(HiError::EcpBufferTooSmall
-            | HiError::SslBufferTooSmall
-            | HiError::X509BufferTooSmall), _)
-        | (_, Some(LoError::Asn1BufTooSmall
-            | LoError::Base64BufferTooSmall
-            | LoError::MpiBufferTooSmall
-            | LoError::NetBufferTooSmall
-            | LoError::OidBufTooSmall)) => true,
+        (Some(HiError::EcpBufferTooSmall | HiError::SslBufferTooSmall | HiError::X509BufferTooSmall), _)
+        | (
+            _,
+            Some(
+                LoError::Asn1BufTooSmall
+                | LoError::Base64BufferTooSmall
+                | LoError::MpiBufferTooSmall
+                | LoError::NetBufferTooSmall
+                | LoError::OidBufTooSmall,
+            ),
+        ) => true,
         _ => false,
     };
 

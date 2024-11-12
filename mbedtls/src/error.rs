@@ -6,10 +6,10 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+use core::convert::Infallible;
 use core::fmt;
 use core::ops::BitOr;
 use core::str::Utf8Error;
-use core::convert::Infallible;
 #[cfg(feature = "std")]
 use std::error::Error as StdError;
 
@@ -97,20 +97,17 @@ pub enum Error {
 }
 
 impl Error {
-
     pub fn low_level(&self) -> Option<LoError> {
         match self {
-            Error::LowLevel(error)
-            | Error::HighAndLowLevel(_, error) => Some(*error),
-            _ => None
+            Error::LowLevel(error) | Error::HighAndLowLevel(_, error) => Some(*error),
+            _ => None,
         }
     }
 
     pub fn high_level(&self) -> Option<HiError> {
         match self {
-            Error::HighLevel(error)
-            | Error::HighAndLowLevel(error, _) => Some(*error),
-            _ => None
+            Error::HighLevel(error) | Error::HighAndLowLevel(error, _) => Some(*error),
+            _ => None,
         }
     }
 
@@ -120,7 +117,7 @@ impl Error {
             &Error::LowLevel(e) => e.as_str(),
             &Error::HighAndLowLevel(e, _) => e.as_str(),
             &Error::Other(_) => "mbedTLS unknown error",
-            &Error::Utf8Error(_) => "error converting to UTF-8"
+            &Error::Utf8Error(_) => "error converting to UTF-8",
         }
     }
 
@@ -210,7 +207,7 @@ impl IntoResult for c_int {
         match self {
             0.. => return Ok(self),
             ERR_UTF8_INVALID => return Err(Error::Utf8Error(None)),
-            _ => return Err(Error::from(self))
+            _ => return Err(Error::from(self)),
         };
     }
 }
@@ -449,12 +446,13 @@ error_enum!(
 
 #[cfg(test)]
 mod tests {
-    use super::{Error, codes, HiError, LoError};
+    use super::{codes, Error, HiError, LoError};
 
     #[test]
     fn test_common_error_operations() {
         let (hi, lo) = (codes::CipherAllocFailed, codes::AesBadInputData);
-        let (hi_only_error, lo_only_error, combined_error) = (Error::HighLevel(hi), Error::LowLevel(lo), Error::HighAndLowLevel(hi, lo));
+        let (hi_only_error, lo_only_error, combined_error) =
+            (Error::HighLevel(hi), Error::LowLevel(lo), Error::HighAndLowLevel(hi, lo));
         assert_eq!(combined_error.high_level().unwrap(), hi);
         assert_eq!(combined_error.low_level().unwrap(), lo);
         assert_eq!(hi_only_error.to_int(), -24960);
@@ -467,10 +465,14 @@ mod tests {
     #[test]
     fn test_error_display() {
         let (hi, lo) = (HiError::CipherAllocFailed, LoError::AesBadInputData);
-        let (hi_only_error, lo_only_error, combined_error) = (Error::HighLevel(hi), Error::LowLevel(lo), Error::HighAndLowLevel(hi, lo));
+        let (hi_only_error, lo_only_error, combined_error) =
+            (Error::HighLevel(hi), Error::LowLevel(lo), Error::HighAndLowLevel(hi, lo));
         assert_eq!(format!("{}", hi_only_error), "mbedTLS error HiError :: CipherAllocFailed");
         assert_eq!(format!("{}", lo_only_error), "mbedTLS error LoError :: AesBadInputData");
-        assert_eq!(format!("{}", combined_error), "(mbedTLS error HiError :: CipherAllocFailed, mbedTLS error LoError :: AesBadInputData)");
+        assert_eq!(
+            format!("{}", combined_error),
+            "(mbedTLS error HiError :: CipherAllocFailed, mbedTLS error LoError :: AesBadInputData)"
+        );
     }
 
     #[test]
@@ -481,10 +483,16 @@ mod tests {
         // Lo, Hi, HiAndLo cases
         assert_eq!(Error::from(-1), Error::LowLevel(LoError::ErrorGenericError));
         assert_eq!(Error::from(-0x80), Error::HighLevel(HiError::Unknown(-0x80)));
-        assert_eq!(Error::from(-0x81), Error::HighAndLowLevel(HiError::Unknown(-0x80), LoError::ErrorGenericError));
-        assert_eq!(Error::from(-24993), Error::HighAndLowLevel(HiError::CipherAllocFailed, LoError::AesBadInputData));
+        assert_eq!(
+            Error::from(-0x81),
+            Error::HighAndLowLevel(HiError::Unknown(-0x80), LoError::ErrorGenericError)
+        );
+        assert_eq!(
+            Error::from(-24993),
+            Error::HighAndLowLevel(HiError::CipherAllocFailed, LoError::AesBadInputData)
+        );
         assert_eq!(Error::from(-24960), Error::HighLevel(HiError::CipherAllocFailed));
-        assert_eq!(Error::from(-33), Error::LowLevel(LoError::AesBadInputData ));
+        assert_eq!(Error::from(-33), Error::LowLevel(LoError::AesBadInputData));
         // error code out of boundaries
         assert_eq!(Error::from(-0x01FFFF), Error::Other(-0x01FFFF));
     }

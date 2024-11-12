@@ -372,8 +372,8 @@ fn test_base58_encode() {
 #[test]
 fn is_probably_prime() {
     fn test_is_prime(input: Mpi, prime_expected: bool) {
-        use mbedtls::rng::{CtrDrbg, Rdseed};
         use mbedtls::error::codes::MpiNotAcceptable;
+        use mbedtls::rng::{CtrDrbg, Rdseed};
         let mut rng = CtrDrbg::new(Rdseed.into(), None).unwrap();
         let rounds = 15; // accuracy 1/2**30
 

@@ -403,7 +403,7 @@ mod tests {
                     ctx.push_cert(cert.clone(), key.clone()).unwrap();
                     Ok(())
                 } else {
-                   return Err(mbedtls::error::codes::SslNoClientCertificate.into())
+                    return Err(mbedtls::error::codes::SslNoClientCertificate.into());
                 }
             };
 

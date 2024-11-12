@@ -18,8 +18,8 @@ use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::{Config, Context};
 use mbedtls::x509::{Certificate, VerifyError};
-use mbedtls::{Error, error::codes};
 use mbedtls::Result as TlsResult;
+use mbedtls::{error::codes, Error};
 
 mod support;
 use std::sync::Arc;

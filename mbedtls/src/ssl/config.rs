@@ -22,7 +22,7 @@ use crate::alloc::List as MbedtlsList;
 use crate::alloc_prelude::*;
 #[cfg(feature = "std")]
 use crate::error::Error;
-use crate::error::{Result, IntoResult, codes};
+use crate::error::{codes, IntoResult, Result};
 use crate::pk::dhparam::Dhm;
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
@@ -119,7 +119,11 @@ impl NullTerminatedStrList {
         };
 
         for item in list {
-            ret.c.push(::std::ffi::CString::new(*item).map_err(|_| crate::error::codes::SslBadInputData)?.into_raw());
+            ret.c.push(
+                ::std::ffi::CString::new(*item)
+                    .map_err(|_| crate::error::codes::SslBadInputData)?
+                    .into_raw(),
+            );
         }
 
         ret.c.push(core::ptr::null_mut());
