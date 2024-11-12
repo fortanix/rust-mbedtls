@@ -458,7 +458,7 @@ impl<T> Context<T> {
             // variable for that.
             let peer_cert: &MbedtlsList<Certificate> =
                 UnsafeFrom::from(&((*self.handle().session).peer_cert) as *const *mut x509_crt as *const *const x509_crt)
-                    .ok_or(codes::SslBadInputData.into())?;
+                    .ok_or::<Error>(codes::SslBadInputData.into())?;
             Ok(Some(peer_cert))
         }
     }

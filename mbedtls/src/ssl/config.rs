@@ -21,7 +21,6 @@ use crate::alloc::List as MbedtlsList;
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
 #[cfg(feature = "std")]
-use crate::error::Error;
 use crate::error::{codes, IntoResult, Result};
 use crate::pk::dhparam::Dhm;
 use crate::pk::Pk;
