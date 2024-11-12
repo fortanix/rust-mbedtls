@@ -430,6 +430,7 @@ impl Mpi {
     }
 }
 
+#[cfg(feature = "std")]
 pub(super) fn mpi_inner_eq_const_time(x: &mpi, y: &mpi) -> core::prelude::v1::Result<bool, Error> {
     match mpi_inner_cmp_const_time(x, y) {
         Ok(order) => Ok(order == Ordering::Equal),
