@@ -1620,7 +1620,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         for c in [_0, _1, nm1, n] {
             let ct = c.to_binary_padded(LEN).unwrap();
             let l = pk.decrypt(&ct, &mut pt, rng);
-            assert_eq!(l.unwrap_err(), expected_err);
+            assert_eq!(l.unwrap_err(), expected_err.into());
         }
         for c in [_2, nm2] {
             let ct = c.to_binary_padded(LEN).unwrap();
