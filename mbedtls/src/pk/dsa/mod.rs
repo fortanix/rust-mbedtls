@@ -9,8 +9,6 @@
 use crate::bignum::Mpi;
 use crate::hash::{MdInfo, Type as MdType};
 use crate::pk::rfc6979::generate_rfc6979_nonce;
-#[cfg(not(feature = "std"))]
-use crate::Error;
 use crate::{error::codes, Result};
 
 use crate::rng::Random;

@@ -20,8 +20,7 @@ use mbedtls_sys::*;
 use crate::alloc::List as MbedtlsList;
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
-#[cfg(feature = "std")]
-use crate::error::{codes, IntoResult, Result};
+use crate::error::{IntoResult, Result};
 use crate::pk::dhparam::Dhm;
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
@@ -268,7 +267,7 @@ impl Config {
             Version::Tls1_1 => 2,
             Version::Tls1_2 => 3,
             _ => {
-                return Err(codes::SslBadHsProtocolVersion.into());
+                return Err(crate::error::codes::SslBadHsProtocolVersion.into());
             }
         };
 
@@ -283,7 +282,7 @@ impl Config {
             Version::Tls1_1 => 2,
             Version::Tls1_2 => 3,
             _ => {
-                return Err(codes::SslBadHsProtocolVersion.into());
+                return Err(crate::error::codes::SslBadHsProtocolVersion.into());
             }
         };
         unsafe { ssl_conf_max_version(self.into(), 3, minor) };
