@@ -12,7 +12,7 @@ use mbedtls_sys::*;
 
 use mbedtls_sys::types::raw_types::c_void;
 
-use crate::error::{Error, IntoResult, Result};
+use crate::error::{codes, Error, IntoResult, Result};
 use crate::hash::Type as MdType;
 use crate::private::UnsafeFrom;
 use crate::rng::Random;
@@ -463,7 +463,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
 
     pub fn custom_algo_id(&self) -> Result<&[u64]> {
         if self.pk_type() != Type::Custom {
-            return Err(Error::PkInvalidAlg);
+            return Err(codes::PkInvalidAlg.into());
         }
 
         unsafe {
@@ -474,7 +474,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
 
     pub fn custom_public_key(&self) -> Result<&[u8]> {
         if self.pk_type() != Type::Custom {
-            return Err(Error::PkInvalidAlg);
+            return Err(codes::PkInvalidAlg.into());
         }
 
         let ctx = self.inner.pk_ctx as *const CustomPkContext;
@@ -483,13 +483,13 @@ Please use `private_from_ec_scalar_with_rng` instead."
 
     pub fn custom_private_key(&self) -> Result<&[u8]> {
         if self.pk_type() != Type::Custom {
-            return Err(Error::PkInvalidAlg);
+            return Err(codes::PkInvalidAlg.into());
         }
 
         let ctx = self.inner.pk_ctx as *const CustomPkContext;
         unsafe {
             if (*ctx).sk.len() == 0 {
-                return Err(Error::PkTypeMismatch);
+                return Err(codes::PkTypeMismatch.into());
             }
             Ok(&(*ctx).sk)
         }
@@ -537,7 +537,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn curve(&self) -> Result<EcGroupId> {
         match self.pk_type() {
             Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
-            _ => return Err(Error::PkTypeMismatch),
+            _ => return Err(codes::PkTypeMismatch.into()),
         }
 
         unsafe { Ok((*(self.inner.pk_ctx as *const ecp_keypair)).grp.id.into()) }
@@ -556,14 +556,14 @@ Please use `private_from_ec_scalar_with_rng` instead."
             EcGroupId::SecP256R1 => Ok(vec![1, 2, 840, 10045, 3, 1, 7]),
             EcGroupId::SecP384R1 => Ok(vec![1, 3, 132, 0, 34]),
             EcGroupId::SecP521R1 => Ok(vec![1, 3, 132, 0, 35]),
-            _ => Err(Error::OidNotFound),
+            _ => Err(codes::OidNotFound.into()),
         }
     }
 
     pub fn ec_group(&self) -> Result<EcGroup> {
         match self.pk_type() {
             Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
-            _ => return Err(Error::PkTypeMismatch),
+            _ => return Err(codes::PkTypeMismatch.into()),
         }
 
         match self.curve()? {
@@ -588,7 +588,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn ec_public(&self) -> Result<EcPoint> {
         match self.pk_type() {
             Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
-            _ => return Err(Error::PkTypeMismatch),
+            _ => return Err(codes::PkTypeMismatch.into()),
         }
 
         let q = &unsafe { (*(self.inner.pk_ctx as *const ecp_keypair)).Q };
@@ -598,7 +598,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn ec_private(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Eckey | Type::EckeyDh | Type::Ecdsa => {}
-            _ => return Err(Error::PkTypeMismatch),
+            _ => return Err(codes::PkTypeMismatch.into()),
         }
 
         let d = &unsafe { (*(self.inner.pk_ctx as *const ecp_keypair)).d };
@@ -608,7 +608,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn rsa_public_modulus(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::PkTypeMismatch),
+            _ => return Err(codes::PkTypeMismatch.into()),
         }
 
         let mut n = Mpi::new(0)?;
@@ -631,7 +631,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn rsa_private_prime1(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::PkTypeMismatch),
+            _ => return Err(codes::PkTypeMismatch.into()),
         }
 
         let mut p = Mpi::new(0)?;
@@ -654,7 +654,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn rsa_private_prime2(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::PkTypeMismatch),
+            _ => return Err(codes::PkTypeMismatch.into()),
         }
 
         let mut q = Mpi::new(0)?;
@@ -677,7 +677,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn rsa_private_exponent(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::PkTypeMismatch),
+            _ => return Err(codes::PkTypeMismatch.into()),
         }
 
         let mut d = Mpi::new(0)?;
@@ -700,7 +700,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn rsa_crt_dp(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::PkTypeMismatch),
+            _ => return Err(codes::PkTypeMismatch.into()),
         }
 
         let mut dp = Mpi::new(0)?;
@@ -721,7 +721,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn rsa_crt_dq(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::PkTypeMismatch),
+            _ => return Err(codes::PkTypeMismatch.into()),
         }
 
         let mut dq = Mpi::new(0)?;
@@ -742,7 +742,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn rsa_crt_qp(&self) -> Result<Mpi> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::PkTypeMismatch),
+            _ => return Err(codes::PkTypeMismatch.into()),
         }
 
         let mut qp = Mpi::new(0)?;
@@ -763,7 +763,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
     pub fn rsa_public_exponent(&self) -> Result<u32> {
         match self.pk_type() {
             Type::Rsa => {}
-            _ => return Err(Error::PkTypeMismatch),
+            _ => return Err(codes::PkTypeMismatch.into()),
         }
 
         let mut e: [u8; 4] = [0, 0, 0, 0];
@@ -797,14 +797,14 @@ Please use `private_from_ec_scalar_with_rng` instead."
             if unsafe { (*ctx).padding == RAW_RSA_DECRYPT } {
                 let olen = self.len() / 8;
                 if plain.len() < olen {
-                    return Err(Error::RsaOutputTooLarge);
+                    return Err(codes::RsaOutputTooLarge.into());
                 }
 
                 // Don't process outside of {2, ..., n-2}
                 let nm1 = self.rsa_public_modulus()?.sub(&Mpi::new(1)?)?;
                 let c_mpi = Mpi::from_binary(cipher)?;
                 if c_mpi <= Mpi::new(1).unwrap() || c_mpi >= nm1 {
-                    return Err(Error::MpiBadInputData);
+                    return Err(codes::MpiBadInputData.into());
                 }
 
                 unsafe {
@@ -843,11 +843,11 @@ Please use `private_from_ec_scalar_with_rng` instead."
         label: &[u8],
     ) -> Result<usize> {
         if self.pk_type() != Type::Rsa {
-            return Err(Error::PkTypeMismatch);
+            return Err(codes::PkTypeMismatch.into());
         }
         let ctx = self.inner.pk_ctx as *mut rsa_context;
         if unsafe { (*ctx).padding != RSA_PKCS_V21 } {
-            return Err(Error::RsaInvalidPadding);
+            return Err(codes::RsaInvalidPadding.into());
         }
 
         let mut ret = 0usize;
@@ -899,15 +899,15 @@ Please use `private_from_ec_scalar_with_rng` instead."
         label: &[u8],
     ) -> Result<usize> {
         if self.pk_type() != Type::Rsa {
-            return Err(Error::PkTypeMismatch);
+            return Err(codes::PkTypeMismatch.into());
         }
         let ctx = self.inner.pk_ctx as *mut rsa_context;
         if unsafe { (*ctx).padding != RSA_PKCS_V21 } {
-            return Err(Error::RsaInvalidPadding);
+            return Err(codes::RsaInvalidPadding.into());
         }
         let olen = self.len() / 8;
         if cipher.len() < olen {
-            return Err(Error::RsaOutputTooLarge);
+            return Err(codes::RsaOutputTooLarge.into());
         }
 
         unsafe {
@@ -943,21 +943,21 @@ Please use `private_from_ec_scalar_with_rng` instead."
         // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to
         // auto-detect size and cause an invalid write.
         if hash.len() == 0 || sig.len() == 0 {
-            return Err(Error::PkBadInputData);
+            return Err(codes::PkBadInputData.into());
         }
 
         match self.pk_type() {
             Type::Rsa | Type::RsaAlt | Type::RsassaPss => {
                 if sig.len() < (self.len() / 8) {
-                    return Err(Error::PkSigLenMismatch);
+                    return Err(codes::PkSigLenMismatch.into());
                 }
             }
             Type::Eckey | Type::Ecdsa => {
                 if sig.len() < ECDSA_MAX_LEN {
-                    return Err(Error::PkSigLenMismatch);
+                    return Err(codes::PkSigLenMismatch.into());
                 }
             }
-            _ => return Err(Error::PkSigLenMismatch),
+            _ => return Err(codes::PkSigLenMismatch.into()),
         }
         let mut ret = 0usize;
         unsafe {
@@ -980,14 +980,14 @@ Please use `private_from_ec_scalar_with_rng` instead."
         // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to
         // auto-detect size and cause an invalid write.
         if hash.len() == 0 || sig.len() == 0 {
-            return Err(Error::PkBadInputData);
+            return Err(codes::PkBadInputData.into());
         }
 
         use crate::rng::RngCallbackMut;
 
         if self.pk_type() == Type::Ecdsa || self.pk_type() == Type::Eckey {
             if sig.len() < ECDSA_MAX_LEN {
-                return Err(Error::PkSigLenMismatch);
+                return Err(codes::PkSigLenMismatch.into());
             }
 
             // RFC 6979 signature scheme
@@ -1017,7 +1017,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
         } else if self.pk_type() == Type::Rsa {
             // Reject sign_deterministic being use for PSS
             if unsafe { (*(self.inner.pk_ctx as *mut rsa_context)).padding } != RSA_PKCS_V15 {
-                return Err(Error::PkInvalidAlg);
+                return Err(codes::PkInvalidAlg.into());
             }
 
             // This is a PKCSv1.5 signature which is already deterministic; just pass it to
@@ -1025,7 +1025,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
             return self.sign(md, hash, sig, rng);
         } else {
             // Some non-deterministic scheme
-            return Err(Error::PkInvalidAlg);
+            return Err(codes::PkInvalidAlg.into());
         }
     }
 
@@ -1033,7 +1033,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
         // If hash or sig are allowed with size 0 (&[]) then mbedtls will attempt to
         // auto-detect size and cause an invalid write.
         if hash.len() == 0 || sig.len() == 0 {
-            return Err(Error::PkBadInputData);
+            return Err(codes::PkBadInputData.into());
         }
 
         unsafe {
@@ -1056,13 +1056,13 @@ Please use `private_from_ec_scalar_with_rng` instead."
                 )?;
                 ecdh.calc_secret(shared, rng)
             },
-            _ => return Err(Error::PkTypeMismatch),
+            _ => return Err(codes::PkTypeMismatch.into()),
         }
     }
 
     pub fn write_private_der<'buf>(&mut self, buf: &'buf mut [u8]) -> Result<Option<&'buf [u8]>> {
         match unsafe { pk_write_key_der(&mut self.inner, buf.as_mut_ptr(), buf.len()).into_result() } {
-            Err(Error::Asn1BufTooSmall) => Ok(None),
+            Err(e) if e.low_level() == Some(codes::Asn1BufTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
@@ -1074,7 +1074,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
 
     pub fn write_private_pem<'buf>(&mut self, buf: &'buf mut [u8]) -> Result<Option<&'buf [u8]>> {
         match unsafe { pk_write_key_pem(&mut self.inner, buf.as_mut_ptr(), buf.len()).into_result() } {
-            Err(Error::Base64BufferTooSmall) => Ok(None),
+            Err(e) if e.low_level() == Some(codes::Base64BufferTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
@@ -1091,7 +1091,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
 
     pub fn write_public_der<'buf>(&mut self, buf: &'buf mut [u8]) -> Result<Option<&'buf [u8]>> {
         match unsafe { pk_write_pubkey_der(&mut self.inner, buf.as_mut_ptr(), buf.len()).into_result() } {
-            Err(Error::Asn1BufTooSmall) => Ok(None),
+            Err(e) if e.low_level() == Some(codes::Asn1BufTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
@@ -1103,7 +1103,7 @@ Please use `private_from_ec_scalar_with_rng` instead."
 
     pub fn write_public_pem<'buf>(&mut self, buf: &'buf mut [u8]) -> Result<Option<&'buf [u8]>> {
         match unsafe { pk_write_pubkey_pem(&mut self.inner, buf.as_mut_ptr(), buf.len()).into_result() } {
-            Err(Error::Base64BufferTooSmall) => Ok(None),
+            Err(e) if e.low_level() == Some(codes::Base64BufferTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
@@ -1339,30 +1339,33 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
                 .unwrap();
             pk.verify(digest, data, &signature[0..len]).unwrap();
 
-            assert_eq!(pk.verify(digest, data, &[]).unwrap_err(), Error::PkBadInputData);
-            assert_eq!(pk.verify(digest, &[], &signature[0..len]).unwrap_err(), Error::PkBadInputData);
+            assert_eq!(pk.verify(digest, data, &[]).unwrap_err(), codes::PkBadInputData.into());
+            assert_eq!(
+                pk.verify(digest, &[], &signature[0..len]).unwrap_err(),
+                codes::PkBadInputData.into()
+            );
 
             let mut dummy_sig = [];
             assert_eq!(
                 pk.sign(digest, data, &mut dummy_sig, &mut crate::test_support::rand::test_rng())
                     .unwrap_err(),
-                Error::PkBadInputData
+                codes::PkBadInputData.into()
             );
             assert_eq!(
                 pk.sign(digest, &[], &mut signature, &mut crate::test_support::rand::test_rng())
                     .unwrap_err(),
-                Error::PkBadInputData
+                codes::PkBadInputData.into()
             );
 
             assert_eq!(
                 pk.sign_deterministic(digest, data, &mut dummy_sig, &mut crate::test_support::rand::test_rng())
                     .unwrap_err(),
-                Error::PkBadInputData
+                codes::PkBadInputData.into()
             );
             assert_eq!(
                 pk.sign_deterministic(digest, &[], &mut signature, &mut crate::test_support::rand::test_rng())
                     .unwrap_err(),
-                Error::PkBadInputData
+                codes::PkBadInputData.into()
             );
         }
     }
@@ -1465,7 +1468,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         assert_eq!(
             pk.encrypt(b"test", &mut cipher, &mut crate::test_support::rand::test_rng())
                 .unwrap_err(),
-            Error::RsaInvalidPadding
+            codes::RsaInvalidPadding.into()
         );
     }
 
@@ -1504,7 +1507,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
                 b"WRONG_LABEL"
             )
             .unwrap_err(),
-            Error::RsaInvalidPadding
+            codes::RsaInvalidPadding.into()
         );
     }
 
@@ -1520,7 +1523,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         assert_eq!(
             pk.sign(Type::Sha256, data, &mut signature, &mut crate::test_support::rand::test_rng())
                 .unwrap_err(),
-            Error::RsaInvalidPadding
+            codes::RsaInvalidPadding.into()
         );
     }
 
@@ -1543,7 +1546,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         });
         assert_eq!(
             pk.verify(digest, data, &signature[0..len]).unwrap_err(),
-            Error::RsaInvalidPadding
+            codes::RsaInvalidPadding.into()
         );
     }
 
@@ -1604,7 +1607,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         const LEN: usize = 256;
 
         // Decrypting anything out of {2, n-2} should fail
-        let expected_err = Error::MpiBadInputData;
+        let expected_err = codes::MpiBadInputData;
 
         let mut pt = [0x00; LEN];
 
@@ -1617,7 +1620,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
         for c in [_0, _1, nm1, n] {
             let ct = c.to_binary_padded(LEN).unwrap();
             let l = pk.decrypt(&ct, &mut pt, rng);
-            assert_eq!(l.unwrap_err(), expected_err);
+            assert_eq!(l.unwrap_err(), expected_err.into());
         }
         for c in [_2, nm2] {
             let ct = c.to_binary_padded(LEN).unwrap();
@@ -1669,7 +1672,7 @@ iy6KC991zzvaWY/Ys+q/84Afqa+0qJKQnPuy/7F5GkVdQA/lfbhi
             Ok(_) => panic!("expected an error, got a Pk"),
             Err(e) => e,
         };
-        assert_eq!(err, Error::RsaKeyCheckFailed);
+        assert_eq!(err, codes::RsaKeyCheckFailed.into());
     }
 
     #[test]

@@ -20,7 +20,7 @@ use mbedtls_sys::*;
 use crate::alloc::List as MbedtlsList;
 #[cfg(not(feature = "std"))]
 use crate::alloc_prelude::*;
-use crate::error::{Error, IntoResult, Result};
+use crate::error::{IntoResult, Result};
 use crate::pk::dhparam::Dhm;
 use crate::pk::Pk;
 use crate::private::UnsafeFrom;
@@ -119,7 +119,7 @@ impl NullTerminatedStrList {
         for item in list {
             ret.c.push(
                 ::std::ffi::CString::new(*item)
-                    .map_err(|_| Error::SslBadInputData)?
+                    .map_err(|_| crate::error::codes::SslBadInputData)?
                     .into_raw(),
             );
         }
@@ -267,7 +267,7 @@ impl Config {
             Version::Tls1_1 => 2,
             Version::Tls1_2 => 3,
             _ => {
-                return Err(Error::SslBadHsProtocolVersion);
+                return Err(crate::error::codes::SslBadHsProtocolVersion.into());
             }
         };
 
@@ -282,7 +282,7 @@ impl Config {
             Version::Tls1_1 => 2,
             Version::Tls1_2 => 3,
             _ => {
-                return Err(Error::SslBadHsProtocolVersion);
+                return Err(crate::error::codes::SslBadHsProtocolVersion.into());
             }
         };
         unsafe { ssl_conf_max_version(self.into(), 3, minor) };
@@ -323,7 +323,7 @@ impl Config {
 
     pub fn push_cert(&mut self, own_cert: Arc<MbedtlsList<Certificate>>, own_pk: Arc<Pk>) -> Result<()> {
         if own_cert.is_empty() {
-            return Err(Error::SslBadInputData);
+            return Err(crate::error::codes::SslBadInputData.into());
         }
         // Need to ensure own_cert/pk_key outlive the config.
         self.own_cert.push(own_cert.clone());

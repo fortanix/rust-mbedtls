@@ -13,12 +13,12 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use mbedtls::error::codes;
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
 use mbedtls::ssl::{Config, Context, Version};
 use mbedtls::x509::{Certificate, VerifyError};
-use mbedtls::Error;
 use mbedtls::Result as TlsResult;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -64,12 +64,12 @@ async fn client(conn: TcpStream, min_version: Version, max_version: Version, exp
                 assert_eq!(ctx.version(), exp_version.unwrap());
             }
             Err(e) => {
-                match e {
-                    Error::SslBadHsProtocolVersion => {
+                match e.high_level() {
+                    Some(codes::SslBadHsProtocolVersion) => {
                         assert!(exp_version.is_none())
                     }
-                    Error::SslFatalAlertMessage => {}
-                    e => panic!("Unexpected error {}", e),
+                    Some(codes::SslFatalAlertMessage) => {}
+                    _ => panic!("Unexpected error {}", e),
                 };
                 return Ok(());
             }
@@ -103,13 +103,13 @@ async fn server(conn: TcpStream, min_version: Version, max_version: Version, exp
             assert_eq!(context.version(), exp_version.unwrap());
         }
         Err(e) => {
-            match e {
+            match (e.low_level(), e.high_level()) {
                 // client just closes connection instead of sending alert
-                Error::NetSendFailed => {
+                (Some(codes::NetSendFailed), _) => {
                     assert!(exp_version.is_none())
                 }
-                Error::SslBadHsProtocolVersion => {}
-                e => panic!("Unexpected error {}", e),
+                (_, Some(codes::SslBadHsProtocolVersion)) => {}
+                _ => panic!("Unexpected error {}", e),
             };
             return Ok(());
         }

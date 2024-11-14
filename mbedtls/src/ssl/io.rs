@@ -25,9 +25,9 @@ use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 
 use super::context::Context;
-#[cfg(feature = "std")]
-use crate::error::Error;
 use crate::error::Result;
+#[cfg(feature = "std")]
+use crate::error::{codes, Error};
 
 /// A direct representation of the `mbedtls_ssl_send_t` and `mbedtls_ssl_recv_t`
 /// callback function pointers.
@@ -122,15 +122,15 @@ impl<IO: Io> IoCallback<AnyIo> for IO {
 impl<IO: Read + Write> IoCallback<Stream> for IO {
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
         self.read(buf).map_err(|e| match e {
-            ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::SslWantRead,
-            _ => Error::NetRecvFailed,
+            ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::from(codes::SslWantRead),
+            _ => Error::from(codes::NetRecvFailed),
         })
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<usize> {
         self.write(buf).map_err(|e| match e {
-            ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::SslWantWrite,
-            _ => Error::NetSendFailed,
+            ref e if e.kind() == std::io::ErrorKind::WouldBlock => Error::from(codes::SslWantWrite),
+            _ => Error::from(codes::NetSendFailed),
         })
     }
 }
@@ -162,13 +162,13 @@ impl Io for ConnectedUdpSocket {
     fn recv(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self.socket.recv(buf) {
             Ok(i) => Ok(i),
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Err(Error::SslWantRead),
-            Err(_) => Err(Error::NetRecvFailed),
+            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Err(codes::SslWantRead.into()),
+            Err(_) => Err(codes::NetRecvFailed.into()),
         }
     }
 
     fn send(&mut self, buf: &[u8]) -> Result<usize> {
-        self.socket.send(buf).map_err(|_| Error::NetSendFailed)
+        self.socket.send(buf).map_err(|_| codes::NetSendFailed.into())
     }
 }
 
@@ -191,8 +191,10 @@ impl<T: IoCallbackUnsafe<AnyIo>> Io for Context<T> {
 impl<T: IoCallbackUnsafe<Stream>> Read for Context<T> {
     fn read(&mut self, buf: &mut [u8]) -> IoResult<usize> {
         match self.recv(buf) {
-            Err(Error::SslPeerCloseNotify) => Ok(0),
-            Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Err(IoErrorKind::WouldBlock.into()),
+            Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Ok(0),
+            Err(e) if matches!(e.high_level(), Some(codes::SslWantRead | codes::SslWantWrite)) => {
+                Err(IoErrorKind::WouldBlock.into())
+            }
             Err(e) => Err(crate::private::error_to_io_error(e)),
             Ok(i) => Ok(i),
         }
@@ -208,8 +210,10 @@ impl<T: IoCallbackUnsafe<Stream>> Read for Context<T> {
 impl<T: IoCallbackUnsafe<Stream>> Write for Context<T> {
     fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
         match self.send(buf) {
-            Err(Error::SslPeerCloseNotify) => Ok(0),
-            Err(Error::SslWantRead) | Err(Error::SslWantWrite) => Err(IoErrorKind::WouldBlock.into()),
+            Err(e) if e.high_level() == Some(codes::SslPeerCloseNotify) => Ok(0),
+            Err(e) if matches!(e.high_level(), Some(codes::SslWantRead | codes::SslWantWrite)) => {
+                Err(IoErrorKind::WouldBlock.into())
+            }
             Err(e) => Err(crate::private::error_to_io_error(e)),
             Ok(i) => Ok(i),
         }

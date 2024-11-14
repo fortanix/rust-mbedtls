@@ -13,7 +13,7 @@ use crate::alloc_prelude::*;
 
 use mbedtls_sys::*;
 
-use crate::error::{Error, IntoResult, Result};
+use crate::error::{codes, IntoResult, Result};
 use crate::hash::Type as MdType;
 use crate::pk::Pk;
 use crate::private::{alloc_string_repeat, alloc_vec_repeat};
@@ -85,7 +85,7 @@ impl<'a> Builder<'a> {
     #[cfg(feature = "std")]
     pub fn subject(&mut self, subject: &str) -> Result<&mut Self> {
         match ::std::ffi::CString::new(subject) {
-            Err(_) => Err(Error::X509InvalidName),
+            Err(_) => Err(codes::X509InvalidName.into()),
             Ok(s) => unsafe { self.subject_with_nul_unchecked(s.as_bytes_with_nul()) },
         }
     }
@@ -94,7 +94,7 @@ impl<'a> Builder<'a> {
         if subject.as_bytes().iter().any(|&c| c == 0) {
             unsafe { self.subject_with_nul_unchecked(subject.as_bytes()) }
         } else {
-            Err(Error::X509InvalidName)
+            Err(codes::X509InvalidName.into())
         }
     }
 
@@ -112,7 +112,7 @@ impl<'a> Builder<'a> {
         let usage = usage.bits();
         if (usage & !0xfe) != 0 {
             // according to x509write_**crt**_set_key_usage
-            return Err(Error::X509FeatureUnavailable);
+            return Err(codes::X509FeatureUnavailable.into());
         }
 
         unsafe { x509write_csr_set_key_usage(&mut self.inner, (usage & 0xfe) as u8) }.into_result()?;
@@ -129,7 +129,7 @@ impl<'a> Builder<'a> {
         match unsafe {
             x509write_csr_der(&mut self.inner, buf.as_mut_ptr(), buf.len(), Some(F::call), rng.data_ptr()).into_result()
         } {
-            Err(Error::Asn1BufTooSmall) => Ok(None),
+            Err(e) if e.low_level() == Some(codes::Asn1BufTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }
@@ -146,7 +146,7 @@ impl<'a> Builder<'a> {
         match unsafe {
             x509write_csr_der(&mut self.inner, buf.as_mut_ptr(), buf.len(), Some(F::call), rng.data_ptr()).into_result()
         } {
-            Err(Error::Base64BufferTooSmall) => Ok(None),
+            Err(e) if e.low_level() == Some(codes::Base64BufferTooSmall) => Ok(None),
             Err(e) => Err(e),
             Ok(n) => Ok(Some(&buf[buf.len() - (n as usize)..])),
         }

@@ -14,6 +14,7 @@ extern crate mbedtls;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
+use mbedtls::error::codes;
 use mbedtls::pk::Pk;
 use mbedtls::rng::CtrDrbg;
 use mbedtls::ssl::config::{Endpoint, Preset, Transport};
@@ -21,7 +22,6 @@ use mbedtls::ssl::context::Timer;
 use mbedtls::ssl::io::{ConnectedUdpSocket, IoCallback};
 use mbedtls::ssl::{Config, Context, CookieContext, Io, Version};
 use mbedtls::x509::{Certificate, VerifyError};
-use mbedtls::Error;
 use mbedtls::Result as TlsResult;
 use std::sync::Arc;
 
@@ -42,11 +42,11 @@ impl TransportType for TcpStream {
     }
 
     fn recv(ctx: &mut Context<Self>, buf: &mut [u8]) -> TlsResult<usize> {
-        ctx.read(buf).map_err(|_| Error::NetRecvFailed)
+        ctx.read(buf).map_err(|_| codes::NetRecvFailed.into())
     }
 
     fn send(ctx: &mut Context<Self>, buf: &[u8]) -> TlsResult<usize> {
-        ctx.write(buf).map_err(|_| Error::NetSendFailed)
+        ctx.write(buf).map_err(|_| codes::NetSendFailed.into())
     }
 }
 
@@ -113,12 +113,12 @@ fn client<C: IoCallback<T> + TransportType, T>(
             assert_eq!(ctx.version(), exp_version.unwrap());
         }
         Err(e) => {
-            match e {
-                Error::SslBadHsProtocolVersion => {
+            match e.high_level() {
+                Some(codes::SslBadHsProtocolVersion) => {
                     assert!(exp_version.is_none())
                 }
-                Error::SslFatalAlertMessage => {}
-                e => panic!("Unexpected error {}", e),
+                Some(codes::SslFatalAlertMessage) => {}
+                _ => panic!("Unexpected error {}", e),
             };
             return Ok(());
         }
@@ -170,9 +170,9 @@ fn server<C: IoCallback<T> + TransportType, T>(
         // The first connection setup attempt will fail because the ClientHello is
         // received without a cookie
         match ctx.establish(conn, None) {
-            Err(Error::SslHelloVerifyRequired) => {}
-            Ok(()) => panic!("SslHelloVerifyRequired expected, got Ok instead"),
+            Err(e) if matches!(e.high_level(), Some(codes::SslHelloVerifyRequired)) => {}
             Err(e) => panic!("SslHelloVerifyRequired expected, got {} instead", e),
+            Ok(()) => panic!("SslHelloVerifyRequired expected, got Ok instead"),
         }
         ctx.handshake()
     } else {
@@ -185,13 +185,13 @@ fn server<C: IoCallback<T> + TransportType, T>(
             assert_eq!(ctx.version(), exp_version.unwrap());
         }
         Err(e) => {
-            match e {
+            match (e.high_level(), e.low_level()) {
                 // client just closes connection instead of sending alert
-                Error::NetSendFailed => {
+                (_, Some(codes::NetSendFailed)) => {
                     assert!(exp_version.is_none())
                 }
-                Error::SslBadHsProtocolVersion => {}
-                e => panic!("Unexpected error {}", e),
+                (Some(codes::SslBadHsProtocolVersion), _) => {}
+                _ => panic!("Unexpected error {}", e),
             };
             return Ok(());
         }

@@ -6,7 +6,7 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
-use crate::error::{Error, IntoResult, Result};
+use crate::error::{codes, Error, IntoResult, Result};
 use core::convert::TryFrom;
 use mbedtls_sys::*;
 
@@ -107,7 +107,7 @@ impl EcGroup {
             || &order <= &zero
             || (&a == &zero && &b == &zero)
         {
-            return Err(Error::EcpBadInputData);
+            return Err(codes::EcpBadInputData.into());
         }
 
         // Compute `order - 2`, needed below.
@@ -128,7 +128,7 @@ impl EcGroup {
         Test that the provided generator satisfies the curve equation
          */
         if unsafe { ecp_check_pubkey(&ret.inner, &ret.inner.G) } != 0 {
-            return Err(Error::EcpBadInputData);
+            return Err(codes::EcpBadInputData.into());
         }
 
         /*
@@ -155,7 +155,7 @@ impl EcGroup {
         let is_zero = unsafe { ecp_is_zero(&g_m.inner as *const ecp_point as *mut ecp_point) };
 
         if is_zero != 1 {
-            return Err(Error::EcpBadInputData);
+            return Err(codes::EcpBadInputData.into());
         }
 
         Ok(ret)
@@ -193,7 +193,7 @@ impl EcGroup {
             EcGroupId::Curve25519 => Ok(8),
             EcGroupId::Curve448 => Ok(4),
             // Requires a point-counting algorithm such as SEA.
-            EcGroupId::None => Err(Error::EcpFeatureUnavailable),
+            EcGroupId::None => Err(codes::EcpFeatureUnavailable.into()),
             _ => Ok(1),
         }
     }
@@ -206,7 +206,7 @@ impl EcGroup {
         match unsafe { ecp_check_pubkey(&self.inner, &point.inner) } {
             0 => Ok(true),
             ERR_ECP_INVALID_KEY => Ok(false),
-            err => Err(Error::from_mbedtls_code(err)),
+            err => Err(err.into()),
         }
     }
 }
@@ -249,7 +249,7 @@ impl EcPoint {
     }
 
     pub fn from_binary(group: &EcGroup, bin: &[u8]) -> Result<EcPoint> {
-        let prefix = *bin.get(0).ok_or(Error::EcpBadInputData)?;
+        let prefix = *bin.get(0).ok_or(Error::from(codes::EcpBadInputData))?;
 
         if prefix == 0x02 || prefix == 0x03 {
             // Compressed point, which mbedtls does not understand
@@ -260,7 +260,7 @@ impl EcPoint {
             let b = group.b()?;
 
             if bin.len() != (p.byte_length()? + 1) {
-                return Err(Error::EcpBadInputData);
+                return Err(codes::EcpBadInputData.into());
             }
 
             let x = Mpi::from_binary(&bin[1..]).unwrap();
@@ -317,7 +317,7 @@ impl EcPoint {
         match unsafe { ecp_is_zero(&self.inner as *const ecp_point as *mut ecp_point) } {
             0 => Ok(false),
             1 => Ok(true),
-            _ => Err(Error::EcpInvalidKey),
+            _ => Err(codes::EcpInvalidKey.into()),
         }
     }
 
@@ -402,11 +402,11 @@ Please use `mul_with_rng` instead."
         let mut ret = Self::init();
 
         if group.contains_point(&pt1)? == false {
-            return Err(Error::EcpInvalidKey);
+            return Err(codes::EcpInvalidKey.into());
         }
 
         if group.contains_point(&pt2)? == false {
-            return Err(Error::EcpInvalidKey);
+            return Err(codes::EcpInvalidKey.into());
         }
 
         unsafe {
@@ -430,7 +430,7 @@ Please use `mul_with_rng` instead."
         match r {
             0 => Ok(true),
             ERR_ECP_BAD_INPUT_DATA => Ok(false),
-            x => Err(Error::from_mbedtls_code(x)),
+            x => Err(x.into()),
         }
     }
 
