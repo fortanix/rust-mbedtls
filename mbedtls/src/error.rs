@@ -38,36 +38,36 @@ pub const ERR_UTF8_INVALID: c_int = -0x10000;
 macro_rules! error_enum {
     {
         const MASK: c_int = $mask:literal;
-        enum $n:ident {$($rust:ident = $c:ident,)*}
+        enum $error:ident {$($rust:ident = $c:ident,)*}
     } => {
         #[non_exhaustive]
         #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-        pub enum $n {
+        pub enum $error {
             $($rust,)*
             Unknown(c_int)
         }
 
-        impl From<c_int> for $n {
-            fn from(code: c_int) -> $n {
-                // check against mask here (not in match blook) to make it compile-time
-                $(const $c: c_int = $n::assert_in_mask(::mbedtls_sys::$c);)*
+        impl From<c_int> for $error {
+            fn from(code: c_int) -> $error {
+                // check against mask here (not in match block) to make it compile-time
+                $(const $c: c_int = $error::assert_in_mask(::mbedtls_sys::$c);)*
                 match -code {
-                    $($c => return $n::$rust),*,
-                    _ => return $n::Unknown(-code)
+                    $($c => return $error::$rust),*,
+                    _ => return $error::Unknown(-code)
                 }
             }
         }
 
-        impl From<$n> for c_int {
-            fn from(error: $n) -> c_int {
+        impl From<$error> for c_int {
+            fn from(error: $error) -> c_int {
                 match error {
-                    $($n::$rust => return ::mbedtls_sys::$c,)*
-                    $n::Unknown(code) => return code,
+                    $($error::$rust => return ::mbedtls_sys::$c,)*
+                    $error::Unknown(code) => return code,
                 }
             }
         }
 
-        impl $n {
+        impl $error {
             const fn mask() -> c_int {
                 $mask
             }
@@ -79,8 +79,8 @@ macro_rules! error_enum {
 
             pub fn as_str(&self)-> &'static str {
                 match self {
-                    $($n::$rust => concat!("mbedTLS error ", stringify!($n::$rust)),)*
-                    $n::Unknown(_) => concat!("mbedTLS unknown ", stringify!($n), " error")
+                    $($error::$rust => concat!("mbedTLS error ", stringify!($error::$rust)),)*
+                    $error::Unknown(_) => concat!("mbedTLS unknown ", stringify!($error), " error")
                 }
             }
         }
