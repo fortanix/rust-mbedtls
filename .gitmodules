@@ -1,0 +1,4 @@
+[submodule "mbedtls-sys/vendor"]
+	path = mbedtls-sys/vendor
+	url = https://github.com/fortanix/mbedtls
+	branch = mbedtls-2.28-rust-mbedtls
