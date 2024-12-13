@@ -62,6 +62,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: true
 
     - name: Install qemu-user for aarch64 target
       if: matrix.target == 'aarch64-unknown-linux-musl'
@@ -114,6 +116,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: true
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
@@ -124,21 +128,24 @@ jobs:
           cargo fmt --check -p mbedtls-platform-support
           cargo fmt --check -p mbedtls-sys-auto
 
-  bench:
-    name: Cargo bench
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-      - uses: boa-dev/criterion-compare-action@v3
-        name: Run criterion-compare-action
-        with:
-          cwd: "mbedtls"
-          benchName: "cipher"
-          branchName: ${{ github.base_ref }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+  # Temporarily disbaling this, as boa-dev/criterion-compare-action@v3 does not handle submodules
+  # bench:
+  #   name: Cargo bench
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #       with:
+  #         submodules: true
+  #     - uses: dtolnay/rust-toolchain@master
+  #       with:
+  #         toolchain: stable
+  #     - uses: boa-dev/criterion-compare-action@v3
+  #       name: Run criterion-compare-action
+  #       with:
+  #         cwd: "mbedtls"
+  #         benchName: "cipher"
+  #         branchName: ${{ github.base_ref }}
+  #         token: ${{ secrets.GITHUB_TOKEN }}
 
   ci-success:
     name: ci
