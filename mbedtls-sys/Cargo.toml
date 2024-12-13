@@ -1,6 +1,8 @@
 [package]
 name = "mbedtls-sys-auto"
-version = "2.28.7"
+# This version should match the version of upstream c mbedtls, except that the patch component should
+# be 1000 * upstream_patch + our_patch. For example, version 2.28.9001 corresponds to c mbedtls 2.28.9
+version = "2.28.9000"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build/build.rs"
 license = "Apache-2.0 OR GPL-2.0-or-later"
@@ -15,8 +17,8 @@ links = "mbedtls"
 
 [package.metadata.mbedtls]
 git = "https://github.com/Mbed-TLS/mbedtls.git"
-version = "2.28.7"
-rev = "555f84735aecdbd76a566cf087ec8425dfb0c8ab"
+version = "2.28.9+"
+rev = "9b1ec06287f022baba9623b6f45688c4276e4955"
 
 [lib]
 name = "mbedtls_sys"
