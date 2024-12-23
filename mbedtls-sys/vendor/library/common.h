@@ -337,17 +337,45 @@ static inline const unsigned char *mbedtls_buffer_offset_const(
 #endif
 
 /* Always provide a static assert macro, so it can be used unconditionally.
- * It will expand to nothing on some systems.
- * Can be used outside functions (but don't add a trailing ';' in that case:
- * the semicolon is included here to avoid triggering -Wextra-semi when
- * MBEDTLS_STATIC_ASSERT() expands to nothing).
- * Can't use the C11-style `defined(static_assert)` on FreeBSD, since it
+ * It will expand to nothing on some systems. */
+/* Can't use the C11-style `defined(static_assert)` on FreeBSD, since it
  * defines static_assert even with -std=c99, but then complains about it.
  */
 #if defined(static_assert) && !defined(__FreeBSD__)
-#define MBEDTLS_STATIC_ASSERT(expr, msg)    static_assert(expr, msg);
+#define MBEDTLS_STATIC_ASSERT(expr, msg)    static_assert(expr, msg)
 #else
-#define MBEDTLS_STATIC_ASSERT(expr, msg)
+/* Make sure `MBEDTLS_STATIC_ASSERT(expr, msg);` is valid both inside and
+ * outside a function. We choose a struct declaration, which can be repeated
+ * any number of times and does not need a matching definition. */
+#define MBEDTLS_STATIC_ASSERT(expr, msg)                                \
+    struct ISO_C_does_not_allow_extra_semicolon_outside_of_a_function
+#endif
+
+/* Suppress compiler warnings for unused functions and variables. */
+#if !defined(MBEDTLS_MAYBE_UNUSED) && defined(__has_attribute)
+#    if __has_attribute(unused)
+#        define MBEDTLS_MAYBE_UNUSED __attribute__((unused))
+#    endif
+#endif
+#if !defined(MBEDTLS_MAYBE_UNUSED) && defined(__GNUC__)
+#    define MBEDTLS_MAYBE_UNUSED __attribute__((unused))
+#endif
+#if !defined(MBEDTLS_MAYBE_UNUSED) && defined(__IAR_SYSTEMS_ICC__) && defined(__VER__)
+/* IAR does support __attribute__((unused)), but only if the -e flag (extended language support)
+ * is given; the pragma always works.
+ * Unfortunately the pragma affects the rest of the file where it is used, but this is harmless.
+ * Check for version 5.2 or later - this pragma may be supported by earlier versions, but I wasn't
+ * able to find documentation).
+ */
+#    if (__VER__ >= 5020000)
+#        define MBEDTLS_MAYBE_UNUSED _Pragma("diag_suppress=Pe177")
+#    endif
+#endif
+#if !defined(MBEDTLS_MAYBE_UNUSED) && defined(_MSC_VER)
+#    define MBEDTLS_MAYBE_UNUSED __pragma(warning(suppress:4189))
+#endif
+#if !defined(MBEDTLS_MAYBE_UNUSED)
+#    define MBEDTLS_MAYBE_UNUSED
 #endif
 
 #endif /* MBEDTLS_LIBRARY_COMMON_H */

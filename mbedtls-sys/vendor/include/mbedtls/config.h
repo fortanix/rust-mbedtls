@@ -1571,6 +1571,26 @@
 //#define MBEDTLS_PSA_INJECT_ENTROPY
 
 /**
+ * \def MBEDTLS_PSA_ASSUME_EXCLUSIVE_BUFFERS
+ *
+ * Assume all buffers passed to PSA functions are owned exclusively by the
+ * PSA function and are not stored in shared memory.
+ *
+ * This option may be enabled if all buffers passed to any PSA function reside
+ * in memory that is accessible only to the PSA function during its execution.
+ *
+ * This option MUST be disabled whenever buffer arguments are in memory shared
+ * with an untrusted party, for example where arguments to PSA calls are passed
+ * across a trust boundary.
+ *
+ * \note Enabling this option reduces memory usage and code size.
+ *
+ * \note Enabling this option causes overlap of input and output buffers
+ *       not to be supported by PSA functions.
+ */
+//#define MBEDTLS_PSA_ASSUME_EXCLUSIVE_BUFFERS
+
+/**
  * \def MBEDTLS_RSA_NO_CRT
  *
  * Do not use the Chinese Remainder Theorem
@@ -4000,22 +4020,34 @@
  * Use HMAC_DRBG with the specified hash algorithm for HMAC_DRBG for the
  * PSA crypto subsystem.
  *
- * If this option is unset:
- * - If CTR_DRBG is available, the PSA subsystem uses it rather than HMAC_DRBG.
- * - Otherwise, the PSA subsystem uses HMAC_DRBG with either
- *   #MBEDTLS_MD_SHA512 or #MBEDTLS_MD_SHA256 based on availability and
- *   on unspecified heuristics.
+ * If this option is unset, the library chooses a hash (currently between
+ * #MBEDTLS_MD_SHA512 and #MBEDTLS_MD_SHA256) based on availability and
+ * unspecified heuristics.
+ *
+ * \note The PSA crypto subsystem uses the first available mechanism amongst
+ *       the following:
+ *       - #MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG if enabled;
+ *       - Entropy from #MBEDTLS_ENTROPY_C plus CTR_DRBG with AES
+ *         if #MBEDTLS_CTR_DRBG_C is enabled;
+ *       - Entropy from #MBEDTLS_ENTROPY_C plus HMAC_DRBG.
+ *
+ *       A future version may reevaluate the prioritization of DRBG mechanisms.
  */
 //#define MBEDTLS_PSA_HMAC_DRBG_MD_TYPE MBEDTLS_MD_SHA256
 
 /** \def MBEDTLS_PSA_KEY_SLOT_COUNT
- * Restrict the PSA library to supporting a maximum amount of simultaneously
- * loaded keys. A loaded key is a key stored by the PSA Crypto core as a
- * volatile key, or a persistent key which is loaded temporarily by the
- * library as part of a crypto operation in flight.
  *
- * If this option is unset, the library will fall back to a default value of
- * 32 keys.
+ * The maximum amount of PSA keys simultaneously in memory. This counts all
+ * volatile keys, plus loaded persistent keys.
+ *
+ * Currently, persistent keys do not need to be loaded all the time while
+ * a multipart operation is in progress, only while the operation is being
+ * set up. This may change in future versions of the library.
+ *
+ * Currently, the library traverses of the whole table on each access to a
+ * persistent key. Therefore large values may cause poor performance.
+ *
+ * This option has no effect when #MBEDTLS_PSA_CRYPTO_C is disabled.
  */
 //#define MBEDTLS_PSA_KEY_SLOT_COUNT 32
 
