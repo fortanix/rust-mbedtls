@@ -26,7 +26,7 @@ const mbedtls_cipher_info_t *mbedtls_cipher_info_from_psa(
     mbedtls_cipher_id_t *cipher_id)
 {
     mbedtls_cipher_mode_t mode;
-    mbedtls_cipher_id_t cipher_id_tmp;
+    mbedtls_cipher_id_t cipher_id_tmp = MBEDTLS_CIPHER_ID_NONE;
 
     if (PSA_ALG_IS_AEAD(alg)) {
         alg = PSA_ALG_AEAD_WITH_SHORTENED_TAG(alg, 0);
@@ -402,7 +402,11 @@ psa_status_t mbedtls_psa_cipher_update(
                                        output_length);
     } else
 #endif /* MBEDTLS_PSA_BUILTIN_ALG_ECB_NO_PADDING */
-    {
+    if (input_length == 0) {
+        /* There is no input, nothing to be done */
+        *output_length = 0;
+        status = PSA_SUCCESS;
+    } else {
         status = mbedtls_to_psa_error(
             mbedtls_cipher_update(&operation->ctx.cipher, input,
                                   input_length, output, output_length));

@@ -69,12 +69,30 @@ TCP_CLIENT="$PERL scripts/tcp_client.pl"
 
 # alternative versions of OpenSSL and GnuTLS (no default path)
 
-if [ -n "${OPENSSL_LEGACY:-}" ]; then
-    O_LEGACY_SRV="$OPENSSL_LEGACY s_server -www -cert data_files/server5.crt -key data_files/server5.key"
-    O_LEGACY_CLI="echo 'GET / HTTP/1.0' | $OPENSSL_LEGACY s_client"
-else
-    O_LEGACY_SRV=false
-    O_LEGACY_CLI=false
+# If $OPENSSL is at least 1.1.1, use it as OPENSSL_NEXT as well.
+if [ -z "${OPENSSL_NEXT:-}" ]; then
+    case $($OPENSSL version) in
+        OpenSSL\ 1.1.[1-9]*) OPENSSL_NEXT=$OPENSSL;;
+        OpenSSL\ [3-9]*) OPENSSL_NEXT=$OPENSSL;;
+    esac
+fi
+
+# If $GNUTLS_CLI is at least 3.7, use it as GNUTLS_NEXT_CLI as well.
+if [ -z "${GNUTLS_NEXT_CLI:-}" ]; then
+    case $($GNUTLS_CLI --version) in
+        gnutls-cli\ 3.[1-9][0-9]*) GNUTLS_NEXT_CLI=$GNUTLS_CLI;;
+        gnutls-cli\ 3.[7-9].*) GNUTLS_NEXT_CLI=$GNUTLS_CLI;;
+        gnutls-cli\ [4-9]*) GNUTLS_NEXT_CLI=$GNUTLS_CLI;;
+    esac
+fi
+
+# If $GNUTLS_SERV is at least 3.7, use it as GNUTLS_NEXT_SERV as well.
+if [ -z "${GNUTLS_NEXT_SERV:-}" ]; then
+    case $($GNUTLS_SERV --version) in
+        gnutls-cli\ 3.[1-9][0-9]*) GNUTLS_NEXT_SERV=$GNUTLS_SERV;;
+        gnutls-cli\ 3.[7-9].*) GNUTLS_NEXT_SERV=$GNUTLS_SERV;;
+        gnutls-cli\ [4-9]*) GNUTLS_NEXT_SERV=$GNUTLS_SERV;;
+    esac
 fi
 
 if [ -n "${OPENSSL_NEXT:-}" ]; then
@@ -108,8 +126,10 @@ FILTER='.*'
 EXCLUDE='^$'
 
 SHOW_TEST_NUMBER=0
+LIST_TESTS=0
 RUN_TEST_NUMBER=''
 
+MIN_TESTS=1
 PRESERVE_LOGS=0
 
 # Pick a "unique" server port in the range 10000-19999, and a proxy
@@ -127,6 +147,8 @@ print_usage() {
     printf "  -n|--number\tExecute only numbered test (comma-separated, e.g. '245,256')\n"
     printf "  -s|--show-numbers\tShow test numbers in front of test names\n"
     printf "  -p|--preserve-logs\tPreserve logs of successful tests as well\n"
+    printf "     --list-test-cases\tList all potential test cases (No Execution)\n"
+    printf "     --min      \tMinimum number of non-skipped tests (default 1)\n"
     printf "     --outcome-file\tFile where test outcomes are written\n"
     printf "                \t(default: \$MBEDTLS_TEST_OUTCOME_FILE, none if empty)\n"
     printf "     --port     \tTCP/UDP port (default: randomish 1xxxx)\n"
@@ -152,8 +174,14 @@ get_options() {
             -s|--show-numbers)
                 SHOW_TEST_NUMBER=1
                 ;;
+            -l|--list-test-cases)
+                LIST_TESTS=1
+                ;;
             -p|--preserve-logs)
                 PRESERVE_LOGS=1
+                ;;
+            --min)
+                shift; MIN_TESTS=$1
                 ;;
             --outcome-file)
                 shift; MBEDTLS_TEST_OUTCOME_FILE=$1
@@ -181,11 +209,18 @@ get_options() {
     done
 }
 
+get_options "$@"
+
 # Read boolean configuration options from config.h for easy and quick
 # testing. Skip non-boolean options (with something other than spaces
 # and a comment after "#define SYMBOL"). The variable contains a
 # space-separated list of symbols.
-CONFIGS_ENABLED=" $(echo `$P_QUERY -l` )"
+if [ "$LIST_TESTS" -eq 0 ];then
+    CONFIGS_ENABLED=" $(echo `$P_QUERY -l` )"
+else
+    P_QUERY=":"
+    CONFIGS_ENABLED=""
+fi
 # Skip next test; use this macro to skip tests which are legitimate
 # in theory and expected to be re-introduced at some point, but
 # aren't expected to succeed at the moment due to problems outside
@@ -217,7 +252,12 @@ get_config_value_or_default() {
     #
     # Note that if the configuration is not defined or is defined to nothing,
     # the output of this function will be an empty string.
-    ${P_SRV} "query_config=${1}"
+    if [ "$LIST_TESTS" -eq 0 ];then
+        ${P_SRV} "query_config=${1}"
+    else
+        echo "1"
+    fi
+
 }
 
 requires_config_value_at_least() {
@@ -270,9 +310,18 @@ requires_protocol_version() {
 
 # Space-separated list of ciphersuites supported by this build of
 # Mbed TLS.
-P_CIPHERSUITES=" $($P_CLI --help 2>/dev/null |
-                   grep TLS- |
-                   tr -s ' \n' ' ')"
+P_CIPHERSUITES=""
+if [ "$LIST_TESTS" -eq 0 ]; then
+    P_CIPHERSUITES=" $($P_CLI help_ciphersuites 2>/dev/null |
+                       grep 'TLS-' |
+                       tr -s ' \n' ' ')"
+
+    if [ -z "${P_CIPHERSUITES# }" ]; then
+        echo >&2 "$0: fatal error: no cipher suites found!"
+        exit 125
+    fi
+fi
+
 requires_ciphersuite_enabled() {
     case $P_CIPHERSUITES in
         *" $1 "*) :;;
@@ -334,9 +383,10 @@ requires_certificate_authentication () {
 
 adapt_cmd_for_psk () {
     case "$2" in
-        *openssl*) s='-psk abc123 -nocert';;
-        *gnutls-*) s='--pskkey=abc123';;
-        *) s='psk=abc123';;
+        *openssl*s_server*) s='-psk 73776f726466697368 -nocert';;
+        *openssl*) s='-psk 73776f726466697368';;
+        *gnutls-*) s='--pskusername=Client_identity --pskkey=73776f726466697368';;
+        *) s='psk=73776f726466697368';;
     esac
     eval $1='"$2 $s"'
     unset s
@@ -444,20 +494,6 @@ requires_gnutls_next() {
     fi
 }
 
-# skip next test if OpenSSL-legacy isn't available
-requires_openssl_legacy() {
-    if [ -z "${OPENSSL_LEGACY_AVAILABLE:-}" ]; then
-        if which "${OPENSSL_LEGACY:-}" >/dev/null 2>&1; then
-            OPENSSL_LEGACY_AVAILABLE="YES"
-        else
-            OPENSSL_LEGACY_AVAILABLE="NO"
-        fi
-    fi
-    if [ "$OPENSSL_LEGACY_AVAILABLE" = "NO" ]; then
-        SKIP_NEXT="YES"
-    fi
-}
-
 requires_openssl_next() {
     if [ -z "${OPENSSL_NEXT_AVAILABLE:-}" ]; then
         if which "${OPENSSL_NEXT:-}" >/dev/null 2>&1; then
@@ -506,19 +542,18 @@ requires_not_i686() {
     fi
 }
 
-# Calculate the input & output maximum content lengths set in the config
 MAX_CONTENT_LEN=$( get_config_value_or_default "MBEDTLS_SSL_MAX_CONTENT_LEN" )
 MAX_IN_LEN=$( get_config_value_or_default "MBEDTLS_SSL_IN_CONTENT_LEN" )
 MAX_OUT_LEN=$( get_config_value_or_default "MBEDTLS_SSL_OUT_CONTENT_LEN" )
-
-# Calculate the maximum content length that fits both
-if [ "$MAX_IN_LEN" -lt "$MAX_CONTENT_LEN" ]; then
-    MAX_CONTENT_LEN="$MAX_IN_LEN"
+if [ "$LIST_TESTS" -eq 0 ];then
+    # Calculate the input & output maximum content lengths set in the config
+    if [ "$MAX_IN_LEN" -lt "$MAX_CONTENT_LEN" ]; then
+        MAX_CONTENT_LEN="$MAX_IN_LEN"
+    fi
+    if [ "$MAX_OUT_LEN" -lt "$MAX_CONTENT_LEN" ]; then
+        MAX_CONTENT_LEN="$MAX_OUT_LEN"
+    fi
 fi
-if [ "$MAX_OUT_LEN" -lt "$MAX_CONTENT_LEN" ]; then
-    MAX_CONTENT_LEN="$MAX_OUT_LEN"
-fi
-
 # skip the next test if the SSL output buffer is less than 16KB
 requires_full_size_output_buffer() {
     if [ "$MAX_OUT_LEN" -ne 16384 ]; then
@@ -560,6 +595,7 @@ print_name() {
     fi
 
     LINE="$LINE$1"
+
     printf "%s " "$LINE"
     LEN=$(( 72 - `echo "$LINE" | wc -c` ))
     for i in `seq 1 $LEN`; do printf '.'; done
@@ -1150,7 +1186,7 @@ do_run_test_once() {
 
     if [ -n "$PXY_CMD" ]; then
         kill $PXY_PID >/dev/null 2>&1
-        wait $PXY_PID
+        wait $PXY_PID >> $PXY_OUT 2>&1
     fi
 }
 
@@ -1171,6 +1207,11 @@ run_test() {
     if is_excluded "$NAME"; then
         SKIP_NEXT="NO"
         # There was no request to run the test, so don't record its outcome.
+        return
+    fi
+
+    if [ "$LIST_TESTS" -gt 0 ]; then
+        printf "%s\n" "$NAME"
         return
     fi
 
@@ -1310,7 +1351,7 @@ run_test_psa_force_curve() {
 # a maximum fragment length.
 #  first argument ($1) is MFL for SSL client
 #  second argument ($2) is memory usage for SSL client with default MFL (16k)
-run_test_memory_after_hanshake_with_mfl()
+run_test_memory_after_handshake_with_mfl()
 {
     # The test passes if the difference is around 2*(16k-MFL)
     MEMORY_USAGE_LIMIT="$(( $2 - ( 2 * ( 16384 - $1 )) ))"
@@ -1330,7 +1371,7 @@ run_test_memory_after_hanshake_with_mfl()
 
 # Test that the server's memory usage after a handshake is reduced when a client specifies
 # different values of Maximum Fragment Length: default (16k), 4k, 2k, 1k and 512 bytes
-run_tests_memory_after_hanshake()
+run_tests_memory_after_handshake()
 {
     # all tests in this sequence requires the same configuration (see requires_config_enabled())
     SKIP_THIS_TESTS="$SKIP_NEXT"
@@ -1346,16 +1387,16 @@ run_tests_memory_after_hanshake()
                 -F "handshake_memory_get MEMORY_USAGE_MFL_16K"
 
     SKIP_NEXT="$SKIP_THIS_TESTS"
-    run_test_memory_after_hanshake_with_mfl 4096 "$MEMORY_USAGE_MFL_16K"
+    run_test_memory_after_handshake_with_mfl 4096 "$MEMORY_USAGE_MFL_16K"
 
     SKIP_NEXT="$SKIP_THIS_TESTS"
-    run_test_memory_after_hanshake_with_mfl 2048 "$MEMORY_USAGE_MFL_16K"
+    run_test_memory_after_handshake_with_mfl 2048 "$MEMORY_USAGE_MFL_16K"
 
     SKIP_NEXT="$SKIP_THIS_TESTS"
-    run_test_memory_after_hanshake_with_mfl 1024 "$MEMORY_USAGE_MFL_16K"
+    run_test_memory_after_handshake_with_mfl 1024 "$MEMORY_USAGE_MFL_16K"
 
     SKIP_NEXT="$SKIP_THIS_TESTS"
-    run_test_memory_after_hanshake_with_mfl 512 "$MEMORY_USAGE_MFL_16K"
+    run_test_memory_after_handshake_with_mfl 512 "$MEMORY_USAGE_MFL_16K"
 }
 
 cleanup() {
@@ -1372,8 +1413,6 @@ cleanup() {
 #
 # MAIN
 #
-
-get_options "$@"
 
 # Make the outcome file path relative to the original directory, not
 # to .../tests
@@ -1423,109 +1462,106 @@ else
     }
 fi
 
-# sanity checks, avoid an avalanche of errors
-P_SRV_BIN="${P_SRV%%[  ]*}"
-P_CLI_BIN="${P_CLI%%[  ]*}"
-P_PXY_BIN="${P_PXY%%[  ]*}"
-if [ ! -x "$P_SRV_BIN" ]; then
-    echo "Command '$P_SRV_BIN' is not an executable file"
-    exit 1
-fi
-if [ ! -x "$P_CLI_BIN" ]; then
-    echo "Command '$P_CLI_BIN' is not an executable file"
-    exit 1
-fi
-if [ ! -x "$P_PXY_BIN" ]; then
-    echo "Command '$P_PXY_BIN' is not an executable file"
-    exit 1
-fi
-if [ "$MEMCHECK" -gt 0 ]; then
-    if which valgrind >/dev/null 2>&1; then :; else
-        echo "Memcheck not possible. Valgrind not found"
+if [ "$LIST_TESTS" -eq 0 ];then
+
+    # sanity checks, avoid an avalanche of errors
+    P_SRV_BIN="${P_SRV%%[  ]*}"
+    P_CLI_BIN="${P_CLI%%[  ]*}"
+    P_PXY_BIN="${P_PXY%%[  ]*}"
+    if [ ! -x "$P_SRV_BIN" ]; then
+        echo "Command '$P_SRV_BIN' is not an executable file"
         exit 1
     fi
+    if [ ! -x "$P_CLI_BIN" ]; then
+        echo "Command '$P_CLI_BIN' is not an executable file"
+        exit 1
+    fi
+    if [ ! -x "$P_PXY_BIN" ]; then
+        echo "Command '$P_PXY_BIN' is not an executable file"
+        exit 1
+    fi
+    if [ "$MEMCHECK" -gt 0 ]; then
+        if which valgrind >/dev/null 2>&1; then :; else
+            echo "Memcheck not possible. Valgrind not found"
+            exit 1
+        fi
+    fi
+    if which $OPENSSL >/dev/null 2>&1; then :; else
+        echo "Command '$OPENSSL' not found"
+        exit 1
+    fi
+
+    # used by watchdog
+    MAIN_PID="$$"
+
+    # We use somewhat arbitrary delays for tests:
+    # - how long do we wait for the server to start (when lsof not available)?
+    # - how long do we allow for the client to finish?
+    #   (not to check performance, just to avoid waiting indefinitely)
+    # Things are slower with valgrind, so give extra time here.
+    #
+    # Note: without lsof, there is a trade-off between the running time of this
+    # script and the risk of spurious errors because we didn't wait long enough.
+    # The watchdog delay on the other hand doesn't affect normal running time of
+    # the script, only the case where a client or server gets stuck.
+    if [ "$MEMCHECK" -gt 0 ]; then
+        START_DELAY=6
+        DOG_DELAY=60
+    else
+        START_DELAY=2
+        DOG_DELAY=20
+    fi
+
+    # some particular tests need more time:
+    # - for the client, we multiply the usual watchdog limit by a factor
+    # - for the server, we sleep for a number of seconds after the client exits
+    # see client_need_more_time() and server_needs_more_time()
+    CLI_DELAY_FACTOR=1
+    SRV_DELAY_SECONDS=0
+
+    # fix commands to use this port, force IPv4 while at it
+    # +SRV_PORT will be replaced by either $SRV_PORT or $PXY_PORT later
+    # Note: Using 'localhost' rather than 127.0.0.1 here is unwise, as on many
+    # machines that will resolve to ::1, and we don't want ipv6 here.
+    P_SRV="$P_SRV server_addr=127.0.0.1 server_port=$SRV_PORT"
+    P_CLI="$P_CLI server_addr=127.0.0.1 server_port=+SRV_PORT"
+    P_PXY="$P_PXY server_addr=127.0.0.1 server_port=$SRV_PORT listen_addr=127.0.0.1 listen_port=$PXY_PORT ${SEED:+"seed=$SEED"}"
+    O_SRV="$O_SRV -accept $SRV_PORT"
+    O_CLI="$O_CLI -connect 127.0.0.1:+SRV_PORT"
+    G_SRV="$G_SRV -p $SRV_PORT"
+    G_CLI="$G_CLI -p +SRV_PORT"
+
+    # Newer versions of OpenSSL have a syntax to enable all "ciphers", even
+    # low-security ones. This covers not just cipher suites but also protocol
+    # versions. It is necessary, for example, to use (D)TLS 1.0/1.1 on
+    # OpenSSL 1.1.1f from Ubuntu 20.04. The syntax was only introduced in
+    # OpenSSL 1.1.0 (21e0c1d23afff48601eb93135defddae51f7e2e3) and I can't find
+    # a way to discover it from -help, so check the openssl version.
+    case $($OPENSSL version) in
+        "OpenSSL 0"*|"OpenSSL 1.0"*) :;;
+        *)
+            O_CLI="$O_CLI -cipher ALL@SECLEVEL=0"
+            O_SRV="$O_SRV -cipher ALL@SECLEVEL=0"
+            ;;
+    esac
+
+    if [ -n "${OPENSSL_NEXT:-}" ]; then
+        O_NEXT_SRV="$O_NEXT_SRV -accept $SRV_PORT"
+        O_NEXT_CLI="$O_NEXT_CLI -connect 127.0.0.1:+SRV_PORT"
+    fi
+
+    if [ -n "${GNUTLS_NEXT_SERV:-}" ]; then
+        G_NEXT_SRV="$G_NEXT_SRV -p $SRV_PORT"
+    fi
+
+    if [ -n "${GNUTLS_NEXT_CLI:-}" ]; then
+        G_NEXT_CLI="$G_NEXT_CLI -p +SRV_PORT"
+    fi
+
+    # Allow SHA-1, because many of our test certificates use it
+    P_SRV="$P_SRV allow_sha1=1"
+    P_CLI="$P_CLI allow_sha1=1"
 fi
-if which $OPENSSL >/dev/null 2>&1; then :; else
-    echo "Command '$OPENSSL' not found"
-    exit 1
-fi
-
-# used by watchdog
-MAIN_PID="$$"
-
-# We use somewhat arbitrary delays for tests:
-# - how long do we wait for the server to start (when lsof not available)?
-# - how long do we allow for the client to finish?
-#   (not to check performance, just to avoid waiting indefinitely)
-# Things are slower with valgrind, so give extra time here.
-#
-# Note: without lsof, there is a trade-off between the running time of this
-# script and the risk of spurious errors because we didn't wait long enough.
-# The watchdog delay on the other hand doesn't affect normal running time of
-# the script, only the case where a client or server gets stuck.
-if [ "$MEMCHECK" -gt 0 ]; then
-    START_DELAY=6
-    DOG_DELAY=60
-else
-    START_DELAY=2
-    DOG_DELAY=20
-fi
-
-# some particular tests need more time:
-# - for the client, we multiply the usual watchdog limit by a factor
-# - for the server, we sleep for a number of seconds after the client exits
-# see client_need_more_time() and server_needs_more_time()
-CLI_DELAY_FACTOR=1
-SRV_DELAY_SECONDS=0
-
-# fix commands to use this port, force IPv4 while at it
-# +SRV_PORT will be replaced by either $SRV_PORT or $PXY_PORT later
-# Note: Using 'localhost' rather than 127.0.0.1 here is unwise, as on many
-# machines that will resolve to ::1, and we don't want ipv6 here.
-P_SRV="$P_SRV server_addr=127.0.0.1 server_port=$SRV_PORT"
-P_CLI="$P_CLI server_addr=127.0.0.1 server_port=+SRV_PORT"
-P_PXY="$P_PXY server_addr=127.0.0.1 server_port=$SRV_PORT listen_addr=127.0.0.1 listen_port=$PXY_PORT ${SEED:+"seed=$SEED"}"
-O_SRV="$O_SRV -accept $SRV_PORT"
-O_CLI="$O_CLI -connect 127.0.0.1:+SRV_PORT"
-G_SRV="$G_SRV -p $SRV_PORT"
-G_CLI="$G_CLI -p +SRV_PORT"
-
-if [ -n "${OPENSSL_LEGACY:-}" ]; then
-    O_LEGACY_SRV="$O_LEGACY_SRV -accept $SRV_PORT -dhparam data_files/dhparams.pem"
-    O_LEGACY_CLI="$O_LEGACY_CLI -connect 127.0.0.1:+SRV_PORT"
-fi
-
-# Newer versions of OpenSSL have a syntax to enable all "ciphers", even
-# low-security ones. This covers not just cipher suites but also protocol
-# versions. It is necessary, for example, to use (D)TLS 1.0/1.1 on
-# OpenSSL 1.1.1f from Ubuntu 20.04. The syntax was only introduced in
-# OpenSSL 1.1.0 (21e0c1d23afff48601eb93135defddae51f7e2e3) and I can't find
-# a way to discover it from -help, so check the openssl version.
-case $($OPENSSL version) in
-    "OpenSSL 0"*|"OpenSSL 1.0"*) :;;
-    *)
-        O_CLI="$O_CLI -cipher ALL@SECLEVEL=0"
-        O_SRV="$O_SRV -cipher ALL@SECLEVEL=0"
-        ;;
-esac
-
-if [ -n "${OPENSSL_NEXT:-}" ]; then
-    O_NEXT_SRV="$O_NEXT_SRV -accept $SRV_PORT"
-    O_NEXT_CLI="$O_NEXT_CLI -connect 127.0.0.1:+SRV_PORT"
-fi
-
-if [ -n "${GNUTLS_NEXT_SERV:-}" ]; then
-    G_NEXT_SRV="$G_NEXT_SRV -p $SRV_PORT"
-fi
-
-if [ -n "${GNUTLS_NEXT_CLI:-}" ]; then
-    G_NEXT_CLI="$G_NEXT_CLI -p +SRV_PORT"
-fi
-
-# Allow SHA-1, because many of our test certificates use it
-P_SRV="$P_SRV allow_sha1=1"
-P_CLI="$P_CLI allow_sha1=1"
-
 # Also pick a unique name for intermediate files
 SRV_OUT="srv_out.$$"
 CLI_OUT="cli_out.$$"
@@ -1719,8 +1755,8 @@ run_test    "Opaque key: server: ECDH-RSA not supported" \
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "Opaque psk: client: ECDHE-PSK not supported" \
-            "$P_SRV debug_level=1 psk=abc123 psk_identity=foo" \
-            "$P_CLI debug_level=1 psk=abc123 psk_identity=foo psk_opaque=1 \
+            "$P_SRV debug_level=1 psk=73776f726466697368 psk_identity=foo" \
+            "$P_CLI debug_level=1 psk=73776f726466697368 psk_identity=foo psk_opaque=1 \
             force_version=tls12 \
             force_ciphersuite=TLS-ECDHE-PSK-WITH-AES-128-CBC-SHA" \
             1 \
@@ -1730,8 +1766,8 @@ run_test    "Opaque psk: client: ECDHE-PSK not supported" \
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "Opaque psk: client: DHE-PSK not supported" \
-            "$P_SRV debug_level=1 psk=abc123 psk_identity=foo" \
-            "$P_CLI debug_level=1 psk=abc123 psk_identity=foo psk_opaque=1 \
+            "$P_SRV debug_level=1 psk=73776f726466697368 psk_identity=foo" \
+            "$P_CLI debug_level=1 psk=73776f726466697368 psk_identity=foo psk_opaque=1 \
             force_version=tls12 \
             force_ciphersuite=TLS-DHE-PSK-WITH-AES-128-CBC-SHA" \
             1 \
@@ -1741,8 +1777,8 @@ run_test    "Opaque psk: client: DHE-PSK not supported" \
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "Opaque psk: client: RSA-PSK not supported" \
-            "$P_SRV debug_level=1 psk=abc123 psk_identity=foo" \
-            "$P_CLI debug_level=1 psk=abc123 psk_identity=foo psk_opaque=1 \
+            "$P_SRV debug_level=1 psk=73776f726466697368 psk_identity=foo" \
+            "$P_CLI debug_level=1 psk=73776f726466697368 psk_identity=foo psk_opaque=1 \
             force_version=tls12 \
             force_ciphersuite=TLS-RSA-PSK-WITH-AES-128-CBC-SHA" \
             1 \
@@ -1752,10 +1788,10 @@ run_test    "Opaque psk: client: RSA-PSK not supported" \
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "Opaque psk: server: ECDHE-PSK not supported" \
-            "$P_SRV debug_level=1 psk=abc123 psk_identity=foo psk_opaque=1 \
+            "$P_SRV debug_level=1 psk=73776f726466697368 psk_identity=foo psk_opaque=1 \
             force_version=tls12 \
             force_ciphersuite=TLS-ECDHE-PSK-WITH-AES-128-CBC-SHA" \
-            "$P_CLI debug_level=1 psk=abc123 psk_identity=foo" \
+            "$P_CLI debug_level=1 psk=73776f726466697368 psk_identity=foo" \
             1 \
             -s "opaque PSK not supported with ECDHE-PSK" \
             -s "error" \
@@ -1763,10 +1799,10 @@ run_test    "Opaque psk: server: ECDHE-PSK not supported" \
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "Opaque psk: server: DHE-PSK not supported" \
-            "$P_SRV debug_level=1 psk=abc123 psk_identity=foo psk_opaque=1 \
+            "$P_SRV debug_level=1 psk=73776f726466697368 psk_identity=foo psk_opaque=1 \
             force_version=tls12 \
             force_ciphersuite=TLS-DHE-PSK-WITH-AES-128-CBC-SHA" \
-            "$P_CLI debug_level=1 psk=abc123 psk_identity=foo" \
+            "$P_CLI debug_level=1 psk=73776f726466697368 psk_identity=foo" \
             1 \
             -s "opaque PSK not supported with DHE-PSK" \
             -s "error" \
@@ -1774,10 +1810,10 @@ run_test    "Opaque psk: server: DHE-PSK not supported" \
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "Opaque psk: server: RSA-PSK not supported" \
-            "$P_SRV debug_level=1 psk=abc123 psk_identity=foo psk_opaque=1 \
+            "$P_SRV debug_level=1 psk=73776f726466697368 psk_identity=foo psk_opaque=1 \
             force_version=tls12 \
             force_ciphersuite=TLS-RSA-PSK-WITH-AES-128-CBC-SHA" \
-            "$P_CLI debug_level=1 psk=abc123 psk_identity=foo" \
+            "$P_CLI debug_level=1 psk=73776f726466697368 psk_identity=foo" \
             1 \
             -s "opaque PSK not supported with RSA-PSK" \
             -s "error" \
@@ -1931,12 +1967,14 @@ run_test    "CertificateRequest with empty CA list, TLS 1.0 (GnuTLS server)" \
 
 # Tests for SHA-1 support
 
+requires_config_enabled MBEDTLS_SHA1_C
 run_test    "SHA-1 forbidden by default in server certificate" \
             "$P_SRV key_file=data_files/server2.key crt_file=data_files/server2.crt" \
             "$P_CLI debug_level=2 allow_sha1=0" \
             1 \
             -c "The certificate is signed with an unacceptable hash"
 
+requires_config_enabled MBEDTLS_SHA1_C
 run_test    "SHA-1 explicitly allowed in server certificate" \
             "$P_SRV key_file=data_files/server2.key crt_file=data_files/server2.crt" \
             "$P_CLI allow_sha1=1" \
@@ -1947,17 +1985,23 @@ run_test    "SHA-256 allowed by default in server certificate" \
             "$P_CLI allow_sha1=0" \
             0
 
+requires_config_enabled MBEDTLS_SHA1_C
+requires_config_enabled MBEDTLS_RSA_C
 run_test    "SHA-1 forbidden by default in client certificate" \
             "$P_SRV auth_mode=required allow_sha1=0" \
             "$P_CLI key_file=data_files/cli-rsa.key crt_file=data_files/cli-rsa-sha1.crt" \
             1 \
             -s "The certificate is signed with an unacceptable hash"
 
+requires_config_enabled MBEDTLS_SHA1_C
+requires_config_enabled MBEDTLS_RSA_C
 run_test    "SHA-1 explicitly allowed in client certificate" \
             "$P_SRV auth_mode=required allow_sha1=1" \
             "$P_CLI key_file=data_files/cli-rsa.key crt_file=data_files/cli-rsa-sha1.crt" \
             0
 
+requires_config_enabled MBEDTLS_RSA_C
+requires_config_enabled MBEDTLS_SHA256_C
 run_test    "SHA-256 allowed by default in client certificate" \
             "$P_SRV auth_mode=required allow_sha1=0" \
             "$P_CLI key_file=data_files/cli-rsa.key crt_file=data_files/cli-rsa-sha256.crt" \
@@ -4328,7 +4372,7 @@ run_test    "Renegotiation: openssl server, client-initiated" \
             -c "client hello, adding renegotiation extension" \
             -c "found renegotiation extension" \
             -c "=> renegotiate" \
-            -C "ssl_hanshake() returned" \
+            -C "ssl_handshake() returned" \
             -C "error" \
             -c "HTTP/1.0 200 [Oo][Kk]"
 
@@ -4341,7 +4385,7 @@ run_test    "Renegotiation: gnutls server strict, client-initiated" \
             -c "client hello, adding renegotiation extension" \
             -c "found renegotiation extension" \
             -c "=> renegotiate" \
-            -C "ssl_hanshake() returned" \
+            -C "ssl_handshake() returned" \
             -C "error" \
             -c "HTTP/1.0 200 [Oo][Kk]"
 
@@ -4382,7 +4426,7 @@ run_test    "Renegotiation: gnutls server unsafe, client-inititated legacy" \
             -c "client hello, adding renegotiation extension" \
             -C "found renegotiation extension" \
             -c "=> renegotiate" \
-            -C "ssl_hanshake() returned" \
+            -C "ssl_handshake() returned" \
             -C "error" \
             -c "HTTP/1.0 200 [Oo][Kk]"
 
@@ -4445,6 +4489,7 @@ run_test    "Renegotiation: DTLS, gnutls server, client-initiated" \
 # Test for the "secure renegotiation" extension only (no actual renegotiation)
 
 requires_gnutls
+requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
 run_test    "Renego ext: gnutls server strict, client default" \
             "$G_SRV --priority=NORMAL:%SAFE_RENEGOTIATION" \
             "$P_CLI debug_level=3" \
@@ -4454,6 +4499,7 @@ run_test    "Renego ext: gnutls server strict, client default" \
             -c "HTTP/1.0 200 [Oo][Kk]"
 
 requires_gnutls
+requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
 run_test    "Renego ext: gnutls server unsafe, client default" \
             "$G_SRV --priority=NORMAL:%DISABLE_SAFE_RENEGOTIATION" \
             "$P_CLI debug_level=3" \
@@ -4463,6 +4509,7 @@ run_test    "Renego ext: gnutls server unsafe, client default" \
             -c "HTTP/1.0 200 [Oo][Kk]"
 
 requires_gnutls
+requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
 run_test    "Renego ext: gnutls server unsafe, client break legacy" \
             "$G_SRV --priority=NORMAL:%DISABLE_SAFE_RENEGOTIATION" \
             "$P_CLI debug_level=3 allow_legacy=-1" \
@@ -4472,6 +4519,7 @@ run_test    "Renego ext: gnutls server unsafe, client break legacy" \
             -C "HTTP/1.0 200 [Oo][Kk]"
 
 requires_gnutls
+requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
 run_test    "Renego ext: gnutls client strict, server default" \
             "$P_SRV debug_level=3" \
             "$G_CLI --priority=NORMAL:%SAFE_RENEGOTIATION localhost" \
@@ -4480,6 +4528,7 @@ run_test    "Renego ext: gnutls client strict, server default" \
             -s "server hello, secure renegotiation extension"
 
 requires_gnutls
+requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
 run_test    "Renego ext: gnutls client unsafe, server default" \
             "$P_SRV debug_level=3" \
             "$G_CLI --priority=NORMAL:%DISABLE_SAFE_RENEGOTIATION localhost" \
@@ -4488,6 +4537,7 @@ run_test    "Renego ext: gnutls client unsafe, server default" \
             -S "server hello, secure renegotiation extension"
 
 requires_gnutls
+requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
 run_test    "Renego ext: gnutls client unsafe, server break legacy" \
             "$P_SRV debug_level=3 allow_legacy=-1" \
             "$G_CLI --priority=NORMAL:%DISABLE_SAFE_RENEGOTIATION localhost" \
@@ -6193,9 +6243,9 @@ run_test    "DHM size: server default, client 2049, rejected" \
 # Tests for PSK callback
 
 run_test    "PSK callback: psk, no callback" \
-            "$P_SRV psk=abc123 psk_identity=foo" \
+            "$P_SRV psk=73776f726466697368 psk_identity=foo" \
             "$P_CLI force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA \
-            psk_identity=foo psk=abc123" \
+            psk_identity=foo psk=73776f726466697368" \
             0 \
             -S "SSL - None of the common ciphersuites is usable" \
             -S "SSL - Unknown identity received" \
@@ -6203,9 +6253,9 @@ run_test    "PSK callback: psk, no callback" \
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "PSK callback: opaque psk on client, no callback" \
-            "$P_SRV extended_ms=0 debug_level=1 psk=abc123 psk_identity=foo" \
+            "$P_SRV extended_ms=0 debug_level=1 psk=73776f726466697368 psk_identity=foo" \
             "$P_CLI extended_ms=0 debug_level=1 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA \
-            psk_identity=foo psk=abc123 psk_opaque=1" \
+            psk_identity=foo psk=73776f726466697368 psk_opaque=1" \
             0 \
             -c "skip PMS generation for opaque PSK"\
             -S "skip PMS generation for opaque PSK"\
@@ -6217,9 +6267,9 @@ run_test    "PSK callback: opaque psk on client, no callback" \
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "PSK callback: opaque psk on client, no callback, SHA-384" \
-            "$P_SRV extended_ms=0 debug_level=1 psk=abc123 psk_identity=foo" \
+            "$P_SRV extended_ms=0 debug_level=1 psk=73776f726466697368 psk_identity=foo" \
             "$P_CLI extended_ms=0 debug_level=1 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-256-CBC-SHA384 \
-            psk_identity=foo psk=abc123 psk_opaque=1" \
+            psk_identity=foo psk=73776f726466697368 psk_opaque=1" \
             0 \
             -c "skip PMS generation for opaque PSK"\
             -S "skip PMS generation for opaque PSK"\
@@ -6231,9 +6281,9 @@ run_test    "PSK callback: opaque psk on client, no callback, SHA-384" \
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "PSK callback: opaque psk on client, no callback, EMS" \
-            "$P_SRV extended_ms=1 debug_level=3 psk=abc123 psk_identity=foo" \
+            "$P_SRV extended_ms=1 debug_level=3 psk=73776f726466697368 psk_identity=foo" \
             "$P_CLI extended_ms=1 debug_level=3 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA \
-            psk_identity=foo psk=abc123 psk_opaque=1" \
+            psk_identity=foo psk=73776f726466697368 psk_opaque=1" \
             0 \
             -c "skip PMS generation for opaque PSK"\
             -S "skip PMS generation for opaque PSK"\
@@ -6245,9 +6295,9 @@ run_test    "PSK callback: opaque psk on client, no callback, EMS" \
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "PSK callback: opaque psk on client, no callback, SHA-384, EMS" \
-            "$P_SRV extended_ms=1 debug_level=3 psk=abc123 psk_identity=foo" \
+            "$P_SRV extended_ms=1 debug_level=3 psk=73776f726466697368 psk_identity=foo" \
             "$P_CLI extended_ms=1 debug_level=3 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-256-CBC-SHA384 \
-            psk_identity=foo psk=abc123 psk_opaque=1" \
+            psk_identity=foo psk=73776f726466697368 psk_opaque=1" \
             0 \
             -c "skip PMS generation for opaque PSK"\
             -S "skip PMS generation for opaque PSK"\
@@ -6259,9 +6309,9 @@ run_test    "PSK callback: opaque psk on client, no callback, SHA-384, EMS" \
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "PSK callback: raw psk on client, static opaque on server, no callback" \
-            "$P_SRV extended_ms=0 debug_level=1 psk=abc123 psk_identity=foo psk_opaque=1 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA" \
+            "$P_SRV extended_ms=0 debug_level=1 psk=73776f726466697368 psk_identity=foo psk_opaque=1 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA" \
             "$P_CLI extended_ms=0 debug_level=1 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA \
-            psk_identity=foo psk=abc123" \
+            psk_identity=foo psk=73776f726466697368" \
             0 \
             -C "skip PMS generation for opaque PSK"\
             -s "skip PMS generation for opaque PSK"\
@@ -6273,9 +6323,9 @@ run_test    "PSK callback: raw psk on client, static opaque on server, no callba
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "PSK callback: raw psk on client, static opaque on server, no callback, SHA-384" \
-            "$P_SRV extended_ms=0 debug_level=1 psk=abc123 psk_identity=foo psk_opaque=1 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-256-CBC-SHA384" \
+            "$P_SRV extended_ms=0 debug_level=1 psk=73776f726466697368 psk_identity=foo psk_opaque=1 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-256-CBC-SHA384" \
             "$P_CLI extended_ms=0 debug_level=1 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-256-CBC-SHA384 \
-            psk_identity=foo psk=abc123" \
+            psk_identity=foo psk=73776f726466697368" \
             0 \
             -C "skip PMS generation for opaque PSK"\
             -s "skip PMS generation for opaque PSK"\
@@ -6287,10 +6337,10 @@ run_test    "PSK callback: raw psk on client, static opaque on server, no callba
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "PSK callback: raw psk on client, static opaque on server, no callback, EMS" \
-            "$P_SRV debug_level=3 psk=abc123 psk_identity=foo psk_opaque=1 min_version=tls12 \
+            "$P_SRV debug_level=3 psk=73776f726466697368 psk_identity=foo psk_opaque=1 min_version=tls12 \
             force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA extended_ms=1" \
             "$P_CLI debug_level=3 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA \
-            psk_identity=foo psk=abc123 extended_ms=1" \
+            psk_identity=foo psk=73776f726466697368 extended_ms=1" \
             0 \
             -c "session hash for extended master secret"\
             -s "session hash for extended master secret"\
@@ -6302,10 +6352,10 @@ run_test    "PSK callback: raw psk on client, static opaque on server, no callba
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "PSK callback: raw psk on client, static opaque on server, no callback, EMS, SHA384" \
-            "$P_SRV debug_level=3 psk=abc123 psk_identity=foo psk_opaque=1 min_version=tls12 \
+            "$P_SRV debug_level=3 psk=73776f726466697368 psk_identity=foo psk_opaque=1 min_version=tls12 \
             force_ciphersuite=TLS-PSK-WITH-AES-256-CBC-SHA384 extended_ms=1" \
             "$P_CLI debug_level=3 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-256-CBC-SHA384 \
-            psk_identity=foo psk=abc123 extended_ms=1" \
+            psk_identity=foo psk=73776f726466697368 extended_ms=1" \
             0 \
             -c "session hash for extended master secret"\
             -s "session hash for extended master secret"\
@@ -6375,7 +6425,7 @@ run_test    "PSK callback: raw psk on client, no static PSK on server, opaque PS
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "PSK callback: raw psk on client, mismatching static raw PSK on server, opaque PSK from callback" \
-            "$P_SRV extended_ms=0 psk_identity=foo psk=abc123 debug_level=3 psk_list=abc,dead,def,beef psk_list_opaque=1 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA" \
+            "$P_SRV extended_ms=0 psk_identity=foo psk=73776f726466697368 debug_level=3 psk_list=abc,dead,def,beef psk_list_opaque=1 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA" \
             "$P_CLI extended_ms=0 debug_level=3 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA \
             psk_identity=def psk=beef" \
             0 \
@@ -6389,7 +6439,7 @@ run_test    "PSK callback: raw psk on client, mismatching static raw PSK on serv
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "PSK callback: raw psk on client, mismatching static opaque PSK on server, opaque PSK from callback" \
-            "$P_SRV extended_ms=0 psk_opaque=1 psk_identity=foo psk=abc123 debug_level=3 psk_list=abc,dead,def,beef psk_list_opaque=1 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA" \
+            "$P_SRV extended_ms=0 psk_opaque=1 psk_identity=foo psk=73776f726466697368 debug_level=3 psk_list=abc,dead,def,beef psk_list_opaque=1 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA" \
             "$P_CLI extended_ms=0 debug_level=3 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA \
             psk_identity=def psk=beef" \
             0 \
@@ -6403,7 +6453,7 @@ run_test    "PSK callback: raw psk on client, mismatching static opaque PSK on s
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "PSK callback: raw psk on client, mismatching static opaque PSK on server, raw PSK from callback" \
-            "$P_SRV extended_ms=0 psk_opaque=1 psk_identity=foo psk=abc123 debug_level=3 psk_list=abc,dead,def,beef min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA" \
+            "$P_SRV extended_ms=0 psk_opaque=1 psk_identity=foo psk=73776f726466697368 debug_level=3 psk_list=abc,dead,def,beef min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA" \
             "$P_CLI extended_ms=0 debug_level=3 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA \
             psk_identity=def psk=beef" \
             0 \
@@ -6416,7 +6466,7 @@ run_test    "PSK callback: raw psk on client, mismatching static opaque PSK on s
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "PSK callback: raw psk on client, id-matching but wrong raw PSK on server, opaque PSK from callback" \
-            "$P_SRV extended_ms=0 psk_opaque=1 psk_identity=def psk=abc123 debug_level=3 psk_list=abc,dead,def,beef min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA" \
+            "$P_SRV extended_ms=0 psk_opaque=1 psk_identity=def psk=73776f726466697368 debug_level=3 psk_list=abc,dead,def,beef min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA" \
             "$P_CLI extended_ms=0 debug_level=3 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA \
             psk_identity=def psk=beef" \
             0 \
@@ -6429,7 +6479,7 @@ run_test    "PSK callback: raw psk on client, id-matching but wrong raw PSK on s
 
 requires_config_enabled MBEDTLS_USE_PSA_CRYPTO
 run_test    "PSK callback: raw psk on client, matching opaque PSK on server, wrong opaque PSK from callback" \
-            "$P_SRV extended_ms=0 psk_opaque=1 psk_identity=def psk=beef debug_level=3 psk_list=abc,dead,def,abc123 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA" \
+            "$P_SRV extended_ms=0 psk_opaque=1 psk_identity=def psk=beef debug_level=3 psk_list=abc,dead,def,73776f726466697368 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA" \
             "$P_CLI extended_ms=0 debug_level=3 min_version=tls12 force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA \
             psk_identity=def psk=beef" \
             1 \
@@ -6438,16 +6488,16 @@ run_test    "PSK callback: raw psk on client, matching opaque PSK on server, wro
 run_test    "PSK callback: no psk, no callback" \
             "$P_SRV" \
             "$P_CLI force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA \
-            psk_identity=foo psk=abc123" \
+            psk_identity=foo psk=73776f726466697368" \
             1 \
             -s "SSL - None of the common ciphersuites is usable" \
             -S "SSL - Unknown identity received" \
             -S "SSL - Verification of the message MAC failed"
 
 run_test    "PSK callback: callback overrides other settings" \
-            "$P_SRV psk=abc123 psk_identity=foo psk_list=abc,dead,def,beef" \
+            "$P_SRV psk=73776f726466697368 psk_identity=foo psk_list=abc,dead,def,beef" \
             "$P_CLI force_ciphersuite=TLS-PSK-WITH-AES-128-CBC-SHA \
-            psk_identity=foo psk=abc123" \
+            psk_identity=foo psk=73776f726466697368" \
             1 \
             -S "SSL - None of the common ciphersuites is usable" \
             -s "SSL - Unknown identity received" \
@@ -6620,11 +6670,25 @@ run_test    "Per-version suites: TLS 1.2" \
 
 # Test for ClientHello without extensions
 
+# Without extensions, ECC is impossible (no curve negotiation).
+requires_config_enabled MBEDTLS_RSA_C
 requires_gnutls
-run_test    "ClientHello without extensions" \
+run_test    "ClientHello without extensions: RSA" \
             "$P_SRV debug_level=3" \
             "$G_CLI --priority=NORMAL:%NO_EXTENSIONS:%DISABLE_SAFE_RENEGOTIATION localhost" \
             0 \
+            -s "Ciphersuite is .*-RSA-WITH-.*" \
+            -S "Ciphersuite is .*-EC.*" \
+            -s "dumping 'client hello extensions' (0 bytes)"
+
+requires_config_enabled MBEDTLS_KEY_EXCHANGE_PSK_ENABLED
+requires_gnutls
+run_test    "ClientHello without extensions: PSK" \
+            "$P_SRV debug_level=3 psk=73776f726466697368" \
+            "$G_CLI --priority=NORMAL:+PSK:-RSA:-DHE-RSA:%NO_EXTENSIONS:%DISABLE_SAFE_RENEGOTIATION --pskusername=Client_identity --pskkey=73776f726466697368 localhost" \
+            0 \
+            -s "Ciphersuite is .*-PSK-.*" \
+            -S "Ciphersuite is .*-EC.*" \
             -s "dumping 'client hello extensions' (0 bytes)"
 
 # Tests for mbedtls_ssl_get_bytes_avail()
@@ -7960,9 +8024,9 @@ run_test    "SSL async private: decrypt, delay=1" \
 
 requires_config_enabled MBEDTLS_SSL_ASYNC_PRIVATE
 run_test    "SSL async private: decrypt RSA-PSK, delay=0" \
-            "$P_SRV psk=abc123 \
+            "$P_SRV psk=73776f726466697368 \
              async_operations=d async_private_delay1=0 async_private_delay2=0" \
-            "$P_CLI psk=abc123 \
+            "$P_CLI psk=73776f726466697368 \
              force_ciphersuite=TLS-RSA-PSK-WITH-AES-128-CBC-SHA256" \
             0 \
             -s "Async decrypt callback: using key slot " \
@@ -7970,9 +8034,9 @@ run_test    "SSL async private: decrypt RSA-PSK, delay=0" \
 
 requires_config_enabled MBEDTLS_SSL_ASYNC_PRIVATE
 run_test    "SSL async private: decrypt RSA-PSK, delay=1" \
-            "$P_SRV psk=abc123 \
+            "$P_SRV psk=73776f726466697368 \
              async_operations=d async_private_delay1=1 async_private_delay2=1" \
-            "$P_CLI psk=abc123 \
+            "$P_CLI psk=73776f726466697368 \
              force_ciphersuite=TLS-RSA-PSK-WITH-AES-128-CBC-SHA256" \
             0 \
             -s "Async decrypt callback: using key slot " \
@@ -8410,8 +8474,8 @@ run_test    "DTLS client auth: none, client has no cert" \
             -s "! Certificate verification was skipped"
 
 run_test    "DTLS wrong PSK: badmac alert" \
-            "$P_SRV dtls=1 psk=abc123 force_ciphersuite=TLS-PSK-WITH-AES-128-GCM-SHA256" \
-            "$P_CLI dtls=1 psk=abc124" \
+            "$P_SRV dtls=1 psk=73776f726466697368 force_ciphersuite=TLS-PSK-WITH-AES-128-GCM-SHA256" \
+            "$P_CLI dtls=1 psk=73776f726466697374" \
             1 \
             -s "SSL - Verification of the message MAC failed" \
             -c "SSL - A fatal alert message was received from our peer"
@@ -9002,7 +9066,6 @@ requires_config_enabled MBEDTLS_ECDSA_C
 requires_config_enabled MBEDTLS_SHA256_C
 requires_config_enabled MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
 requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
-requires_config_enabled MBEDTLS_CHACHAPOLY_C
 requires_max_content_len 2048
 run_test    "DTLS fragmenting: proxy MTU, ChachaPoly renego" \
             -p "$P_PXY mtu=512" \
@@ -9016,7 +9079,7 @@ run_test    "DTLS fragmenting: proxy MTU, ChachaPoly renego" \
              crt_file=data_files/server8_int-ca2.crt \
              key_file=data_files/server8.key \
              exchanges=2 renegotiation=1 renegotiate=1 \
-             force_ciphersuite=TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256 \
+             force_ciphersuite=TLS-ECDHE-ECDSA-WITH-CHACHA20-POLY1305-SHA256 \
              hs_timeout=10000-60000 \
              mtu=512" \
             0 \
@@ -9034,8 +9097,6 @@ requires_config_enabled MBEDTLS_ECDSA_C
 requires_config_enabled MBEDTLS_SHA256_C
 requires_config_enabled MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
 requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
-requires_config_enabled MBEDTLS_AES_C
-requires_config_enabled MBEDTLS_GCM_C
 requires_max_content_len 2048
 run_test    "DTLS fragmenting: proxy MTU, AES-GCM renego" \
             -p "$P_PXY mtu=512" \
@@ -9067,8 +9128,6 @@ requires_config_enabled MBEDTLS_ECDSA_C
 requires_config_enabled MBEDTLS_SHA256_C
 requires_config_enabled MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
 requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
-requires_config_enabled MBEDTLS_AES_C
-requires_config_enabled MBEDTLS_CCM_C
 requires_max_content_len 2048
 run_test    "DTLS fragmenting: proxy MTU, AES-CCM renego" \
             -p "$P_PXY mtu=1024" \
@@ -9100,8 +9159,6 @@ requires_config_enabled MBEDTLS_ECDSA_C
 requires_config_enabled MBEDTLS_SHA256_C
 requires_config_enabled MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
 requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
-requires_config_enabled MBEDTLS_AES_C
-requires_config_enabled MBEDTLS_CIPHER_MODE_CBC
 requires_config_enabled MBEDTLS_SSL_ENCRYPT_THEN_MAC
 requires_max_content_len 2048
 run_test    "DTLS fragmenting: proxy MTU, AES-CBC EtM renego" \
@@ -9134,8 +9191,6 @@ requires_config_enabled MBEDTLS_ECDSA_C
 requires_config_enabled MBEDTLS_SHA256_C
 requires_config_enabled MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
 requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
-requires_config_enabled MBEDTLS_AES_C
-requires_config_enabled MBEDTLS_CIPHER_MODE_CBC
 requires_max_content_len 2048
 run_test    "DTLS fragmenting: proxy MTU, AES-CBC non-EtM renego" \
             -p "$P_PXY mtu=1024" \
@@ -10297,8 +10352,8 @@ requires_config_value_at_least "MBEDTLS_SSL_DTLS_MAX_BUFFERING" 190
 requires_config_value_at_most "MBEDTLS_SSL_DTLS_MAX_BUFFERING" 230
 run_test    "DTLS reordering: Buffer encrypted Finished message, drop for fragmented NewSessionTicket" \
             -p "$P_PXY delay_srv=NewSessionTicket delay_srv=NewSessionTicket delay_ccs=1" \
-            "$P_SRV mtu=140 response_size=90 dgram_packing=0 psk=abc123 psk_identity=foo cookies=0 dtls=1 debug_level=2" \
-            "$P_CLI dgram_packing=0 dtls=1 debug_level=2 force_ciphersuite=TLS-PSK-WITH-AES-128-CCM-8 psk=abc123 psk_identity=foo" \
+            "$P_SRV mtu=140 response_size=90 dgram_packing=0 psk=73776f726466697368 psk_identity=foo cookies=0 dtls=1 debug_level=2" \
+            "$P_CLI dgram_packing=0 dtls=1 debug_level=2 force_ciphersuite=TLS-PSK-WITH-AES-128-CCM-8 psk=73776f726466697368 psk_identity=foo" \
             0 \
             -s "Buffer record from epoch 1" \
             -s "Found buffered record from current epoch - load" \
@@ -10312,8 +10367,8 @@ client_needs_more_time 2
 run_test    "DTLS proxy: 3d (drop, delay, duplicate), \"short\" PSK handshake" \
             -p "$P_PXY drop=5 delay=5 duplicate=5" \
             "$P_SRV dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 auth_mode=none \
-             psk=abc123" \
-            "$P_CLI dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 psk=abc123 \
+             psk=73776f726466697368" \
+            "$P_CLI dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 psk=73776f726466697368 \
              force_ciphersuite=TLS-PSK-WITH-AES-128-CCM-8" \
             0 \
             -s "Extra-header:" \
@@ -10380,8 +10435,8 @@ requires_config_enabled MBEDTLS_SSL_CACHE_C
 run_test    "DTLS proxy: 3d, min handshake, resumption" \
             -p "$P_PXY drop=5 delay=5 duplicate=5" \
             "$P_SRV dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 auth_mode=none \
-             psk=abc123 debug_level=3" \
-            "$P_CLI dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 psk=abc123 \
+             psk=73776f726466697368 debug_level=3" \
+            "$P_CLI dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 psk=73776f726466697368 \
              debug_level=3 reconnect=1 skip_close_notify=1 read_timeout=1000 max_resend=10 \
              force_ciphersuite=TLS-PSK-WITH-AES-128-CCM-8" \
             0 \
@@ -10395,8 +10450,8 @@ requires_config_enabled MBEDTLS_SSL_CACHE_C
 run_test    "DTLS proxy: 3d, min handshake, resumption, nbio" \
             -p "$P_PXY drop=5 delay=5 duplicate=5" \
             "$P_SRV dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 auth_mode=none \
-             psk=abc123 debug_level=3 nbio=2" \
-            "$P_CLI dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 psk=abc123 \
+             psk=73776f726466697368 debug_level=3 nbio=2" \
+            "$P_CLI dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 psk=73776f726466697368 \
              debug_level=3 reconnect=1 skip_close_notify=1 read_timeout=1000 max_resend=10 \
              force_ciphersuite=TLS-PSK-WITH-AES-128-CCM-8 nbio=2" \
             0 \
@@ -10410,8 +10465,8 @@ requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
 run_test    "DTLS proxy: 3d, min handshake, client-initiated renego" \
             -p "$P_PXY drop=5 delay=5 duplicate=5" \
             "$P_SRV dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 auth_mode=none \
-             psk=abc123 renegotiation=1 debug_level=2" \
-            "$P_CLI dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 psk=abc123 \
+             psk=73776f726466697368 renegotiation=1 debug_level=2" \
+            "$P_CLI dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 psk=73776f726466697368 \
              renegotiate=1 debug_level=2 \
              force_ciphersuite=TLS-PSK-WITH-AES-128-CCM-8" \
             0 \
@@ -10425,8 +10480,8 @@ requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
 run_test    "DTLS proxy: 3d, min handshake, client-initiated renego, nbio" \
             -p "$P_PXY drop=5 delay=5 duplicate=5" \
             "$P_SRV dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 auth_mode=none \
-             psk=abc123 renegotiation=1 debug_level=2" \
-            "$P_CLI dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 psk=abc123 \
+             psk=73776f726466697368 renegotiation=1 debug_level=2" \
+            "$P_CLI dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 psk=73776f726466697368 \
              renegotiate=1 debug_level=2 \
              force_ciphersuite=TLS-PSK-WITH-AES-128-CCM-8" \
             0 \
@@ -10440,9 +10495,9 @@ requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
 run_test    "DTLS proxy: 3d, min handshake, server-initiated renego" \
             -p "$P_PXY drop=5 delay=5 duplicate=5" \
             "$P_SRV dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 auth_mode=none \
-             psk=abc123 renegotiate=1 renegotiation=1 exchanges=4 \
+             psk=73776f726466697368 renegotiate=1 renegotiation=1 exchanges=4 \
              debug_level=2" \
-            "$P_CLI dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 psk=abc123 \
+            "$P_CLI dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 psk=73776f726466697368 \
              renegotiation=1 exchanges=4 debug_level=2 \
              force_ciphersuite=TLS-PSK-WITH-AES-128-CCM-8" \
             0 \
@@ -10456,9 +10511,9 @@ requires_config_enabled MBEDTLS_SSL_RENEGOTIATION
 run_test    "DTLS proxy: 3d, min handshake, server-initiated renego, nbio" \
             -p "$P_PXY drop=5 delay=5 duplicate=5" \
             "$P_SRV dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 auth_mode=none \
-             psk=abc123 renegotiate=1 renegotiation=1 exchanges=4 \
+             psk=73776f726466697368 renegotiate=1 renegotiation=1 exchanges=4 \
              debug_level=2 nbio=2" \
-            "$P_CLI dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 psk=abc123 \
+            "$P_CLI dtls=1 dgram_packing=0 hs_timeout=500-10000 tickets=0 psk=73776f726466697368 \
              renegotiation=1 exchanges=4 debug_level=2 nbio=2 \
              force_ciphersuite=TLS-PSK-WITH-AES-128-CCM-8" \
             0 \
@@ -10553,19 +10608,31 @@ requires_config_enabled MBEDTLS_MEMORY_DEBUG
 requires_config_enabled MBEDTLS_MEMORY_BUFFER_ALLOC_C
 requires_config_enabled MBEDTLS_SSL_MAX_FRAGMENT_LENGTH
 requires_max_content_len 16384
-run_tests_memory_after_hanshake
+run_tests_memory_after_handshake
 
-# Final report
+if [ "$LIST_TESTS" -eq 0 ]; then
+    # Final report
 
-echo "------------------------------------------------------------------------"
+    echo "------------------------------------------------------------------------"
 
-if [ $FAILS = 0 ]; then
-    printf "PASSED"
-else
-    printf "FAILED"
+    if [ $FAILS = 0 ]; then
+        printf "PASSED"
+    else
+        printf "FAILED"
+    fi
+    PASSES=$(( $TESTS - $FAILS ))
+    echo " ($PASSES / $TESTS tests ($SKIPS skipped))"
+
+    if [ $((TESTS - SKIPS)) -lt $MIN_TESTS ]; then
+        cat <<EOF
+Error: Expected to run at least $MIN_TESTS, but only ran $((TESTS - SKIPS)).
+Maybe a bad filter ('$FILTER') or a bad configuration?
+EOF
+        if [ $FAILS -eq 0 ]; then
+            FAILS=1
+        fi
+    fi
 fi
-PASSES=$(( $TESTS - $FAILS ))
-echo " ($PASSES / $TESTS tests ($SKIPS skipped))"
 
 if [ $FAILS -gt 255 ]; then
     # Clamp at 255 as caller gets exit code & 0xFF
