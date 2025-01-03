@@ -7,6 +7,9 @@
  * according to those terms. */
 
 #![deny(warnings)]
+// older versions of rustc do not understand `unexpected_cfgs`
+#![allow(unknown_lints)]
+#![allow(unexpected_cfgs)]
 #![allow(unused_doc_comments)]
 #![cfg_attr(not(feature = "std"), no_std)]
 

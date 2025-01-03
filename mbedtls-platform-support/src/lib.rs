@@ -6,6 +6,10 @@
  * option. This file may not be copied, modified, or distributed except
  * according to those terms. */
 
+ // older versions of rustc do not understand `unexpected_cfgs`
+#![allow(unknown_lints)]
+#![allow(unexpected_cfgs)]
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(not(feature = "std"))]
