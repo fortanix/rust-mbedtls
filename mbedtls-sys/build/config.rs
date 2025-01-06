@@ -210,6 +210,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_PSA_CRYPTO_EXTERNAL_RNG",                   Undefined),
     ("MBEDTLS_PSA_CRYPTO_SPM",                            Undefined),
     ("MBEDTLS_PSA_INJECT_ENTROPY",                        Undefined),
+    ("MBEDTLS_PSA_ASSUME_EXCLUSIVE_BUFFERS",              Undefined),
     ("MBEDTLS_RSA_NO_CRT",                                Undefined),
     ("MBEDTLS_SELF_TEST",                                 Defined),
     ("MBEDTLS_SHA256_SMALLER",                            Undefined),
