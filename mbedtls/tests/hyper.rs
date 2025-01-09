@@ -9,6 +9,12 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+// needed to have common code for `mod support` in unit and integrations tests
+extern crate mbedtls;
+
+mod support;
+use support::thread_spawn_named;
+
 // Native TLS compatibility - to move to native tls client in the future
 #[derive(Clone)]
 pub struct TlsStream<T> {
@@ -254,12 +260,12 @@ mod tests {
 
         let clone1 = client.clone();
         let clone2 = client.clone();
-        let t1 = std::thread::spawn(move || {
+        let t1 = thread_spawn_named("client1", move || {
             let response = clone1.get("https://google.com").send().unwrap();
             assert_eq!(response.status, hyper::status::StatusCode::Ok);
         });
 
-        let t2 = std::thread::spawn(move || {
+        let t2 = thread_spawn_named("client2", move || {
             clone2.post("https://google.com").body("foo=bar").send().unwrap();
         });
 
@@ -353,12 +359,10 @@ mod tests {
         let client1 = client.clone();
 
         // If this fails due to EWOULDBLOCK it means not enough threads were created.
-        let t1 = std::thread::Builder::new()
-            .spawn(move || {
-                let response = client1.post(&format!("https://{}/path", local_addr)).body("foo=bar").send();
-                println!("{:?}", response);
-            })
-            .unwrap();
+        let t1 = thread_spawn_named("client", move || {
+            let response = client1.post(&format!("https://{}/path", local_addr)).body("foo=bar").send();
+            println!("{:?}", response);
+        });
 
         t1.join().unwrap();
         handler.close().unwrap();

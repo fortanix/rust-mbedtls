@@ -83,14 +83,16 @@ fn server(conn: TcpStream) -> TlsResult<()> {
 #[cfg(unix)]
 mod test {
     use crate::support::net::create_tcp_pair;
-    use std::thread;
+    use crate::support::thread_spawn_named;
 
     #[test]
     fn callback_set_verify_flags() {
         let (c, s) = create_tcp_pair().unwrap();
 
-        let c = thread::spawn(move || super::client(c, super::Test::CallbackSetVerifyFlags).unwrap());
-        let s = thread::spawn(move || super::server(s).unwrap());
+        let c = thread_spawn_named("client", move || {
+            super::client(c, super::Test::CallbackSetVerifyFlags).unwrap()
+        });
+        let s = thread_spawn_named("server", move || super::server(s).unwrap());
         c.join().unwrap();
         s.join().unwrap();
     }
@@ -99,8 +101,8 @@ mod test {
     fn callback_error() {
         let (c, s) = create_tcp_pair().unwrap();
 
-        let c = thread::spawn(move || super::client(c, super::Test::CallbackError).unwrap());
-        let s = thread::spawn(move || super::server(s).unwrap());
+        let c = thread_spawn_named("client", move || super::client(c, super::Test::CallbackError).unwrap());
+        let s = thread_spawn_named("server", move || super::server(s).unwrap());
         c.join().unwrap();
         s.join().unwrap();
     }

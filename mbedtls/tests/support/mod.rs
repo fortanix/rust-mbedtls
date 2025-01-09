@@ -7,6 +7,7 @@
  * according to those terms. */
 
 #![allow(dead_code)]
+
 #[cfg(all(feature = "std", feature = "async"))]
 pub mod custom_write_all;
 pub mod entropy;
@@ -15,3 +16,15 @@ pub mod keys;
 #[cfg(sys_std_component = "net")]
 pub mod net;
 pub mod rand;
+
+#[cfg(feature = "std")]
+use std::thread::{Builder, JoinHandle};
+#[cfg(feature = "std")]
+pub fn thread_spawn_named<F, T, S>(name: S, f: F) -> JoinHandle<T>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+    S: Into<String>,
+{
+    Builder::new().name(name.into()).spawn(f).unwrap()
+}

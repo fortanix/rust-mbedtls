@@ -252,7 +252,7 @@ where
 
 #[cfg(unix)]
 mod test {
-    use std::thread;
+    use crate::support::thread_spawn_named;
 
     #[test]
     fn client_server_test() {
@@ -348,8 +348,12 @@ mod test {
             // TLS tests using certificates
 
             let (c, s) = crate::support::net::create_tcp_pair().unwrap();
-            let c = thread::spawn(move || super::client(c, min_c, max_c, exp_ver, false).unwrap());
-            let s = thread::spawn(move || super::server(s, min_s, max_s, exp_ver, false).unwrap());
+            let c = thread_spawn_named("client_tls_cert", move || {
+                super::client(c, min_c, max_c, exp_ver, false).unwrap()
+            });
+            let s = thread_spawn_named("server_tls_cert", move || {
+                super::server(s, min_s, max_s, exp_ver, false).unwrap()
+            });
 
             c.join().unwrap();
             s.join().unwrap();
@@ -357,8 +361,12 @@ mod test {
             // TLS tests using PSK
 
             let (c, s) = crate::support::net::create_tcp_pair().unwrap();
-            let c = thread::spawn(move || super::client(c, min_c, max_c, exp_ver, true).unwrap());
-            let s = thread::spawn(move || super::server(s, min_s, max_s, exp_ver, true).unwrap());
+            let c = thread_spawn_named("client_tls_psk", move || {
+                super::client(c, min_c, max_c, exp_ver, true).unwrap()
+            });
+            let s = thread_spawn_named("server_tls_psk", move || {
+                super::server(s, min_s, max_s, exp_ver, true).unwrap()
+            });
 
             c.join().unwrap();
             s.join().unwrap();
@@ -372,10 +380,14 @@ mod test {
 
             let s = UdpSocket::bind("127.0.0.1:12340").expect("could not bind UdpSocket");
             let s = ConnectedUdpSocket::connect(s, "127.0.0.1:12341").expect("could not connect UdpSocket");
-            let s = thread::spawn(move || super::server(s, min_s, max_s, exp_ver, false).unwrap());
+            let s = thread_spawn_named("server_dtls_cert", move || {
+                super::server(s, min_s, max_s, exp_ver, false).unwrap()
+            });
             let c = UdpSocket::bind("127.0.0.1:12341").expect("could not bind UdpSocket");
             let c = ConnectedUdpSocket::connect(c, "127.0.0.1:12340").expect("could not connect UdpSocket");
-            let c = thread::spawn(move || super::client(c, min_c, max_c, exp_ver, false).unwrap());
+            let c = thread_spawn_named("client_dtls_cert", move || {
+                super::client(c, min_c, max_c, exp_ver, false).unwrap()
+            });
 
             s.join().unwrap();
             c.join().unwrap();
@@ -389,10 +401,14 @@ mod test {
 
             let s = UdpSocket::bind("127.0.0.1:12340").expect("could not bind UdpSocket");
             let s = ConnectedUdpSocket::connect(s, "127.0.0.1:12341").expect("could not connect UdpSocket");
-            let s = thread::spawn(move || super::server(s, min_s, max_s, exp_ver, true).unwrap());
+            let s = thread_spawn_named("client_dtls_psk", move || {
+                super::server(s, min_s, max_s, exp_ver, true).unwrap()
+            });
             let c = UdpSocket::bind("127.0.0.1:12341").expect("could not bind UdpSocket");
             let c = ConnectedUdpSocket::connect(c, "127.0.0.1:12340").expect("could not connect UdpSocket");
-            let c = thread::spawn(move || super::client(c, min_c, max_c, exp_ver, true).unwrap());
+            let c = thread_spawn_named("client_dtls_psk", move || {
+                super::client(c, min_c, max_c, exp_ver, true).unwrap()
+            });
 
             s.join().unwrap();
             c.join().unwrap();
@@ -411,14 +427,14 @@ mod test {
         let data_to_write = expected_data.clone();
         assert_eq!(expected_data, data_to_write);
         let (c, s) = crate::support::net::create_tcp_pair().unwrap();
-        let c = thread::spawn(move || {
+        let c = thread_spawn_named("client", move || {
             super::with_client(c, move |mut session| {
                 let ret = session.write_all(&data_to_write);
                 assert!(ret.is_ok());
             })
         });
 
-        let s = thread::spawn(move || {
+        let s = thread_spawn_named("server", move || {
             super::with_server(s, move |mut session| {
                 let mut buf = vec![0; buffer_size];
                 match session.read_exact(&mut buf) {
@@ -450,7 +466,7 @@ mod test {
         let data_to_write = expected_data.clone();
         assert_eq!(expected_data, data_to_write);
         let (c, s) = crate::support::net::create_tcp_pair().unwrap();
-        let c = thread::spawn(move || {
+        let c = thread_spawn_named("client", move || {
             super::with_client(c, move |mut session| {
                 let ret = session.write_all(&data_to_write);
                 assert!(ret.is_err());
@@ -460,7 +476,7 @@ mod test {
             })
         });
 
-        let s = thread::spawn(move || {
+        let s = thread_spawn_named("server", move || {
             super::with_server(s, move |mut session| {
                 let mut buf = vec![0; buffer_size];
                 match session.read_exact(&mut buf) {
