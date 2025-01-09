@@ -59,8 +59,8 @@ mod test {
     use super::*;
     use crate::support::keys;
     use crate::support::net::create_tcp_pair;
+    use crate::support::thread_spawn_named;
     use mbedtls::error::codes;
-    use std::thread;
 
     // This callback should accept any valid self-signed certificate
     fn self_signed_ca_callback(child: &MbedtlsList<Certificate>) -> TlsResult<MbedtlsList<Certificate>> {
@@ -74,8 +74,10 @@ mod test {
         let ca_callback = |_: &MbedtlsList<Certificate>| -> TlsResult<MbedtlsList<Certificate>> {
             Ok(Certificate::from_pem_multiple(keys::ROOT_CA_CERT.as_bytes()).unwrap())
         };
-        let c = thread::spawn(move || super::client(c, ca_callback).unwrap());
-        let s = thread::spawn(move || super::server(s, keys::PEM_CERT.as_bytes(), keys::PEM_KEY.as_bytes()).unwrap());
+        let c = thread_spawn_named("client", move || super::client(c, ca_callback).unwrap());
+        let s = thread_spawn_named("server", move || {
+            super::server(s, keys::PEM_CERT.as_bytes(), keys::PEM_KEY.as_bytes()).unwrap()
+        });
         c.join().unwrap();
         s.join().unwrap();
     }
@@ -85,11 +87,13 @@ mod test {
         let (c, s) = create_tcp_pair().unwrap();
         let ca_callback =
             |_: &MbedtlsList<Certificate>| -> TlsResult<MbedtlsList<Certificate>> { Ok(MbedtlsList::<Certificate>::new()) };
-        let c = thread::spawn(move || {
+        let c = thread_spawn_named("client", move || {
             let result = super::client(c, ca_callback);
             assert_eq!(result, Err(codes::X509CertVerifyFailed.into()));
         });
-        let s = thread::spawn(move || super::server(s, keys::PEM_CERT.as_bytes(), keys::PEM_KEY.as_bytes()).unwrap());
+        let s = thread_spawn_named("server", move || {
+            super::server(s, keys::PEM_CERT.as_bytes(), keys::PEM_KEY.as_bytes()).unwrap()
+        });
         c.join().unwrap();
         s.join().unwrap();
     }
@@ -97,8 +101,10 @@ mod test {
     #[test]
     fn callback_self_signed() {
         let (c, s) = create_tcp_pair().unwrap();
-        let c = thread::spawn(move || super::client(c, self_signed_ca_callback).unwrap());
-        let s = thread::spawn(move || super::server(s, keys::PEM_SELF_SIGNED_CERT, keys::PEM_SELF_SIGNED_KEY).unwrap());
+        let c = thread_spawn_named("client", move || super::client(c, self_signed_ca_callback).unwrap());
+        let s = thread_spawn_named("server", move || {
+            super::server(s, keys::PEM_SELF_SIGNED_CERT, keys::PEM_SELF_SIGNED_KEY).unwrap()
+        });
         c.join().unwrap();
         s.join().unwrap();
     }
@@ -109,11 +115,13 @@ mod test {
         // be rejected by the client, because the ca_callback should only accept
         // self-signed certificates.
         let (c, s) = create_tcp_pair().unwrap();
-        let c = thread::spawn(move || {
+        let c = thread_spawn_named("client", move || {
             let result = super::client(c, self_signed_ca_callback);
             assert_eq!(result, Err(codes::X509CertVerifyFailed.into()));
         });
-        let s = thread::spawn(move || super::server(s, keys::PEM_CERT.as_bytes(), keys::PEM_KEY.as_bytes()).unwrap());
+        let s = thread_spawn_named("server", move || {
+            super::server(s, keys::PEM_CERT.as_bytes(), keys::PEM_KEY.as_bytes()).unwrap()
+        });
         c.join().unwrap();
         s.join().unwrap();
     }
@@ -123,12 +131,13 @@ mod test {
         // We set up the server to supply a self-signed certificate with an invalid
         // signature. It should be rejected by the client.
         let (c, s) = create_tcp_pair().unwrap();
-        let c = thread::spawn(move || {
+        let c = thread_spawn_named("client", move || {
             let result = super::client(c, self_signed_ca_callback);
             assert_eq!(result, Err(codes::X509CertVerifyFailed.into()));
         });
-        let s =
-            thread::spawn(move || super::server(s, keys::PEM_SELF_SIGNED_CERT_INVALID_SIG, keys::PEM_SELF_SIGNED_KEY).unwrap());
+        let s = thread_spawn_named("server", move || {
+            super::server(s, keys::PEM_SELF_SIGNED_CERT_INVALID_SIG, keys::PEM_SELF_SIGNED_KEY).unwrap()
+        });
         c.join().unwrap();
         s.join().unwrap();
     }
