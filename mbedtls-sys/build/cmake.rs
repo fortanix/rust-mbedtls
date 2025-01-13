@@ -8,6 +8,8 @@
 
 impl super::BuildConfig {
     pub fn cmake(&self) {
+        static INSTALL_DIR: &str = "lib";
+
         let mut cmk = cmake::Config::new(&self.mbedtls_src);
         cmk.cflag(format!(
             r#"-DMBEDTLS_CONFIG_FILE="\"{}\"""#,
@@ -19,6 +21,8 @@ impl super::BuildConfig {
         .define("GEN_FILES", "ON")
         // Prefer unix-style over Apple-style Python3 on macOS, required for the Github Actions CI
         .define("Python3_FIND_FRAMEWORK", "LAST")
+        // Ensure same installation directory is used on all platforms
+        .define("LIB_INSTALL_DIR", INSTALL_DIR)
         .build_target("install");
         for cflag in &self.cflags {
             cmk.cflag(cflag);
@@ -50,7 +54,7 @@ impl super::BuildConfig {
 
         println!(
             "cargo:rustc-link-search=native={}",
-            dst.join("lib").to_str().expect("link-search UTF-8 error")
+            dst.join(INSTALL_DIR).to_str().expect("link-search UTF-8 error")
         );
 
         println!("cargo:rustc-link-lib=static=mbedtls");
