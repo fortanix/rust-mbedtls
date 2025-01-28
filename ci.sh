@@ -44,7 +44,7 @@ case "$RUST_VERSION" in
                     cargo nextest run --no-default-features --features "$FEAT"no_std_deps --target $TARGET
                 fi
             else
-                cargo +$RUST_VERSION test --no-run --features "$FEAT" --target=$TARGET
+                cargo +$RUST_VERSION test -vv --no-run --features "$FEAT" --target=$TARGET
             fi
         done
 
