@@ -21,6 +21,8 @@ impl super::BuildConfig {
         .define("GEN_FILES", "ON")
         // Prefer unix-style over Apple-style Python3 on macOS, required for the Github Actions CI
         .define("Python3_FIND_FRAMEWORK", "LAST")
+        // Ensure "lib" directory is used on all platforms
+        .define("LIB_INSTALL_DIR", "lib")
         .build_target("install");
         for cflag in &self.cflags {
             cmk.cflag(cflag);
