@@ -23,6 +23,9 @@ impl super::BuildConfig {
         .define("Python3_FIND_FRAMEWORK", "LAST")
         // Ensure same installation directory is used on all platforms
         .define("LIB_INSTALL_DIR", INSTALL_DIR)
+        // We're building a static library, not an executable, so the try_compile stage of the
+        // cmake build should try to compile a static library as well.
+        .define("CMAKE_TRY_COMPILE_TARGET_TYPE", "STATIC_LIBRARY")
         .build_target("install");
         for cflag in &self.cflags {
             cmk.cflag(cflag);
@@ -45,9 +48,6 @@ impl super::BuildConfig {
             // When building on Linux, -rdynamic flag is added automatically. Changing the
             // CMAKE_SYSTEM_NAME to Generic avoids this.
             cmk.define("CMAKE_SYSTEM_NAME", "Generic");
-            // The compiler test requires _exit which is not available. By just trying to
-            // compile a library, we can fix it.
-            cmk.define("CMAKE_TRY_COMPILE_TARGET_TYPE", "STATIC_LIBRARY");
         }
 
         let dst = cmk.build();
