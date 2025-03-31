@@ -1,11 +1,10 @@
 > [!WARNING]
-> The state of this repertory is changed to maintenance. We will not accept any more feature requests. Please check [Change of status](#change-of-status) for details
+> The state of this repository is changed to maintenance. We will not accept any more feature requests. Please check [Change of status](#change-of-status) for details
 
 
 # mbedtls
 
 [![Build Status](https://travis-ci.com/fortanix/rust-mbedtls.svg?branch=master)](https://travis-ci.com/fortanix/rust-mbedtls)
-
 
 This is an idiomatic Rust wrapper for MbedTLS, allowing you to use MbedTLS with
 only safe code while being able to use such great Rust features like error
@@ -16,9 +15,13 @@ used in a no_std environment.
 
 ## Change of status
 
-We discovered that `mbedtls 3.4.X` is not thread safe and will not work properly with multiple threads. This problem will not be fixed in short time. And the new PSA approach does not match our needs.
+We discovered that `mbedtls 3.4.X` is not thread safe and will not work
+properly with multiple threads. This problem will not be fixed in short time,
+and the new PSA approach does not match our needs.
 
-So we now decided to stay on mbedtls `2.28.X`; and the state of this repertory is changed to maintenance. We will not accept any more feature requests.
+Therefore, we now decided to stay on mbedtls `2.28.X`, and the state of this
+repository is changed to maintenance. We will not accept any more feature
+requests.
 
 Old code of `mbedtls 3.X` on `master` branch has been moved to branch `mbedtls-3`.
 
@@ -40,17 +43,15 @@ This crate depends on the mbedtls-sys-auto crate, see below for build details.
 ### Features
 
 This is a list of the Cargo features available for mbedtls. Features in
+**bold** are enabled by default.
 
 * *x509* Enable PKI functionality. The main code enabled by this feature is in
          the `x509` module.
-
 * *ssl* Enable ssl/tls functionality. The main code enabled by this feature is
         in the `ssl` module.
 
 Note: The above features were introduced so that this crate could be used as a
 crypto (or PKI) only library.
-
-**bold** are enabled by default.
 
 * **aesni** Enable support for the AES-NI instructions. On SGX, this feature is
             enabled automatically.
@@ -78,7 +79,8 @@ crypto (or PKI) only library.
 * **time** Enable time support in mbedtls-sys.
 * *zlib* Enable zlib support in mbedtls-sys.
 * *async-rt* Enable async support for SSL.
-* *chrono* Enable [`chrono`](https://docs.rs/chrono/) support (e.g., implementation of conversion traits between `x509::Time` and `chrono` types)
+* *chrono* Enable [`chrono`](https://docs.rs/chrono/) support (e.g.,
+           implementation of conversion traits between `x509::Time` and `chrono` types)
 
 # mbedtls-sys-auto
 
