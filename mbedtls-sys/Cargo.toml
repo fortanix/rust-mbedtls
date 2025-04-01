@@ -15,8 +15,8 @@ links = "mbedtls"
 
 [package.metadata.mbedtls]
 git = "https://github.com/Mbed-TLS/mbedtls.git"
-version = "2.28.9"
-rev = "5e146adef63b326b04282252639bebc2730939c6"
+version = "2.28.10"
+rev = "2fc8413bfcb51354c8e679141b17b3f1a5942561"
 
 [lib]
 name = "mbedtls_sys"
