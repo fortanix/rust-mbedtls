@@ -175,7 +175,7 @@ Instructions for updating to new MbedTLS source code releases in `mbedtls-sys/`:
 3. Use the command in `build/headers.rs` to generate the list of headers,
    and update that file as appropriate.
 4. Check `build/config.rs` vs. `vendor/include/mbedtls/config.h`.
-5. Update `Cargo.toml` version number.
+5. Update `Cargo.toml` version and also the `[package.metadata.mbedtls]` section with the upstream version (and commit hash).
 
 # mbedtls-selftest
 
