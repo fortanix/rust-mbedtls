@@ -250,6 +250,7 @@ const DEFAULT_DEFINES: &'static [CDefine] = &[
     ("MBEDTLS_SSL_TRUNCATED_HMAC",                        Defined),
     ("MBEDTLS_SSL_TRUNCATED_HMAC_COMPAT",                 Undefined),
     ("MBEDTLS_SSL_VARIABLE_BUFFER_LENGTH",                Undefined),
+    ("MBEDTLS_SSL_CLI_ALLOW_WEAK_CERTIFICATE_VERIFICATION_WITHOUT_HOSTNAME", Defined),
     ("MBEDTLS_TEST_CONSTANT_FLOW_MEMSAN",                 Undefined),
     ("MBEDTLS_TEST_CONSTANT_FLOW_VALGRIND",               Undefined),
     ("MBEDTLS_TEST_HOOKS",                                Undefined),
