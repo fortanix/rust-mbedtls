@@ -11,10 +11,11 @@ fi
 
 # Test logic start from here
 export CFLAGS_x86_64_fortanix_unknown_sgx="-isystem/usr/include/x86_64-linux-gnu -mlvi-hardening -mllvm -x86-experimental-lvi-inline-asm-hardening"
-export CC_x86_64_fortanix_unknown_sgx=clang-11
+export CC_x86_64_fortanix_unknown_sgx=clang-18
 export CC_aarch64_unknown_linux_musl=/tmp/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/tmp/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER=qemu-aarch64
+export CMAKE_POLICY_VERSION_MINIMUM=3.5
 
 cd "${repo_root}/mbedtls"
 case "$RUST_VERSION" in
@@ -24,29 +25,33 @@ case "$RUST_VERSION" in
         rustup target add --toolchain $RUST_VERSION $TARGET
         printenv
 
-        for FEAT in "" "x509," "ssl,"; do
-            # The SGX target cannot be run under test like a ELF binary
-            if [ "$TARGET" != "x86_64-fortanix-unknown-sgx" ]; then
-                # make sure that explicitly providing the default target works
-                cargo nextest run --features "$FEAT" --target $TARGET --release
-                cargo nextest run --features "$FEAT"pkcs12 --target $TARGET
-                cargo nextest run --features "$FEAT"pkcs12_rc2 --target $TARGET
-                cargo nextest run --features "$FEAT"dsa --target $TARGET
+        # The SGX target cannot be run under test like a ELF binary
+        if [ "$TARGET" != "x86_64-fortanix-unknown-sgx" ]; then
+            # make sure that explicitly providing the default target works
+            cargo nextest run --target $TARGET --release
+            cargo nextest run --features pkcs12 --target $TARGET
+            cargo nextest run --features pkcs12_rc2 --target $TARGET
+            cargo nextest run --features dsa --target $TARGET
+            cargo nextest run --features x509 --target $TARGET
+            cargo nextest run --features ssl --target $TARGET
 
                 # If AES-NI is supported, test the feature
-                if [ -n "$AES_NI_SUPPORT" ]; then
-                    cargo nextest run --features "$FEAT"force_aesni_support --target $TARGET
-                fi
-
-                # no_std tests only are able to run on x86 platform
-                if [ "$TARGET" == "x86_64-unknown-linux-gnu" ] || [[ "$TARGET" =~ ^x86_64-pc-windows- ]]; then
-                    cargo nextest run --no-default-features --features "$FEAT"no_std_deps,rdrand,time --target $TARGET
-                    cargo nextest run --no-default-features --features "$FEAT"no_std_deps --target $TARGET
-                fi
-            else
-                cargo +$RUST_VERSION test --no-run --features "$FEAT" --target=$TARGET
+            if [ -n "$AES_NI_SUPPORT" ]; then
+                cargo nextest run --features force_aesni_support --target $TARGET
+                cargo nextest run --features force_aesni_support,x509,ssl --target $TARGET
             fi
-        done
+
+            # no_std tests only are able to run on x86 platform
+            if [ "$TARGET" == "x86_64-unknown-linux-gnu" ] || [[ "$TARGET" =~ ^x86_64-pc-windows- ]]; then
+                cargo nextest run --no-default-features --features no_std_deps --target $TARGET
+                cargo nextest run --no-default-features --features no_std_deps,rdrand,time,x509 --target $TARGET
+                cargo nextest run --no-default-features --features no_std_deps,rdrand,time,ssl --target $TARGET
+            fi
+        else
+            cargo test --no-run --target=$TARGET
+            cargo test --no-run --features ssl --target=$TARGET
+            cargo test --no-run --features x509 --target=$TARGET
+        fi
 
         if [ "$TARGET" == "x86_64-apple-darwin" ]; then
             cargo nextest run --no-default-features --features no_std_deps --target $TARGET
