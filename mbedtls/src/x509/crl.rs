@@ -37,6 +37,14 @@ impl Crl {
                 .map(|_| ())
         }
     }
+
+    pub fn issuer(&self) -> Result<String> {
+        crate::private::alloc_string_repeat(|buf, size| unsafe { x509_dn_gets(buf, size, &self.inner.issuer) })
+    }
+
+    pub fn issuer_raw(&self) -> Result<Vec<u8>> {
+        Ok(super::x509_buf_to_vec(&self.inner.issuer_raw))
+    }
 }
 
 impl fmt::Debug for Crl {
