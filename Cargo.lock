@@ -713,6 +713,8 @@ dependencies = [
 [[package]]
 name = "mbedtls-platform-support"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be354d52c70402fbfb37bad9ae2aa99ab52af79f37423cb9d6c41c8fb863abc7"
 dependencies = [
  "cc",
  "cfg-if 1.0.0",
@@ -723,7 +725,9 @@ dependencies = [
 
 [[package]]
 name = "mbedtls-sys-auto"
-version = "2.28.7"
+version = "2.28.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d12704ff5afaa855500ac08b955ff7bb0cef94eb10983da6a1b6c6ffe74a070"
 dependencies = [
  "bindgen",
  "cc",
@@ -1158,9 +1162,9 @@ dependencies = [
 
 [[package]]
 name = "spin"
-version = "0.5.2"
+version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
+checksum = "ceac490aa12c567115b40b7b7fceca03a6c9d53d5defea066123debc83c5dc1f"
 
 [[package]]
 name = "syn"
