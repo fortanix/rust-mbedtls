@@ -7,6 +7,7 @@
  * according to those terms. */
 
 #![deny(warnings)]
+#![allow(unexpected_cfgs)]
 #![allow(unused_doc_comments)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
