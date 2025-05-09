@@ -2,7 +2,7 @@
 name = "mbedtls"
 # We jumped from v0.9 to v0.12 because v0.10 and v0.11 were based on mbedtls 3.X, which
 # we decided not to support.
-version = "0.13.0"
+version = "0.13.1"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -24,8 +24,8 @@ features = ["x509", "ssl"]
 
 [dependencies]
 bitflags = "1"
-serde = { version = "1.0.214", default-features = false, features = ["alloc"] }
-serde_derive = "1.0.214"
+serde = { version = "1.0.7", default-features = false, features = ["alloc"] }
+serde_derive = "1.0.7"
 byteorder = { version = "1.0.0", default-features = false }
 yasna = { version = "0.2", optional = true, features = [
     "num-bigint",
