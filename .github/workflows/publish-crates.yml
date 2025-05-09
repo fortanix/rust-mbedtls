@@ -27,10 +27,8 @@ jobs:
             profile: minimal
       - name: Install build dependencies
         run: |
-          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          echo "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-11 main" | sudo tee -a /etc/apt/sources.list
           sudo apt-get update
-          sudo apt-get install -y clang-11 cmake
+          sudo apt-get install -y clang-18 cmake
           if [ -f mbedtls-sys/vendor/scripts/basic.requirements.txt ]; then
             sudo apt-get install -y python3-pip
             python3 -m pip install -r mbedtls-sys/vendor/scripts/basic.requirements.txt
