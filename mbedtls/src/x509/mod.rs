@@ -120,6 +120,15 @@ impl VerifyError {
     }
 }
 
+fn x509_buf_to_vec(buf: &x509_buf) -> Vec<u8> {
+    if buf.p.is_null() || buf.len == 0 {
+        return vec![];
+    }
+
+    let slice = unsafe { core::slice::from_raw_parts(buf.p, buf.len) };
+    slice.to_owned()
+}
+
 callback!(VerifyCallback: Fn(&Certificate, i32, &mut VerifyError) -> Result<(), Error>);
 
 pub(crate) unsafe extern "C" fn verify_callback<F>(

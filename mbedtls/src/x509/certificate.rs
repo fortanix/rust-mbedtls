@@ -66,15 +66,6 @@ define!(
 
 unsafe impl Sync for Certificate {}
 
-fn x509_buf_to_vec(buf: &x509_buf) -> Vec<u8> {
-    if buf.p.is_null() || buf.len == 0 {
-        return vec![];
-    }
-
-    let slice = unsafe { core::slice::from_raw_parts(buf.p, buf.len) };
-    slice.to_owned()
-}
-
 fn x509_time_to_time(tm: &x509_time) -> Result<Time> {
     // ensure casts don't underflow
     if tm.year < 0 || tm.mon < 0 || tm.day < 0 || tm.hour < 0 || tm.min < 0 || tm.sec < 0 {
@@ -139,7 +130,7 @@ impl Certificate {
     }
 
     pub fn issuer_raw(&self) -> Result<Vec<u8>> {
-        Ok(x509_buf_to_vec(&self.inner.issuer_raw))
+        Ok(super::x509_buf_to_vec(&self.inner.issuer_raw))
     }
 
     pub fn subject(&self) -> Result<String> {
@@ -147,7 +138,7 @@ impl Certificate {
     }
 
     pub fn subject_raw(&self) -> Result<Vec<u8>> {
-        Ok(x509_buf_to_vec(&self.inner.subject_raw))
+        Ok(super::x509_buf_to_vec(&self.inner.subject_raw))
     }
 
     pub fn serial(&self) -> Result<String> {
@@ -155,7 +146,7 @@ impl Certificate {
     }
 
     pub fn serial_raw(&self) -> Result<Vec<u8>> {
-        Ok(x509_buf_to_vec(&self.inner.serial))
+        Ok(super::x509_buf_to_vec(&self.inner.serial))
     }
 
     pub fn public_key(&self) -> &Pk {
@@ -188,7 +179,7 @@ impl Certificate {
     }
 
     pub fn extensions_raw(&self) -> Result<Vec<u8>> {
-        Ok(x509_buf_to_vec(&self.inner.v3_ext))
+        Ok(super::x509_buf_to_vec(&self.inner.v3_ext))
     }
 
     #[cfg(feature = "std")]
@@ -213,7 +204,7 @@ impl Certificate {
     }
 
     pub fn signature(&self) -> Result<Vec<u8>> {
-        Ok(x509_buf_to_vec(&self.inner.sig))
+        Ok(super::x509_buf_to_vec(&self.inner.sig))
     }
 
     pub fn digest_type(&self) -> MdType {
