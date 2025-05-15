@@ -2,7 +2,7 @@
 name = "mbedtls"
 # We jumped from v0.9 to v0.12 because v0.10 and v0.11 were based on mbedtls 3.X, which
 # we decided not to support.
-version = "0.12.4"
+version = "0.12.5"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -18,6 +18,9 @@ readme = "../README.md"
 repository = "https://github.com/fortanix/rust-mbedtls"
 documentation = "https://docs.rs/mbedtls/"
 keywords = ["MbedTLS", "mbed", "TLS", "SSL", "cryptography"]
+
+[package.metadata.docs.rs]
+features = ["x509", "ssl"]
 
 [dependencies]
 bitflags = "1"
@@ -61,6 +64,7 @@ criterion = { version = "0.5.1", features = ["html_reports"] }
 
 [build-dependencies]
 cc = "1.0"
+rustc_version = "0.4.0"
 
 # feature 'time` is necessary under windows
 [target.'cfg(target_env = "msvc")'.dependencies]
@@ -143,3 +147,16 @@ required-features = ["async-rt", "ssl"]
 [[bench]]
 name = "ecp_eq_test"
 harness = false
+
+[[bench]]
+name = "cipher"
+harness = false
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(nightly)',
+    'cfg(sys_threading_component, values("custom"))',
+    'cfg(sys_time_component, values("custom"))',
+    'cfg(sys_std_component, values("entropy", "net"))',
+    'cfg(time_component, values("custom", "libc"))',
+] }

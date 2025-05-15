@@ -86,6 +86,12 @@ jobs:
         toolchain: ${{ matrix.rust }}
         targets: ${{ matrix.target }}
 
+    - name: Install cargo-nextest
+      uses: taiki-e/install-action@v2
+      with:
+        tool: nextest@0.9.52
+        checksum: true
+
     - name: Run tests
       run: |
         # Set LIBCLANG_PATH for bindgen to access clang library under windows-2019
@@ -96,7 +102,7 @@ jobs:
         ./ci_tools.sh
         ./ci.sh
       env:
-        TRAVIS_RUST_VERSION: ${{ matrix.rust }}
+        RUST_VERSION: ${{ matrix.rust }}
         TARGET: ${{ matrix.target }}
         MATRIX_OS: ${{ matrix.os }}
         ZLIB_INSTALLED: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'true' || '' }}
@@ -126,8 +132,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
-      - name: Run cargo bench
-        run: cargo bench
+      - uses: boa-dev/criterion-compare-action@v3
+        name: Run criterion-compare-action
+        with:
+          cwd: "mbedtls"
+          benchName: "cipher"
+          branchName: ${{ github.base_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   ci-success:
     name: ci

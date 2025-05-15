@@ -1139,7 +1139,6 @@ mod tests {
     use super::*;
     use crate::hash::{MdInfo, Type};
     use crate::pk::Type as PkType;
-    use core::ops::Sub;
 
     // This is test data that must match library output *exactly*
     const TEST_PEM: &'static str = "-----BEGIN RSA PRIVATE KEY-----

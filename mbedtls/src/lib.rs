@@ -10,6 +10,7 @@
 #![allow(unexpected_cfgs)]
 #![allow(unused_doc_comments)]
 #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(nightly, feature(doc_auto_cfg))]
 
 #[cfg(not(any(feature = "std", feature = "no_std_deps")))]
 compile_error!("Either the `std` or `no_std_deps` feature needs to be enabled");

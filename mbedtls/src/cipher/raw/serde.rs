@@ -10,14 +10,12 @@
 use crate::alloc_prelude::*;
 use crate::cipher::*;
 use core::fmt;
-use core::marker::PhantomData;
 use core::mem::size_of;
 use core::ptr;
 use core::result::Result;
 use core::slice::from_raw_parts;
 use core::str;
 use mbedtls_sys::*;
-use serde;
 use serde::de::Unexpected;
 use serde::ser::SerializeSeq;
 use serde::{de, ser};
