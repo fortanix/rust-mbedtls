@@ -10,6 +10,8 @@ use core::fmt;
 
 use mbedtls_sys::*;
 
+#[cfg(not(feature = "std"))]
+use crate::alloc_prelude::*;
 use crate::error::{IntoResult, Result};
 use crate::hash::Type as MdType;
 
