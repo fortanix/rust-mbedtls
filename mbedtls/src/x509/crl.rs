@@ -10,7 +10,10 @@ use core::fmt;
 
 use mbedtls_sys::*;
 
+#[cfg(not(feature = "std"))]
+use crate::alloc_prelude::*;
 use crate::error::{IntoResult, Result};
+use crate::hash::Type as MdType;
 
 define!(
     #[c_ty(x509_crl)]
@@ -36,6 +39,26 @@ impl Crl {
                 .into_result()
                 .map(|_| ())
         }
+    }
+
+    pub fn issuer(&self) -> Result<String> {
+        crate::private::alloc_string_repeat(|buf, size| unsafe { x509_dn_gets(buf, size, &self.inner.issuer) })
+    }
+
+    pub fn issuer_raw(&self) -> Result<Vec<u8>> {
+        Ok(super::x509_buf_to_vec(&self.inner.issuer_raw))
+    }
+
+    pub fn tbs_raw(&self) -> Result<Vec<u8>> {
+        Ok(super::x509_buf_to_vec(&self.inner.tbs))
+    }
+
+    pub fn signature(&self) -> Result<Vec<u8>> {
+        Ok(super::x509_buf_to_vec(&self.inner.sig))
+    }
+
+    pub fn digest_type(&self) -> MdType {
+        MdType::from(self.inner.sig_md)
     }
 }
 
