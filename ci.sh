@@ -86,6 +86,10 @@ if [[ "$TARGET" =~ ^x86_64-pc-windows- ]] && [[ "$MATRIX_OS" =~ ^ubuntu- ]]; the
 
     WINEPATH="$(ls -d /usr/lib/gcc/*-w64-mingw32/*posix);${P1}"
     export WINEPATH
+
+    # rust-mingw is missing libssp*
+    # See: https://github.com/rust-lang/rust/issues/68973
+    export RUSTFLAGS="-Clink-arg=-lssp_nonshared -Clink-arg=-lssp -ladvapi32"
 fi
 
 cd "${repo_root}/mbedtls"
