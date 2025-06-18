@@ -1,0 +1,37 @@
+From ba70fd6970843b4697aba9be6a17d62e038b90c8 Mon Sep 17 00:00:00 2001
+From: Yuxiang Cao <yuxiang.cao@fortanix.com>
+Date: Wed, 18 Jun 2025 15:26:36 -0700
+Subject: [PATCH] fix MBEDTLS_PRINTF_xxx for mingw
+
+I64d is not available in linux mingw
+---
+ mbedtls-sys/vendor/include/mbedtls/debug.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/mbedtls-sys/vendor/include/mbedtls/debug.h b/mbedtls-sys/vendor/include/mbedtls/debug.h
+index 1da0726f..06231ac2 100644
+--- a/mbedtls-sys/vendor/include/mbedtls/debug.h
++++ b/mbedtls-sys/vendor/include/mbedtls/debug.h
+@@ -108,16 +108,16 @@
+  *
+  * This module provides debugging functions.
+  */
+-#if defined(__MINGW32__) || (defined(_MSC_VER) && _MSC_VER < 1900)
++#if (defined(__MINGW32__) && __USE_MINGW_ANSI_STDIO == 0) || (defined(_MSC_VER) && _MSC_VER < 1900)
+    #include <inttypes.h>
+    #define MBEDTLS_PRINTF_SIZET     PRIuPTR
+    #define MBEDTLS_PRINTF_LONGLONG  "I64d"
+ #else \
+-    /* defined(__MINGW32__) || (defined(_MSC_VER) && _MSC_VER < 1900) */
++    /* (defined(__MINGW32__) && __USE_MINGW_ANSI_STDIO == 0) || (defined(_MSC_VER) && _MSC_VER < 1900) */
+    #define MBEDTLS_PRINTF_SIZET     "zu"
+    #define MBEDTLS_PRINTF_LONGLONG  "lld"
+ #endif \
+-    /* defined(__MINGW32__) || (defined(_MSC_VER) && _MSC_VER < 1900) */
++    /* (defined(__MINGW32__) && __USE_MINGW_ANSI_STDIO == 0) || (defined(_MSC_VER) && _MSC_VER < 1900) */
+ 
+ #ifdef __cplusplus
+ extern "C" {
+-- 
+2.43.0
+
