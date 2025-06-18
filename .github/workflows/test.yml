@@ -79,11 +79,18 @@ jobs:
       with:
         version: "11.0"
 
-    - name: Set up MinGW
-      if: matrix.target == 'x86_64-pc-windows-gnu'
+    - name: Set up dependencies for windows cross compile
+      if: matrix.target == 'x86_64-pc-windows-gnu' && matrix.os == 'ubuntu-24.04'
       run: |
+        sudo dpkg --add-architecture i386
         sudo apt-get update
-        sudo apt-get install -y gcc-mingw-w64-x86-64
+        sudo apt-get install --assume-yes --no-install-recommends \
+          gcc-mingw-w64-x86-64 \
+          g++-mingw-w64-x86-64 \
+          gfortran-mingw-w64-x86-64 \
+          libz-mingw-w64-dev \
+          binfmt-support
+        sudo ./wine.sh
 
     - name: Cache Dependencies
       uses: Swatinem/rust-cache@988c164c3d0e93c4dbab36aaf5bbeb77425b2894
