@@ -22,8 +22,6 @@ export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/tmp/aarch64-linux-musl-cr
 export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUNNER=qemu-aarch64
 export CMAKE_POLICY_VERSION_MINIMUM=3.5
 
-cd "${repo_root}/mbedtls"
-
 # Install the rust toolchain
 rustup default $RUST_VERSION
 rustup target add --toolchain $RUST_VERSION $TARGET
@@ -75,12 +73,12 @@ if [[ "$TARGET" =~ ^x86_64-pc-windows- ]] && [[ "$MATRIX_OS" =~ ^ubuntu- ]]; the
     export AR_x86_64_pc_windows_gnu="$CROSS_TOOLCHAIN_PREFIX"ar
     export CC_x86_64_pc_windows_gnu="$CROSS_TOOLCHAIN_PREFIX"gcc"$CROSS_TOOLCHAIN_SUFFIX"
     export CXX_x86_64_pc_windows_gnu="$CROSS_TOOLCHAIN_PREFIX"g++"$CROSS_TOOLCHAIN_SUFFIX"
-    # export CMAKE_TOOLCHAIN_FILE_x86_64_pc_windows_gnu=/opt/toolchain.cmake
+    export CMAKE_TOOLCHAIN_FILE_x86_64_pc_windows_gnu=/opt/toolchain.cmake
     export BINDGEN_EXTRA_CLANG_ARGS_x86_64_pc_windows_gnu="--sysroot=$CROSS_SYSROOT -idirafter/usr/include"
-    # export CROSS_CMAKE_SYSTEM_NAME=Windows
-    # export CROSS_CMAKE_SYSTEM_PROCESSOR=AMD64
-    # export CROSS_CMAKE_CRT=gnu
-    # export CROSS_CMAKE_OBJECT_FLAGS="-ffunction-sections -fdata-sections -m64"3
+    export CROSS_CMAKE_SYSTEM_NAME=Windows
+    export CROSS_CMAKE_SYSTEM_PROCESSOR=AMD64
+    export CROSS_CMAKE_CRT=gnu
+    export CROSS_CMAKE_OBJECT_FLAGS="-ffunction-sections -fdata-sections -m64"
 
     # Initialize the wine prefix (virtual windows installation)
     export WINEPREFIX=/tmp/wine
@@ -93,8 +91,10 @@ if [[ "$TARGET" =~ ^x86_64-pc-windows- ]] && [[ "$MATRIX_OS" =~ ^ubuntu- ]]; the
 
     WINEPATH="$(ls -d /usr/lib/gcc/*-w64-mingw32/*posix);${P1}"
     export WINEPATH
+    cp toolchain.cmake /opt/toolchain.cmake
 fi
 
+cd "${repo_root}/mbedtls"
 case "$TARGET" in
     x86_64-unknown-linux-gnu)
         common_tests
