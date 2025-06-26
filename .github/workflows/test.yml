@@ -41,10 +41,7 @@ jobs:
             os: ubuntu-24.04
           - rust: stable
             target: x86_64-pc-windows-msvc
-            os: windows-2022
-          - rust: stable
-            target: x86_64-pc-windows-msvc
-            os: windows-2025
+            os: windows-latest
           - rust: stable
             target: aarch64-unknown-linux-musl
             os: ubuntu-24.04
