@@ -28,13 +28,13 @@ check_sha512() {
     esac
 }
 
-aarch64_cross_toolchain_hash=c8ee0e7fd58f5ec6811e3cec5fcdd8fc47cb2b49fb50e9d7717696ddb69c812547b5f389558f62dfbf9db7d6ad808a5a515cc466b8ea3e9ab3daeb20ba1adf33
+aarch64_cross_toolchain_hash=8695ff86979cdf30fbbcd33061711f5b1ebc3c48a87822b9ca56cde6d3a22abd4dab30fdcd1789ac27c6febbaeb9e5bde59d79d66552fae53d54cc1377a19272
 # save to directory that will be cached
 aarch64_cross_toolchain_save_path=${repo_root}/target/aarch64-linux-musl-cross.tgz
 mkdir -p ${repo_root}/target
 if [ "$TARGET" == "aarch64-unknown-linux-musl" ]; then
     if ! check_sha512 ${aarch64_cross_toolchain_hash} ${aarch64_cross_toolchain_save_path}; then
-        wget --tries=3 --timeout=5 --waitretry=5 --retry-connrefused https://more.musl.cc/10-20210301/x86_64-linux-musl/aarch64-linux-musl-cross.tgz -O ${aarch64_cross_toolchain_save_path}
+        wget --tries=3 --timeout=5 --waitretry=5 --retry-connrefused https://musl.cc/aarch64-linux-musl-cross.tgz -O ${aarch64_cross_toolchain_save_path}
         check_sha512 ${aarch64_cross_toolchain_hash} ${aarch64_cross_toolchain_save_path}
     fi
     tar -xf ${aarch64_cross_toolchain_save_path} -C /tmp;
