@@ -49,6 +49,12 @@ impl super::BuildConfig {
             // CMAKE_SYSTEM_NAME to Generic avoids this.
             cmk.define("CMAKE_SYSTEM_NAME", "Generic");
         }
+        if target.contains("windows") {
+            // Start from rust stable 1.87.0 (2025-05-15)
+            // Windows: The standard library no longer links advapi32, except on win7.
+            // Ref: https://github.com/rust-lang/rust/pull/138233
+            println!("cargo:rustc-link-lib=advapi32");
+        }
 
         let dst = cmk.build();
 

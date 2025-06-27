@@ -43,9 +43,6 @@ jobs:
             target: x86_64-pc-windows-msvc
             os: windows-latest
           - rust: stable
-            target: x86_64-pc-windows-msvc
-            os: windows-2019
-          - rust: stable
             target: aarch64-unknown-linux-musl
             os: ubuntu-24.04
           - rust: beta
@@ -63,18 +60,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Install qemu-user for aarch64 target
-      if: matrix.target == 'aarch64-unknown-linux-musl'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y qemu-user
-
-    - name: Install clang-11 on windows-2019
-      if: matrix.os == 'windows-2019'
-      uses: KyleMayes/install-llvm-action@v1
-      with:
-        version: "11.0"
-
     - name: Cache Dependencies
       uses: Swatinem/rust-cache@988c164c3d0e93c4dbab36aaf5bbeb77425b2894
       with:
@@ -89,17 +74,11 @@ jobs:
     - name: Install cargo-nextest
       uses: taiki-e/install-action@v2
       with:
-        tool: nextest@0.9.52
+        tool: nextest@0.9.52,cross@0.2.5
         checksum: true
 
     - name: Run tests
       run: |
-        # Set LIBCLANG_PATH for bindgen to access clang library under windows-2019
-        if [ "$MATRIX_OS" == "windows-2019" ]; then
-          export LIBCLANG_PATH="C:\Program Files\LLVM\bin"
-          echo "$LIBCLANG_PATH"
-        fi
-        ./ci_tools.sh
         ./ci.sh
       env:
         RUST_VERSION: ${{ matrix.rust }}
@@ -123,22 +102,6 @@ jobs:
           cargo fmt --check -p mbedtls
           cargo fmt --check -p mbedtls-platform-support
           cargo fmt --check -p mbedtls-sys-auto
-
-  bench:
-    name: Cargo bench
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-      - uses: boa-dev/criterion-compare-action@v3
-        name: Run criterion-compare-action
-        with:
-          cwd: "mbedtls"
-          benchName: "cipher"
-          branchName: ${{ github.base_ref }}
-          token: ${{ secrets.GITHUB_TOKEN }}
 
   ci-success:
     name: ci
