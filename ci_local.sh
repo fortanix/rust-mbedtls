@@ -7,8 +7,6 @@ cd "$(dirname "$0")"
 
 cargo binstall cargo-nextest@0.9.52 --secure
 
-./ci_tools.sh
-
 # Array containing the configurations (rust and target)
 # Please comment out other options if you do not want to test them
 configs=(

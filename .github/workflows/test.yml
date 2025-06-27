@@ -91,12 +91,6 @@ jobs:
 
     - name: Run tests
       run: |
-        # Set LIBCLANG_PATH for bindgen to access clang library under windows-2019
-        if [ "$MATRIX_OS" == "windows-2019" ]; then
-          export LIBCLANG_PATH="C:\Program Files\LLVM\bin"
-          echo "$LIBCLANG_PATH"
-        fi
-        ./ci_tools.sh
         ./ci.sh
       env:
         RUST_VERSION: ${{ matrix.rust }}
