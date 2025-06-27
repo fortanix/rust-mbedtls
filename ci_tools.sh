@@ -34,7 +34,7 @@ aarch64_cross_toolchain_save_path=${repo_root}/target/aarch64-linux-musl-cross.t
 mkdir -p ${repo_root}/target
 if [ "$TARGET" == "aarch64-unknown-linux-musl" ]; then
     if ! check_sha512 ${aarch64_cross_toolchain_hash} ${aarch64_cross_toolchain_save_path}; then
-        wget https://more.musl.cc/10-20210301/x86_64-linux-musl/aarch64-linux-musl-cross.tgz -O ${aarch64_cross_toolchain_save_path}
+        wget --tries=3 --timeout=5 --waitretry=5 --retry-connrefused https://more.musl.cc/10-20210301/x86_64-linux-musl/aarch64-linux-musl-cross.tgz -O ${aarch64_cross_toolchain_save_path}
         check_sha512 ${aarch64_cross_toolchain_hash} ${aarch64_cross_toolchain_save_path}
     fi
     tar -xf ${aarch64_cross_toolchain_save_path} -C /tmp;
