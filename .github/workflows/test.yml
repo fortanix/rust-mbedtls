@@ -54,11 +54,26 @@ jobs:
           - rust: stable
             target: x86_64-apple-darwin
             os: macos-latest
+          - rust: stable
+            target: x86_64-pc-windows-gnu
+            os: ubuntu-24.04
 
     runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v3
+
+    - name: Set up dependencies for windows cross compile
+      if: matrix.target == 'x86_64-pc-windows-gnu' && matrix.os == 'ubuntu-24.04'
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo apt-get update
+        sudo apt-get install --assume-yes --no-install-recommends \
+          gcc-mingw-w64-x86-64 \
+          g++-mingw-w64-x86-64 \
+          libz-mingw-w64-dev \
+          binfmt-support \
+          wine wine64
 
     - name: Cache Dependencies
       uses: Swatinem/rust-cache@988c164c3d0e93c4dbab36aaf5bbeb77425b2894
