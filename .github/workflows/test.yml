@@ -20,6 +20,8 @@ on:
       - master
       - 'v0.*'
   merge_group:
+  schedule:
+    - cron: "0 0 * * 1"  # Run CI on Monday weekly, so we can track changes from nightly rust
 
 env:
   RUST_BACKTRACE: 1
