@@ -62,6 +62,9 @@ function no_std_tests() {
     $cargo_nextest --no-default-features --features no_std_deps,rdrand,time,ssl --target $TARGET
 }
 
+# Following script setups required environment variables for cargo cross compile targeting x86_64_pc_windows_gnu.
+# Ref: <https://github.com/cross-rs/cross/blob/51f46f296253d8122c927c5bb933e3c4f27cc317/docker/Dockerfile.x86_64-pc-windows-gnu#L41-L55>
+# We use this approach instead of using `cross` because `cross`'s docker image is using old softwares: Ubuntu 20.04 and 9.0 wine.
 if [[ "$TARGET" =~ ^x86_64-pc-windows- ]] && [[ "$MATRIX_OS" =~ ^ubuntu- ]]; then
     export CROSS_TOOLCHAIN_PREFIX=x86_64-w64-mingw32-
     export CROSS_TOOLCHAIN_SUFFIX=-posix
