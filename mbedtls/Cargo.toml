@@ -68,7 +68,7 @@ cc = "1.0"
 rustc_version = "0.4.0"
 
 # feature 'time` is necessary under windows
-[target.'cfg(target_env = "msvc")'.dependencies]
+[target.'cfg(target_family = "msvc")'.dependencies]
 mbedtls-platform-support = { version = "0.1", path = "../mbedtls-platform-support", features = [
     "time",
 ] }

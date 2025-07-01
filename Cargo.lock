@@ -807,7 +807,7 @@ dependencies = [
 
 [[package]]
 name = "mbedtls-sys-auto"
-version = "2.28.11"
+version = "2.28.12"
 dependencies = [
  "bindgen",
  "cc",
