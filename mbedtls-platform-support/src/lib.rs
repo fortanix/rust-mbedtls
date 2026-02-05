@@ -31,7 +31,7 @@ pub mod self_test;
 #[doc(hidden)]
 pub mod threading;
 
-#[cfg(any(feature = "force_aesni_support", target_env = "sgx"))]
+#[cfg(any(feature = "force_aesni_support", target_env = "sgx", target_env = "fortanixvme"))]
 #[doc(hidden)]
 #[no_mangle]
 // needs to be pub for global visibility
@@ -39,7 +39,7 @@ pub extern "C" fn mbedtls_aesni_has_support(_what: u32) -> i32 {
     return 1;
 }
 
-#[cfg(any(feature = "force_aesni_support", target_env = "sgx"))]
+#[cfg(any(feature = "force_aesni_support", target_env = "sgx", target_env = "fortanixvme"))]
 #[doc(hidden)]
 #[no_mangle]
 // needs to be pub for global visibility
@@ -51,7 +51,7 @@ pub extern "C" fn mbedtls_internal_aes_encrypt(
     panic!("AES-NI support is forced but the T-tables code was invoked")
 }
 
-#[cfg(any(feature = "force_aesni_support", target_env = "sgx"))]
+#[cfg(any(feature = "force_aesni_support", target_env = "sgx", target_env = "fortanixvme"))]
 #[doc(hidden)]
 #[no_mangle]
 // needs to be pub for global visibility

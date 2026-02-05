@@ -41,12 +41,15 @@ cfg_if::cfg_if! {
     }
 }
 
-#[cfg(any(not(feature = "std"), target_env = "sgx"))]
+#[cfg(any(not(feature = "std"), target_env = "sgx", target_env = "fortanixvme"))]
 #[allow(non_upper_case_globals)]
 static mut rand_f: Option<fn() -> c_int> = None;
 
 // needs to be pub for global visiblity
-#[cfg(all(any(not(feature = "std"), target_env = "sgx"), not(target_env = "msvc")))]
+#[cfg(all(
+    any(not(feature = "std"), target_env = "sgx", target_env = "fortanixvme"),
+    not(target_env = "msvc")
+))]
 #[doc(hidden)]
 #[no_mangle]
 pub unsafe extern "C" fn rand() -> c_int {
@@ -66,7 +69,7 @@ pub unsafe extern "C" fn rand() -> c_int {
 /// function in this module is called.
 #[allow(unused)]
 pub unsafe fn enable(rand: fn() -> c_int, log: Option<unsafe fn(*const c_char)>) {
-    #[cfg(any(not(feature = "std"), target_env = "sgx"))]
+    #[cfg(any(not(feature = "std"), target_env = "sgx", target_env = "fortanixvme"))]
     {
         rand_f = Some(rand);
     }
@@ -81,7 +84,7 @@ pub unsafe fn enable(rand: fn() -> c_int, log: Option<unsafe fn(*const c_char)>)
 /// The caller needs to ensure this function is not called while any other
 /// function in this module is called.
 pub unsafe fn disable() {
-    #[cfg(any(not(feature = "std"), target_env = "sgx"))]
+    #[cfg(any(not(feature = "std"), target_env = "sgx", target_env = "fortanixvme"))]
     {
         rand_f = None;
     }

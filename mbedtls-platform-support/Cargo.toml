@@ -49,4 +49,5 @@ aesni = ["mbedtls-sys-auto/aesni"]
 unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(sys_threading_component, values("custom"))',
     'cfg(sys_time_component, values("custom"))',
+    'cfg(target_env, values("fortanixvme"))',
 ] }
