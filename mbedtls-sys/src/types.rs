@@ -76,7 +76,7 @@ pub mod raw_types {
     }
 }
 
-#[cfg(any(unix, windows))]
+#[cfg(any(all(unix, not(target_env = "fortanixvme")), windows))]
 extern crate libc;
 
 #[cfg(std_component = "fs")]

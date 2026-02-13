@@ -21,7 +21,7 @@ lazy_static! {
 
 impl Features {
     fn init(&mut self) {
-        if env_have_target_cfg("env", "sgx") {
+        if env_have_target_cfg("env", "sgx") || env_have_target_cfg("env", "fortanixvme") {
             self.automatic_features.insert("custom_has_support");
             self.automatic_features.insert("aes_alt");
             self.automatic_features.insert("aesni");
@@ -32,18 +32,24 @@ impl Features {
         let have_custom_threading = self.have_feature("custom_threading");
         let have_custom_gmtime_r = self.have_feature("custom_gmtime_r");
 
-        if !self.have_feature("std") || env_have_target_cfg("env", "sgx") || env_have_target_cfg("os", "none") {
+        if !self.have_feature("std")
+            || env_have_target_cfg("env", "sgx")
+            || env_have_target_cfg("env", "fortanixvme")
+            || env_have_target_cfg("os", "none")
+        {
             self.with_feature("c_compiler").unwrap().insert("freestanding");
         }
         if let Some(components) = self.with_feature("threading") {
-            if !have_custom_threading && env_have_target_family("unix") {
+            if !have_custom_threading && env_have_target_family("unix") && !env_have_target_cfg("env", "fortanixvme") {
                 components.insert("pthread");
             } else {
                 components.insert("custom");
             }
         }
         if let Some(components) = self.with_feature("std") {
-            if env_have_target_family("unix") || env_have_target_family("windows") {
+            if (env_have_target_family("unix") && !env_have_target_cfg("env", "fortanixvme"))
+                || env_have_target_family("windows")
+            {
                 components.insert("net");
                 components.insert("fs");
                 components.insert("entropy");

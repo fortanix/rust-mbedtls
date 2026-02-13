@@ -7,7 +7,7 @@
  * according to those terms. */
 
 cfg_if::cfg_if! {
-    if #[cfg(any(feature = "rdrand", target_env = "sgx"))] {
+    if #[cfg(any(feature = "rdrand", target_env = "sgx", target_env = "fortanixvme"))] {
         pub fn entropy_new() -> crate::mbedtls::rng::Rdseed {
             crate::mbedtls::rng::Rdseed
         }

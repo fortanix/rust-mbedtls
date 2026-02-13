@@ -41,7 +41,7 @@ impl crate::mbedtls::rng::RngCallback for TestInsecureRandom {
 }
 
 cfg_if::cfg_if! {
-    if #[cfg(any(feature = "rdrand", target_env = "sgx", feature = "std"))]
+    if #[cfg(any(feature = "rdrand", target_env = "sgx", target_env = "fortanixvme", feature = "std"))]
     {
         pub type TestRandom = crate::mbedtls::rng::CtrDrbg;
     } else {
@@ -52,7 +52,7 @@ cfg_if::cfg_if! {
 /// Not cryptographically secure!!! Use for testing only!!!
 pub fn test_rng() -> TestRandom {
     cfg_if::cfg_if! {
-        if #[cfg(any(feature = "rdrand", target_env = "sgx", feature = "std"))]
+        if #[cfg(any(feature = "rdrand", target_env = "sgx", target_env = "fortanixvme", feature = "std"))]
         {
             #[cfg(feature = "std")]
             use std::sync::Arc;

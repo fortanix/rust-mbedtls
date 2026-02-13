@@ -2,7 +2,7 @@
 name = "mbedtls"
 # We jumped from v0.9 to v0.12 because v0.10 and v0.11 were based on mbedtls 3.X, which
 # we decided not to support.
-version = "0.13.4"
+version = "0.13.5"
 authors = ["Jethro Beekman <jethro@fortanix.com>"]
 build = "build.rs"
 edition = "2018"
@@ -46,7 +46,7 @@ mbedtls-sys-auto = { path = "../mbedtls-sys", version = "2.25.0", default-featur
 
 mbedtls-platform-support = { version = "0.1", path = "../mbedtls-platform-support" }
 
-[target.x86_64-fortanix-unknown-sgx.dependencies]
+[target.'cfg(any(target_env="sgx", target_env="fortanixvme"))'.dependencies]
 rs-libc = "0.2.0"
 
 [dev-dependencies]
@@ -159,4 +159,5 @@ unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(sys_time_component, values("custom"))',
     'cfg(sys_std_component, values("entropy", "net"))',
     'cfg(time_component, values("custom", "libc"))',
+    'cfg(target_env, values("fortanixvme"))',
 ] }
