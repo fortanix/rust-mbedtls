@@ -98,6 +98,7 @@ cfg_if! {
             pub tm_isdst: i32,
         }
     } else if #[cfg(time_component = "libc")] {
+        #[cfg(any(all(unix, not(target_env = "fortanixvme")), windows))]
         pub use self::libc::{tm, time_t};
     }
 }
