@@ -56,7 +56,10 @@ impl Features {
             }
         }
         if let Some(components) = self.with_feature("time") {
-            if !have_custom_gmtime_r && (env_have_target_family("unix") || env_have_target_family("windows")) && !env_have_target_cfg("env", "fortanixvme") {
+            if !have_custom_gmtime_r
+                && (env_have_target_family("unix") || env_have_target_family("windows"))
+                && !env_have_target_cfg("env", "fortanixvme")
+            {
                 components.insert("libc");
             } else {
                 components.insert("custom");
