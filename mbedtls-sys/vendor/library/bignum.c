@@ -1880,8 +1880,11 @@ int mbedtls_mpi_mod_int(mbedtls_mpi_uint *r, const mbedtls_mpi *A, mbedtls_mpi_s
     /*
      * general case
      */
-    for (i = A->n, y = 0; i > 0; i--) {
-        x  = A->p[i - 1];
+
+    const size_t An = A->n;
+    const mbedtls_mpi_uint *Ap = A->p;
+    for (i = An, y = 0; i > 0; i--) {
+        x  = Ap[i - 1];
         y  = (y << biH) | (x >> biH);
         z  = y / b;
         y -= z * b;
@@ -1936,15 +1939,22 @@ void mbedtls_mpi_montmul(mbedtls_mpi *A,
     n = N->n;
     m = (B->n < n) ? B->n : n;
 
+    // Load these pointers before the loop, to avoid LVI mitigations slowing
+    // down inside. Note that this does not affect effectiveness of LVI
+    // mitigations.
+    mbedtls_mpi_uint *Ap = A->p;
+    const mbedtls_mpi_uint *Bp = B->p;
+    const mbedtls_mpi_uint *Np = N->p;
+
     for (i = 0; i < n; i++) {
         /*
          * T = (T + u0*B + u1*N) / 2^biL
          */
-        u0 = A->p[i];
-        u1 = (d[0] + u0 * B->p[0]) * mm;
+        u0 = Ap[i];
+        u1 = (d[0] + u0 * Bp[0]) * mm;
 
-        mpi_mul_hlp(m, B->p, d, u0);
-        mpi_mul_hlp(n, N->p, d, u1);
+        mpi_mul_hlp(m, Bp, d, u0);
+        mpi_mul_hlp(n, Np, d, u1);
 
         *d++ = u0; d[n + 1] = 0;
     }
@@ -1955,19 +1965,19 @@ void mbedtls_mpi_montmul(mbedtls_mpi *A,
 
     /* Copy the n least significant limbs of d to A, so that
      * A = d if d < N (recall that N has n limbs). */
-    memcpy(A->p, d, n * ciL);
+    memcpy(Ap, d, n * ciL);
     /* If d >= N then we want to set A to d - N. To prevent timing attacks,
      * do the calculation without using conditional tests. */
     /* Set d to d0 + (2^biL)^n - N where d0 is the current value of d. */
     d[n] += 1;
-    d[n] -= mpi_sub_hlp(n, d, d, N->p);
+    d[n] -= mpi_sub_hlp(n, d, d, Np);
     /* If d0 < N then d < (2^biL)^n
      * so d[n] == 0 and we want to keep A as it is.
      * If d0 >= N then d >= (2^biL)^n, and d <= (2^biL)^n + N < 2 * (2^biL)^n
      * so d[n] == 1 and we want to set A to the result of the subtraction
      * which is d - (2^biL)^n, i.e. the n least significant limbs of d.
      * This exactly corresponds to a conditional assignment. */
-    mbedtls_ct_mpi_uint_cond_assign(n, A->p, d, (unsigned char) d[n]);
+    mbedtls_ct_mpi_uint_cond_assign(n, Ap, d, (unsigned char) d[n]);
 }
 
 /*
