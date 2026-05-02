@@ -142,8 +142,9 @@ int mbedtls_mpi_shrink(mbedtls_mpi *X, size_t nblimbs)
     }
     /* After this point, then X->n > nblimbs and in particular X->n > 0. */
 
+    const mbedtls_mpi_uint *Xp = X->p;
     for (i = X->n - 1; i > 0; i--) {
-        if (X->p[i] != 0) {
+        if (Xp[i] != 0) {
             break;
         }
     }
@@ -157,7 +158,7 @@ int mbedtls_mpi_shrink(mbedtls_mpi *X, size_t nblimbs)
         return MBEDTLS_ERR_MPI_ALLOC_FAILED;
     }
 
-    if (X->p != NULL) {
+    if (Xp != NULL) {
         memcpy(p, X->p, i * ciL);
         mbedtls_mpi_zeroize(X->p, X->n);
         mbedtls_free(X->p);
@@ -213,8 +214,9 @@ int mbedtls_mpi_copy(mbedtls_mpi *X, const mbedtls_mpi *Y)
         return 0;
     }
 
+    const mbedtls_mpi_uint *Yp = Y->p;
     for (i = Y->n - 1; i > 0; i--) {
-        if (Y->p[i] != 0) {
+        if (Yp[i] != 0) {
             break;
         }
     }
@@ -228,7 +230,7 @@ int mbedtls_mpi_copy(mbedtls_mpi *X, const mbedtls_mpi *Y)
         memset(X->p + i, 0, (X->n - i) * ciL);
     }
 
-    memcpy(X->p, Y->p, i * ciL);
+    memcpy(X->p, Yp, i * ciL);
 
 cleanup:
 
@@ -295,8 +297,8 @@ int mbedtls_mpi_get_bit(const mbedtls_mpi *X, size_t pos)
 }
 
 /* Get a specific byte, without range checks. */
-#define GET_BYTE(X, i)                                \
-    (((X)->p[(i) / ciL] >> (((i) % ciL) * 8)) & 0xff)
+#define GET_BYTE(Xp, i)                                \
+    (((Xp)[(i) / ciL] >> (((i) % ciL) * 8)) & 0xff)
 
 /*
  * Set a bit to a specific value of 0 or 1
@@ -336,9 +338,11 @@ size_t mbedtls_mpi_lsb(const mbedtls_mpi *X)
     size_t i, j, count = 0;
     MBEDTLS_INTERNAL_VALIDATE_RET(X != NULL, 0);
 
+    const mbedtls_mpi_uint *Xp = X->p;
+
     for (i = 0; i < X->n; i++) {
         for (j = 0; j < biL; j++, count++) {
-            if (((X->p[i] >> j) & 1) != 0) {
+            if (((Xp[i] >> j) & 1) != 0) {
                 return count;
             }
         }
@@ -372,18 +376,19 @@ static size_t mbedtls_clz(const mbedtls_mpi_uint x)
 size_t mbedtls_mpi_bitlen(const mbedtls_mpi *X)
 {
     size_t i, j;
+    const mbedtls_mpi_uint *Xp = X->p;
 
     if (X->n == 0) {
         return 0;
     }
 
     for (i = X->n - 1; i > 0; i--) {
-        if (X->p[i] != 0) {
+        if (Xp[i] != 0) {
             break;
         }
     }
 
-    j = biL - mbedtls_clz(X->p[i]);
+    j = biL - mbedtls_clz(Xp[i]);
 
     return (i * biL) + j;
 }
@@ -573,6 +578,7 @@ int mbedtls_mpi_write_string(const mbedtls_mpi *X, int radix,
         *p++ = '-';
         buflen--;
     }
+    const mbedtls_mpi_uint *Xp = X->p;
 
     if (radix == 16) {
         int c;
@@ -580,7 +586,7 @@ int mbedtls_mpi_write_string(const mbedtls_mpi *X, int radix,
 
         for (i = X->n, k = 0; i > 0; i--) {
             for (j = ciL; j > 0; j--) {
-                c = (X->p[i - 1] >> ((j - 1) << 3)) & 0xFF;
+                c = (Xp[i - 1] >> ((j - 1) << 3)) & 0xFF;
 
                 if (c == 0 && k == 0 && (i + j) != 2) {
                     continue;
@@ -867,6 +873,7 @@ int mbedtls_mpi_write_binary_le(const mbedtls_mpi *X,
     size_t bytes_to_copy;
     size_t i;
 
+    const mbedtls_mpi_uint *Xp = X->p;
     if (stored_bytes < buflen) {
         bytes_to_copy = stored_bytes;
     } else {
@@ -875,14 +882,14 @@ int mbedtls_mpi_write_binary_le(const mbedtls_mpi *X,
         /* The output buffer is smaller than the allocated size of X.
          * However X may fit if its leading bytes are zero. */
         for (i = bytes_to_copy; i < stored_bytes; i++) {
-            if (GET_BYTE(X, i) != 0) {
+            if (GET_BYTE(Xp, i) != 0) {
                 return MBEDTLS_ERR_MPI_BUFFER_TOO_SMALL;
             }
         }
     }
 
     for (i = 0; i < bytes_to_copy; i++) {
-        buf[i] = GET_BYTE(X, i);
+        buf[i] = GET_BYTE(Xp, i);
     }
 
     if (stored_bytes < buflen) {
@@ -908,6 +915,7 @@ int mbedtls_mpi_write_binary(const mbedtls_mpi *X,
     MPI_VALIDATE_RET(buflen == 0 || buf != NULL);
 
     stored_bytes = X->n * ciL;
+    const mbedtls_mpi_uint *Xp = X->p;
 
     if (stored_bytes < buflen) {
         /* There is enough space in the output buffer. Write initial
@@ -924,14 +932,14 @@ int mbedtls_mpi_write_binary(const mbedtls_mpi *X,
         bytes_to_copy = buflen;
         p = buf;
         for (i = bytes_to_copy; i < stored_bytes; i++) {
-            if (GET_BYTE(X, i) != 0) {
+            if (GET_BYTE(Xp, i) != 0) {
                 return MBEDTLS_ERR_MPI_BUFFER_TOO_SMALL;
             }
         }
     }
 
     for (i = 0; i < bytes_to_copy; i++) {
-        p[bytes_to_copy - i - 1] = GET_BYTE(X, i);
+        p[bytes_to_copy - i - 1] = GET_BYTE(Xp, i);
     }
 
     return 0;
@@ -1041,14 +1049,16 @@ int mbedtls_mpi_cmp_abs(const mbedtls_mpi *X, const mbedtls_mpi *Y)
     MPI_VALIDATE_RET(X != NULL);
     MPI_VALIDATE_RET(Y != NULL);
 
+    const mbedtls_mpi_uint *Xp = X->p;
+    const mbedtls_mpi_uint *Yp = Y->p;
     for (i = X->n; i > 0; i--) {
-        if (X->p[i - 1] != 0) {
+        if (Xp[i - 1] != 0) {
             break;
         }
     }
 
     for (j = Y->n; j > 0; j--) {
-        if (Y->p[j - 1] != 0) {
+        if (Yp[j - 1] != 0) {
             break;
         }
     }
@@ -1065,10 +1075,10 @@ int mbedtls_mpi_cmp_abs(const mbedtls_mpi *X, const mbedtls_mpi *Y)
     }
 
     for (; i > 0; i--) {
-        if (X->p[i - 1] > Y->p[i - 1]) {
+        if (Xp[i - 1] > Yp[i - 1]) {
             return 1;
         }
-        if (X->p[i - 1] < Y->p[i - 1]) {
+        if (Xp[i - 1] < Yp[i - 1]) {
             return -1;
         }
     }
@@ -1084,15 +1094,17 @@ int mbedtls_mpi_cmp_mpi(const mbedtls_mpi *X, const mbedtls_mpi *Y)
     size_t i, j;
     MPI_VALIDATE_RET(X != NULL);
     MPI_VALIDATE_RET(Y != NULL);
+    const mbedtls_mpi_uint *Xp = X->p;
+    const mbedtls_mpi_uint *Yp = Y->p;
 
     for (i = X->n; i > 0; i--) {
-        if (X->p[i - 1] != 0) {
+        if (Xp[i - 1] != 0) {
             break;
         }
     }
 
     for (j = Y->n; j > 0; j--) {
-        if (Y->p[j - 1] != 0) {
+        if (Yp[j - 1] != 0) {
             break;
         }
     }
@@ -1116,10 +1128,10 @@ int mbedtls_mpi_cmp_mpi(const mbedtls_mpi *X, const mbedtls_mpi *Y)
     }
 
     for (; i > 0; i--) {
-        if (X->p[i - 1] > Y->p[i - 1]) {
+        if (Xp[i - 1] > Yp[i - 1]) {
             return X->s;
         }
-        if (X->p[i - 1] < Y->p[i - 1]) {
+        if (Xp[i - 1] < Yp[i - 1]) {
             return -X->s;
         }
     }
@@ -1253,8 +1265,9 @@ int mbedtls_mpi_sub_abs(mbedtls_mpi *X, const mbedtls_mpi *A, const mbedtls_mpi 
     MPI_VALIDATE_RET(A != NULL);
     MPI_VALIDATE_RET(B != NULL);
 
+    const mbedtls_mpi_uint *Bp = B->p;
     for (n = B->n; n > 0; n--) {
-        if (B->p[n - 1] != 0) {
+        if (Bp[n - 1] != 0) {
             break;
         }
     }
@@ -1489,8 +1502,9 @@ int mbedtls_mpi_mul_mpi(mbedtls_mpi *X, const mbedtls_mpi *A, const mbedtls_mpi 
         MBEDTLS_MPI_CHK(mbedtls_mpi_copy(&TB, B)); B = &TB;
     }
 
+    mbedtls_mpi_uint *Ap = A->p;
     for (i = A->n; i > 0; i--) {
-        if (A->p[i - 1] != 0) {
+        if (Ap[i - 1] != 0) {
             break;
         }
     }
@@ -1498,8 +1512,9 @@ int mbedtls_mpi_mul_mpi(mbedtls_mpi *X, const mbedtls_mpi *A, const mbedtls_mpi 
         result_is_zero = 1;
     }
 
+    mbedtls_mpi_uint *Bp = B->p;
     for (j = B->n; j > 0; j--) {
-        if (B->p[j - 1] != 0) {
+        if (Bp[j - 1] != 0) {
             break;
         }
     }
@@ -1510,8 +1525,9 @@ int mbedtls_mpi_mul_mpi(mbedtls_mpi *X, const mbedtls_mpi *A, const mbedtls_mpi 
     MBEDTLS_MPI_CHK(mbedtls_mpi_grow(X, i + j));
     MBEDTLS_MPI_CHK(mbedtls_mpi_lset(X, 0));
 
+    mbedtls_mpi_uint *Xp = X->p;
     for (; j > 0; j--) {
-        mpi_mul_hlp(i, A->p, X->p + j - 1, B->p[j - 1]);
+        mpi_mul_hlp(i, Ap, Xp + j - 1, Bp[j - 1]);
     }
 
     /* If the result is 0, we don't shortcut the operation, which reduces
@@ -1541,7 +1557,8 @@ int mbedtls_mpi_mul_int(mbedtls_mpi *X, const mbedtls_mpi *A, mbedtls_mpi_uint b
 
     /* mpi_mul_hlp can't deal with a leading 0. */
     size_t n = A->n;
-    while (n > 0 && A->p[n - 1] == 0) {
+    mbedtls_mpi_uint *Ap = A->p;
+    while (n > 0 && Ap[n - 1] == 0) {
         --n;
     }
 
@@ -1880,8 +1897,10 @@ int mbedtls_mpi_mod_int(mbedtls_mpi_uint *r, const mbedtls_mpi *A, mbedtls_mpi_s
     /*
      * general case
      */
+
+    const mbedtls_mpi_uint *Ap = A->p;
     for (i = A->n, y = 0; i > 0; i--) {
-        x  = A->p[i - 1];
+        x  = Ap[i - 1];
         y  = (y << biH) | (x >> biH);
         z  = y / b;
         y -= z * b;
@@ -1936,15 +1955,22 @@ void mbedtls_mpi_montmul(mbedtls_mpi *A,
     n = N->n;
     m = (B->n < n) ? B->n : n;
 
+    // Load these pointers before the loop, to avoid LVI mitigations slowing
+    // down inside. Note that this does not affect effectiveness of LVI
+    // mitigations.
+    mbedtls_mpi_uint *Ap = A->p;
+    const mbedtls_mpi_uint *Bp = B->p;
+    const mbedtls_mpi_uint *Np = N->p;
+
     for (i = 0; i < n; i++) {
         /*
          * T = (T + u0*B + u1*N) / 2^biL
          */
-        u0 = A->p[i];
-        u1 = (d[0] + u0 * B->p[0]) * mm;
+        u0 = Ap[i];
+        u1 = (d[0] + u0 * Bp[0]) * mm;
 
-        mpi_mul_hlp(m, B->p, d, u0);
-        mpi_mul_hlp(n, N->p, d, u1);
+        mpi_mul_hlp(m, Bp, d, u0);
+        mpi_mul_hlp(n, Np, d, u1);
 
         *d++ = u0; d[n + 1] = 0;
     }
@@ -1960,14 +1986,14 @@ void mbedtls_mpi_montmul(mbedtls_mpi *A,
      * do the calculation without using conditional tests. */
     /* Set d to d0 + (2^biL)^n - N where d0 is the current value of d. */
     d[n] += 1;
-    d[n] -= mpi_sub_hlp(n, d, d, N->p);
+    d[n] -= mpi_sub_hlp(n, d, d, Np);
     /* If d0 < N then d < (2^biL)^n
      * so d[n] == 0 and we want to keep A as it is.
      * If d0 >= N then d >= (2^biL)^n, and d <= (2^biL)^n + N < 2 * (2^biL)^n
      * so d[n] == 1 and we want to set A to the result of the subtraction
      * which is d - (2^biL)^n, i.e. the n least significant limbs of d.
      * This exactly corresponds to a conditional assignment. */
-    mbedtls_ct_mpi_uint_cond_assign(n, A->p, d, (unsigned char) d[n]);
+    mbedtls_ct_mpi_uint_cond_assign(n, Ap, d, (unsigned char) d[n]);
 }
 
 /*
@@ -2214,6 +2240,8 @@ int mbedtls_mpi_exp_mod(mbedtls_mpi *X, const mbedtls_mpi *A,
     nbits   = 0;
     state   = 0;
 
+    mbedtls_mpi_uint *Ep = E->p;
+
     while (1) {
         if (bufsize == 0) {
             if (nblimbs == 0) {
@@ -2227,7 +2255,7 @@ int mbedtls_mpi_exp_mod(mbedtls_mpi *X, const mbedtls_mpi *A,
 
         bufsize--;
 
-        ei = (E->p[nblimbs] >> bufsize) & 1;
+        ei = (Ep[nblimbs] >> bufsize) & 1;
 
         /*
          * skip leading 0s
@@ -2296,7 +2324,7 @@ int mbedtls_mpi_exp_mod(mbedtls_mpi *X, const mbedtls_mpi *A,
      */
     mpi_montred(&W[x_index], N, mm, &T);
 
-    if (neg && E->n != 0 && (E->p[0] & 1) != 0) {
+    if (neg && E->n != 0 && (Ep[0] & 1) != 0) {
         W[x_index].s = -1;
         MBEDTLS_MPI_CHK(mbedtls_mpi_add_mpi(&W[x_index], N, &W[x_index]));
     }
