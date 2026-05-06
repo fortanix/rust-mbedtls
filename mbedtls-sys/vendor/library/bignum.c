@@ -61,6 +61,10 @@ static void mbedtls_mpi_zeroize(mbedtls_mpi_uint *v, size_t n)
     mbedtls_platform_zeroize(v, ciL * n);
 }
 
+__attribute__((used, visibility("default")))
+const volatile char mbedtls_montmul_patch_marker[] =
+    "MBEDTLS_MONTMUL_PATCH_ZUGZWANG";
+
 /*
  * Initialize one MPI
  */
@@ -1930,6 +1934,8 @@ void mbedtls_mpi_montmul(mbedtls_mpi *A,
                          mbedtls_mpi_uint mm,
                          const mbedtls_mpi *T)
 {
+    // This is just a marker so that we know the patch is used
+    asm volatile("" :: "r"(mbedtls_montmul_patch_marker) : "memory");
     size_t i, n, m;
     mbedtls_mpi_uint u0, u1, *d;
 
