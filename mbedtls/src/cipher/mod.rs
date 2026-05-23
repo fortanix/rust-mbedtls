@@ -297,6 +297,21 @@ impl Cipher<Decryption, Authenticated, AdditionalData> {
         ))
     }
 
+    /// Xinyu's fork of [Self::decrypt_auth] that allows passing in the
+    /// ciphertext and tag as separate arguments
+    pub fn xinyu_decrypt_auth(
+        mut self,
+        ad: &[u8],
+        cipher: &[u8],
+        plain_text: &mut [u8],
+        tag: &mut [u8],
+    ) -> Result<(usize, Cipher<Decryption, Authenticated, Finished>)> {
+        Ok((
+            self.raw_cipher.xinyu_decrypt_auth(ad, cipher, plain_text, tag)?,
+            self.change_state(),
+        ))
+    }
+
     pub fn decrypt_auth_inplace(
         mut self,
         ad: &[u8],

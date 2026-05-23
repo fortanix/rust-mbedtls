@@ -397,6 +397,48 @@ impl Cipher {
         Ok(plain_len)
     }
 
+    /// Xinyu's fork of [`Self::decrypt_auth`]. The main difference is that you get to pass in
+    /// the ciphertext and tag as separate arguments, instead of having them be concatenated
+    /// together.
+    ///
+    /// Returns the length of the decrypted plaintext.
+    pub fn xinyu_decrypt_auth(
+        &mut self,
+        ad: &[u8],
+        cipher: &[u8],
+        plain: &mut [u8],
+        tag: &mut [u8],
+    ) -> Result<usize> {
+        // For AES KW and KWP cipher text length can be greater than plain text length
+        if self.is_authenticated() && cipher.len() > plain.len()
+        {
+            return Err(codes::CipherBadInputData.into());
+        }
+
+        let iv = self.inner.iv;
+        let iv_len = self.inner.iv_size;
+        let mut plain_len = plain.len();
+        unsafe {
+            // this is actually a deprecated function, but oh well
+            cipher_auth_decrypt(
+                &mut self.inner,
+                iv.as_ptr(),
+                iv_len,
+                ad.as_ptr(),
+                ad.len(),
+                cipher.as_ptr(),
+                cipher.len(),
+                plain.as_mut_ptr(),
+                &mut plain_len,
+                tag.as_mut_ptr(),
+                tag.len(),
+            )
+            .into_result()?
+        };
+
+        Ok(plain_len)
+    }
+
     pub fn encrypt_auth_inplace(&mut self, ad: &[u8], data: &mut [u8], tag: &mut [u8]) -> Result<usize> {
         let iv = self.inner.iv;
         let iv_len = self.inner.iv_size;
