@@ -304,7 +304,7 @@ impl Cipher<Decryption, Authenticated, AdditionalData> {
         ad: &[u8],
         cipher: &[u8],
         plain_text: &mut [u8],
-        tag: &mut [u8],
+        tag: &[u8],
     ) -> Result<(usize, Cipher<Decryption, Authenticated, Finished>)> {
         Ok((
             self.raw_cipher.xinyu_decrypt_auth(ad, cipher, plain_text, tag)?,

@@ -407,7 +407,7 @@ impl Cipher {
         ad: &[u8],
         cipher: &[u8],
         plain: &mut [u8],
-        tag: &mut [u8],
+        tag: &[u8],
     ) -> Result<usize> {
         // For AES KW and KWP cipher text length can be greater than plain text length
         if self.is_authenticated() && cipher.len() > plain.len()
@@ -430,7 +430,7 @@ impl Cipher {
                 cipher.len(),
                 plain.as_mut_ptr(),
                 &mut plain_len,
-                tag.as_mut_ptr(),
+                tag.as_ptr(),
                 tag.len(),
             )
             .into_result()?
