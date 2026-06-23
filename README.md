@@ -1,8 +1,9 @@
+# rust-mbedtls
+
 > [!WARNING]
 > The state of this repository is changed to maintenance. We will not accept any more feature requests. Please check [Change of status](#change-of-status) for details
 
-
-# mbedtls
+## mbedtls
 
 [![Build Status](https://travis-ci.com/fortanix/rust-mbedtls.svg?branch=master)](https://travis-ci.com/fortanix/rust-mbedtls)
 
@@ -13,7 +14,7 @@ handling and closures.
 Additionally, building on MbedTLS's focus on embedded use, this crate can be
 used in a no_std environment.
 
-## Change of status
+### Change of status
 
 We discovered that `mbedtls 3.4.X` is not thread safe and will not work
 properly with multiple threads. This problem will not be fixed in short time,
@@ -30,59 +31,59 @@ Related issue: [#320](https://github.com/fortanix/rust-mbedtls/issues/320)
 Reference links:
 
 - Design changes:
-  - https://lists.trustedfirmware.org/archives/list/mbed-tls@lists.trustedfirmware.org/message/RJ7YPNBNWUNW2ICQJ72H2JMKPDKGQOLT/
+  - <https://lists.trustedfirmware.org/archives/list/mbed-tls@lists.trustedfirmware.org/message/RJ7YPNBNWUNW2ICQJ72H2JMKPDKGQOLT/>
 - Bugs
-  - https://github.com/fortanix/rust-mbedtls/issues/301
-  - https://github.com/fortanix/rust-mbedtls/issues/293
-  - https://github.com/Mbed-TLS/mbedtls/issues/3263
+  - <https://github.com/fortanix/rust-mbedtls/issues/301>
+  - <https://github.com/fortanix/rust-mbedtls/issues/293>
+  - <https://github.com/Mbed-TLS/mbedtls/issues/3263>
 
-## Building
+### Building
 
 This crate depends on the mbedtls-sys-auto crate, see below for build details.
 
-### Features
+### `mbedtls` crate features
 
 This is a list of the Cargo features available for mbedtls. Features in
 **bold** are enabled by default.
 
-* *x509* Enable PKI functionality. The main code enabled by this feature is in
+- *x509* Enable PKI functionality. The main code enabled by this feature is in
          the `x509` module.
-* *ssl* Enable ssl/tls functionality. The main code enabled by this feature is
+- *ssl* Enable ssl/tls functionality. The main code enabled by this feature is
         in the `ssl` module.
 
 Note: The above features were introduced so that this crate could be used as a
 crypto (or PKI) only library.
 
-* **aesni** Enable support for the AES-NI instructions. On SGX, this feature is
+- **aesni** Enable support for the AES-NI instructions. On SGX, this feature is
             enabled automatically.
-* *debug* Enable debug printing to stdout. You need to configure the debug
+- *debug* Enable debug printing to stdout. You need to configure the debug
           threshold at runtime.
-* *dsa* Enable support for DSA signatures
-* *force_aesni_support* MbedTLS normally uses runtime detection of AES-NI
+- *dsa* Enable support for DSA signatures
+- *force_aesni_support* MbedTLS normally uses runtime detection of AES-NI
                         support. With this feature, always use AES-NI. This
                         will result in undefined instruction exceptions on
                         unsupported processors. On SGX, this feature is
                         enabled automatically.
-* *mpi_force_c_code* Enables the `mpi_force_c_code` feature in mbedtls-sys
-* *legacy_protocols* Enable support for SSLv3, TLSv1.0 and TLSv1.1. Implies *ssl*.
-* *no_std_deps* On no_std, you must enable this feature. It enables optional
+- *mpi_force_c_code* Enables the `mpi_force_c_code` feature in mbedtls-sys
+- *legacy_protocols* Enable support for SSLv3, TLSv1.0 and TLSv1.1. Implies *ssl*.
+- *no_std_deps* On no_std, you must enable this feature. It enables optional
                 dependencies needed on no_std. If the `std` feature is enabled,
                 this feature is ignored.
-* **padlock** Enable support for VIA padlock.
-* *pkcs12* Enable code to parse PKCS12 files using yasna. Implies *x509*.
-* *pkcs12_rc2* Enable use of RC2 crate to decrypt RC2-encrypted PKCS12 files
-* *rdrand* Enable the RDRAND random number generator. On SGX, this feature is
+- **padlock** Enable support for VIA padlock.
+- *pkcs12* Enable code to parse PKCS12 files using yasna. Implies *x509*.
+- *pkcs12_rc2* Enable use of RC2 crate to decrypt RC2-encrypted PKCS12 files
+- *rdrand* Enable the RDRAND random number generator. On SGX, this feature is
            enabled automatically.
-* **std** If this feature is not enabled, this crate is a no_std crate. (An
+- **std** If this feature is not enabled, this crate is a no_std crate. (An
           allocator is *required*) The necessary C functions to make MbedTLS
           work without libc will be provided.
-* **time** Enable time support in mbedtls-sys.
-* *zlib* Enable zlib support in mbedtls-sys.
-* *async-rt* Enable async support for SSL.
-* *chrono* Enable [`chrono`](https://docs.rs/chrono/) support (e.g.,
+- **time** Enable time support in mbedtls-sys.
+- *zlib* Enable zlib support in mbedtls-sys.
+- *async-rt* Enable async support for SSL.
+- *chrono* Enable [`chrono`](https://docs.rs/chrono/) support (e.g.,
            implementation of conversion traits between `x509::Time` and `chrono` types)
 
-# mbedtls-sys-auto
+## mbedtls-sys-auto
 
 Unfortunately, the `mbedtls-sys` crate on crates.io is claimed by another,
 apparently inactive, project.
@@ -90,7 +91,7 @@ apparently inactive, project.
 To use this crate, you will need to have **clang** and **cmake** installed, see
 below for details.
 
-## Configuring and linking MbedTLS
+### Configuring and linking MbedTLS
 
 MbedTLS has a plethora of compile-time configuration options that significantly
 impact what functionality is available. To make sure Rust's view of MbedTLS
@@ -105,43 +106,44 @@ custom source that is based on a different version of MbedTLS than the one
 provided in the crate.
 
 The build script will perform the following steps:
+
 1. generate an appropriate config.h (any existing config.h is ignored),
 2. compile a statically-linked MbedTLS, this requires cmake to be installed,
 3. generate Rust bindings based on the configuration, this requires clang to be
    installed.
 
-### Features
+### `mbedtls-sys-auto` crate features
 
 This is a list of the Cargo features available for mbedtls-sys. Features in
 **bold** are enabled by default.
 
-* **aesni** Enable support for the AES-NI instructions. On SGX, this feature is
+- **aesni** Enable support for the AES-NI instructions. On SGX, this feature is
             enabled automatically.
-* *aes_alt* Allow an alternative implementation of AES, replacing the
+- *aes_alt* Allow an alternative implementation of AES, replacing the
   T-tables code.
-* *custom_has_support* Override runtime feature detection. In a dependent
+- *custom_has_support* Override runtime feature detection. In a dependent
                        crate, you must define the functions
                        `mbedtls_aesni_has_support` and
                        `mbedtls_padlock_has_support` following the MbedTLS
                        function signatures. On SGX, this feature is enabled
                        automatically.
-* *custom_printf* Provide a custom printf implementation. printf is only used
+- *custom_printf* Provide a custom printf implementation. printf is only used
                   for the self tests. In a dependent crate, you must define the
                   `mbedtls_printf` function with the standard printf signature.
-* **debug** Enable debug callbacks.
-* *havege* Enable the Hardware Volatile Entropy Gathering and Expansion
+- **debug** Enable debug callbacks.
+- *havege* Enable the Hardware Volatile Entropy Gathering and Expansion
            (HAVEGE) algorithm.
-* **legacy_protocols** Enable support for SSLv3, TLSv1.0 and TLSv1.1
-* *mpi_force_c_code* MbedTLS uses assembly code for MPI functions, when available.
+- **legacy_protocols** Enable support for SSLv3, TLSv1.0 and TLSv1.1
+- *mpi_force_c_code* MbedTLS uses assembly code for MPI functions, when available.
                      In some situations we may prefer C code instead. This is in
                      particular the case on x86 platforms where compile-time mitigation
                      for speculative execution is required (e.g., LVI). Letting the
                      compiler insert the required lfences during C-code compilation may
                      result in faster code than letting the compiler apply mitigations
                      on assembly code.
-* **padlock** Enable support for VIA padlock.
-* *pkcs11* Enable PKCS#11 support. This requires pkcs11-helper to be installed.
-* **std** If this feature is not enabled, this crate is a no_std crate. In a
+- **padlock** Enable support for VIA padlock.
+- *pkcs11* Enable PKCS#11 support. This requires pkcs11-helper to be installed.
+- **std** If this feature is not enabled, this crate is a no_std crate. In a
           no_std configuration without libc, you need to provide your own
           versions of the following standard C functions: `calloc()`/`free()`,
           and `strstr()`/`strlen()`/`strncpy()`/`strncmp()`/`strcmp()`/
@@ -150,45 +152,64 @@ This is a list of the Cargo features available for mbedtls-sys. Features in
           `custom_printf` feature. `rand()` is only needed for the selftests.
           On UNIX platforms, this also enables networking, filesystems and OS
           entropy.
-* **threading** Enable threading support. On `cfg(unix)` platforms, this uses
+- **threading** Enable threading support. On `cfg(unix)` platforms, this uses
                 pthreads. On other platforms, you need to provide a custom
                 threading implementation. In a dependent crate, you must define
                 the functions `mbedtls_mutex_init()`, `mbedtls_mutex_free()`,
                 `mbedtls_mutex_lock()`, and `mbedtls_mutex_unlock()` following
                 the  MbedTLS function signatures.
-* **time** Enable time support. On `cfg(unix)` platforms, this uses `libc`. On
+- **time** Enable time support. On `cfg(unix)` platforms, this uses `libc`. On
            other platforms, you need to provide your own implementations of
            `mbedtls_platform_gmtime_r(const long long*, struct tm*)` and
            `mbedtls_time(long long*)`.
-* *trusted_cert_callback* Enable trusted certificate callback support.
-* **zlib** Enable zlib support.
+- *trusted_cert_callback* Enable trusted certificate callback support.
+- **zlib** Enable zlib support.
 
 For the complete mapping of features to config.h defines, see
 [mbedtls-sys/build/config.rs]. PRs adding new features are encouraged.
 
 ## MbedTLS version updates
 
-Instructions for updating to new MbedTLS source code releases in `mbedtls-sys/`:
+The vendored MbedTLS source lives in `mbedtls-sys/vendor`. Local changes that
+must survive vendor refreshes are stored as `git am` patches in
+`mbedtls-sys/vendor-patches`.
 
-1. Wipe out `vendor/` and replace it with the contents of the distribution tarball.
-2. Cherry-pick any local changes from the previous version.
-3. Use the command in `build/headers.rs` to generate the list of headers,
-   and update that file as appropriate.
-4. Check `build/config.rs` vs. `vendor/include/mbedtls/config.h`.
-5. Update `Cargo.toml` version and also the `[package.metadata.mbedtls]` section with the upstream version (and commit hash).
+To update the vendored source to a new upstream tag or branch, run the helper
+script from a non-`master` branch:
 
-# mbedtls-selftest
+```sh
+./upgrade_vendor.sh <tag-name-or-branch-name>
+```
 
-This Rust crate is designed for separating self-test code that needs to export Rust
-functions and define C functions to be used by C `mbedtls`. By separating this code,
-different versions of Rust `mbedtls` crates can be used within a single crate, which
-helps to solve link name conflict errors.
+The script recreates `mbedtls-sys/vendor` from the upstream MbedTLS repository,
+commits the vendor update, then applies every patch in
+`mbedtls-sys/vendor-patches` with `git am --3way`. If a patch no longer applies,
+resolve the conflict and continue the `git am` flow.
 
-**Note**: Although multiple versions of Rust `mbedtls` crates can be used within a
-single crate, only one `mbedtls-selftest` and one `mbedtls-sys-auto` crate can be
-used since they are built as native libraries.
+When adding or refreshing a local vendor change, first commit the desired
+changes under `mbedtls-sys/vendor` on your feature branch. Then generate a new
+patch file from the aggregate diff between `master` and `HEAD`, limited to that
+vendor directory:
 
-# Contributing
+```sh
+./create_vendor_patch.sh "Short patch title"
+```
+
+The script writes the next numbered patch file under
+`mbedtls-sys/vendor-patches`, for example
+`mbedtls-sys/vendor-patches/0005-Short-patch-title.patch`. Uncommitted changes
+are not included.
+
+After updating vendor code or patches:
+
+1. Use the command in `mbedtls-sys/build/headers.rs` to generate the list of
+   headers, and update that file as appropriate.
+2. Check `mbedtls-sys/build/config.rs` against
+   `mbedtls-sys/vendor/include/mbedtls/config.h`.
+3. Update the `mbedtls-sys/Cargo.toml` version and the
+   `[package.metadata.mbedtls]` upstream version and commit hash.
+
+## Contributing
 
 We gratefully accept bug reports and contributions from the community.
 By participating in this community, you agree to abide by [Code of Conduct](./CODE_OF_CONDUCT.md).
@@ -220,7 +241,7 @@ personal information I submit with it, including my sign-off) is
 maintained indefinitely and may be redistributed consistent with
 this project or the open source license(s) involved.
 
-# License
+## License
 
 This project is primarily distributed under the terms of the Apache License
 version 2.0 and the GNU General Public License version 2, see
