@@ -1,6 +1,3 @@
-// Cargo's build directory layout is an implementation detail. Keep this parser separate from
-// build.rs so it can be exercised by the crate's ordinary unit tests.
-
 /// Returns the Cargo build-unit identifier from either supported build directory layout.
 ///
 /// Cargo controls this layout independently of rustc's version, so inspect the path instead of
@@ -18,10 +15,10 @@ pub(crate) fn compilation_symbol_suffix(out_dir: &str) -> Option<&str> {
 
     let build_unit = components.next()?;
     if let Some(suffix) = build_unit.strip_prefix("mbedtls-") {
-        return Some(suffix);
+        return (!suffix.is_empty()).then_some(suffix);
     }
 
-    if components.next()? == "mbedtls" {
+    if !build_unit.is_empty() && components.next()? == "mbedtls" {
         return Some(build_unit);
     }
 
@@ -33,26 +30,36 @@ mod tests {
     use super::compilation_symbol_suffix;
 
     #[test]
-    fn extracts_suffix_from_legacy_cargo_layout() {
-        let out_dir = "target/debug/build/mbedtls-3202cb041a903437/out";
-        assert_eq!(compilation_symbol_suffix(out_dir), Some("3202cb041a903437"));
+    fn extracts_suffix_from_supported_cargo_layouts() {
+        let test_cases = [
+            // Legacy Cargo layout on Unix.
+            ("target/debug/build/mbedtls-3202cb041a903437/out", "3202cb041a903437"),
+            // Cargo build directory layout v2 on Unix.
+            ("target/debug/build/mbedtls/f8d961f56b5f3f44/out", "f8d961f56b5f3f44"),
+            // Legacy Cargo layout on Windows.
+            (r"target\debug\build\mbedtls-3202cb041a903437\out", "3202cb041a903437"),
+            // Cargo build directory layout v2 on Windows.
+            (r"target\debug\build\mbedtls\f8d961f56b5f3f44\out", "f8d961f56b5f3f44"),
+        ];
+
+        for (out_dir, suffix) in test_cases {
+            assert_eq!(compilation_symbol_suffix(out_dir), Some(suffix));
+        }
     }
 
     #[test]
-    fn extracts_suffix_from_new_cargo_layout() {
-        let out_dir = "target/debug/build/mbedtls/f8d961f56b5f3f44/out";
-        assert_eq!(compilation_symbol_suffix(out_dir), Some("f8d961f56b5f3f44"));
-    }
+    fn rejects_unsupported_or_malformed_cargo_layouts() {
+        let test_cases = [
+            "target/debug/build/mbedtls/hash/not-out",
+            "target/debug/build/other-crate-3202cb041a903437/out",
+            "target/debug/build/other-crate/f8d961f56b5f3f44/out",
+            "target/debug/build/mbedtls/out",
+            "target/debug/build/mbedtls-/out",
+            "target/debug/build/mbedtls//out",
+        ];
 
-    #[test]
-    fn extracts_suffix_from_legacy_windows_cargo_layout() {
-        let out_dir = r"target\debug\build\mbedtls-3202cb041a903437\out";
-        assert_eq!(compilation_symbol_suffix(out_dir), Some("3202cb041a903437"));
-    }
-
-    #[test]
-    fn extracts_suffix_from_new_windows_cargo_layout() {
-        let out_dir = r"target\debug\build\mbedtls\f8d961f56b5f3f44\out";
-        assert_eq!(compilation_symbol_suffix(out_dir), Some("f8d961f56b5f3f44"));
+        for out_dir in test_cases {
+            assert_eq!(compilation_symbol_suffix(out_dir), None);
+        }
     }
 }
