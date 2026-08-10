@@ -23,6 +23,9 @@ extern crate rs_libc;
 #[macro_use]
 mod wrapper_macros;
 
+#[cfg(test)]
+mod cargo_layout;
+
 // ==============
 //      API
 // ==============

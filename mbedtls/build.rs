@@ -13,25 +13,17 @@ use std::hash::{Hash, Hasher};
 use rustc_version::Channel;
 use std::env;
 
+#[path = "src/cargo_layout.rs"]
+mod cargo_layout;
+
 /// Retrieves or generates a metadata value used for symbol name mangling to ensure unique C symbols.
 /// When building with Cargo, the metadata value is extracted from the OUT_DIR environment variable.
 /// For Bazel builds, this method generate the suffix by hashing part of the crate OUT_DIR,
 /// which are sufficient for ensuring symbol uniqueness.
 fn get_compilation_symbol_suffix() -> String {
     let out_dir: std::path::PathBuf = std::env::var_os("OUT_DIR").unwrap().into();
-    let mut out_dir_it_rev = out_dir.iter().rev();
-    if out_dir_it_rev.next().map_or(false, |p| p == "out") {
-        // If Cargo is used as build system.
-        let crate_ = out_dir_it_rev
-            .next()
-            .expect("Expected OUT_DIR to have at least 2 components")
-            .to_str()
-            .expect("Expected second to last component of OUT_DIR to be a valid UTF-8 string");
-        assert!(
-            crate_.starts_with("mbedtls-"),
-            "Expected second to last component of OUT_DIR to start with 'mbedtls-'"
-        );
-        return crate_[8..].to_owned(); // Return the part after "mbedtls-"
+    if let Some(suffix) = out_dir.to_str().and_then(cargo_layout::compilation_symbol_suffix) {
+        return suffix.to_owned();
     } else if out_dir.iter().rfind(|p| *p == "bazel-out").is_some() {
         // If Bazel is used as build system.
         let mut hasher = DefaultHasher::new();

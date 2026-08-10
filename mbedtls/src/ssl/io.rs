@@ -56,8 +56,8 @@ pub trait IoCallback<T> {
 
 impl<IO: IoCallback<T>, T> IoCallbackUnsafe<T> for IO {
     unsafe extern "C" fn call_recv(user_data: *mut c_void, data: *mut c_uchar, len: size_t) -> c_int {
-        let len = if len > (c_int::max_value() as size_t) {
-            c_int::max_value() as size_t
+        let len = if len > (c_int::MAX as size_t) {
+            c_int::MAX as size_t
         } else {
             len
         };
@@ -68,8 +68,8 @@ impl<IO: IoCallback<T>, T> IoCallbackUnsafe<T> for IO {
     }
 
     unsafe extern "C" fn call_send(user_data: *mut c_void, data: *const c_uchar, len: size_t) -> c_int {
-        let len = if len > (c_int::max_value() as size_t) {
-            c_int::max_value() as size_t
+        let len = if len > (c_int::MAX as size_t) {
+            c_int::MAX as size_t
         } else {
             len
         };
