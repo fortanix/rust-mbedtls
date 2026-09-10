@@ -31,8 +31,10 @@ impl super::BuildConfig {
             cmk.cflag(cflag);
         }
         let cc = cc::Build::new().get_compiler();
+        let target = std::env::var("TARGET").expect("TARGET environment variable should be set in build scripts");
         if cc.is_like_clang() && cc.args().iter().any(|arg| arg == "-mllvm") {
             cmk.define("CMAKE_C_COMPILER_FORCED", "TRUE");
+            mitigate_cve_2022_66442(&target, &mut cmk);
         }
 
         println!("cargo:rerun-if-env-changed=RUST_MBED_C_COMPILER_BAREMETAL");
@@ -40,7 +42,6 @@ impl super::BuildConfig {
             .map(|val| val == "1")
             .unwrap_or_default();
 
-        let target = std::env::var("TARGET").expect("TARGET environment variable should be set in build scripts");
         // thumbv6m-none-eabi, thumbv7em-none-eabi, thumbv7em-none-eabihf,
         // thumbv7m-none-eabi probably use arm-none-eabi-gcc which can cause the
         // cmake compiler test to fail.
@@ -72,5 +73,17 @@ impl super::BuildConfig {
             dst.join("include").to_str().expect("include/ UTF-8 error")
         );
         println!("cargo:config_h={}", self.config_h.to_str().expect("config.h UTF-8 error"));
+    }
+}
+
+use crate::config;
+
+// To mitigate CVE-2025-66442, make sure select-optimize is disabled when necessary
+fn mitigate_cve_2022_66442(target: &String, cmk: &mut cmake::Config) {
+    let target_asm_protected =
+        target.contains("x86_64") || target.contains("i686") || target.starts_with("arm") || target.starts_with("aarch64");
+    let mbedtls_have_asm = config::default_defines().get("MBEDTLS_HAVE_ASM") == Some(&config::Macro::Defined);
+    if !(target_asm_protected && mbedtls_have_asm) {
+        cmk.cflag("-mllvm --disable-select-optimize=true");
     }
 }
