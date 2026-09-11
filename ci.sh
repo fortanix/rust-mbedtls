@@ -18,6 +18,8 @@ export CFLAGS_x86_64_fortanix_unknown_sgx="-isystem/usr/include/x86_64-linux-gnu
 export CC_x86_64_fortanix_unknown_sgx=clang-18
 export CMAKE_POLICY_VERSION_MINIMUM=3.5
 
+export CC_riscv64gc_unknown_linux_gnu=clang-18
+
 cargo_nextest="cargo nextest run"
 cargo_test="cargo test"
 cargo_build="cargo build"
@@ -33,11 +35,29 @@ fi
 rustup default $RUST_VERSION
 rustup target add --toolchain $RUST_VERSION $TARGET
 
+# This is a helper function to verify the mitigations against CVE-2025-66442
+function check_select_optimize_mitigation() {
+    # x86/x86_64/arm/aarch64 are protected because MBEDTLS_HAVE_ASM is enabled in rust-mbedtls
+    case "$TARGET" in
+        x86_64-*|aarch64-*)
+            echo "Skipping CVE-2025-66442 mitigation check for protected target $TARGET"
+            return 0
+            ;;
+    esac
+
+    # All other architectures must disable select-optimize when clang is used
+    cargo build --target "$TARGET" -vv 2>&1 |
+        grep -q -- "--disable-select-optimize=true"
+}
+
 function common_tests() {
+    echo "1"
     $cargo_nextest --release --target $TARGET
+    echo "2"
     $cargo_nextest --features pkcs12_rc2,dsa,ssl --target $TARGET
     $cargo_nextest --test async_session --features=async-rt,ssl,legacy_protocols --target $TARGET
     $cargo_nextest chrono --features=chrono,ssl,x509 --target $TARGET
+    echo "end common tests"
 
     # If AES-NI is supported, test the feature
     if [ -n "$AES_NI_SUPPORT" ]; then
@@ -50,6 +70,12 @@ function common_tests() {
         $cargo_nextest --test async_session --features=async-rt,ssl,zlib --target $TARGET
         $cargo_nextest --test async_session --features=async-rt,ssl,zlib,legacy_protocols --target $TARGET
     fi
+
+    # make sure select-optimize is disabled when necessary (CVE-2025-66442)
+    check_select_optimize_mitigation || {
+        echo "CVE-2025-66442 mitigation NOT enabled"
+        exit 1
+    }
 }
 
 function check_sgx_build() {
@@ -118,6 +144,15 @@ case "$TARGET" in
     x86_64-apple-darwin)
         common_tests
         $cargo_nextest --no-default-features --features no_std_deps --target $TARGET
+        ;;
+    # this is a hypothetical case, we do not have the means for cross-compiling for riscv
+    # so we do not compile successfully (hence no common_tests)
+    # we just make sure the relevant flag is inserted
+    riscv64gc-unknown-linux-gnu)
+        check_select_optimize_mitigation || {
+            echo "CVE-2025-66442 mitigation NOT enabled"
+            exit 1
+        }
         ;;
     *)
         echo "Error: Unknown or unsupported target: $TARGET" >&2
