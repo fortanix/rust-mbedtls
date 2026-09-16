@@ -10,19 +10,22 @@ use std::fmt::Write as _;
 use std::fs::{self, File};
 use std::io::Write;
 
+use bindgen::callbacks::ItemInfo;
 use crate::headers;
 
 #[derive(Debug)]
 struct MbedtlsParseCallbacks;
 
+fn clean_item_name(item_info_name: &str) -> String {
+    ["mbedtls_", "MBEDTLS_"].iter()
+        .find_map(|prefix| item_info_name.strip_prefix(prefix))
+        .unwrap_or(item_info_name)
+        .to_string()
+}
+
 impl bindgen::callbacks::ParseCallbacks for MbedtlsParseCallbacks {
-    fn item_name(&self, original_item_name: &str) -> Option<String> {
-        Some(
-            original_item_name
-                .trim_start_matches("mbedtls_")
-                .trim_start_matches("MBEDTLS_")
-                .to_owned(),
-        )
+    fn item_name(&self, item_info: ItemInfo<'_>) -> Option<String> {
+        Some(clean_item_name(item_info.name))
     }
 
     fn enum_variant_name(
@@ -31,7 +34,7 @@ impl bindgen::callbacks::ParseCallbacks for MbedtlsParseCallbacks {
         original_variant_name: &str,
         _variant_value: bindgen::callbacks::EnumVariantValue,
     ) -> Option<String> {
-        self.item_name(original_variant_name)
+        Some(clean_item_name(original_variant_name))
     }
 
     fn int_macro(&self, _name: &str, value: i64) -> Option<bindgen::callbacks::IntKind> {
@@ -126,16 +129,32 @@ impl super::BuildConfig {
             };
         }
 
-        let bindings = bindgen::builder()
-            .enable_function_attribute_detection()
+        let target = std::env::var("TARGET").expect("TARGET not set");
+
+        let mut builder = bindgen::builder()
+            .enable_function_attribute_detection();
+
+        if target == "x86_64-fortanix-unknown-sgx" {
+            /*
+            * x86_64-fortanix-unknown-sgx is a Rust target triple.
+            * Clang does not understand it.
+            *
+            * Bindgen only needs the x86-64 C ABI/layout, so use a Clang
+            * target that has a x86-64 SysV ABI.
+            */
+            builder = builder.clang_arg("--target=x86_64-unknown-linux-gnu");
+        }
+
+        let bindings = builder
             .clang_args(cc.get_compiler().args().iter().map(|arg| arg.to_str().unwrap()))
             .header_contents("bindgen-input.h", &input)
-            .allowlist_function("^(?i)mbedtls_.*")
-            .allowlist_type("^(?i)mbedtls_.*")
-            .allowlist_var("^(?i)mbedtls_.*")
+            .allowlist_function("mbedtls_.*")
+            .allowlist_type("mbedtls_.*")
+            .allowlist_var("mbedtls_.*")
+            .allowlist_var("MBEDTLS_.*")
             .allowlist_recursively(false)
-            .blocklist_type("^mbedtls_time_t$")
-            .blocklist_item("^(?i)mbedtls_.*vsnprintf")
+            .blocklist_type("mbedtls_time_t")
+            .blocklist_item("(?i)mbedtls_.*vsnprintf")
             .use_core()
             .ctypes_prefix("::types::raw_types")
             .parse_callbacks(Box::new(MbedtlsParseCallbacks))

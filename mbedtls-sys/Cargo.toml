@@ -35,12 +35,12 @@ libc = { version = "0.2.0" }
 libc = { version = "0.2.0" }
 
 [build-dependencies]
-bindgen = { version = "0.65.1" }
-cmake = "0.1.17"
-cc = "1.0.45"
-lazy_static = "1.4"
-syn = { version = "1.0.64", features = ["full", "visit"] }
-quote = "1.0.9"
+bindgen = { version = "0.73.2", default-features = false, features = ["runtime"] }
+cmake = "0.1.58"
+cc = "1.4.6"
+lazy_static = "1.5.0"
+syn = { version = "3.0.5", features = ["full", "visit"] }
+quote = "1.0.47"
 
 [features]
 # If you use mbedtls-sys in a no_std configuration, you need to provide your
