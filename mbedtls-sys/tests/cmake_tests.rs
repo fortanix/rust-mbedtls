@@ -14,7 +14,7 @@ macro_rules! unit_test {
             let mut cmk = cmake::Config::new(&cfg.mbedtls_src);
 
             assert_eq!(
-                mitigate_cve_2022_66442($cc_is_like_clang, &$target.to_string(), &mut cmk),
+                mitigate_cve_2025_66442($cc_is_like_clang, &$target.to_string(), &mut cmk),
                 $result
             );
         }
