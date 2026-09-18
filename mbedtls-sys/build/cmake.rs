@@ -31,6 +31,8 @@ impl super::BuildConfig {
             cmk.cflag(cflag);
         }
         let cc = cc::Build::new().get_compiler();
+        let target = std::env::var("TARGET").expect("TARGET environment variable should be set in build scripts");
+        self.mitigate_cve_2025_66442(cc.is_like_clang(), &target, &mut cmk);
         if cc.is_like_clang() && cc.args().iter().any(|arg| arg == "-mllvm") {
             cmk.define("CMAKE_C_COMPILER_FORCED", "TRUE");
         }
@@ -40,7 +42,6 @@ impl super::BuildConfig {
             .map(|val| val == "1")
             .unwrap_or_default();
 
-        let target = std::env::var("TARGET").expect("TARGET environment variable should be set in build scripts");
         // thumbv6m-none-eabi, thumbv7em-none-eabi, thumbv7em-none-eabihf,
         // thumbv7m-none-eabi probably use arm-none-eabi-gcc which can cause the
         // cmake compiler test to fail.
@@ -72,5 +73,20 @@ impl super::BuildConfig {
             dst.join("include").to_str().expect("include/ UTF-8 error")
         );
         println!("cargo:config_h={}", self.config_h.to_str().expect("config.h UTF-8 error"));
+    }
+
+    /// To mitigate CVE-2025-66442, make sure select-optimize is disabled when necessary
+    /// returns true iff "-mllvm" and "--disable-select-optimize=true" flags are added to cmk
+    /// Note: this function is public only because we have a unit test for it in test/cmake_tests.rs
+    /// Note: this function returns a boolean so that we can confirm its functionality via a unit test
+    pub fn mitigate_cve_2025_66442(&self, cc_is_like_clang: bool, target: &String, cmk: &mut cmake::Config) -> bool {
+        let target_asm_protected =
+            target.contains("x86_64") || target.contains("i686") || target.starts_with("arm") || target.starts_with("aarch64");
+
+        if cc_is_like_clang && !(target_asm_protected && self.mbedtls_have_asm_defined) {
+            cmk.cflag("-mllvm --disable-select-optimize=true");
+            return true;
+        }
+        return false;
     }
 }

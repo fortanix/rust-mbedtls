@@ -80,3 +80,11 @@ unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(time_component, values("custom", "libc"))',
     'cfg(target_env, values("fortanixvme"))',
 ] }
+
+[dev-dependencies]
+bindgen = { version = "0.65.1" }
+cmake = "0.1.17"
+cc = "1.0.45"
+lazy_static = "1.4"
+syn = { version = "1.0.64", features = ["full", "visit"] }
+quote = "1.0.9"
