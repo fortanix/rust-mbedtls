@@ -19,6 +19,7 @@ mod mod_bindgen;
 #[path = "cmake.rs"]
 mod mod_cmake;
 
+use config::Macro;
 use features::FEATURES;
 use std::env;
 use std::fs::File;
@@ -30,10 +31,11 @@ struct BuildConfig {
     mbedtls_src: PathBuf,
     config_h: PathBuf,
     cflags: Vec<String>,
+    mbedtls_have_asm_defined: bool, // this flag is to help ensure the mitigation against CVE-2025-66442
 }
 
 impl BuildConfig {
-    fn create_config_h(&self) {
+    fn create_config_h(&mut self) {
         let mut defines = config::default_defines();
         for &(feat, def) in config::FEATURE_DEFINES {
             if FEATURES.have_feature(feat) {
@@ -45,6 +47,8 @@ impl BuildConfig {
                 defines.insert(def.0, def.1);
             }
         }
+
+        self.mbedtls_have_asm_defined = defines.get("MBEDTLS_HAVE_ASM").is_some_and(|def| *def == Macro::Defined);
 
         File::create(&self.config_h)
             .and_then(|mut f| {
@@ -96,12 +100,13 @@ impl BuildConfig {
             out_dir,
             mbedtls_src,
             cflags,
+            mbedtls_have_asm_defined: false,
         }
     }
 }
 
 fn main() {
-    let cfg = BuildConfig::new();
+    let mut cfg = BuildConfig::new();
     cfg.create_config_h();
     cfg.print_rerun_files();
     cfg.cmake();

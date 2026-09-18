@@ -8,13 +8,13 @@ macro_rules! unit_test {
         #[test]
         fn $fn_name() {
             // set the testing environment up
-            let cfg = BuildConfig::new();
+            let mut cfg = BuildConfig::new();
             cfg.create_config_h();
             cfg.print_rerun_files();
             let mut cmk = cmake::Config::new(&cfg.mbedtls_src);
 
             assert_eq!(
-                mitigate_cve_2025_66442($cc_is_like_clang, &$target.to_string(), &mut cmk),
+                cfg.mitigate_cve_2025_66442($cc_is_like_clang, &$target.to_string(), &mut cmk),
                 $result
             );
         }
