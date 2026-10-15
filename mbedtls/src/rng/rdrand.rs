@@ -11,10 +11,98 @@ use core::slice::from_raw_parts_mut;
 use mbedtls_sys::types::raw_types::{c_int, c_uchar, c_void};
 use mbedtls_sys::types::size_t;
 
+#[cfg(target_arch = "aarch64")]
+use aarch64_rdrand::{_rdrand_step, _rdseed_step};
 #[cfg(target_arch = "x86")]
 use core::arch::x86_64::{_rdrand32_step as _rdrand_step, _rdseed32_step as _rdseed_step};
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::{_rdrand64_step as _rdrand_step, _rdseed64_step as _rdseed_step};
+
+#[cfg(target_arch = "aarch64")]
+mod aarch64_rdrand {
+    #[inline]
+    pub fn _rdrand_step(val: &mut u64) -> i32 {
+        if std::arch::is_aarch64_feature_detected!("rand") {
+            (unsafe { rdrand_impl::__rndr(val) } == 0) as i32
+        } else {
+            *val = 0;
+            0
+        }
+    }
+
+    #[inline]
+    pub fn _rdseed_step(val: &mut u64) -> i32 {
+        if std::arch::is_aarch64_feature_detected!("rand") {
+            (unsafe { rdrand_impl::__rndrrs(val) } == 0) as i32
+        } else {
+            *val = 0;
+            0
+        }
+    }
+
+    #[cfg(all(nightly, not(feature = "rdrand_stable")))]
+    mod rdrand_impl {
+        pub use core::arch::aarch64::{__rndr, __rndrrs};
+    }
+
+    #[cfg(any(not(nightly), feature = "rdrand_stable"))]
+    mod rdrand_impl {
+        #[inline]
+        pub unsafe fn __rndr(val: *mut u64) -> i32 {
+            let value: u64;
+            let success: u32;
+
+            core::arch::asm!(
+                "mrs {value}, S3_3_C2_C4_0",
+                "cset {success:w}, eq",
+                value = out(reg) value,
+                success = out(reg) success,
+                options(nostack),
+            );
+
+            unsafe { *val = value };
+
+            success as i32
+        }
+
+        #[inline]
+        pub unsafe fn __rndrrs(val: *mut u64) -> i32 {
+            let value: u64;
+            let success: u32;
+
+            core::arch::asm!(
+                "mrs {value}, S3_3_C2_C4_1",
+                "cset {success:w}, eq",
+                value = out(reg) value,
+                success = out(reg) success,
+                options(nostack),
+            );
+
+            unsafe { *val = value };
+
+            success as i32
+        }
+    }
+
+    #[cfg(test)]
+    mod test {
+        use super::*;
+
+        #[test]
+        fn rndr_test() {
+            let mut value = 0u64;
+            assert_eq!(_rdrand_step(&mut value), 1);
+            assert!(value != 0);
+        }
+
+        #[test]
+        fn rndrrs_test() {
+            let mut value = 0u64;
+            assert_eq!(_rdseed_step(&mut value), 1);
+            assert!(value != 0);
+        }
+    }
+}
 
 // Intel documentation claims that if hardware is working RDRAND will produce
 // output after at most 10 attempts

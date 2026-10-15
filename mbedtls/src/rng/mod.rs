@@ -27,8 +27,8 @@ use crate::error::{IntoResult, Result};
 use mbedtls_sys::types::raw_types::{c_int, c_uchar};
 use mbedtls_sys::types::size_t;
 
-callback!(EntropyCallbackMut,EntropyCallback(data: *mut c_uchar, len: size_t) -> c_int);
-callback!(RngCallbackMut,RngCallback(data: *mut c_uchar, len: size_t) -> c_int);
+callback!(EntropyCallbackMut, EntropyCallback(data: *mut c_uchar, len: size_t) -> c_int);
+callback!(RngCallbackMut, RngCallback(data: *mut c_uchar, len: size_t) -> c_int);
 
 pub trait Random: RngCallback {
     fn random(&mut self, data: &mut [u8]) -> Result<()>

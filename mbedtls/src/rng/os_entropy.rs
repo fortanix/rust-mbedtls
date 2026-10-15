@@ -15,7 +15,10 @@ use mbedtls_sys::*;
 use crate::error::{IntoResult, Result};
 use crate::rng::{EntropyCallback, EntropyCallbackMut};
 
-callback!(EntropySourceCallbackMut,EntropySourceCallback(data: *mut c_uchar, size: size_t, out: *mut size_t) -> c_int);
+callback!(
+    EntropySourceCallbackMut,
+    EntropySourceCallback(data: *mut c_uchar, size: size_t, out: *mut size_t) -> c_int
+);
 
 define!(
     #[c_ty(entropy_context)]
